@@ -209,10 +209,11 @@ namespace FDG.GameModel
                     _playerSlotManager, textOutput);
             }
 
-            // Game Master play (host-side testing tools): wrap the request channel so queued GM changes apply
-            // at safe points, and publish the hub for this process's front end. Never on a simulation.
+            // Game Master (host-side tools): in every real game now, not only the Game Master play style. Wraps
+            // the request channel so queued GM changes apply at safe points, and publishes the hub for this
+            // (the host's) front end only - joining players never get it. Never on a simulation.
             FDG.GameMasterTools.GameMasterHub? gameMaster = null;
-            if (gameSettings.PlayStyle == EPlayStyle.GameMaster && _simulation == null)
+            if (_simulation == null)
             {
                 gameMaster = new FDG.GameMasterTools.GameMasterHub();
                 IEnumerable<PlayerID> bots = _playerSlotManager.PlayerSlots
