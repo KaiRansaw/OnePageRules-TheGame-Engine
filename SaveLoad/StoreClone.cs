@@ -87,7 +87,10 @@ namespace FDG.SaveLoad
                 new TeamData(team.TeamNumber, CopyList(team.Players)!)),
 
             [typeof(ObjectiveData)] = Copy<ObjectiveData>(static (objective, target) =>
-                new ObjectiveData(objective.Position, Rebind(target, objective.OwnerIDBinding)!)),
+                new ObjectiveData(objective.Position, Rebind(target, objective.OwnerIDBinding)!,
+                    objective.HordeNumber,
+                    Rebind(target, objective.HordeDamageBinding),
+                    Rebind(target, objective.HordePriorityBinding))),
 
             [typeof(ModelData)] = Copy<ModelData>(static (model, target) =>
                 new ModelData(model,
@@ -111,7 +114,8 @@ namespace FDG.SaveLoad
                     progress.CurrentPlayerIndexPerTeam == null ? null! : new Dictionary<int, int>(progress.CurrentPlayerIndexPerTeam),
                     RebindList(target, progress.UnactivatedUnits)!,
                     progress.Settings,
-                    Rebind(target, progress.ActivatingUnit))),
+                    Rebind(target, progress.ActivatingUnit),
+                    progress.Horde)),
         };
 
         private static Action<GameDataStore, GameDataStore> Copy<T>(Func<T, GameDataStore, T> cloneValue) =>

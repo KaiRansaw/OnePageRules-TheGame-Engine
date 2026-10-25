@@ -43,6 +43,17 @@ namespace FDG.Stages
                     GameProgressUtilities.Capture(context, GameContext.Settings, EResumeStage.MainPhase));
             }
 
+            // Game Master "end the round now": nobody left to activate, so the round closes right here and
+            // the normal end-of-round steps (objectives, Horde damage / rewards) run.
+            if (GameContext.GameMaster?.ConsumeEndRound() == true)
+            {
+                foreach (List<DataBinding<UnitData>> pool in context.UnactivatedUnits.Values)
+                    pool.Clear();
+                context.Log("Game Master: the round ends now.");
+                await OnNoPlayersLeft.Activate(context);
+                return;
+            }
+
             // #197 P19 turn-order override: a unit flagged to take the next activation displaces the normal
             // alternation, and the cursor goes to ITS OWNER - who may be an ally, so that player resolves
             // the activation with their own controller rather than the granting player driving it.
@@ -80,6 +91,10 @@ namespace FDG.Stages
                     return;
                 }
             }
+
+            // Take Back: the same boundary as the hook above - the rolling save point is already written,
+            // so a game relaunched from this snapshot re-plays this activation from its start.
+            GameContext.TakeBack?.Capture(GameContext.GameDataStore, context.RoundCount, nextPlayerID.Value);
 
             if (_lastAnnouncedPlayer != nextPlayerID.Value)
             {

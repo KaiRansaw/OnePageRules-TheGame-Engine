@@ -52,7 +52,11 @@ public static class CoreRuleCatalog
         StormOfChange, StormOfLust, StormOfPlague, StormOfWar,
         Fanatic, ReDeployment,
         Retaliate, Deathstrike, SelfDestruct,
-    };
+        TraitAgile, TraitHeadstrong, TraitMeleeSpecialist, TraitShootingSpecialist, TraitResilient,
+        TraitElite, TraitFastLearner,
+        HitPenaltyWhenShooting, HitPenaltyInMelee, RangePenaltyWhenShooting,
+        ExtraHitCloseUp, ExtraHitInMelee, ExtraHitWhenShooting, ExtraHitAny, TwoExtraHits,
+    }.Concat(CampaignRuleCatalog.All).ToArray();
 
     /// <summary>
     /// A fresh <see cref="RuleResolver"/> with every catalog rule registered under
@@ -245,6 +249,102 @@ public static class CoreRuleCatalog
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
         Description: "+1 to hit when this unit shoots.");
+
+    // Horde Mode traits (OPR Horde Mode v3.5.0, "Levelling Up") ---------------------
+    // Granted by HordeExperience as permanent RuleGrant tokens when a defending unit levels up. Named
+    // "Trait: X" so they can never collide with an army book's own rule of the same name (several books
+    // already define an "Agile").
+
+    /// <summary> Horde trait Agile: Advance +1", Rush/Charge +2" (half of <see cref="Fast"/>). </summary>
+    public static SpecialRuleDefinition TraitAgile { get; } = new SpecialRuleDefinition("Trait: Agile",
+        new[]
+        {
+            new HookEntry(EHookID.Movement_OnMoveActionDeclared,
+                new Condition.ActionTypeIs(EActionType.Advance),
+                new Effect.MovementBonus(EActionType.Advance, DistanceInches: 1f),
+                ELifetime.ThisActivation),
+            new HookEntry(EHookID.Movement_OnMoveActionDeclared,
+                new Condition.ActionTypeIs(EActionType.Rush),
+                new Effect.MovementBonus(EActionType.Rush, DistanceInches: 2f),
+                ELifetime.ThisActivation),
+            new HookEntry(EHookID.Movement_OnMoveActionDeclared,
+                new Condition.ActionTypeIs(EActionType.Charge),
+                new Effect.MovementBonus(EActionType.Charge, DistanceInches: 2f),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait: moves +1\" when Advancing and +2\" when Rushing or Charging.");
+
+    /// <summary> Horde trait Headstrong: +1 to morale test rolls (as <see cref="Courage"/>). </summary>
+    public static SpecialRuleDefinition TraitHeadstrong { get; } = new SpecialRuleDefinition("Trait: Headstrong",
+        new[]
+        {
+            new HookEntry(EHookID.Morale_OnPreMoraleTest,
+                new Condition.Always(),
+                new Effect.RollModifier(ERollKind.Morale, Delta: +1),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait: +1 to this unit's morale test rolls.");
+
+    /// <summary> Horde trait Specialist, melee pick: +1 to hit in melee. </summary>
+    public static SpecialRuleDefinition TraitMeleeSpecialist { get; } = new SpecialRuleDefinition("Trait: Melee Specialist",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                new Condition.IsMelee(),
+                new Effect.RollModifier(ERollKind.Hit, Delta: +1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait (Specialist): +1 to hit in melee.");
+
+    /// <summary> Horde trait Specialist, shooting pick: +1 to hit when shooting (as <see cref="GoodShot"/>). </summary>
+    public static SpecialRuleDefinition TraitShootingSpecialist { get; } = new SpecialRuleDefinition("Trait: Shooting Specialist",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                new Condition.Not(new Condition.IsMelee()),
+                new Effect.RollModifier(ERollKind.Hit, Delta: +1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait (Specialist): +1 to hit when shooting.");
+
+    /// <summary> Horde trait Resilient: +1 to Defense rolls when blocking hits (a defender-seat save modifier). </summary>
+    public static SpecialRuleDefinition TraitResilient { get; } = new SpecialRuleDefinition("Trait: Resilient",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                new Condition.AllModelsHaveThisRule(),   // required of defender-seat rules (as Shielded)
+                new Effect.RollModifier(ERollKind.Save, Delta: +1),
+                ELifetime.ThisAttack,
+                ERuleSeat.Subject),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait: +1 to this unit's Defense rolls when blocking hits.");
+
+    /// <summary>
+    /// Horde trait Elite. No hooks: the once-per-round re-roll is applied by the morale test itself
+    /// (<c>MoraleUtilities.TakeMoraleTest</c>), which looks for this rule's grant.
+    /// </summary>
+    public static SpecialRuleDefinition TraitElite { get; } = new SpecialRuleDefinition("Trait: Elite",
+        Array.Empty<HookEntry>(),
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait: once per round, re-roll a failed morale test.");
+
+    /// <summary> Horde trait Fast Learner: a marker that the unit picked a trait of its choice. </summary>
+    public static SpecialRuleDefinition TraitFastLearner { get; } = new SpecialRuleDefinition("Trait: Fast Learner",
+        Array.Empty<HookEntry>(),
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Horde trait: this unit picked one of its other traits instead of rolling for it.");
 
     // Movement-modifier sink (MovementActionContext) -----------------------------
 
@@ -989,6 +1089,76 @@ public static class CoreRuleCatalog
             Array.Empty<ActivatedAbility>(),
             Valence: EValence.Positive,
             Description: "+1 to hit rolls when shooting.");
+
+    private static SpecialRuleDefinition ExtraHitRule(string name, Condition when, string description, int count = 1) =>
+        new SpecialRuleDefinition(name,
+            new[] { new HookEntry(EHookID.Shooting_OnHitRollComplete, when, new Effect.AddExtraHitIfAnyHit(count), ELifetime.ThisAttack) },
+            Array.Empty<ActivatedAbility>(),
+            Valence: EValence.Positive,
+            Description: description);
+
+    /// <summary> Star Quest (Flurry of Blows, Combat Superiority): granted for the next attack. </summary>
+    public static SpecialRuleDefinition ExtraHitCloseUp { get; } = ExtraHitRule("Extra hit in melee or within 12\"",
+        new Condition.Not(new Condition.DistanceGreaterThan(12f)),
+        "Attacking in melee or shooting from within 12\": if it deals at least one hit, it deals one extra hit.");
+
+    /// <summary> Star Quest (Stalking Pet, Assassination, Ancient Aura, Vicious): granted for the next attack. </summary>
+    public static SpecialRuleDefinition ExtraHitAny { get; } = ExtraHitRule("Extra hit",
+        new Condition.Always(), "If the attack deals at least one hit, it deals one extra hit.");
+
+    /// <summary> Star Quest (Dazed Attack): granted for the next charge. </summary>
+    public static SpecialRuleDefinition TwoExtraHits { get; } = ExtraHitRule("Two extra hits",
+        new Condition.Always(), "If the attack deals at least one hit, it deals two extra hits.", count: 2);
+
+    /// <summary> Star Quest (Soldier's Might): granted for the next melee attack. </summary>
+    public static SpecialRuleDefinition ExtraHitInMelee { get; } = ExtraHitRule("Extra hit in melee",
+        new Condition.IsMelee(), "In melee: if it deals at least one hit, it deals one extra hit.");
+
+    /// <summary> Star Quest (Pathfinder's Precision): granted for the next shooting attack. </summary>
+    public static SpecialRuleDefinition ExtraHitWhenShooting { get; } = ExtraHitRule("Extra hit when shooting",
+        new Condition.Not(new Condition.IsMelee()), "When shooting: if it deals at least one hit, it deals one extra hit.");
+
+    /// <summary> Star Quest (Night / Dawn, Dazing Spores): -1 to hit rolls when shooting. Granted for a round. </summary>
+    public static SpecialRuleDefinition HitPenaltyWhenShooting { get; } =
+        new SpecialRuleDefinition("-1 to hit rolls when shooting",
+            new[]
+            {
+                new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                    new Condition.Not(new Condition.IsMelee()),
+                    new Effect.RollModifier(ERollKind.Hit, Delta: -1),
+                    ELifetime.ThisAttack),
+            },
+            Array.Empty<ActivatedAbility>(),
+            Valence: EValence.Negative,
+            Description: "-1 to hit rolls when shooting.");
+
+    /// <summary> Star Quest (Bad / Improving weather): -1 to hit rolls in melee. Granted for a round. </summary>
+    public static SpecialRuleDefinition HitPenaltyInMelee { get; } =
+        new SpecialRuleDefinition("-1 to hit rolls in melee",
+            new[]
+            {
+                new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                    new Condition.IsMelee(),
+                    new Effect.RollModifier(ERollKind.Hit, Delta: -1),
+                    ELifetime.ThisAttack),
+            },
+            Array.Empty<ActivatedAbility>(),
+            Valence: EValence.Negative,
+            Description: "-1 to hit rolls in melee.");
+
+    /// <summary> Star Quest (Thick Clouds): -6" range when shooting. Granted for a round. </summary>
+    public static SpecialRuleDefinition RangePenaltyWhenShooting { get; } =
+        new SpecialRuleDefinition("-6\" range when shooting",
+            new[]
+            {
+                new HookEntry(EHookID.Shooting_OnRangeCheck,
+                    new Condition.Always(),
+                    new Effect.RangeModifier(Delta: -6, MinResultInches: 1),
+                    ELifetime.ThisActivation),
+            },
+            Array.Empty<ActivatedAbility>(),
+            Valence: EValence.Negative,
+            Description: "This unit's ranged weapons get -6\" range.");
 
     /// <summary> "AP(+1) in melee": melee-gated save modifier — <see cref="PiercingAssault"/> without the charge gate. </summary>
     public static SpecialRuleDefinition ApBonusInMelee { get; } =

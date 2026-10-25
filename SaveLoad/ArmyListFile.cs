@@ -60,6 +60,12 @@ namespace FDG.SaveLoad
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public List<UnitFileEntry>? AuxiliaryUnits { get; set; }
 
+        /// <summary>GF: Firefight Campaign: set when this army is a strike team (its VP, saved points and match
+        /// history). Null for every other army, and then left out of the file.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public FDG.Campaign.StrikeTeamInfo? StrikeTeam { get; set; }
+
         /// <summary>
         /// Special-rule definitions that travel embedded with this army (#059). Registered into the
         /// game's rule resolver — core-first, then these, override-by-name — when the army loads, so a

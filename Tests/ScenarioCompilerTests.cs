@@ -223,8 +223,8 @@ namespace FDG.Tests
             {
                 Position pos = modelBinding.GetValue().Position;
                 Assert.That(pos.x != 0f || pos.z != 0f, "Auto-placed models must be on the table.");
-                Assert.That(pos.z, Is.EqualTo(39f).Within(0.001f),
-                    "Team 1 rows at tableH - deploymentDistance = 48 - 9.");
+                Assert.That(pos.z, Is.EqualTo(36f).Within(0.001f),
+                    "Team 1 rows at tableH - deploymentDistance = 48 - 12.");
             }
 
             // Default objectives: three across the midline.

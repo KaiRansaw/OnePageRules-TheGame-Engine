@@ -80,6 +80,7 @@ namespace FDG.Stages
                 // Action; its per-target batches loop through OnBatchDone (back to itself) until the queue
                 // drains, then OnAllDone returns to the menu. Fully layered like Teleport.
                 .AddChild(new StormStage(GameContext, this), out var storm)
+                .AddChild(new QuestActionStage(GameContext, this), out var questAction)
                 .AddSibling(nameof(ToReconcileEndOfActivation), ToReconcileEndOfActivation, out string toReconcileActivationEvent)
                 // #248: the pristine back-out leaves through its own sibling event so no end-of-activation
                 // reconcile runs and nothing marks the unit as activated.
@@ -105,6 +106,9 @@ namespace FDG.Stages
             chooseAction.ToEmbark.Bind(embark);
             chooseAction.ToTeleport.Bind(teleport);
             chooseAction.ToStorm.Bind(storm);
+            chooseAction.ToQuestAction.Bind(questAction);
+            questAction.OnFinished.Bind(chooseAction);
+            questAction.ToEndActivation.Bind(toReconcileActivationEvent);
             // Each resolved batch re-enters StormStage to process the next target; when the queue empties it
             // exits to the menu. The unit may then still move/attack (Storm is layered, not an attack).
             storm.OnBatchDone.Bind(storm);

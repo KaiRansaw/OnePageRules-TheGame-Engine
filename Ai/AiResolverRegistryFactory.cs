@@ -20,7 +20,7 @@ namespace FDG.Ai
         /// </param>
         /// <param name="slotID">The player's slot index. Stable across runs and across save/resume, unlike the PlayerID GUID.</param>
         public static IStageResolverRegistry BuildSoloRules(ITableState tableState, PlayerID playerID,
-            int? seed = null, int slotID = 0)
+            int? seed = null, int slotID = 0, bool starQuest = false)
         {
             int? playerSeed = GameRandom.DeriveForSlot(seed, slotID);
             Random? objectiveRng = playerSeed.HasValue ? GameRandom.Create(playerSeed, salt: 1) : null;
@@ -35,37 +35,52 @@ namespace FDG.Ai
             var evaluator = new Rules.Dispatch.RuleEvaluator(new ProbabilisticDiceRoller());
 
             var stringSelection = new AiStringSelectionResolver(tableState, playerID, declineLatch);
+            var questMemory = new StarQuest.StarQuestAiMemory();
 
             IStageResolverRegistry registry = new StageResolverRegistry()
                 .RegisterResolver(new AiYesNoResolver())
                 .RegisterResolver<StageResolution.Requests.StringSelectionRequest, string>(stringSelection)
                 // #191 B1 step 5a: Choose Action is its own request type; the same instance answers it.
-                .RegisterResolver<StageResolution.Requests.ChooseActionRequest, string>(stringSelection)
+                .RegisterResolver<StageResolution.Requests.ChooseActionRequest, string>(starQuest
+                    ? new StarQuest.StarQuestActionResolver(tableState, playerID, declineLatch, stringSelection, questMemory)
+                    : stringSelection)
                 .RegisterResolver(new AiChooseAbilityEffectResolver())
-                .RegisterResolver(new AiChooseSpellResolver())
+                .RegisterResolver(starQuest
+                    ? new StarQuest.StarQuestSpellResolver(playerSeed)
+                    : (IStageResolver<StageResolution.Requests.ChooseSpellRequest, StageResolution.Requests.ChooseSpellReply>)new AiChooseSpellResolver())
                 .RegisterResolver(new AiCastAssistResolver())
                 .RegisterResolver(new AiChooseDeploymentZoneResolver())
-                .RegisterResolver(new AiChooseRangedAttackResolver())
+                .RegisterResolver(starQuest
+                    ? new StarQuest.StarQuestRangedAttackResolver()
+                    : (IStageResolver<StageResolution.Requests.ChooseRangedAttackRequest,
+                        CancellableResult<StageResolution.Requests.ChooseRangedAttackRequest.RangedAttackChoice>>)new AiChooseRangedAttackResolver())
                 .RegisterResolver(new AiChooseMeleeDefenderResolver())
                 .RegisterResolver(new DerivedRequestAdapter<StageResolution.Requests.ChooseMeleeDefenderRequest,
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
                     StageResolution.CancellableResult<Data.DataBinding<UnitData>>>(
                     new AiChooseMeleeDefenderResolver()))
-                .RegisterResolver(new AiDefineMovementResolver(tableState, playerID, declineLatch))
+                .RegisterResolver(starQuest
+                    ? new StarQuest.StarQuestMovementResolver(tableState, playerID, declineLatch, questMemory)
+                    : (IStageResolver<StageResolution.Requests.DefineMovementPathRequest,
+                        CancellableResult<List<StageResolution.Requests.ModelMoveEntry>>>)new AiDefineMovementResolver(tableState, playerID, declineLatch))
                 .RegisterResolver(new AiAircraftAdvanceResolver())
                 .RegisterResolver(new AiConsolidationMoveResolver(tableState, playerID))
                 .RegisterResolver(new AiAssignWoundsResolver())
                 .RegisterResolver(new AiSelectionResolver<UnitData>(evaluator))
                 // #191 A4-1's request split: activation is its own type; solo-rules keeps the same
                 // first-option behavior via the adapter (pinned by the benchmark hashes).
-                .RegisterResolver(new DerivedRequestAdapter<StageResolution.Requests.ChooseUnitToActivateRequest,
+                .RegisterResolver(starQuest
+                    ? new StarQuest.StarQuestActivationResolver(tableState, playerID)
+                    : (IStageResolver<StageResolution.Requests.ChooseUnitToActivateRequest, Data.DataBinding<UnitData>>)
+                    new DerivedRequestAdapter<StageResolution.Requests.ChooseUnitToActivateRequest,
                     StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>(
                     new AiSelectionResolver<UnitData>()))
                 .RegisterResolver(new AiSelectionResolver<ModelData>())
                 .RegisterResolver(new AiSelectionResolver<RectangularZone>())
                 .RegisterResolver(new AiPlaceObjectsResolver<ModelData>(tableState))
                 .RegisterResolver(new AiPlaceObjectiveResolver(tableState, objectiveRng))
-                .RegisterResolver(new AiPlaceOneTerrainResolver(tableState, terrainRng));
+                .RegisterResolver(new AiPlaceOneTerrainResolver(tableState, terrainRng))
+                .RegisterResolver(new AiHordeShopResolver());
 
             if (SlowMode)
                 registry = new AiSlowModeRegistry(registry, SlowModeDelayMs);

@@ -47,6 +47,17 @@ namespace FDG.GameModel
         private GameContext _gameContext;
         private StateMachine<IGameContext> _stateMachine;
 
+        // Take Back: the outermost request wrapper, so Stop() can end this game cleanly when a rewind
+        // replaces it. Null on simulations.
+        private FDG.TakeBackTools.StoppableRequester? _stoppable;
+
+        /// <summary>
+        /// Ends this game quietly: the decision being waited on (and any later one) fails with a stop
+        /// signal that unwinds the state machine. No game-over is raised. Used by Take Back, which replaces
+        /// the running game with one relaunched from an earlier save point.
+        /// </summary>
+        public void Stop() => _stoppable?.Stop();
+
         // #280: validates + re-broadcasts remote clients' live decision previews. Held only for
         // ownership/lifetime clarity - nothing else reads it (it lives on its bus registrations).
         private PreviewRelayer _previewRelayer;
@@ -168,6 +179,9 @@ namespace FDG.GameModel
 
         private void BuildContextAndLaunch(GameSettings gameSettings, bool applyCreationRules, GameProgressData? resumeProgress)
         {
+            // Star Quest plays on a 4' x 4' table; everything else on 6' x 4'.
+            GameWideConstants.ConfigureTable(gameSettings.GameSystem);
+
             LogAndChatMessageRelayer chatMessageRelayer = new LogAndChatMessageRelayer(_playerSlotManager);
 
             ITextOutput textOutput = new PlayerLogSender(chatMessageRelayer);
@@ -195,14 +209,44 @@ namespace FDG.GameModel
                     _playerSlotManager, textOutput);
             }
 
+            // Game Master play (host-side testing tools): wrap the request channel so queued GM changes apply
+            // at safe points, and publish the hub for this process's front end. Never on a simulation.
+            FDG.GameMasterTools.GameMasterHub? gameMaster = null;
+            if (gameSettings.PlayStyle == EPlayStyle.GameMaster && _simulation == null)
+            {
+                gameMaster = new FDG.GameMasterTools.GameMasterHub();
+                IEnumerable<PlayerID> bots = _playerSlotManager.PlayerSlots
+                    .Where(slot => slot.Controller is ComputerPlayerController)
+                    .Select(slot => slot.PlayerID);
+                playerRequester = new FDG.GameMasterTools.GameMasterRequester(playerRequester, gameMaster, bots);
+            }
+
+            FDG.TakeBackTools.TakeBackHistory.Recorder? takeBackRecorder = null;
+            // Take Back: real games record a save point at every activation start and can be stopped from
+            // outside. Simulations never touch the shared history.
+            if (_simulation == null)
+            {
+                _stoppable = new FDG.TakeBackTools.StoppableRequester(playerRequester);
+                playerRequester = _stoppable;
+                takeBackRecorder = FDG.TakeBackTools.TakeBackHistory.Shared.OnGameStarting();
+            }
+
             // #280: relay remote clients' live decision previews (ghosts / planned paths) to every
             // player. Runs on both the new-game and resume paths, GUI and headless hosts alike.
             _previewRelayer = new PreviewRelayer(_messageBusHost, _playerSlotManager, textOutput);
 
             _gameContext = new GameContext(textOutput, GetDiceRoller(gameSettings), playerRequester,
                 tableState, _gameDataStore, presentationRelayer, gameSettings, resumeProgress, _ruleResolver,
-                _simulation?.BoundaryHook);
+                _simulation?.BoundaryHook, gameMaster);
             _gameContext.OnGameCompleted += RaiseGameCompleted;
+            _gameContext.TakeBack = takeBackRecorder;
+
+            if (gameMaster != null)
+            {
+                gameMaster.Attach(_gameContext);
+                FDG.GameMasterTools.GameMasterHub.SetActive(gameMaster);
+                _gameContext.OnGameCompleted += _ => FDG.GameMasterTools.GameMasterHub.ClearIfActive(gameMaster);
+            }
 
             // #042 creation-time rules (Tough): set each model's max wounds now that the evaluator
             // exists. Skipped on resume — max wounds are already in the loaded store (persisted on
@@ -221,7 +265,14 @@ namespace FDG.GameModel
                 return;
             }
 
-            _stateMachine = new StateMachine<IGameContext>(new GDFStateMachineBuilder(), _gameContext);
+            IStateMachineBuilder<IGameContext> stateMachineBuilder = gameSettings.GameMode switch
+            {
+                EGameMode.Horde => new HordeStateMachineBuilder(),
+                EGameMode.StarQuestHorde => new FDG.StateMachine.StarQuestHordeStateMachineBuilder(),
+                EGameMode.StarQuestMission => new FDG.StateMachine.StarQuestMissionStateMachineBuilder(),
+                _ => new GDFStateMachineBuilder(),
+            };
+            _stateMachine = new StateMachine<IGameContext>(stateMachineBuilder, _gameContext);
 
             _ = LaunchStateMachineOnceReady(_stateMachine, _gameContext, resumeProgress != null);
         }
@@ -309,6 +360,12 @@ namespace FDG.GameModel
                 string message = DescribePlayerLeft(_playerSlotManager, disconnect.PlayerID);
                 Console.WriteLine($"Game ended: {message}");
                 RaiseGameCompleted(GameResult.ForDisconnect(message));
+            }
+            catch (FDG.TakeBackTools.GameStoppedSignal)
+            {
+                // Take Back replaced this game with a relaunch. Nothing to report - the front end has
+                // already moved on to the new game.
+                Debug.WriteLine("Game stopped (replaced by a Take Back relaunch).");
             }
             catch (FDG.Simulation.SimulationStopSignal)
             {

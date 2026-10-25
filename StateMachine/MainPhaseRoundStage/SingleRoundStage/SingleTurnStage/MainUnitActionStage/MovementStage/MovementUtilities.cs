@@ -204,7 +204,7 @@ namespace FDG.Stages
             else
                 ValidateCoherency(moves, ref sink);
             ValidateChargeReach(geometry, move => budgetFor(move).MaxRushDistance, enemies, ref sink);
-            ValidateEndsOnFriendly(geometry, friendlies, ref sink);
+            ValidateEndsOnFriendly(geometry, friendlies, ref sink, enemies);
             ValidateNoSelfOverlap(geometry, ref sink);
             ValidateEndsOnTable(geometry, ref sink);
         }
@@ -1046,11 +1046,27 @@ namespace FDG.Stages
             List<ITerrain> difficult = TerrainSets(terrain).Difficult;
             if (difficult.Count == 0) return;
 
+            // Rules accuracy: the cap is UNIT-wide. "If any model in a unit moves in or through difficult
+            // terrain at any point of its move, then all models in the unit may not move more than 6\" for
+            // that movement" (GF v3.5.1 core rules). So once one model's path touches difficult terrain,
+            // every model that moved further than 6" is over the limit - even one that stayed in the open.
+            // Cheap early-out first: nobody moved over 6", so nothing can break the cap.
+            bool anyOverCap = false;
+            for (int i = 0; i < geometry.Length && !anyOverCap; i++)
+                anyOverCap = geometry[i].TotalDistance > GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+            if (!anyOverCap) return;
+
+            bool unitTouchedDifficult = false;
+            for (int i = 0; i < geometry.Length && !unitTouchedDifficult; i++)
+            {
+                if (geometry[i].Move.Positions.Count == 0) continue;
+                unitTouchedDifficult = DoesPathCrossTerrainPieces(geometry[i].Move, difficult);
+            }
+            if (!unitTouchedDifficult) return;
+
             for (int i = 0; i < geometry.Length; i++)
             {
-                // The cheap half of the conjunction first; both halves are pure, so the answer is the same.
-                if (geometry[i].TotalDistance > GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES
-                    && DoesPathCrossTerrainPieces(geometry[i].Move, difficult))
+                if (geometry[i].TotalDistance > GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES)
                 {
                     sink.Add(EErrorReasonType.ExceededDifficultTerrainMoveLimit, geometry[i].Move.Model);
                     if (sink.Done(EErrorReasonType.ExceededDifficultTerrainMoveLimit)) return;
@@ -1167,19 +1183,32 @@ namespace FDG.Stages
         }
 
         /// <summary>
-        /// #205: a model may not END its move stacked on top of a FRIENDLY unit's base. Passing THROUGH a
-        /// friendly is legal (only the end position is checked, never the swept path), and a model that was
-        /// ALREADY overlapping a friendly at its start isn't newly penalised (mirrors the enemy rule's "only
-        /// moves that close the distance") - so a unit is never trapped with no legal move. Friendlies have no
-        /// standoff band: only true base overlap (interpenetration, not mere contact) is illegal, which is why
-        /// this uses <see cref="BaseShapeGeometry.AreColliding"/> (SurfaceGap &lt; 0), not the enemy standoff.
-        /// The GUI resolver enforces the same rule live (WouldOverlapAnyModel); this is the authoritative
-        /// engine guard the AI resolvers were missing.
+        /// Friendly units (rules accuracy pass, GF v3.5.1 core rules, General Movement): "Models may never be
+        /// within 1" of models from other units, unless they are taking a Charge action, and may never move
+        /// through other models or units (friendly or enemy), even if they are taking a Charge action."
+        /// Three checks against every OTHER friendly unit's models:
+        /// <list type="bullet">
+        /// <item>#205: may not END stacked on a friendly base.</item>
+        /// <item>may not pass THROUGH a friendly base on the way (swept path, both attitudes like the enemy rule).</item>
+        /// <item>unless the move is a charge, may not end within 1" of a friendly base.</item>
+        /// </list>
+        /// Like the enemy rule, only moves that make things WORSE are penalised: a model that starts already
+        /// overlapping or within 1" of a friendly may stay put or move away, so a unit is never trapped with
+        /// no legal move. All three report <see cref="EErrorReasonType.EndedOnFriendlyUnit"/>, which the AI
+        /// planner already answers by side-stepping. The GUI resolver mirrors the overlap part live
+        /// (WouldOverlapAnyModel); this is the authoritative guard.
         /// </summary>
         private static void ValidateEndsOnFriendly(MoveGeometry[] geometry,
-            IReadOnlyList<EnemyModelFootprint> friendlyFootprints, ref FaultSink sink)
+            IReadOnlyList<EnemyModelFootprint> friendlyFootprints, ref FaultSink sink,
+            IReadOnlyList<EnemyModelFootprint>? enemies = null)
         {
             if (friendlyFootprints == null || friendlyFootprints.Count == 0) return;
+
+            // A move that ends with any model within melee reach of an enemy is a charge, and a charge may
+            // close within 1" of friendlies (it still may not pass through or land on them).
+            bool isCharge = enemies != null && EndsWithinMeleeReach(geometry, enemies);
+            float standoff = GameWideConstants.ENEMY_STANDOFF_DISTANCE_INCHES;
+            float reject = standoff + REJECT_MARGIN_INCHES;
 
             for (int i = 0; i < geometry.Length; i++)
             {
@@ -1189,18 +1218,66 @@ namespace FDG.Stages
                 for (int f = 0; f < friendlyFootprints.Count; f++)
                 {
                     EnemyModelFootprint friendly = friendlyFootprints[f];
-                    if (Distance2D(g.End, friendly.Center) - g.Reach - friendly.CircumscribedRadiusInches > REJECT_MARGIN_INCHES)
-                        continue;
-                    if (!(BaseShapeGeometry.FootprintGap(g.EndHull, friendly.Hull) < 0f))
-                        continue;
-                    if (BaseShapeGeometry.FootprintGap(g.StartHull, friendly.Hull) < 0f)
+                    if (DistanceToPath(g, friendly.Center) - g.Reach - friendly.CircumscribedRadiusInches > reject)
                         continue;
 
+                    float startGap = BaseShapeGeometry.FootprintGap(g.StartHull, friendly.Hull);
+                    float endGap = BaseShapeGeometry.FootprintGap(g.EndHull, friendly.Hull);
+                    bool movedCloser = endGap < startGap - ENEMY_PROXIMITY_EPSILON_INCHES;
+
+                    bool bad =
+                        // ends on top of it
+                        (endGap < 0f && startGap >= 0f)
+                        // ends within 1" of it (not charging)
+                        || (!isCharge && movedCloser && endGap < standoff - ENEMY_PROXIMITY_EPSILON_INCHES)
+                        // passes through it on the way
+                        || (startGap > ENEMY_CONTACT_TOLERANCE_INCHES && PathSweepsThrough(g, friendly.Zone));
+
+                    if (!bad) continue;
                     sink.Add(EErrorReasonType.EndedOnFriendlyUnit, g.Move.Model);
                     if (sink.Done(EErrorReasonType.EndedOnFriendlyUnit)) return;
                     break; // one flag per model is enough
                 }
             }
+        }
+
+        // Whether any moving model's swept base overlaps the zone on any leg (both attitudes must hit, as
+        // in the enemy move-through check, so a turn in place doesn't count as crossing).
+        private static bool PathSweepsThrough(MoveGeometry g, IZone zone)
+        {
+            Position segStart = g.Start;
+            for (int k = 0; k < g.Move.Positions.Count; k++)
+            {
+                Position step = g.Move.Positions[k];
+                Float2 a = new Float2(segStart.x, segStart.z);
+                Float2 b = new Float2(step.x, step.z);
+                Float2 arriveFacing = ArriveFacing(g.Move, k, g.RestingFacing);
+                Float2 departFacing = DepartFacing(g.Move, k, g.RestingFacing);
+                if (SweptBaseGeometry.DoesSweptBaseIntersectZone(zone, a, b, g.Model.BaseShape, arriveFacing)
+                    && (FacingsEqual(departFacing, arriveFacing)
+                        || SweptBaseGeometry.DoesSweptBaseIntersectZone(zone, a, b, g.Model.BaseShape, departFacing)))
+                    return true;
+                segStart = step;
+            }
+            return false;
+        }
+
+        private static bool EndsWithinMeleeReach(MoveGeometry[] geometry, IReadOnlyList<EnemyModelFootprint> enemies)
+        {
+            float meleeRange = GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL + 0.0001f;
+            for (int i = 0; i < geometry.Length; i++)
+            {
+                MoveGeometry g = geometry[i];
+                if (g.Move.Positions.Count == 0) continue;
+                for (int e = 0; e < enemies.Count; e++)
+                {
+                    EnemyModelFootprint enemy = enemies[e];
+                    if (enemy.Uncontactable) continue;
+                    if (Distance2D(g.End, enemy.Center) - g.Reach - enemy.CircumscribedRadiusInches > meleeRange) continue;
+                    if (BaseShapeGeometry.FootprintGap(g.EndHull, enemy.Hull) <= meleeRange) return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -1381,14 +1458,17 @@ namespace FDG.Stages
             //Check each model's distance against all the others, for both kinds of coherency.
             //As of 3.4.0, each model must be within 1" of another model and within 9" of every other model.
 
+            bool[,] linked = new bool[models.Count, models.Count];
             ComputeCohesionExtents(models, positions, facings,
-                out float[] nearestDistances, out float[] farthestDistances);
+                out float[] nearestDistances, out float[] farthestDistances, linked);
 
+            bool[] flaggedNear = new bool[models.Count];
             for (int i = 0; i < models.Count; i++)
             {
                 if (nearestDistances[i] > GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES + COHESION_EPSILON_INCHES)
                 {
                     sink.Add(EErrorReasonType.TooFarFromAnyUnitModel, models[i]);
+                    flaggedNear[i] = true;
                 }
 
                 if (farthestDistances[i] > GameWideConstants.MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES + COHESION_EPSILON_INCHES)
@@ -1396,6 +1476,52 @@ namespace FDG.Stages
                     sink.Add(EErrorReasonType.TooFarFromAllUnitModels, models[i]);
                 }
             }
+
+            // Rules accuracy: the 1" links must form ONE "uninterrupted chain of models in 1\" coherency with
+            // each other" (GF v3.5.1 core rules, Unit Coherency). Every model having a neighbour within 1" is
+            // not enough - two separate clumps each pass that test. Find the clumps; every model outside the
+            // biggest one is out of coherency (models already flagged above aren't reported twice).
+            int[] group = CoherencyGroups(linked, models.Count, out int largestGroup);
+            for (int i = 0; i < models.Count; i++)
+            {
+                if (group[i] != largestGroup && !flaggedNear[i])
+                    sink.Add(EErrorReasonType.TooFarFromAnyUnitModel, models[i]);
+            }
+        }
+
+        // Splits the models into clumps joined by 1" links (flood fill) and reports the biggest clump. Ties
+        // go to the clump holding the lowest index, so the answer is stable.
+        private static int[] CoherencyGroups(bool[,] linked, int count, out int largestGroup)
+            => CoherencyGroups(linked, count, out largestGroup, out _);
+
+        private static int[] CoherencyGroups(bool[,] linked, int count, out int largestGroup, out int groupCount)
+        {
+            int[] group = new int[count];
+            for (int i = 0; i < count; i++) group[i] = -1;
+            int groups = 0, bestSize = -1;
+            largestGroup = 0;
+            var stack = new Stack<int>();
+            for (int start = 0; start < count; start++)
+            {
+                if (group[start] >= 0) continue;
+                int id = groups++, size = 0;
+                group[start] = id;
+                stack.Push(start);
+                while (stack.Count > 0)
+                {
+                    int m = stack.Pop();
+                    size++;
+                    for (int n = 0; n < count; n++)
+                    {
+                        if (group[n] >= 0 || !linked[m, n]) continue;
+                        group[n] = id;
+                        stack.Push(n);
+                    }
+                }
+                if (size > bestSize) { bestSize = size; largestGroup = id; }
+            }
+            groupCount = groups;
+            return group;
         }
 
 
@@ -1437,13 +1563,28 @@ namespace FDG.Stages
             if (models.Count <= 1) return;
 
             BeforeExtents(models, before, beforeFacings, out float[] nearestBefore, out float[] farthestBefore);
-            ComputeCohesionExtents(models, after, afterFacings, out float[] nearestAfter, out float[] farthestAfter);
+            bool[,] linkedAfter = new bool[models.Count, models.Count];
+            ComputeCohesionExtents(models, after, afterFacings, out float[] nearestAfter, out float[] farthestAfter,
+                linkedAfter);
+
+            // Rules accuracy: one unbroken 1" chain (see ValidateCoherency). Lenient like the rest of this
+            // check: only a move that splits the unit into MORE separate clumps than it started with fails.
+            int[] groupAfter = CoherencyGroups(linkedAfter, models.Count, out int largestAfter, out int groupsAfter);
+            bool splitWorse = false;
+            if (groupsAfter > 1)
+            {
+                bool[,] linkedBefore = new bool[models.Count, models.Count];
+                ComputeCohesionExtents(models, before, beforeFacings, out _, out _, linkedBefore);
+                CoherencyGroups(linkedBefore, models.Count, out _, out int groupsBefore);
+                splitWorse = groupsAfter > groupsBefore;
+            }
 
             for (int i = 0; i < models.Count; i++)
             {
                 float nearestLimit = Math.Max(GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES,
                     nearestBefore[i]) + COHESION_EPSILON_INCHES;
-                if (nearestAfter[i] > nearestLimit)
+                if (nearestAfter[i] > nearestLimit
+                    || (splitWorse && groupAfter[i] != largestAfter))
                     sink.Add(EErrorReasonType.TooFarFromAnyUnitModel, models[i]);
 
                 float farthestLimit = Math.Max(GameWideConstants.MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES,
@@ -1456,7 +1597,7 @@ namespace FDG.Stages
         // Per-model nearest- and farthest-neighbour base-to-base 3D distances at the given positions and
         // facings (both index-aligned with <paramref name="models"/>). Shared by both coherency checks.
         private static void ComputeCohesionExtents(List<DataBinding<ModelData>> models, List<Position> positions,
-            List<Float2> facings, out float[] nearest, out float[] farthest)
+            List<Float2> facings, out float[] nearest, out float[] farthest, bool[,]? linked = null)
         {
             int count = models.Count;
             nearest = new float[count];
@@ -1475,6 +1616,12 @@ namespace FDG.Stages
                     farthest[i] = Math.Max(distance, farthest[i]);
                     nearest[j] = Math.Min(distance, nearest[j]);
                     farthest[j] = Math.Max(distance, farthest[j]);
+                    if (linked != null
+                        && distance <= GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES + COHESION_EPSILON_INCHES)
+                    {
+                        linked[i, j] = true;
+                        linked[j, i] = true;
+                    }
                 }
             }
         }
@@ -1516,7 +1663,7 @@ namespace FDG.Stages
                 case EErrorReasonType.ChargeRangeRequiresMeleeReach:
                     return $"A model moved beyond Rush range, but no model ends within {GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL}\" of an enemy";
                 case EErrorReasonType.EndedOnFriendlyUnit:
-                    return "Ends stacked on top of a friendly unit";
+                    return "Moves through, lands on, or ends within 1\" of another friendly unit (only a charge may end within 1\")";
                 case EErrorReasonType.EndedOffTable:
                     return "Ends with part of its base off the table";
                 case EErrorReasonType.EndedOnOwnUnitModel:

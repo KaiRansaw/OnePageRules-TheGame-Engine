@@ -74,6 +74,15 @@ namespace FDG.Stages
                 }
             }
 
+            // Game-mode round-end steps (Horde Mode: objective damage and its mission-end checks). Run
+            // BEFORE the round-end rules and token sweep below so they see the same "arrived this round"
+            // and Shaken state the objective check above used. None in the standard game.
+            IRoundHooks? roundHooks = (Parent as MainPhaseRoundStage)?.RoundHooks;
+            // Game Master "End the game": straight to the victory screen, skipping the mode's round-end steps.
+            bool gameMasterEnd = GameContext.GameMaster?.ConsumeEndGame() == true;
+            bool roundHooksEndGame = gameMasterEnd || (roundHooks != null
+                && await roundHooks.OnRoundEnd(context, roundJustFinished));
+
             // #100 #13: fire round-end rules for every living unit BEFORE the token sweep below, so
             // tokens that clear at round end are still visible to them and the ManualOnly markers they
             // grant (Fortified Growth's accumulation) survive the sweep. Mirror of the round-start loop
@@ -89,6 +98,9 @@ namespace FDG.Stages
                 await OperationExecutor.Execute(ops, new GameOperationServices(GameContext));
             }
 
+            // GF: Firefight army morale (end of every round, armies at half or fewer of their units).
+            if (!gameMasterEnd) await FirefightRules.ArmyMoraleAtRoundEnd(GameContext);
+
             // End of round: clear "this round" tokens across every unit AFTER the objective check above —
             // the once-per-round cost gates and the "arrived from reserve this round" marker (which the
             // check just read to exclude newcomers). Clearing before the check would let a unit that
@@ -101,10 +113,27 @@ namespace FDG.Stages
             }
             new TokenClearService().ClearForHook(EHookID.Round_OnRoundEnd, containers);
 
-            if (roundJustFinished >= GameWideConstants.NUMBER_OF_ROUNDS)
+            // Horde Mode (OPR v3.5.0) runs twelve rounds; the standard game runs NUMBER_OF_ROUNDS.
+            int roundLimit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings.GameMode);
+
+            if (roundHooksEndGame)
             {
-                GameContext.Log($"{GameWideConstants.NUMBER_OF_ROUNDS} rounds complete. Proceeding to victory calculation.");
                 await ToVictoryCalculation.Activate(context);
+                return;
+            }
+
+            if (roundJustFinished >= roundLimit)
+            {
+                GameContext.Log($"{roundLimit} rounds complete. Proceeding to victory calculation.");
+                await ToVictoryCalculation.Activate(context);
+                return;
+            }
+
+            // A mode with its own round steps also owns its early-finish rules; the standard
+            // objective-count "match decided" shortcut below does not apply to it.
+            if (roundHooks != null)
+            {
+                await ToReconcileEndOfTurn.Activate(context);
                 return;
             }
 
@@ -117,7 +146,7 @@ namespace FDG.Stages
             if (MatchDecision.IsResultFixed(GameContext.TableState, out string headline, out string detail))
             {
                 GameContext.Log($"Match decided after round {roundJustFinished} of " +
-                    $"{GameWideConstants.NUMBER_OF_ROUNDS}: {detail}.");
+                    $"{roundLimit}: {detail}.");
                 await GameContext.Announce($"{headline} - the match is decided.",
                     tier: EBannerTier.Headline);
                 await ToVictoryCalculation.Activate(context);
@@ -128,7 +157,7 @@ namespace FDG.Stages
         }
 
         // Returns the set of PlayerIDs whose living models have a base edge within SeizureRadiusInches of the objective.
-        private static HashSet<PlayerID> PlayersNearObjective(
+        internal static HashSet<PlayerID> PlayersNearObjective(
             IObjective objective,
             IEnumerable<IModel> allModels,
             Dictionary<IModel, IUnit> modelToUnit)

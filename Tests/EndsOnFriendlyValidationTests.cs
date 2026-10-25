@@ -1,4 +1,4 @@
-using FDG.Data;
+﻿using FDG.Data;
 using FDG.Stages;
 using FDG.StageResolution.Requests;
 using NUnit.Framework;
@@ -35,30 +35,33 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void PassesThroughFriendly_EndsClear_Accepted()
+        public void PassesThroughFriendly_EndsClear_Rejected()
         {
             // Straight line from (0,0) to (10,0) runs OVER a friendly at (5,0) but ends well clear of it.
-            // Passing through a friendly is legal - only the end position is checked.
+            // Rules accuracy (GF v3.5.1): models "may never move through other models or units (friendly or
+            // enemy)" - so this is illegal now (it used to be allowed).
             DataBinding<ModelData> model = MakeModel(new Position(0, 0));
             ModelMoveEntry move = new ModelMoveEntry(model, new List<Position> { new Position(10, 0) });
 
             bool ok = Validate(move, Friendly(new Position(5, 0)), out var errors);
 
-            Assert.That(ok, Is.True, Why(errors));
+            Assert.That(ok, Is.False);
+            Assert.That(errors.Any(e => e.ErrorReasonType == EErrorReasonType.EndedOnFriendlyUnit), Is.True);
         }
 
         [Test]
-        public void EndsInBaseContactWithFriendly_NotOverlapping_Accepted()
+        public void EndsInBaseContactWithFriendly_NotCharging_Rejected()
         {
-            // Ends at (3.5,0): exactly base-to-base (gap = 0) with the friendly at (5,0). Friendlies have no
-            // standoff band, and touching is not overlapping, so this is legal (a control against the enemy
-            // rule, which WOULD forbid ending this close without charging).
+            // Ends at (3.5,0): exactly base-to-base (gap = 0) with the friendly at (5,0). Rules accuracy
+            // (GF v3.5.1): "Models may never be within 1\" of models from other units, unless they are taking
+            // a Charge action" - friendly units included, so this is illegal now.
             DataBinding<ModelData> model = MakeModel(new Position(0, 0));
             ModelMoveEntry move = new ModelMoveEntry(model, new List<Position> { new Position(3.5f, 0) });
 
             bool ok = Validate(move, Friendly(new Position(5, 0)), out var errors);
 
-            Assert.That(ok, Is.True, Why(errors));
+            Assert.That(ok, Is.False);
+            Assert.That(errors.Any(e => e.ErrorReasonType == EErrorReasonType.EndedOnFriendlyUnit), Is.True);
         }
 
         [Test]

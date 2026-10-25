@@ -117,6 +117,11 @@ namespace FDG.Stages
                 GameContext.Log($"Shred added {woundInjection.TotalExtraWounds:0.##} extra wound(s).");
             }
 
+            // Star Quest (Reckless, Blood Frenzy, Spiteful Vow): extra wounds once at least one lands.
+            float recklessWounds = QuestFlags.ExtraWounds(GameContext, attacker, defender, metaData.IsMelee,
+                metaData.IsCharging, metaData.IsSpell, distance, packets.Sum(p => p.Wounds));
+            if (recklessWounds > 0f) packets.Add(WoundPacket.Unconfined(recklessWounds));
+
             // #376 Bloodthirsty Fighter (bonus attacks): "each unmodified 1 to block earns a follow-up
             // attack with this weapon" also rides the save-complete queue. Fold the sum and post it for
             // ResolveBonusMeleeAttacksStage (melee swing chain only; other pipelines drop it, the

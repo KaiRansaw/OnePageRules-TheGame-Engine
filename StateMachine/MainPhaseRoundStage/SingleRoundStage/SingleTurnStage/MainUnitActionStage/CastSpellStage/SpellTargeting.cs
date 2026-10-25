@@ -39,10 +39,16 @@ namespace FDG.Stages
                 .SelectMany(a => a.UnitBindings)
                 .Where(u => u.GetValue().GetIsAlive() && u.GetValue().GetIsOnBattlefield());
 
+            // Star Quest: Conjuration / Distant Spell add range to the hero's next spell; enemies can't target
+            // a hero using Infiltrating Step.
+            QuestProgress? quest = gameContext.TableState.Progress.Quest;
+            float extraRange = QuestFlags.SpellRangeBonus(quest, caster.GetValue());
+
             foreach (DataBinding<UnitData> unit in allUnits)
             {
                 if (!MatchesAffinity(selector.TargetAffinity, caster, unit, IsFriendly)) continue;
-                if (!WithinRangeAndSight(gameContext, measureFrom, unit, selector, terrain)) continue;
+                if (!IsFriendly(unit.GetValue().PlayerID) && QuestFlags.CannotBeTargeted(quest, unit.GetValue(), caster.GetValue())) continue;
+                if (!WithinRangeAndSight(gameContext, measureFrom, unit, selector, terrain, extraRange)) continue;
                 candidates.Add(unit);
             }
             return candidates;
@@ -106,7 +112,7 @@ namespace FDG.Stages
         // both move with it, including which models are discounted as blockers: sighting from the relay
         // means the relay's own models are the ones that cannot block.
         private static bool WithinRangeAndSight(IGameContext gameContext, IUnit origin,
-            DataBinding<UnitData> target, TargetSelector selector, IReadOnlyList<ITerrain> terrain)
+            DataBinding<UnitData> target, TargetSelector selector, IReadOnlyList<ITerrain> terrain, float extraRange = 0f)
         {
             IReadOnlyList<ITerrain> blockers = selector.RequireLineOfSight
                 ? terrain.Concat(LineOfSightUtilities.BuildModelBlockers(gameContext.TableState, origin,
@@ -123,7 +129,7 @@ namespace FDG.Stages
                     Position targetPos = tm.PositionBinding.GetValue();
                     float distance = DistanceUtilities.GetBaseToBaseDistanceInches_3D(
                         originPos, targetPos, om.BaseShape, om.Facing, tm.BaseShape, tm.Facing);
-                    if (distance > selector.RangeInches) continue;
+                    if (distance > selector.RangeInches + extraRange) continue;
                     if (!selector.RequireLineOfSight) return true;
                     if (LineOfSightUtilities.HasLineOfSight(originPos, targetPos, blockers)) return true;
                 }

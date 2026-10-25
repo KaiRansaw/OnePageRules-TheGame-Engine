@@ -98,6 +98,21 @@ namespace FDG.Stages
         public void MarkIrreversibleAction();
 
         public void Reset(DataBinding<UnitData> activatingUnit);
+
+        /// <summary>Star Quest: the hero action picked in Choose Action (Rest / Skill / extra action / feature).</summary>
+        public string? PendingQuestAction { get; set; }
+        /// <summary>Star Quest: skill actions taken this activation.</summary>
+        public int QuestSkillsUsed { get; set; }
+        /// <summary>Star Quest: the 2-power extra action has been bought this activation.</summary>
+        public bool QuestExtraUsed { get; set; }
+        /// <summary>Star Quest: 2 power bought another action - the move/attack slots open up again.</summary>
+        public void BeginQuestExtraAction();
+        /// <summary>Star Quest: a hero Rallied - it no longer has to stay idle this activation.</summary>
+        public void ClearStartedActivationShaken();
+        /// <summary>Star Quest: the "when activated" condition checks have run this activation.</summary>
+        public bool QuestActivationChecked { get; set; }
+        /// <summary>GF: Firefight Campaign: the hero auras have been applied this activation.</summary>
+        public bool CampaignActivationChecked { get; set; }
     }
 
     public class UnitActionContext : IUnitActionContext
@@ -170,8 +185,29 @@ namespace FDG.Stages
         }
 
         //TODO: This pattern sucks, make a new instance of the context each time.
+        public string? PendingQuestAction { get; set; }
+        public int QuestSkillsUsed { get; set; }
+        public bool QuestExtraUsed { get; set; }
+        public bool QuestActivationChecked { get; set; }
+        public bool CampaignActivationChecked { get; set; }
+
+        public void BeginQuestExtraAction()
+        {
+            HasMoved = false;
+            MoveDistance = 0f;
+            MoveShootAllowance = 0f;
+            HasAttacked = false;
+        }
+
+        public void ClearStartedActivationShaken() => StartedActivationShaken = false;
+
         public void Reset(DataBinding<UnitData> activatingUnit)
         {
+            PendingQuestAction = null;
+            QuestSkillsUsed = 0;
+            QuestExtraUsed = false;
+            QuestActivationChecked = false;
+            CampaignActivationChecked = false;
             ActivatingUnit = activatingUnit;
             HasMoved = false;
             MoveDistance = 0f;

@@ -683,7 +683,9 @@ public static class RuleFireLint
                 {
                     yield return new HitRollCompleteContext(attacker, defender, OneOfEachFace(),
                         distance, isMelee, isCharging, IsSpell: false,
-                        ChargeOriginDistanceInches: chargeOrigin, UnpredictableBranch: branch);
+                        ChargeOriginDistanceInches: chargeOrigin, UnpredictableBranch: branch,
+                        // Star Quest "if it deals at least one hit" rules need hits to have landed.
+                        HitsScored: 3f);
                 }
                 // #197 misc: one terrain-populated variant for the Grounded family (not distance-gated).
                 yield return new HitRollCompleteContext(attacker, defender, OneOfEachFace(), FarInches,

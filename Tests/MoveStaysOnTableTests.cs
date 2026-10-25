@@ -22,8 +22,8 @@ namespace FDG.Tests
     [TestFixture]
     public class MoveStaysOnTableTests
     {
-        private const float W = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
-        private const float H = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+        private const float W = GameWideConstants.STANDARD_TABLE_WIDTH_INCHES;
+        private const float H = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
 
         private GameDataStore _store = null!;
 

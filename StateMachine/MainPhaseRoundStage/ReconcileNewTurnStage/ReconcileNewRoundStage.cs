@@ -24,6 +24,23 @@ namespace FDG.Stages
 
             //TODO: Not sure we actually need to do anything here, if we call OnEndOfRound elsewhere.
 
+            // Game Master "jump to round N": the round that is starting becomes N, before its start-of-round
+            // steps run - so jumping to round 4 of a Horde game sets a priority and deploys wave 2.
+            GameContext.GameMaster?.OnRoundStart();
+            if (GameContext.GameMaster?.ConsumeJumpToRound() is int jumpTo)
+            {
+                int limit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings.GameMode);
+                context.SetRoundCount(Math.Min(jumpTo, limit));
+                context.Log($"Game Master: this is now round {context.RoundCount}.");
+            }
+
+            // Game-mode round-start steps (Horde Mode: priority objective, enemy waves). None in the
+            // standard game.
+            if ((Parent as MainPhaseRoundStage)?.RoundHooks is IRoundHooks roundHooks)
+            {
+                await roundHooks.OnRoundStart(context);
+            }
+
             await ToStartExtraActions.Activate(context);
         }
 

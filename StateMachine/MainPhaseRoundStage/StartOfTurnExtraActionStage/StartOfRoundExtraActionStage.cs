@@ -1,4 +1,4 @@
-using FDG.Data;
+﻿using FDG.Data;
 using FDG.Presentation.Beats;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -99,6 +99,9 @@ namespace FDG.Stages
         /// </summary>
         private async Task BringOnReserves(int roundCount)
         {
+            // Star Quest: the enemy pool waits off the table "in reserve"; its Ambush units arrive through
+            // the waves' own AI Ambush rule (QuestChallenges.DeployAmbushers), never from here.
+            if (QuestActions.IsQuestGame(GameContext)) return;
             foreach (ArmyData army in GameContext.GameDataStore.GetAllValues<ArmyData>().ToList())
             {
                 foreach (DataBinding<UnitData> unitBinding in army.UnitBindings.ToList())
@@ -260,7 +263,11 @@ namespace FDG.Stages
             IReadOnlyList<PlacementDisc> waivers = Array.Empty<PlacementDisc>();
             if (minDistanceFromEnemies > 0f)
             {
-                keepOut = AmbushArrivalRules.KeepOutDiscs(unit, GameContext.TableState, GameContext.RuleEvaluator);
+                // Rules accuracy: the basic "over 9\" from enemies" measured base edge to base edge rides
+                // along as keep-out discs too (the flat minDistance is judged centre to centre).
+                keepOut = AmbushArrivalRules.KeepOutDiscs(unit, GameContext.TableState, GameContext.RuleEvaluator)
+                    .Concat(AmbushArrivalRules.EnemyEdgeDiscs(unit, GameContext.TableState, minDistanceFromEnemies))
+                    .ToList();
                 waivers = AmbushArrivalRules.WaiverDiscs(unit, GameContext.TableState, GameContext.RuleEvaluator);
             }
 

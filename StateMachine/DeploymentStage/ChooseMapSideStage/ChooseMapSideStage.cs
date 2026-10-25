@@ -127,6 +127,13 @@ namespace FDG.Stages
                 throw new InvalidOperationException($"Can't have fewer than one team.");
             }
 
+            // Map maker: a custom map's own deployment zones, when it has one for every team.
+            var mapZones = CustomMapRules.DeploymentZones(GameContext.Settings);
+            if (mapZones.Count >= teamCount && mapZones.Count >= 2)
+                return mapZones.Select(z => new RectangularZone(
+                    MathF.Min(z.Left, z.Right), MathF.Max(z.Left, z.Right),
+                    MathF.Min(z.Bottom, z.Top), MathF.Max(z.Bottom, z.Top))).ToList();
+
             //We need to return equally-sized zones, and there are two sides to the table.
             //That means there will be an extra zone when the team number is odd.
 

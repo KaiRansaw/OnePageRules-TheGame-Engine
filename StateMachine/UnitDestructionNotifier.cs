@@ -53,6 +53,12 @@ namespace FDG.Stages
                 return;
             }
 
+            // Horde Mode: a defending unit that destroys an enemy earns XP (and may level up). No-op in
+            // the standard game. Killer-less deaths (routs, dangerous terrain) earn nothing, as above.
+            await FDG.StateMachine.HordeExperience.OnUnitDestroyed(gameContext, dead, killer);
+            // GF: Firefight Campaign: count the kill on the killer's strike team sheet (XP after the game).
+            FirefightCampaign.OnUnitDestroyed(dead, killer);
+
             IReadOnlyList<RuleOperation> ops = gameContext.RuleEvaluator.EvaluateAll(
                 new UnitDestroyedContext(DestroyedUnit: dead, KillerUnit: killer),
                 RuleParticipant.Actor(killer),

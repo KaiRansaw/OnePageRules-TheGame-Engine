@@ -142,7 +142,9 @@ namespace FDG.Stages
                 return;
             }
 
-            IReadOnlyList<DataBinding<UnitData>> targets = await PickTargets(player, chosen, targeting);
+            // Star Quest (Twin Spell, Pact of Skill, Duplication): one more target for this spell.
+            int extraTargets = QuestFlags.ExtraTargets(GameContext.TableState.Progress.Quest, caster, chosen.Target.TargetAffinity);
+            IReadOnlyList<DataBinding<UnitData>> targets = await PickTargets(player, chosen, targeting, extraTargets);
             if (targets.Count == 0)
             {
                 // Cancelled before meeting the minimum target count — nothing spent.
@@ -163,6 +165,17 @@ namespace FDG.Stages
             // burns the try exactly as a successful one does. Every cancel path above returns first, so a
             // browsed-and-cancelled spell is not consumed.
             context.RegisterSpellAttempt(chosen.Name);
+            // Star Quest: the extra range (Conjuration / Distant Spell) is used by this cast; targeting an enemy
+            // ends Infiltrating Step.
+            if (extraTargets > 0)
+            {
+                QuestFlags.Take(GameContext, caster, QuestFlags.ExtraFoeTarget);
+                QuestFlags.Take(GameContext, caster, QuestFlags.ExtraFriendTarget);
+            }
+            if (QuestFlags.Take(GameContext, caster, QuestFlags.SpellRange) is string usedRange)
+                GameContext.Log($"{caster.Name} casts with +{usedRange}\" range.");
+            if (targets.Any(t => !ITeamExtensions.AreAllied(GameContext.TableState.Teams.Objects, caster.PlayerID, t.GetValue().PlayerID)))
+                QuestFlags.TargetedAnEnemy(GameContext, caster);
             IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
                 GameContext.RuleEvaluator, caster, chosen.Threshold + boost);
             if (loans.Count > 0)
@@ -222,6 +235,19 @@ namespace FDG.Stages
             IDiceResults castRoll = GameContext.DiceRoller.RollDecisive();
             bool success = castRoll.AtOrAbove(threshold) >= 1f;
 
+            // Star Quest Tinkered Luck: the caster may re-roll a failed cast, or a hero whose counter-spell
+            // didn't stop the cast may re-roll it.
+            IUnit? luckyRoller = !success ? (QuestFlags.Take(GameContext, caster, QuestFlags.Tinkered) != null ? caster : null)
+                : assistResult.Hinderers.FirstOrDefault(h => QuestFlags.Take(GameContext, h, QuestFlags.Tinkered) != null);
+            if (luckyRoller != null)
+            {
+                await GameContext.Presenter.Present(DiceRolledBeat.FromDecisive(castRoll, threshold,
+                    "Roll to Cast", success ? "Cast!" : "Failed", category: ERollBeatCategory.Magic));
+                await GameContext.Announce($"Tinkered Luck: {luckyRoller.Name} re-rolls the casting roll.", AssistBannerColor, EBannerTier.Toast);
+                castRoll = GameContext.DiceRoller.RollDecisive();
+                success = castRoll.AtOrAbove(threshold) >= 1f;
+            }
+
             // #233 — show the die itself: tumbling roll with the shifted threshold, settling into a short
             // outcome summary. The banner below carries the full math. #289: FromDecisive - the cast die is
             // one concrete face in either roller mode, so it draws as a die, never an expected-value bar.
@@ -241,6 +267,9 @@ namespace FDG.Stages
             if (!success)
             {
                 await GameContext.Announce($"{caster.Name} failed to cast {chosen.Name}: {rollDesc}.", CastFailColor);
+                // Star Quest Tides of Chaos: a hero whose counter-spell made the cast fail restores D3+2 power.
+                foreach (IUnit hinderer in assistResult.Hinderers)
+                    await QuestSpells.OnCounterSucceeded(GameContext, hinderer);
                 // #274 — the spell guttering out on the caster. Always plays on a failure.
                 await PresentSpellVisual(ESpellVisual.CastFailure, casterPositions, chosen.Name);
                 await OnFinished.Activate(context);
@@ -248,6 +277,8 @@ namespace FDG.Stages
             }
 
             await GameContext.Announce($"{caster.Name} cast {chosen.Name}: {rollDesc}.", CastSuccessColor);
+            // Star Quest (Tides of Chaos, Enchantment, Pact of Strength): the hero's next successful spell.
+            int pactAp = await QuestSpells.OnCastSucceeded(GameContext, caster, targets);
 
             // #274 — the spell taking hold on the caster, then washing over everything it was aimed
             // at. Emitted here, before any of the three effect paths below, so the target landing
@@ -261,7 +292,7 @@ namespace FDG.Stages
             {
                 // Synthetic spell weapon: the spell's AP + its pre-resolved weapon rules (shared across targets).
                 Weapon spellWeapon = new Weapon(chosen.Name, rangeInches: 0f, attacks: 0,
-                    armorPenetration: dealHits.ArmorPenetration);
+                    armorPenetration: dealHits.ArmorPenetration + pactAp);
                 foreach (ResolvedRule rule in chosen.WeaponRules)
                 {
                     spellWeapon.AttachRuleDefinition(rule);
@@ -559,11 +590,12 @@ namespace FDG.Stages
         }
 
         private async Task<IReadOnlyList<DataBinding<UnitData>>> PickTargets(PlayerID player, RuntimeSpell spell,
-            RelayedTargeting targeting)
+            RelayedTargeting targeting, int extraTargets = 0)
         {
             List<DataBinding<UnitData>> chosen = new List<DataBinding<UnitData>>();
+            int maxCount = spell.Target.MaxCount + extraTargets;
 
-            for (int picked = 0; picked < spell.Target.MaxCount; picked++)
+            for (int picked = 0; picked < maxCount; picked++)
             {
                 IReadOnlyList<DataBinding<UnitData>> remaining = targeting.Remaining(chosen);
                 if (remaining.Count == 0) break;
@@ -577,7 +609,7 @@ namespace FDG.Stages
                     .ToList();
 
                 SelectionRequest<UnitData> request = new SelectionRequest<UnitData>(player,
-                    $"Choose target for {spell.Name} ({chosen.Count + 1} of up to {spell.Target.MaxCount})",
+                    $"Choose target for {spell.Name} ({chosen.Count + 1} of up to {maxCount})",
                     validOptions, System.Array.Empty<SelectionRequest<UnitData>.InvalidOption>(),
                     allowCancel: true, displayName: $"Choosing a Target for {spell.Name}");
 
@@ -643,7 +675,7 @@ namespace FDG.Stages
         // spent on each side and how much, for the batched assist visuals. Positions are captured as the
         // assisters commit; the roll only ever reads Net.
         private readonly record struct CastAssistResult(int Net, int BoostTokens, int HinderTokens,
-            IReadOnlyList<Position> BoostSources, IReadOnlyList<Position> HinderSources);
+            IReadOnlyList<Position> BoostSources, IReadOnlyList<Position> HinderSources, IReadOnlyList<IUnit> Hinderers);
 
         // #103 — offer every eligible Caster within 18" the chance to spend tokens on this cast, sum the
         // result into a net roll modifier (friendly +1/token, enemy -1/token) and spend the tokens. Friendly
@@ -658,6 +690,7 @@ namespace FDG.Stages
             int boostTokens = 0, hinderTokens = 0;
             List<Position> boostSources = new List<Position>();
             List<Position> hinderSources = new List<Position>();
+            List<IUnit> hinderers = new List<IUnit>();
             foreach ((DataBinding<UnitData> unitBinding, bool friendly) in FindEligibleAssisters(casterBinding, casterPlayer))
             {
                 IUnit assister = unitBinding.GetValue();
@@ -675,6 +708,8 @@ namespace FDG.Stages
                 IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
                     GameContext.RuleEvaluator, assister, spent);
                 net += friendly ? spent : -spent;
+                // Star Quest Pact of Wisdom: the hero's counter-spells give the enemy an additional -1.
+                if (!friendly && QuestFlags.Has(GameContext, assister, QuestFlags.Wisdom)) net -= 1;
 
                 // #274 — record the spender for the batched visual played just before the roll.
                 if (friendly)
@@ -686,6 +721,9 @@ namespace FDG.Stages
                 {
                     hinderTokens += spent;
                     hinderSources.AddRange(AttackBeatPositions.AlivePlaced(unitBinding));
+                    hinderers.Add(assister);
+                    // Star Quest: a counter-spell uses the hero's Conjuration / Distant Spell range bonus.
+                    QuestFlags.Take(GameContext, assister, QuestFlags.SpellRange);
                 }
 
                 if (loans.Count > 0)
@@ -704,7 +742,7 @@ namespace FDG.Stages
                     $"({(friendly ? "+" : "-")}{spent}).",
                     friendly ? AssistBannerColor : HinderBannerColor, EBannerTier.Toast);
             }
-            return new CastAssistResult(net, boostTokens, hinderTokens, boostSources, hinderSources);
+            return new CastAssistResult(net, boostTokens, hinderTokens, boostSources, hinderSources, hinderers);
         }
 
         // Living, on-battlefield Caster units (other than the caster) that hold at least one spell token and
@@ -735,7 +773,10 @@ namespace FDG.Stages
 
                 float distance = UnitCompareUtilities.MinDistanceBetweenUnits(
                     castingUnit, unit, out _, out _, includeVertical: true);
-                if (distance > GameWideConstants.CASTER_ASSIST_RANGE_INCHES) continue;
+                // Star Quest: a hero's Conjuration / Distant Spell bonus also reaches further to counter a spell.
+                float reach = GameWideConstants.CASTER_ASSIST_RANGE_INCHES
+                    + QuestFlags.SpellRangeBonus(GameContext.TableState.Progress.Quest, unit);
+                if (distance > reach) continue;
 
                 bool friendly = IsFriendly(unit.PlayerID);
                 (friendly ? friends : enemies).Add((unitBinding, friendly));

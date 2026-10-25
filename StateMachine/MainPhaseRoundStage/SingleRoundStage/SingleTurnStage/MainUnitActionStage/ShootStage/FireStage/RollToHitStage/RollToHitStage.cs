@@ -87,7 +87,8 @@ namespace FDG.Stages
                     UnpredictableBranch: metaData.UnpredictableBranch,
                     // #197 misc (Grounded family): the terrain-proximity conditions read the bearer's
                     // models against the live terrain layout.
-                    TerrainPieces: GameContext.TableState.Terrain.Objects.ToList()),
+                    TerrainPieces: GameContext.TableState.Terrain.Objects.ToList(),
+                    HitsScored: successfulResults.TotalRolls),
                 // #006 slice F / #093: the attacker batch's living owners contribute their per-model rules
                 // under AllOwners semantics (fires only when every owner shares it), so a joined hero's
                 // Furious/Relentless fire for a hero-only batch and a homogeneous squad's shared per-model

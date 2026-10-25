@@ -44,6 +44,9 @@ namespace FDG.Network.Connection.Lobby
         public IObservable<ERandomnessType> RandomnessTypeObservable => _settings_RandomnessType;
         public IObservable<ETurnStyle> TurnStyleObservable => _settings_TurnMethod;
         public IObservable<EShootingMode> ShootingModeObservable => _settings_ShootingMode;
+        public IObservable<EGameMode> GameModeObservable => _settings_GameMode;
+        public IObservable<EGameSystem> GameSystemObservable => _settings_GameSystem;
+        public IObservable<EPlayStyle> PlayStyleObservable => _settings_PlayStyle;
         public IObservable<bool> CoverProximityExceptionsObservable => _settings_CoverProximityExceptions;
         public IObservable<bool> SeeThroughFriendlyUnitsObservable => _settings_SeeThroughFriendlyUnits;
         public IObservable<bool> UnlimitedSplitFireObservable => _settings_UnlimitedSplitFire;
@@ -76,6 +79,9 @@ namespace FDG.Network.Connection.Lobby
         public ETurnStyle TurnStyle => _settings_TurnMethod.Value;
 
         public EShootingMode ShootingMode => _settings_ShootingMode.Value;
+        public EGameMode GameMode => _settings_GameMode.Value;
+        public EGameSystem GameSystem => _settings_GameSystem.Value;
+        public EPlayStyle PlayStyle => _settings_PlayStyle.Value;
 
         public bool CoverProximityExceptions => _settings_CoverProximityExceptions.Value;
 
@@ -105,6 +111,9 @@ namespace FDG.Network.Connection.Lobby
         private BehaviorSubject<ETurnStyle> _settings_TurnMethod;
 
         private BehaviorSubject<EShootingMode> _settings_ShootingMode;
+        private BehaviorSubject<EGameMode> _settings_GameMode;
+        private BehaviorSubject<EGameSystem> _settings_GameSystem;
+        private BehaviorSubject<EPlayStyle> _settings_PlayStyle;
         private BehaviorSubject<bool> _settings_CoverProximityExceptions;
         private BehaviorSubject<bool> _settings_SeeThroughFriendlyUnits;
         private BehaviorSubject<bool> _settings_UnlimitedSplitFire;
@@ -212,6 +221,9 @@ namespace FDG.Network.Connection.Lobby
             _settings_RandomnessType = new BehaviorSubject<ERandomnessType>(_gameSettings.RandomnessType);
             _settings_TurnMethod = new BehaviorSubject<ETurnStyle>(_gameSettings.TurnStyle);
             _settings_ShootingMode = new BehaviorSubject<EShootingMode>(_gameSettings.ShootingMode);
+            _settings_GameMode = new BehaviorSubject<EGameMode>(_gameSettings.GameMode);
+            _settings_GameSystem = new BehaviorSubject<EGameSystem>(_gameSettings.GameSystem);
+            _settings_PlayStyle = new BehaviorSubject<EPlayStyle>(_gameSettings.PlayStyle);
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(_gameSettings.CoverProximityExceptionsEnabled);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(_gameSettings.SeeThroughFriendlyUnits);
             _settings_UnlimitedSplitFire = new BehaviorSubject<bool>(_gameSettings.UnlimitedSplitFire);
@@ -278,6 +290,9 @@ namespace FDG.Network.Connection.Lobby
             _settings_RandomnessType = new BehaviorSubject<ERandomnessType>(_gameSettings.RandomnessType);
             _settings_TurnMethod = new BehaviorSubject<ETurnStyle>(_gameSettings.TurnStyle);
             _settings_ShootingMode = new BehaviorSubject<EShootingMode>(_gameSettings.ShootingMode);
+            _settings_GameMode = new BehaviorSubject<EGameMode>(_gameSettings.GameMode);
+            _settings_GameSystem = new BehaviorSubject<EGameSystem>(_gameSettings.GameSystem);
+            _settings_PlayStyle = new BehaviorSubject<EPlayStyle>(_gameSettings.PlayStyle);
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(_gameSettings.CoverProximityExceptionsEnabled);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(_gameSettings.SeeThroughFriendlyUnits);
             _settings_UnlimitedSplitFire = new BehaviorSubject<bool>(_gameSettings.UnlimitedSplitFire);
@@ -666,14 +681,66 @@ namespace FDG.Network.Connection.Lobby
 
         // #153/#402 launch gate: the two halves of the army check, for the UI's disabled LAUNCH button
         // and its "launch anyway?" confirm respectively. Both live in the fixture-free ArmyBuilding.LaunchGate.
-        public IReadOnlyList<string> BlockingLaunchProblems() =>
-            ArmyBuilding.LaunchGate.BlockingProblems(LoadedArmies(), ArmyPoints, AllowedGameSystems);
+        public IReadOnlyList<string> BlockingLaunchProblems()
+        {
+            if (!GameSystemInfo.IsQuest(GameSystem))
+                return ArmyBuilding.LaunchGate.BlockingProblems(LoadedArmies(), ArmyPoints, AllowedGameSystems);
+
+            // Star Quest: no points limit (the enemy collection should be big), but a 2-4 hero party and an
+            // enemy side are needed.
+            var problems = ArmyBuilding.LaunchGate.BlockingProblems(LoadedArmies(), int.MaxValue, AllowedGameSystems).ToList();
+            var parties = LoadedArmies().Where(p => p.Army?.Faction == Quest.QuestArmy.PartyFaction).ToList();
+            if (parties.Count == 0) problems.Add("Pick a party of 2-4 heroes for your row.");
+            foreach (var (name, army) in parties)
+                if (army!.Units.Count is < 2 or > 4) problems.Add($"{name}: a party needs 2-4 heroes (has {army.Units.Count}).");
+            if (LoadedArmies().All(p => p.Army == null || p.Army.Faction == Quest.QuestArmy.PartyFaction))
+                problems.Add("Add an AI player with an army for the enemies.");
+            return problems;
+        }
 
         public IReadOnlyList<string> ValidateArmiesForLaunch() =>
             ArmyBuilding.LaunchGate.OverridableProblems(LoadedArmies());
 
         private IEnumerable<(string PlayerName, SaveLoad.ArmyListFile? Army)> LoadedArmies() =>
             _playerInfosFull.Values.Select(info => (info.PlayerName, info.ArmyListFile));
+
+        // The running game's server (set at launch), so Take Back can stop it before relaunching.
+        private FDGServer? _server;
+
+        /// <summary>Take Back: quietly stops the running game (see <see cref="FDGServer.Stop"/>).</summary>
+        public void StopGame() => _server?.Stop();
+
+        /// <summary>Take Back: who plays each slot, so a relaunch can seat everyone the same way.</summary>
+        public sealed record SlotCrew(PlayerID PlayerID, EPlayerType PlayerType, FDG.Ai.EAiProfile AiProfile,
+            string PlayerName, int ColorIndex);
+
+        /// <summary>GF: Star Quest: every bot plays by the Star Quest AI rules (a bot-run hero keeps the solo bot).</summary>
+        private FDG.Ai.EAiProfile QuestAiProfile(FDG.Ai.EAiProfile chosen) =>
+            GameSystemInfo.IsQuestMode(_gameSettings.GameMode) ? FDG.Ai.EAiProfile.StarQuest : chosen;
+
+        public IReadOnlyList<SlotCrew> GetCrew() => _playerInfosFull.Values
+            .Select(info => new SlotCrew(info.PlayerID, info.PlayerType, info.AiProfile, info.PlayerName, info.ColorIndex))
+            .ToList();
+
+        /// <summary>True when every seat is this computer's (local players and bots) - the only games Take
+        /// Back is offered in, since a rewind relaunches the game here.</summary>
+        public bool AllSeatsLocal => _playerInfosFull.Values.All(info => info.PlayerType != EPlayerType.Network);
+
+        /// <summary>Take Back: re-seat a resume lobby exactly as the game being replaced was seated.</summary>
+        public void ApplyCrew(IEnumerable<SlotCrew> crew)
+        {
+            foreach (SlotCrew seat in crew)
+            {
+                if (!_playerInfosFull.TryGetValue(seat.PlayerID, out LobbyPlayerInfoFull? info)) continue;
+                info.PlayerType = seat.PlayerType;
+                info.AiProfile = seat.AiProfile;
+                info.PlayerName = seat.PlayerName;
+                info.ColorIndex = seat.ColorIndex;
+            }
+            SlotCrew? host = crew.FirstOrDefault(seat => seat.PlayerType == EPlayerType.Local);
+            if (host != null) _thisPlayerID = host.PlayerID;
+            UpdateInfoSummariesFromFullList();
+        }
 
         public bool TryResumeGame(out string? failReason)
         {
@@ -744,7 +811,7 @@ namespace FDG.Network.Connection.Lobby
                     case EPlayerType.AI:
                         FDGGame_AsLocal aiGame = new FDGGame_AsLocal(_gameDataStore, _messageBus);
                         playerSlot.AssignPlayerController(FDG.Ai.AiProfileFactory.CreateController(
-                            info.AiProfile, info.PlayerName, playerSlot.PlayerID, aiGame,
+                            QuestAiProfile(info.AiProfile), info.PlayerName, playerSlot.PlayerID, aiGame,
                             _gameSettings.DiceSeed, playerSlot.SlotID,
                             _gameSettings.SeeThroughFriendlyUnits));
                         break;
@@ -761,6 +828,7 @@ namespace FDG.Network.Connection.Lobby
                 new RealtimePresentationClock(), _gameSettings);
             server.OnGameEnded += HandleServerGameEnded;
             server.OnGameCompleted += HandleServerGameCompleted;
+            _server = server;
 
             if (gameModel != null)
             {
@@ -895,7 +963,7 @@ namespace FDG.Network.Connection.Lobby
                     case EPlayerType.AI:
                         FDGGame_AsLocal aiGame = new FDGGame_AsLocal(_gameDataStore, _messageBus);
                         ComputerPlayerController aiController = FDG.Ai.AiProfileFactory.CreateController(
-                            lobbyPlayerInfo.AiProfile, lobbyPlayerInfo.PlayerName, playerSlot.PlayerID, aiGame,
+                            QuestAiProfile(lobbyPlayerInfo.AiProfile), lobbyPlayerInfo.PlayerName, playerSlot.PlayerID, aiGame,
                             _gameSettings.DiceSeed, playerSlot.SlotID,
                             _gameSettings.SeeThroughFriendlyUnits);
                         playerSlot.AssignPlayerController(aiController);
@@ -912,6 +980,7 @@ namespace FDG.Network.Connection.Lobby
                 new RealtimePresentationClock());
             server.OnGameEnded += HandleServerGameEnded;
             server.OnGameCompleted += HandleServerGameCompleted;
+            _server = server;
 
             if (gameModel != null) //Dedicated server really doesn't need to do this.
             {
@@ -1052,6 +1121,48 @@ namespace FDG.Network.Connection.Lobby
             else
             {
                 _settings_ShootingMode.OnNext(_settings_ShootingMode.Value);
+            }
+        }
+
+        public void SetPlayStyle(EPlayStyle playStyle)
+        {
+            if (Enum.IsDefined(playStyle))
+            {
+                _settings_PlayStyle.OnNext(playStyle);
+                _gameSettings.PlayStyle = playStyle;
+                _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+            }
+            else
+            {
+                _settings_PlayStyle.OnNext(_settings_PlayStyle.Value);
+            }
+        }
+
+        public void SetGameMode(EGameMode gameMode)
+        {
+            if (Enum.IsDefined(gameMode))
+            {
+                _settings_GameMode.OnNext(gameMode);
+                _gameSettings.GameMode = gameMode;
+                _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+            }
+            else
+            {
+                _settings_GameMode.OnNext(_settings_GameMode.Value);
+            }
+        }
+
+        public void SetGameSystem(EGameSystem gameSystem)
+        {
+            if (Enum.IsDefined(gameSystem))
+            {
+                _settings_GameSystem.OnNext(gameSystem);
+                _gameSettings.GameSystem = gameSystem;
+                _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+            }
+            else
+            {
+                _settings_GameSystem.OnNext(_settings_GameSystem.Value);
             }
         }
 
@@ -1210,6 +1321,7 @@ namespace FDG.Network.Connection.Lobby
             {
                 FDG.Ai.EAiProfile.Tactician => "Tactician Bot",
                 FDG.Ai.EAiProfile.Strategist => "Strategist Bot",
+                FDG.Ai.EAiProfile.StarQuest => "Star Quest AI",
                 _ => "DerpBot",
             };
             // #217: number by rank among same-profile bots (first Tactician Bot is "Tactician Bot 1"

@@ -71,6 +71,18 @@ namespace FDG
                 $"{joined} {verb}!");
         }
 
+        /// <summary>
+        /// A win whose headline the mode writes itself (Horde Mode: "held out" / "overrun"), instead of
+        /// the standard "X wins!" sentence. <paramref name="message"/> must be ASCII.
+        /// </summary>
+        public static GameResult ForWinWithMessage(IReadOnlyList<PlayerID> winnerPlayers,
+            IReadOnlyList<string> winnerNames, IReadOnlyList<PlayerObjectiveScore> scores, int roundsPlayed,
+            string message)
+        {
+            string joined = string.Join(", ", winnerNames);
+            return new(EGameOutcome.Win, winnerPlayers[0], joined, winnerPlayers, scores, roundsPlayed, message);
+        }
+
         public static GameResult ForTie(IReadOnlyList<PlayerObjectiveScore> scores, int roundsPlayed) =>
             new(EGameOutcome.Tie, null, null, Array.Empty<PlayerID>(), scores, roundsPlayed, "It's a tie!");
 

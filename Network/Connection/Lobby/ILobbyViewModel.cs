@@ -74,6 +74,13 @@ namespace FDG.Network.Connection.Lobby
         IObservable<ETurnStyle> TurnStyleObservable { get; }
         /// <summary>#371 - see <see cref="GameSettings.ShootingMode"/>.</summary>
         IObservable<EShootingMode> ShootingModeObservable { get; }
+        /// <summary>Standard game or Horde Mode - see <see cref="GameSettings.GameMode"/>.</summary>
+        IObservable<EGameMode> GameModeObservable { get; }
+
+        /// <summary>Which OPR game - see <see cref="GameSettings.GameSystem"/>.</summary>
+        IObservable<EGameSystem> GameSystemObservable { get; }
+        /// <summary>Standard or Game Master - see <see cref="GameSettings.PlayStyle"/>.</summary>
+        IObservable<EPlayStyle> PlayStyleObservable { get; }
         /// <summary>#201 cover proximity house rules toggle (default on) - see <see cref="GameSettings.CoverProximityExceptions"/>.</summary>
         IObservable<bool> CoverProximityExceptionsObservable { get; }
         /// <summary>#384 see-through-allies house rule toggle (default off) - see <see cref="GameSettings.SeeThroughFriendlyUnits"/>.</summary>
@@ -112,6 +119,15 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>#371 - see <see cref="GameSettings.ShootingMode"/>.</summary>
         EShootingMode ShootingMode { get; }
+
+        /// <summary>Standard game or Horde Mode - see <see cref="GameSettings.GameMode"/>.</summary>
+        EGameMode GameMode { get; }
+
+        /// <summary>Which OPR game - see <see cref="GameSettings.GameSystem"/>.</summary>
+        EGameSystem GameSystem { get; }
+
+        /// <summary>Standard or Game Master - see <see cref="GameSettings.PlayStyle"/>.</summary>
+        EPlayStyle PlayStyle { get; }
 
         bool CoverProximityExceptions { get; }
 
@@ -188,6 +204,15 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>#371 - see <see cref="GameSettings.ShootingMode"/>.</summary>
         void SetShootingMode(EShootingMode shootingMode);
+
+        /// <summary>Standard game or Horde Mode - see <see cref="GameSettings.GameMode"/>.</summary>
+        void SetGameMode(EGameMode gameMode);
+
+        /// <summary>Which OPR game - see <see cref="GameSettings.GameSystem"/>.</summary>
+        void SetGameSystem(EGameSystem gameSystem);
+
+        /// <summary>Standard or Game Master - see <see cref="GameSettings.PlayStyle"/>.</summary>
+        void SetPlayStyle(EPlayStyle playStyle);
 
         void SetCoverProximityExceptions(bool enabled);
 

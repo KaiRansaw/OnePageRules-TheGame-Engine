@@ -70,6 +70,12 @@ namespace FDG
         /// so a normal game never makes this call. Defaulted so no other context implements it.
         /// </summary>
         public Simulation.IActivationBoundaryHook? ActivationBoundaryHook => null;
+
+        /// <summary>The Game Master tools for this game, or null outside Game Master play.</summary>
+        public GameMasterTools.GameMasterHub? GameMaster => null;
+
+        /// <summary>Take Back save points for this game (local play against bots), or null.</summary>
+        public TakeBackTools.TakeBackHistory.Recorder? TakeBack => null;
     }
 
     public class GameContext : IGameContext
@@ -101,6 +107,12 @@ namespace FDG
         /// <inheritdoc />
         public Simulation.IActivationBoundaryHook? ActivationBoundaryHook { get; }
 
+        /// <inheritdoc />
+        public GameMasterTools.GameMasterHub? GameMaster { get; }
+
+        /// <inheritdoc />
+        public TakeBackTools.TakeBackHistory.Recorder? TakeBack { get; set; }
+
         public event Action<GameResult>? OnGameCompleted;
 
         public GameContext(ITextOutput textOutput, IDiceRoller diceRoller,
@@ -111,9 +123,11 @@ namespace FDG
                 GameSettings settings,
                 GameProgressData? resumeProgress = null,
                 IRuleResolver? ruleResolver = null,
-                Simulation.IActivationBoundaryHook? activationBoundaryHook = null)
+                Simulation.IActivationBoundaryHook? activationBoundaryHook = null,
+                GameMasterTools.GameMasterHub? gameMaster = null)
         {
             ActivationBoundaryHook = activationBoundaryHook;
+            GameMaster = gameMaster;
             TextOutput = textOutput;
             DiceRoller = diceRoller;
             Rng = GameRandom.Create(settings.DiceSeed, GameRandom.SALT_GAME_CONTEXT);

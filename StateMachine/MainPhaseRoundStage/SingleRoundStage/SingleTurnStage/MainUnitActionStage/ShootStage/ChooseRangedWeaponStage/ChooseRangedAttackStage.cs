@@ -742,6 +742,11 @@ namespace FDG.Stages
                 {
                     unselectableReason = $"Already targeting {GameWideConstants.MAX_TARGETED_UNITS_PER_SHOOT_ACTION} units this shoot action.";
                 }
+                // Star Quest Infiltrating Step: this hero can't be targeted this round.
+                if (QuestFlags.CannotBeTargeted(gameContext.TableState.Progress.Quest, enemyUnit.GetValue(), attackingUnit.GetValue()))
+                {
+                    unselectableReason = QuestFlags.HiddenReason;
+                }
 
                 Dictionary<string, WeaponTargetStats> weaponToStats =
                     BuildAttacksForEnemyUnit(attackingUnit, enemyUnit, optionsByProfile.Keys,

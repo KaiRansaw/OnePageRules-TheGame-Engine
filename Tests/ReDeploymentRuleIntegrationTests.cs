@@ -38,9 +38,9 @@ namespace FDG.Tests
             _teamA = new TeamData(0, new List<PlayerID> { _playerA });
             _teamB = new TeamData(1, new List<PlayerID> { _playerB });
 
-            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
+            float w = GameWideConstants.STANDARD_TABLE_WIDTH_INCHES;
             float d = GameWideConstants.DEPLOYMENT_DISTANCE_INCHES;
-            float h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float h = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
             _zones = new Dictionary<ITeam, DataBinding<RectangularZone>>
             {
                 [_teamA] = _store.GetDataBinding<RectangularZone>(_store.Create(new RectangularZone(0f, w, 0f, d))),
@@ -168,7 +168,7 @@ namespace FDG.Tests
             Assert.That(aUnit.GetValue().ModelBindings[0].GetValue().Position.z,
                 Is.LessThan(GameWideConstants.DEPLOYMENT_DISTANCE_INCHES + 0.001f), "A redeployed into A's bottom zone.");
             Assert.That(bUnit.GetValue().ModelBindings[0].GetValue().Position.z,
-                Is.GreaterThan(GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES - GameWideConstants.DEPLOYMENT_DISTANCE_INCHES - 0.001f),
+                Is.GreaterThan(GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES - GameWideConstants.DEPLOYMENT_DISTANCE_INCHES - 0.001f),
                 "B redeployed into B's top zone.");
         }
 

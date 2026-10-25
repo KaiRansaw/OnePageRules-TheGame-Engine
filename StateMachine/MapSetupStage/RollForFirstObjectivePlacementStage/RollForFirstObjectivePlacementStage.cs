@@ -28,7 +28,8 @@
             // Auto-Placed objectives don't involve players taking turns, so there's no one to roll off
             // for. Skip the dice roll-off and the "places first" beat; place in team declaration order
             // (the placement loop's cursor still needs an order even though nobody is prompted).
-            if (context.GameContext.Settings.ObjectivePlacementMode == EObjectivePlacementMode.AutoPlaced)
+            if (context.GameContext.Settings.ObjectivePlacementMode == EObjectivePlacementMode.AutoPlaced
+                || CustomMapRules.FixedObjectives(context.GameContext.Settings).Count > 0)
             {
                 context.Log("  Objectives are auto-placed; skipping the objective roll-off.");
                 context.SetObjectivePlacementTeamOrder(teams);

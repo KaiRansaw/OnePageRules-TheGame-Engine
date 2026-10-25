@@ -43,6 +43,13 @@ namespace FDG.Stages
             {
                 ModelData defModel = defender.GetValue();
                 Position defPos = defModel.PositionBinding.GetValue();
+                // Star Quest Smoke Grenade: within 3" of a smoke marker counts as being in cover.
+                Position[] smoke = QuestTreasure.SmokeSpots;
+                if (smoke.Length > 0 && smoke.Any(s => Position.GetDistance2D(s, defPos) - defModel.BaseRadiusInches <= 3f))
+                {
+                    modelsInCover++;
+                    continue;
+                }
                 foreach (DataBinding<ModelData> attacker in attackers)
                 {
                     ModelData atkModel = attacker.GetValue();

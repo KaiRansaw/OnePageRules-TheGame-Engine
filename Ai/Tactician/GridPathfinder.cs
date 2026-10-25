@@ -82,11 +82,13 @@ namespace FDG.Ai.Tactician
         /// </param>
         public static TerrainGrid Build(IReadOnlyList<ITerrain> terrain, float baseRadiusInches,
             bool ignoreDifficultTerrain = false,
-            float tableWidthInches = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-            float tableHeightInches = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES)
+            float? tableWidthInches = null,
+            float? tableHeightInches = null)
         {
-            int cols = (int)MathF.Ceiling(tableWidthInches / CellSizeInches);
-            int rows = (int)MathF.Ceiling(tableHeightInches / CellSizeInches);
+            float tw = tableWidthInches ?? GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
+            float th = tableHeightInches ?? GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            int cols = (int)MathF.Ceiling(tw / CellSizeInches);
+            int rows = (int)MathF.Ceiling(th / CellSizeInches);
             var blocked = new bool[cols * rows];
             var difficult = new bool[cols * rows];
 

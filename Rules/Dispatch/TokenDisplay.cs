@@ -65,6 +65,12 @@ public static class TokenDisplay
             return token.Type == TokenType.Mark ? $"Marked: {rg.RuleName}" : rg.RuleName;
         }
 
+        // Horde Mode: the XP token's count IS the unit's XP, so the label carries it.
+        if (token.Type == TokenType.HordeXP)
+        {
+            return $"{token.Count} XP";
+        }
+
         return TokenDefinitionCatalog.Lookup(token.Type).Name;
     }
 
@@ -86,9 +92,27 @@ public static class TokenDisplay
             }
 
             string ruleDesc = RuleDescription(rg.RuleName, rules);
+
+            // Horde Mode traits are permanent, and their own description already reads as a sentence.
+            if (rg.RuleName.StartsWith("Trait: ", StringComparison.Ordinal) && ruleDesc.Length > 0)
+            {
+                return ruleDesc;
+            }
+
             return ruleDesc.Length == 0
                 ? $"Gains {rg.RuleName}, {lifetime}."
                 : $"Gains {rg.RuleName} - {ruleDesc} ({lifetime}).";
+        }
+
+        if (token.Type == TokenType.HordeXP)
+        {
+            const int perLevel = 5, max = 30;
+            int next = Math.Min(max, (token.Count / perLevel + 1) * perLevel);
+            string progress = token.Count >= max
+                ? "Maximum XP - no more traits to earn."
+                : $"Next trait at {next} XP.";
+            return $"{token.Count} of {max} XP. {progress} Earned by killing enemies: +3 for a unit, " +
+                   "+5 for a hero, +8 for a hero and its unit.";
         }
 
         if (token.Type == TokenType.SpellTokens)

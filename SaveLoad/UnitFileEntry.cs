@@ -43,5 +43,17 @@ namespace FDG.SaveLoad
         public List<WeaponFileEntry> Weapons { get; set; } = new List<WeaponFileEntry>();
 
         public int PointCost { get; set; }
+
+        /// <summary>Star Quest: the hero sheet (a <see cref="FDG.Quest.QuestHero"/> as JSON) this unit was built
+        /// from, or null for an ordinary unit. Carried onto the unit in play.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string? QuestHeroJson { get; set; }
+
+        /// <summary>GF: Firefight Campaign: this unit's strike team sheet (a <see cref="FDG.Campaign.StrikeUnit"/> as
+        /// JSON), or null outside a strike team. Carried onto the unit in play.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string? StrikeUnitJson { get; set; }
     }
 }

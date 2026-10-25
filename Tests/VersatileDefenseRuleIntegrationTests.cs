@@ -65,7 +65,7 @@ namespace FDG.Tests
 
             _player = new PlayerID(Guid.NewGuid());
             _team = new TeamData(0, new List<PlayerID> { _player });
-            var zone = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
+            var zone = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
                 0f, GameWideConstants.DEPLOYMENT_DISTANCE_INCHES);
             _zones = new Dictionary<ITeam, DataBinding<RectangularZone>>
             {

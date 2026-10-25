@@ -30,6 +30,34 @@ namespace FDG
         // store to clients and survives saves; a pre-#329 save reads back 0 and the display hides it.
         public int PointCost { get; set; }
 
+        /// <summary>
+        /// Horde Mode shop: the army-builder choices this unit was bought or last upgraded with (a
+        /// <see cref="ArmyBuilding.HordeLoadout"/> as JSON), so the next shop opens its upgrade editor
+        /// exactly where it left off. Null for units fielded from the starting list.
+        /// </summary>
+        public string? HordeLoadoutJson { get; set; }
+
+        /// <summary>Star Quest: this hero's sheet (a <see cref="FDG.Quest.QuestHero"/> as JSON), or null for any
+        /// other unit. Its XP / level / stats change during the mission and are written back to the hero file
+        /// afterwards.</summary>
+        public string? QuestHeroJson { get; set; }
+
+        /// <summary>True for a Star Quest hero.</summary>
+        [JsonIgnore] public bool IsQuestHero => QuestHeroJson != null;
+
+        /// <summary>GF: Firefight Campaign: this unit's strike team sheet (a <see cref="FDG.Campaign.StrikeUnit"/> as
+        /// JSON), or null. Kills are counted on it during the game; it is written back to the team file afterwards.</summary>
+        public string? StrikeUnitJson { get; set; }
+
+        /// <summary>Star Quest: the hero's current power (it starts the mission full).</summary>
+        public int QuestPower { get; set; }
+
+        /// <summary>Star Quest: "+X to the next stat roll" waiting to be used (Concentrate, Guidance...).</summary>
+        public int QuestStatBonus { get; set; }
+
+        /// <summary>Star Quest: once-per-game class features already used this mission.</summary>
+        public List<string> QuestFeatsUsed { get; set; } = new();
+
         // #029/#150: an Aircraft's fixed flight heading is no longer a unit field — it lives on the models'
         // per-model IModel.Facing (set once toward the table centre, never turned), read back via
         // ForcedAircraftMove.EnsureHeading and gated by the AircraftHeadingSet token.
@@ -134,6 +162,12 @@ namespace FDG
             Quality = source.Quality;
             Defense = source.Defense;
             PointCost = source.PointCost;
+            HordeLoadoutJson = source.HordeLoadoutJson;
+            QuestHeroJson = source.QuestHeroJson;
+            StrikeUnitJson = source.StrikeUnitJson;
+            QuestPower = source.QuestPower;
+            QuestStatBonus = source.QuestStatBonus;
+            QuestFeatsUsed = source.QuestFeatsUsed.ToList();
             _ruleDefinitions.AddRange(source._ruleDefinitions);
             _ruleDefinitionsJson = source._ruleDefinitionsJson;
             _heroAttachment = source._heroAttachment?.Clone();
@@ -169,6 +203,8 @@ namespace FDG
             Quality = unitFileEntry.Quality;
             Defense = unitFileEntry.Defense;
             PointCost = unitFileEntry.PointCost;
+            QuestHeroJson = unitFileEntry.QuestHeroJson;
+            StrikeUnitJson = unitFileEntry.StrikeUnitJson;
 
             ModelBindings = new List<DataBinding<ModelData>>(unitFileEntry.ModelCount);
 
@@ -319,6 +355,17 @@ namespace FDG
         public void AttachRuleDefinition(ResolvedRule rule)
         {
             _ruleDefinitions.Add(rule);
+            _ruleDefinitionsJson = RuleAttachmentPersistence.Serialize(_ruleDefinitions);
+        }
+
+        /// <summary>
+        /// Horde Mode shop upgrades: swaps this unit's unit-level rules for a new set (the upgraded
+        /// loadout's), keeping the persisted form in step.
+        /// </summary>
+        public void ReplaceRuleDefinitions(IEnumerable<ResolvedRule> rules)
+        {
+            _ruleDefinitions.Clear();
+            _ruleDefinitions.AddRange(rules);
             _ruleDefinitionsJson = RuleAttachmentPersistence.Serialize(_ruleDefinitions);
         }
 

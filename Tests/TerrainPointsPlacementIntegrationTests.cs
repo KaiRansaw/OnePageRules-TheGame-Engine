@@ -103,8 +103,8 @@ namespace FDG.Tests
             {
                 Assert.That(
                     TerrainPlacementValidator.Check(piece.Shape,
-                        GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                        GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES, placed),
+                        GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                        GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES, placed),
                     Is.EqualTo(TerrainPlacementValidity.Valid),
                     $"'{piece.Name}' was committed to an illegal position.");
                 placed.Add(piece);

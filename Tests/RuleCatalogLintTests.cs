@@ -40,6 +40,27 @@ namespace FDG.Tests
                 "it by name and deals X hits per wound taken back at the attacker (#197 P11).",
             ["Deathstrike"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name and deals X hits per killed model back at the attacker (#197 P11).",
+            ["Trait: Elite"] = "engine-marker: Horde Mode trait with no dispatch entries; MoraleUtilities." +
+                "TakeMoraleTest reads its grant (HordeExperience.TryUseElite) for the once-per-round re-roll.",
+            ["Trait: Fast Learner"] = "engine-marker: Horde Mode bookkeeping only - records that the unit " +
+                "picked a trait (HordeExperience.LevelUp); it has no effect of its own by design.",
+            ["Talent: Motivated"] = "engine-marker: GF: Firefight Campaign - MoraleUtilities.TakeMoraleTest (FirefightCampaign.UseMotivated) passes the first morale test.",
+            ["Talent: Crazed"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack grants an extra hit on a charge.",
+            ["Talent: Toughened"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules writes Tough(+1) into the unit's file.",
+            ["Talent: Natural Talent"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules adds the +1 XP.",
+            ["Skill: Leader"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
+            ["Skill: Instigator"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
+            ["Skill: Tactician"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
+            ["Skill: Vanguard"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
+            ["Skill: Scavenger"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
+            ["Skill: Mastermind"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack gives nearby enemies -1 Defense.",
+            ["Skill: Fanatic"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules writes +1 attack into the hero's melee weapon.",
+            ["Skill: Berserker"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.WoundRollModifier adds +1 to the wound effect roll.",
+            ["Skill: Suppressor"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack gives the target -1 to hit when shooting.",
+            ["Skill: Climber"] = "engine-marker: GF: Firefight Campaign - no effect in this game (no jumping) - kept so the campaign skill shows on the unit.",
+            ["Skill: Chemist"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.WoundRollModifier gives nearby friends -1 to the wound effect roll.",
+            ["Skill: Herbalist"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.HerbalistIgnores lets nearby friends ignore wounds on a 6.",
+            ["Skill: Warden"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated stops nearby friends being Shaken.",
             ["Self-Destruct"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name, deals X hits per participating model and self-kills any survivor (#197 P11).",
         };

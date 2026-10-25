@@ -27,6 +27,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(Reroll), "reroll")]
 [JsonDerivedType(typeof(PassFailedMoraleTest), "passFailedMoraleTest")]
 [JsonDerivedType(typeof(AddExtraHit), "addExtraHit")]
+[JsonDerivedType(typeof(AddExtraHitIfAnyHit), "addExtraHitIfAnyHit")]
 [JsonDerivedType(typeof(AddExtraWound), "addExtraWound")]
 [JsonDerivedType(typeof(AddBonusAttack), "addBonusAttack")]
 [JsonDerivedType(typeof(SelfWoundOnUnmodifiedRoll), "selfWoundOnUnmodifiedRoll")]
@@ -201,6 +202,18 @@ public abstract record Effect
         protected override void ApplyCore(IHasUnmodifiedHitRolls context, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.InsertExtraHits(context.UnmodifiedHitRolls.At(OnRollValue) * Count));
+        }
+    }
+
+    /// <summary>
+    /// Star Quest "if it deals at least one hit, then it deals one extra hit": <see cref="Count"/> extra hits
+    /// when the attack scored any hit at all.
+    /// </summary>
+    public sealed record AddExtraHitIfAnyHit(int Count = 1) : CapabilityEffect<IHasHitsScored>
+    {
+        protected override void ApplyCore(IHasHitsScored context, List<RuleOperation> operations)
+        {
+            if (context.HitsScored > 0f) operations.Add(new RuleOperation.InsertExtraHits(Count));
         }
     }
 

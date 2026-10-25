@@ -7,6 +7,28 @@ namespace FDG
         public int ArmyPoints;
 
         /// <summary>
+        /// Which ruleset drives the match: the standard 4-round game, or OPR Horde Mode (waves of
+        /// enemies against a defending side). <see cref="EGameMode.Standard"/> is 0, so a pre-Horde
+        /// save (field absent from the JSON) resumes as the standard game it was played as.
+        /// </summary>
+        public EGameMode GameMode;
+
+        /// <summary>
+        /// Which OPR game this match is (Grimdark Future, Age of Fantasy, GF: Firefight, ...). The Game Mode
+        /// (<see cref="GameMode"/>: Standard, Horde, ...) is the kind of game played within it.
+        /// <see cref="EGameSystem.GrimdarkFuture"/> is 0, so a save or config from before this field resumes
+        /// as the Grimdark Future game it was played as.
+        /// </summary>
+        public EGameSystem GameSystem;
+
+        /// <summary>
+        /// Standard play, or Game Master: the host gets a panel to change the game out of order (end or
+        /// jump rounds, move any unit, edit wounds / Shaken / XP / traits, Horde points and objectives)
+        /// for testing. Standard is 0, so a pre-existing save resumes as Standard.
+        /// </summary>
+        public EPlayStyle PlayStyle;
+
+        /// <summary>
         /// #402 - which game systems' armies this lobby accepts. Host-owned, synced, and changeable
         /// in the lobby like <see cref="ArmyPoints"/>; an army from a system this doesn't allow is
         /// flagged on its roster row and BLOCKS the launch (see
@@ -130,6 +152,9 @@ namespace FDG
         {
             GameSettings merged = this;
             merged.TableBackground = lobbySettings.TableBackground;
+            // Game Master only adds testing tools - it never changes a rule - so a save can be resumed
+            // with them switched on (or off) to poke at a game in progress.
+            merged.PlayStyle = lobbySettings.PlayStyle;
             return merged;
         }
 
@@ -138,6 +163,9 @@ namespace FDG
             return new GameSettings()
             {
                 ArmyPoints = 2000,
+                GameMode = EGameMode.Standard,
+                GameSystem = EGameSystem.GrimdarkFuture,
+                PlayStyle = EPlayStyle.Standard,
                 AllowedGameSystems = ArmyBuilding.EAllowedGameSystems.All,
                 CoverProximityExceptions = true,
                 SeeThroughFriendlyUnits = false,
@@ -170,6 +198,106 @@ namespace FDG
         MarsLike,
         Urban,
         Barren,
+    }
+
+    /// <summary>
+    /// The OPR game a match belongs to - the "Game Type" in the lobby. Grimdark Future first so it is both
+    /// the default and what <c>default(GameSettings)</c> / an older save resolves to. Append new values at
+    /// the end - the numeric value is what saves and the wire carry. See <see cref="GameSystemInfo"/>.
+    /// </summary>
+    public enum EGameSystem
+    {
+        GrimdarkFuture,
+        AgeOfFantasy,
+        GFFirefight,
+        AoFSkirmish,
+        GFStarQuest,
+        AoFQuest,
+    }
+
+    /// <summary>Names, army sources and availability for each <see cref="EGameSystem"/>.</summary>
+    public static class GameSystemInfo
+    {
+        /// <summary>The order the lobby lists them in.</summary>
+        public static readonly EGameSystem[] DisplayOrder =
+        {
+            EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.GFStarQuest,
+            EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish, EGameSystem.AoFQuest,
+        };
+
+        public static string DisplayName(EGameSystem system) => system switch
+        {
+            EGameSystem.GrimdarkFuture => "Grimdark Future",
+            EGameSystem.AgeOfFantasy => "Age of Fantasy",
+            EGameSystem.GFFirefight => "GF: Firefight",
+            EGameSystem.AoFSkirmish => "AoF: Skirmish",
+            EGameSystem.GFStarQuest => "GF: Star Quest",
+            EGameSystem.AoFQuest => "AoF: Quest",
+            _ => system.ToString(),
+        };
+
+        /// <summary>Whose armies the game is played with: the Grimdark Future games take Grimdark Future
+        /// armies, the Age of Fantasy games take Age of Fantasy armies.</summary>
+        public static ArmyBuilding.EAllowedGameSystems ArmySource(EGameSystem system) => system switch
+        {
+            EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish or EGameSystem.AoFQuest
+                => ArmyBuilding.EAllowedGameSystems.AgeOfFantasy,
+            _ => ArmyBuilding.EAllowedGameSystems.GrimdarkFuture,
+        };
+
+        /// <summary>Whether the lobby may pick it yet. The others are listed so the line-up is visible, but
+        /// stay greyed out until their rules are in.</summary>
+        public static bool IsAvailable(EGameSystem system) => system is
+            EGameSystem.GrimdarkFuture or EGameSystem.AgeOfFantasy or EGameSystem.GFFirefight or EGameSystem.GFStarQuest;
+
+        /// <summary>The Game Modes this game offers.</summary>
+        public static EGameMode[] Modes(EGameSystem system) => system switch
+        {
+            EGameSystem.GFStarQuest => new[] { EGameMode.StarQuestMission, EGameMode.StarQuestHorde },
+            _ => new[] { EGameMode.Standard, EGameMode.Horde },
+        };
+
+        /// <summary>True for the Star Quest / Quest games: the local side plays a party of heroes.</summary>
+        public static bool IsQuest(EGameSystem system) => system is EGameSystem.GFStarQuest or EGameSystem.AoFQuest;
+
+        /// <summary>True for the skirmish games (GF: Firefight / AoF: Skirmish): 4' x 4' table, 6" coherency,
+        /// army morale at the end of each round instead of morale from wounds and melee.</summary>
+        public static bool IsSkirmish(EGameSystem system) => system is EGameSystem.GFFirefight or EGameSystem.AoFSkirmish;
+
+        /// <summary>Horde-style modes: one defending side against waves.</summary>
+        public static bool IsHordeLike(EGameMode mode) => mode is EGameMode.Horde or EGameMode.StarQuestHorde or EGameMode.StarQuestMission;
+
+        /// <summary>Star Quest modes: a party of heroes against the AI, with hero actions.</summary>
+        public static bool IsQuestMode(EGameMode mode) => mode is EGameMode.StarQuestHorde or EGameMode.StarQuestMission;
+    }
+
+    /// <summary>
+    /// The ruleset a match is played under. Standard first so it is both the default and what
+    /// <c>default(GameSettings)</c> / a pre-Horde save resolves to. Append new modes at the end -
+    /// the numeric value is what saves and the wire carry.
+    /// </summary>
+    public enum EGameMode
+    {
+        /// <summary>The normal Grimdark Future game: four rounds, objectives decide the winner.</summary>
+        Standard,
+
+        /// <summary>OPR Horde Mode v3.5.0 (Grimdark Future): defenders survive waves of enemies.</summary>
+        Horde,
+
+        /// <summary>GF: Star Quest Horde Mode v2.0.0: 2-4 heroes hold out against waves that arrive as the
+        /// enemies' alertness rises, earning XP and levelling up between waves.</summary>
+        StarQuestHorde,
+
+        /// <summary>GF: Star Quest one-off mission (Campaign Builder): primary + secondary objectives, sentries and
+        /// reinforcements, then the heroes leave by a table corner.</summary>
+        StarQuestMission,
+    }
+
+    /// <summary>Normal play, or Game Master testing tools for the host. Append new values at the end.</summary>
+    public enum EPlayStyle
+    {
+        Standard,
+        GameMaster,
     }
 
     public enum ERandomnessType

@@ -14,6 +14,10 @@ namespace FDG.Utilities
 
         public int CurrentTeamIndex { get; set; }
 
+        /// <summary>Star Quest: instead of alternating, every team takes all of its activations before the next
+        /// team starts, always in <see cref="TeamOrder"/> order (the heroes first, then the AI).</summary>
+        public bool Sequential { get; set; }
+
         public Dictionary<ITeam, int> CurrentPlayerIndexPerTeam { get; }
 
         public TeamPlayerAlternationCursor(IReadOnlyList<ITeam> teamOrder)
@@ -108,6 +112,20 @@ namespace FDG.Utilities
             out PlayerID? nextPlayerID)
         {
             int teamCount = TeamOrder.Count;
+            if (Sequential)
+            {
+                for (int i = 0; i < teamCount; i++)
+                {
+                    if (!teamHasRemainingWork(TeamOrder[i])) continue;
+                    CurrentTeamIndex = i;
+                    nextTeam = TeamOrder[i];
+                    nextPlayerID = AdvancePlayerWithinTeam(nextTeam, playerHasRemainingWork);
+                    return true;
+                }
+                nextTeam = null;
+                nextPlayerID = null;
+                return false;
+            }
             int firstTeamToCheck = (CurrentTeamIndex + 1) % teamCount;
 
             int nextTeamIndex = firstTeamToCheck;

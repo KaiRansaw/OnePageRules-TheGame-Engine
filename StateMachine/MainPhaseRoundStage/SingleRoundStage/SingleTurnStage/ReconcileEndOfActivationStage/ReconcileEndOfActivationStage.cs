@@ -48,6 +48,10 @@ namespace FDG.Stages
                     await OfferEndOfActivationAbilities(context.ActivatedUnit);
                 }
 
+                // Star Quest missions: a hero carrying an objective may deliver it here.
+                if (unit.IsQuestHero) await QuestMission.OnHeroActivationEnd(GameContext, unit);
+                if (QuestActions.IsQuestGame(GameContext)) await QuestTreasure.OnAnyActivationEnd(GameContext, unit);
+
                 List<ITokenContainer> containers = new List<ITokenContainer> { unit.Tokens };
                 containers.AddRange(unit.Models.Select(model => model.Tokens));
                 new TokenClearService().ClearForHook(EHookID.Activation_OnEndOfActivation, containers);

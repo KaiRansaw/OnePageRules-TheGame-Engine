@@ -1,4 +1,4 @@
-using FDG.Data;
+﻿using FDG.Data;
 using FDG.Players;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -64,7 +64,9 @@ namespace FDG.Tests
                 arriver.GetValue(), _tableState, _evaluator);
 
             Assert.That(discs.Count, Is.EqualTo(2), "one disc per living model of the repelling unit");
-            Assert.That(discs.All(d => d.RadiusInches == 12f), Is.True);
+            // Rules accuracy: 12" is base edge to base edge, so the centre-tested disc is widened by both bases.
+            float bases = TwoBases(arriver);
+            Assert.That(discs.All(d => System.Math.Abs(d.RadiusInches - (12f + bases)) < 0.001f), Is.True);
             Assert.That(discs.Select(d => d.Center.x), Is.EquivalentTo(new[] { 30f, 31f }));
         }
 
@@ -143,8 +145,12 @@ namespace FDG.Tests
 
             Assert.That(waivers.Count, Is.EqualTo(1), "only the own side's beacon lights the way in");
             Assert.That(waivers[0].Center.x, Is.EqualTo(10f).Within(0.001f));
-            Assert.That(waivers[0].RadiusInches, Is.EqualTo(6f).Within(0.001f));
+            Assert.That(waivers[0].RadiusInches, Is.EqualTo(6f + TwoBases(arriver)).Within(0.001f));
         }
+
+        // Both bases' reach (all test models share the default base), the widening a base-edge rule adds.
+        private static float TwoBases(DataBinding<UnitData> unit) =>
+            2f * unit.GetValue().Models[0].BaseShape.BoundingRadiusInches;
 
         // --- PlacementDistanceRules: the combination authority --------------------------------------
 
@@ -211,6 +217,25 @@ namespace FDG.Tests
                 "exactly 6.0\" from the beacon is still within it (inclusive), unlike the exclusive keep-outs");
         }
 
+        // --- Rules accuracy: "over 9\" away from enemy units" is base edge to base edge ----------------
+
+        [Test]
+        public void BasicAmbushDistance_IsMeasuredBaseEdgeToBaseEdge()
+        {
+            // 1" bases (0.5" radius) on both sides: the edge distance is the centre distance minus 1".
+            DataBinding<UnitData> arriver = MakeUnit(_us, ("Arriver", null));
+            MakeUnit(_enemy, ("Enemy", null), new Position(30f, 30f));
+
+            IReadOnlyList<PlacementDisc> discs = AmbushArrivalRules.EnemyEdgeDiscs(
+                arriver.GetValue(), _tableState, 9f);
+            PlaceObjectsRequest<ModelData> request = Request(minEnemyDist: 9f, keepOut: discs.ToArray());
+
+            Assert.That(PlacementDistanceRules.ViolatesEnemyDistance(request, new Position(30f, 39.5f), NoEnemies),
+                Is.True, "9.5\" centre to centre is only 8.5\" base to base - too close");
+            Assert.That(PlacementDistanceRules.ViolatesEnemyDistance(request, new Position(30f, 40.01f), NoEnemies),
+                Is.False, "just over 10\" centre to centre is just over 9\" base to base - legal");
+        }
+
         // --- Stage wiring: the arrival request carries the discs ------------------------------------
 
         [Test]
@@ -230,12 +255,15 @@ namespace FDG.Tests
             await stage.Enter(new TestMainPhaseContext(ctx, roundCount: 2));
 
             Assert.That(requester.PlaceRequest, Is.Not.Null);
-            Assert.That(requester.PlaceRequest!.EnemyKeepOutDiscs, Has.Count.EqualTo(1),
-                "the arrival request snapshots the enemy repel disc");
-            Assert.That(requester.PlaceRequest.EnemyKeepOutDiscs[0].RadiusInches, Is.EqualTo(12f).Within(0.001f));
+            // Rules accuracy: the repel disc, plus the basic "over 9\" from enemies" as a base-edge disc.
+            float bases = TwoBases(ambush);
+            Assert.That(requester.PlaceRequest!.EnemyKeepOutDiscs, Has.Count.EqualTo(2),
+                "the arrival request snapshots the enemy repel disc and the 9\" base-edge disc");
+            Assert.That(requester.PlaceRequest.EnemyKeepOutDiscs.Select(d => d.RadiusInches),
+                Is.EquivalentTo(new[] { 12f + bases, 9f + bases }).Using<float>((a, b) => System.Math.Abs(a - b) < 0.001f ? 0 : a.CompareTo(b)));
             Assert.That(requester.PlaceRequest.EnemyDistanceWaiverDiscs, Has.Count.EqualTo(1),
                 "and the allied beacon's waiver disc");
-            Assert.That(requester.PlaceRequest.EnemyDistanceWaiverDiscs[0].RadiusInches, Is.EqualTo(6f).Within(0.001f));
+            Assert.That(requester.PlaceRequest.EnemyDistanceWaiverDiscs[0].RadiusInches, Is.EqualTo(6f + bases).Within(0.001f));
         }
 
         private static readonly IReadOnlyList<Position> NoEnemies = System.Array.Empty<Position>();

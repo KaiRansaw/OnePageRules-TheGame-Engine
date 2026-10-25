@@ -53,6 +53,9 @@ namespace FDG.Network.Connection.Lobby
         public IObservable<ERandomnessType> RandomnessTypeObservable => _settings_RandomnessType;
         public IObservable<ETurnStyle> TurnStyleObservable => _settings_TurnMethod;
         public IObservable<EShootingMode> ShootingModeObservable => _settings_ShootingMode;
+        public IObservable<EGameMode> GameModeObservable => _settings_GameMode;
+        public IObservable<EGameSystem> GameSystemObservable => _settings_GameSystem;
+        public IObservable<EPlayStyle> PlayStyleObservable => _settings_PlayStyle;
         public IObservable<bool> CoverProximityExceptionsObservable => _settings_CoverProximityExceptions;
         public IObservable<bool> SeeThroughFriendlyUnitsObservable => _settings_SeeThroughFriendlyUnits;
         public IObservable<bool> UnlimitedSplitFireObservable => _settings_UnlimitedSplitFire;
@@ -85,6 +88,9 @@ namespace FDG.Network.Connection.Lobby
         public ETurnStyle TurnStyle => _settings_TurnMethod.Value;
 
         public EShootingMode ShootingMode => _settings_ShootingMode.Value;
+        public EGameMode GameMode => _settings_GameMode.Value;
+        public EGameSystem GameSystem => _settings_GameSystem.Value;
+        public EPlayStyle PlayStyle => _settings_PlayStyle.Value;
 
         public bool CoverProximityExceptions => _settings_CoverProximityExceptions.Value;
 
@@ -112,6 +118,9 @@ namespace FDG.Network.Connection.Lobby
         private BehaviorSubject<ERandomnessType> _settings_RandomnessType;
         private BehaviorSubject<ETurnStyle> _settings_TurnMethod;
         private BehaviorSubject<EShootingMode> _settings_ShootingMode;
+        private BehaviorSubject<EGameMode> _settings_GameMode;
+        private BehaviorSubject<EGameSystem> _settings_GameSystem;
+        private BehaviorSubject<EPlayStyle> _settings_PlayStyle;
         private BehaviorSubject<bool> _settings_CoverProximityExceptions;
         private BehaviorSubject<bool> _settings_SeeThroughFriendlyUnits;
         private BehaviorSubject<bool> _settings_UnlimitedSplitFire;
@@ -187,6 +196,9 @@ namespace FDG.Network.Connection.Lobby
             _settings_TurnMethod = new BehaviorSubject<ETurnStyle>(ETurnStyle.Standard);
             // #371: One At A Time until the host's first settings update lands, same as the others here.
             _settings_ShootingMode = new BehaviorSubject<EShootingMode>(EShootingMode.OneAtATime);
+            _settings_GameMode = new BehaviorSubject<EGameMode>(EGameMode.Standard);
+            _settings_GameSystem = new BehaviorSubject<EGameSystem>(EGameSystem.GrimdarkFuture);
+            _settings_PlayStyle = new BehaviorSubject<EPlayStyle>(EPlayStyle.Standard);
             // #201: default-on mirrors GameSettings; the host's first LobbyGameSettingsUpdate corrects it.
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(true);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(false);
@@ -385,6 +397,18 @@ namespace FDG.Network.Connection.Lobby
             {
                 _settings_ShootingMode.OnNext(gameSettingsUpdate.GameSettings.ShootingMode);
             }
+            if (_settings_GameMode.Value != gameSettingsUpdate.GameSettings.GameMode)
+            {
+                _settings_GameMode.OnNext(gameSettingsUpdate.GameSettings.GameMode);
+            }
+            if (_settings_GameSystem.Value != gameSettingsUpdate.GameSettings.GameSystem)
+            {
+                _settings_GameSystem.OnNext(gameSettingsUpdate.GameSettings.GameSystem);
+            }
+            if (_settings_PlayStyle.Value != gameSettingsUpdate.GameSettings.PlayStyle)
+            {
+                _settings_PlayStyle.OnNext(gameSettingsUpdate.GameSettings.PlayStyle);
+            }
             if (_settings_CoverProximityExceptions.Value != gameSettingsUpdate.GameSettings.CoverProximityExceptionsEnabled)
             {
                 _settings_CoverProximityExceptions.OnNext(gameSettingsUpdate.GameSettings.CoverProximityExceptionsEnabled);
@@ -478,6 +502,21 @@ namespace FDG.Network.Connection.Lobby
         public void SetShootingMode(EShootingMode shootingMode)
         {
             throw new InvalidOperationException("Tried to set shooting mode when not the host.");
+        }
+
+        public void SetGameMode(EGameMode gameMode)
+        {
+            throw new InvalidOperationException("Tried to set the game mode when not the host.");
+        }
+
+        public void SetGameSystem(EGameSystem gameSystem)
+        {
+            throw new InvalidOperationException("Tried to set the game type when not the host.");
+        }
+
+        public void SetPlayStyle(EPlayStyle playStyle)
+        {
+            throw new InvalidOperationException("Tried to set the play style when not the host.");
         }
 
         public void SetCoverProximityExceptions(bool enabled)

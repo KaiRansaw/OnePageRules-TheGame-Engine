@@ -30,6 +30,24 @@ namespace FDG.Stages
             // presenter paces only the stagger), so a multi-casualty volley plays as a rapid-fire
             // cascade with the final death/flinch running out in full. The assignments are
             // precomputed, so the last entry that will emit a beat (Wounds > 0) is known up front.
+            // GF: Firefight wound effects replace the normal per-model wounds.
+            if (FirefightRules.IsSkirmishGame(GameContext))
+            {
+                float total = assignWoundsResults.PendingWounds.Sum(p => p.Wounds);
+                modelsKilled = await FirefightRules.ApplyWounds(GameContext, defendingUnit, total,
+                    metaData.AttackingUnit.GetValue(), metaData.IsMelee,
+                    assignWoundsResults.PendingWounds.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model));
+                if (defenderWasAlive && !metaData.DefendingUnit.GetIsAlive())
+                {
+                    GameContext.Log($"{defendingUnit.Name} is destroyed.");
+                    await UnitDestructionNotifier.NotifyUnitDestroyed(GameContext, defendingUnit,
+                        metaData.AttackingUnit.GetValue());
+                }
+                await ApplySelfWounds(metaData);
+                await onFinished(new ApplyWoundsResults(modelsKilled));
+                return;
+            }
+
             int lastCasualtyIndex = -1;
             for (int i = 0; i < assignWoundsResults.PendingWounds.Count; i++)
             {

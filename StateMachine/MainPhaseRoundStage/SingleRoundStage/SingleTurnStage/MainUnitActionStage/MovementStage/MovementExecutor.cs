@@ -1,4 +1,4 @@
-using FDG.Data;
+﻿using FDG.Data;
 using FDG.Presentation;
 using FDG.Presentation.Beats;
 using FDG.StageResolution.Requests;
@@ -124,28 +124,45 @@ namespace FDG.Stages
         {
             if (testers.Count == 0) return DangerousTerrainResult.None;
 
-            IDiceResults roll = gameContext.DiceRoller.Roll(6, testers.Count);
+            // Rules accuracy: "roll one die (or as many dice as the model's Tough value), and if the result
+            // is 1, then the unit takes one automatic wound" - a Tough(6) model rolls six dice, not one.
+            // TotalWounds is the model's Tough (1 for an ordinary model).
+            int[] dice = new int[testers.Count];
+            int totalDice = 0;
+            for (int i = 0; i < testers.Count; i++)
+            {
+                dice[i] = Math.Max(1, (int)MathF.Round(testers[i].TotalWounds));
+                totalDice += dice[i];
+            }
+
+            IDiceResults roll = gameContext.DiceRoller.Roll(6, totalDice);
             float ones = roll.At(1); // 1s are wounds (fractional under the probabilistic roller)
 
             List<PendingModelWound> pending = new List<PendingModelWound>();
             float woundsRolled;
             if (gameContext.Settings.RandomnessType == ERandomnessType.Probabilistic)
             {
-                // Spread the expected wounds evenly -- each model carried its own 1/6 chance of a 1.
-                float perModel = ones / testers.Count;
-                if (perModel > 0f)
+                // Spread the expected wounds by dice - each die carried its own 1/6 chance of a 1.
+                float perDie = ones / totalDice;
+                if (perDie > 0f)
                 {
-                    foreach (IModel tester in testers)
-                        pending.Add(new PendingModelWound(tester, perModel));
+                    for (int i = 0; i < testers.Count; i++)
+                        pending.Add(new PendingModelWound(testers[i], perDie * dice[i]));
                 }
                 woundsRolled = ones;
             }
             else
             {
-                // Realistic: a whole number of 1s came up; one wound apiece to that many models.
+                // Realistic: a whole number of 1s came up. Hand them out model by model, each taking at
+                // most as many wounds as dice it rolled.
                 int wounds = (int)MathF.Round(ones);
-                for (int i = 0; i < wounds && i < testers.Count; i++)
-                    pending.Add(new PendingModelWound(testers[i], 1f));
+                int given = 0;
+                for (int i = 0; i < testers.Count && given < wounds; i++)
+                {
+                    int take = Math.Min(dice[i], wounds - given);
+                    pending.Add(new PendingModelWound(testers[i], take));
+                    given += take;
+                }
                 woundsRolled = wounds;
             }
 

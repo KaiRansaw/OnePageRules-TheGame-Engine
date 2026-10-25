@@ -74,6 +74,7 @@ namespace FDG.Stages
             GameContext = gameContext;
             RoundCount = roundCount;
             Cursor = new TeamPlayerAlternationCursor(teamOrder);
+            Cursor.Sequential = GameSystemInfo.IsQuestMode(gameContext.Settings.GameMode);
 
             // The round advances the cursor BEFORE every activation, including the round's first, so it
             // starts parked one step short of teamOrder[0] - the team that won the deployment roll-off in
@@ -101,6 +102,7 @@ namespace FDG.Stages
             GameContext = gameContext;
             RoundCount = roundCount;
             Cursor = new TeamPlayerAlternationCursor(teamOrder);
+            Cursor.Sequential = GameSystemInfo.IsQuestMode(gameContext.Settings.GameMode);
             Cursor.CurrentTeamIndex = currentTeamIndex;
             foreach (KeyValuePair<ITeam, int> kvp in currentPlayerIndexPerTeam)
             {

@@ -39,6 +39,15 @@ namespace FDG
         /// <summary>Total rounds in a game (<see cref="GameWideConstants.NUMBER_OF_ROUNDS"/>).</summary>
         int TotalRounds { get; }
 
+        /// <summary>Standard game or Horde Mode (Standard before the main phase has a progress record).</summary>
+        EGameMode GameMode => EGameMode.Standard;
+
+        /// <summary>Horde Mode: the defenders' points earned so far, or null outside Horde Mode.</summary>
+        int? HordePointsEarned => null;
+
+        /// <summary>Horde Mode: the defenders' points left to spend, or null outside Horde Mode.</summary>
+        int? HordePointsAvailable => null;
+
         /// <summary>The unit taking its activation right now, or null between activations / outside the main phase.</summary>
         IUnit? ActivatingUnit { get; }
 
@@ -52,6 +61,9 @@ namespace FDG
         /// projecting threat -- frontiers shrink as enemies spend their activations.
         /// </summary>
         IReadOnlyList<IUnit> UnactivatedUnits { get; }
+
+        /// <summary>Star Quest Horde's wave / alertness / XP (null in other games).</summary>
+        QuestProgress? Quest => null;
     }
 
     /// <summary>
@@ -65,11 +77,25 @@ namespace FDG
 
         public GameProgress(IReadableGameDataStore store) => _store = store;
 
-        public int TotalRounds => GameWideConstants.NUMBER_OF_ROUNDS;
+        public int TotalRounds => StateMachine.HordeRules.RoundLimit(
+            GameProgressUtilities.TryGetProgress(_store)?.Settings.GameMode ?? EGameMode.Standard);
 
         public int? RoundCount => GameProgressUtilities.TryGetProgress(_store)?.RoundCount;
 
+        public EGameMode GameMode => GameProgressUtilities.TryGetProgress(_store)?.Settings.GameMode ?? EGameMode.Standard;
+
+        public int? HordePointsEarned => GameMode == EGameMode.Horde
+            ? GameProgressUtilities.TryGetProgress(_store)?.Horde?.PointsEarned ?? 0
+            : null;
+
+        public int? HordePointsAvailable => GameMode == EGameMode.Horde
+            ? GameProgressUtilities.TryGetProgress(_store)?.Horde?.PointsAvailable ?? 0
+            : null;
+
         public IUnit? ActivatingUnit => GameProgressUtilities.TryGetProgress(_store)?.ActivatingUnit?.GetValue();
+
+        public QuestProgress? Quest => GameProgressUtilities.TryGetProgress(_store)?.Quest
+            ?? GameProgressUtilities.PendingQuestFor(_store);
 
         public IReadOnlyList<IUnit> UnactivatedUnits
         {

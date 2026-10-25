@@ -58,9 +58,11 @@ namespace FDG.Stages
 
         /// <summary>The placements to commit: the originals when clear, or a re-placed set when
         /// they overlap on-table models (logged either way it goes).</summary>
+        /// <param name="logWarnings">False for a caller that will try a wider zone itself when this one
+        /// has no clear spot (Horde Mode's crowded corners), so an expected miss is not logged as a fault.</param>
         public static async Task<List<PlacedObjectEntry<ModelData>>> EnsureClear(
             IGameContext gameContext, PlaceObjectsRequest<ModelData> request,
-            List<PlacedObjectEntry<ModelData>> placements)
+            List<PlacedObjectEntry<ModelData>> placements, bool logWarnings = true)
         {
             if (placements.Count == 0) return placements;
 
@@ -68,8 +70,11 @@ namespace FDG.Stages
             if (depth <= OverlapToleranceInches) return placements;
 
             string unitName = PlacingUnitName(gameContext.TableState, request);
-            gameContext.Log($"WARNING: {unitName} placement overlapped {blocker} " +
-                $"(worst {depth:F2}in) - re-placing on a clear spot.");
+            if (logWarnings)
+            {
+                gameContext.Log($"WARNING: {unitName} placement overlapped {blocker} " +
+                    $"(worst {depth:F2}in) - re-placing on a clear spot.");
+            }
 
             var repairResolver = new AiPlaceObjectsResolver<ModelData>(gameContext.TableState);
             CancellableResult<List<PlacedObjectEntry<ModelData>>> repaired =
@@ -80,7 +85,7 @@ namespace FDG.Stages
 
             (string stillBlocker, float stillDepth) =
                 WorstOverlap(gameContext.TableState, request, selected.Value);
-            if (stillDepth > OverlapToleranceInches)
+            if (stillDepth > OverlapToleranceInches && logWarnings)
             {
                 gameContext.Log($"WARNING: no clear spot for {unitName}; committing the " +
                     $"least-overlapping placement ({stillDepth:F2}in against {stillBlocker}).");
@@ -92,7 +97,7 @@ namespace FDG.Stages
         // on-table model, measured by true oriented footprints. The placing unit's own models are
         // excluded: they are the ones moving (a re-deploying unit still stands at its old spot),
         // and intra-formation legality is the resolver's own contract.
-        private static (string blocker, float depth) WorstOverlap(ITableState tableState,
+        internal static (string blocker, float depth) WorstOverlap(ITableState tableState,
             PlaceObjectsRequest<ModelData> request, List<PlacedObjectEntry<ModelData>> placements)
         {
             var self = new HashSet<IModel>(ReferenceEqualityComparer.Instance);

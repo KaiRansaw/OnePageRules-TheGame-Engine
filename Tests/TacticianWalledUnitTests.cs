@@ -1,4 +1,4 @@
-using FDG.Ai.Resolvers;
+﻿using FDG.Ai.Resolvers;
 using FDG.Ai.Tactician;
 using FDG.Ai.Tactician.Resolvers;
 using FDG.Data;
@@ -270,8 +270,10 @@ namespace FDG.Tests
                 canMoveThroughEnemies: false, ignoresDifficultTerrain: false,
                 ignoresImpassibleTerrain: false);
 
-            Assert.That(NetCentroidMove(move, cx, cz), Is.GreaterThanOrEqualTo(2f),
-                "mixed wall + friendly faults must still be rescued, not halved to a shuffle");
+            // Rules accuracy (GF v3.5.1): models may not move through a friendly unit or end within 1" of
+            // it, so a friendly parked in the 2" corridor mouth now BLOCKS the corridor. What must still
+            // hold is that the planner hands back a legal move rather than one the engine will reject.
+            AssertLegal(move, friendly);
         }
 
         [Test]
@@ -319,9 +321,18 @@ namespace FDG.Tests
                 canMoveThroughEnemies: false, ignoresDifficultTerrain: false,
                 ignoresImpassibleTerrain: false);
 
-            Assert.That(NetCentroidMove(move, cx, cz), Is.GreaterThanOrEqualTo(6f),
-                "a mixed fault at the full arc must not force the ladder to halve away most of the " +
-                "budget - the snake threads the corridor at the top arc (halving nets only ~3.3\")");
+            // Rules accuracy (GF v3.5.1): the friendly up the 2"-walkable corridor now blocks it (no moving
+            // through friendlies, no ending within 1" of them). The planner must still return a legal move.
+            AssertLegal(move, friendly);
+        }
+
+        private void AssertLegal(List<ModelMoveEntry> move, DataBinding<UnitData> friendly)
+        {
+            MovementUtilities.ValidatePaths(move, _ => new ModelMoveBudget(12f, 12f),
+                new List<EnemyModelFootprint>(), false, false, false,
+                _tableState.Terrain.Objects.ToList(), out List<ReasonForInvalidMove> errors,
+                FriendlyFootprints(friendly), lenientCoherency: true);
+            Assert.That(errors, Is.Empty, string.Join(", ", errors.Select(e => e.ErrorReasonType).Distinct()));
         }
 
         // --- Issue 6: the solo resolver (every Tactician fallback lands here) skirts blocked

@@ -31,9 +31,9 @@ namespace FDG.Rules.Dispatch.Contexts
         float DistanceInches = 0f, bool IsMelee = false, bool IsCharging = false, bool IsSpell = false,
         float ChargeOriginDistanceInches = 0f,
         EUnpredictableBranch UnpredictableBranch = EUnpredictableBranch.None,
-        IReadOnlyList<ITerrain>? TerrainPieces = null)
+        IReadOnlyList<ITerrain>? TerrainPieces = null, float HitsScored = 0f)
         : IHookContext, IHasUnmodifiedHitRolls, IHasDistance, IHasCombatKind, IHasCharging, IHasTarget,
-            IHasIsSpell, IHasAttackOriginDistance, IHasUnpredictableBranch, IHasTerrain
+            IHasIsSpell, IHasAttackOriginDistance, IHasUnpredictableBranch, IHasTerrain, IHasHitsScored
     {
         public EHookID Hook => EHookID.Shooting_OnHitRollComplete;
 

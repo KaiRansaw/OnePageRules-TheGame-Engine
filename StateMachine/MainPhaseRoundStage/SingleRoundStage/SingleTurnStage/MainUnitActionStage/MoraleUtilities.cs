@@ -62,6 +62,12 @@ namespace FDG.Stages
         public static async Task<MoraleTestOutcome> TakeMoraleTest(IGameContext gameContext, IUnit testingUnit,
             int baseRollNeeded, bool failureCausesShakenOrRout = false)
         {
+            // GF: Firefight Campaign talent Motivated: the first morale test of the match is passed.
+            if (FirefightCampaign.UseMotivated(gameContext, testingUnit))
+                return new MoraleTestOutcome(passed: true, baseRollNeeded, passedViaReroll: false);
+            // Star Quest: AI units within 12" of a Villain may test on the Villain's Quality if it's better.
+            if (QuestActions.IsQuestGame(gameContext))
+                baseRollNeeded = QuestChallenges.VillainMorale(gameContext, testingUnit, baseRollNeeded);
             // A Shaken unit always fails its morale tests (GF v3.5.1) — no die is rolled. This is what
             // escalates a Shaken unit that loses a later melee at half strength into a Rout, and keeps an
             // already-Shaken unit Shaken on any other failed test. Checked before the roll so a lucky die
@@ -130,6 +136,23 @@ namespace FDG.Stages
                     $"{testingUnit.Name} - Fearless Re-roll",
                     passedReroll ? "Passed" : "Failed"));
                 if (passedReroll)
+                {
+                    return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: true);
+                }
+            }
+
+            // Horde Mode Elite trait: once per round the unit may re-roll a failed morale test, at the same
+            // target. After Fearless (free, and with its own fixed 4+), before the paid conversion below.
+            if (FDG.StateMachine.HordeExperience.TryUseElite(testingUnit))
+            {
+                IDiceResults eliteReroll = gameContext.DiceRoller.RollDecisive();
+                bool passedElite = eliteReroll.AtOrAbove(rollNeeded) >= 1f;
+                gameContext.Log($"{testingUnit.Name} uses Elite to re-roll its failed morale test - " +
+                    (passedElite ? "passed." : "failed again."));
+                await gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(eliteReroll, rollNeeded,
+                    $"{testingUnit.Name} - Elite Re-roll",
+                    passedElite ? "Passed" : "Failed"));
+                if (passedElite)
                 {
                     return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: true);
                 }
@@ -257,6 +280,7 @@ namespace FDG.Stages
             float remainingWoundsBefore)
         {
             IUnit unit = unitBinding.GetValue();
+            if (FirefightRules.IsSkirmishGame(gameContext)) return null;     // Firefight: army morale at round end only
             if (!unit.GetIsAlive()) return null;                              // wiped out outright — no test
             if (!WoundsLeftUnitAtHalfStrength(remainingWoundsBefore, unit)) return null;
 
@@ -278,6 +302,31 @@ namespace FDG.Stages
         /// </summary>
         public static async Task ApplyShakenWithPresentation(IGameContext gameContext, DataBinding<UnitData> unitBinding)
         {
+            if (QuestActions.IsQuestGame(gameContext))
+            {
+                UnitData unit = unitBinding.GetValue();
+                // Star Quest: a hero may spend 2 power to ignore being Shaken.
+                if (unit.IsQuestHero)
+                {
+                    bool spend = await gameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
+                        unit.PlayerID, $"{unit.Name} failed morale. Spend 2 power to ignore being Shaken? ({unit.QuestPower} power left)",
+                        defaultAnswer: unit.QuestPower >= 2, displayName: $"{unit.Name}: ignore Shaken?"));
+                    if (spend)
+                    {
+                        await QuestActions.SpendPower(gameContext, unit, 2, "to ignore being Shaken");
+                        await QuestActions.Toast(gameContext, $"{unit.Name} shrugs it off - not Shaken.");
+                        return;
+                    }
+                }
+                // Star Quest: enemies with Tough(9) or more can't be Shaken - they take D3 wounds instead.
+                else if (unit.Models.Count(m => m.GetIsAlive()) == 1 && unit.Models.Max(m => m.TotalWounds) >= 9f)
+                {
+                    int wounds = (HordePlacement.RollD6(gameContext) + 1) / 2;
+                    await QuestActions.Toast(gameContext, $"{unit.Name} can't be Shaken - it takes {wounds} wound{(wounds == 1 ? "" : "s")} instead.");
+                    await CasualtyPresentation.ApplyUnitWounds(gameContext, unit, wounds);
+                    return;
+                }
+            }
             ApplyShaken(unitBinding);
             await gameContext.Presenter.Present(
                 new BannerBeat($"{unitBinding.GetValue().Name} fails morale - Shaken!", ShakenBannerColor,
@@ -385,7 +434,14 @@ namespace FDG.Stages
         public static async Task RoutWithPresentation(IGameContext gameContext, DataBinding<UnitData> unitBinding)
         {
             UnitData unit = unitBinding.GetValue();
-            if (!unit.GetIsAlive()) return;   // nothing to rout — don't announce a phantom rout
+            if (!unit.GetIsAlive()) return;   // nothing to rout - don't announce a phantom rout
+
+            // Star Quest has no Rout: a failed morale test makes the unit Shaken.
+            if (QuestActions.IsQuestGame(gameContext))
+            {
+                await ApplyShakenWithPresentation(gameContext, unitBinding);
+                return;
+            }
 
             // Banner first, before Rout deals the lethal wounds, so the announcement starts over the
             // still-living unit rather than firing on empty bases. As a Notice (#275) it paces only its

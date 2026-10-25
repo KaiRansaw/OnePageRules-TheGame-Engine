@@ -10,6 +10,9 @@ namespace FDG.Stages
         public List<ITeam> TeamActivateOrder { get; }
 
         public void OnEndOfRound(IReadOnlyList<ITeam> newTeamActivateOrder);
+
+        /// <summary>Game Master "jump to round": sets the round about to start. Default no-op for test doubles.</summary>
+        public void SetRoundCount(int roundCount) { }
     }
 
     public class MainPhaseContext : IMainPhaseContext
@@ -38,6 +41,8 @@ namespace FDG.Stages
             TeamActivateOrder = teamActivateOrder;
             RoundCount = roundCount;
         }
+
+        public void SetRoundCount(int roundCount) => RoundCount = Math.Max(1, roundCount);
 
         public void OnEndOfRound(IReadOnlyList<ITeam> newTeamActivateOrder)
         {

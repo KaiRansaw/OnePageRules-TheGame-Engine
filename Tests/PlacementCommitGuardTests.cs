@@ -102,8 +102,8 @@ namespace FDG.Tests
                 models.Add(_store.GetDataBinding<ModelData>(_store.Create(m)));
             }
             _store.Create(new UnitData(_me, name, 4, 4, models));
-            var zone = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+            var zone = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                0f, GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES);
             return (new PlaceObjectsRequest<ModelData>(_me, "Place Unit Models", zone, models), models);
         }
 

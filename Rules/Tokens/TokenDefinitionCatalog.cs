@@ -81,6 +81,17 @@ public static class TokenDefinitionCatalog
 
             // #197 Inquisitorial Agent's per-round army quota counter. Normal prominence: it explains why
             // a sibling unit is no longer being offered its second activation, which is otherwise invisible.
+            // Horde Mode: the count is the unit's XP. Normal prominence - the XP chip is how a player sees
+            // a unit closing in on its next trait.
+            new(TokenType.HORDE_XP_ID, "XP", EValence.Positive, ETokenProminence.Normal,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Horde Mode experience. +3 for killing a unit, +5 for a hero, +8 for a hero and " +
+                             "its unit. Every 5 XP the unit gains a trait (up to 30 XP)."),
+
+            new(TokenType.HORDE_ELITE_USED_ID, "Elite used", EValence.Neutral, ETokenProminence.Invisible,
+                DefaultClearTrigger: new TokenClearTrigger.RoundEnd(),
+                Description: "Bookkeeping: this unit's Elite re-roll has been used this round."),
+
             new(TokenType.REACTIVATED_THIS_ROUND_ID, "Reactivated", EValence.Positive,
                 ETokenProminence.Normal,
                 DefaultClearTrigger: new TokenClearTrigger.RoundEnd(),

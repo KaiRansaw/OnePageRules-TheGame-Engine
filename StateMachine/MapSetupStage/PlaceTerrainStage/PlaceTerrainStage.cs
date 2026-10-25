@@ -107,6 +107,7 @@ namespace FDG.Stages
             foreach (TerrainPieceEntry entry in layout.Pieces)
             {
                 if (entry.Shape == null) continue;
+                if (!FitsTable(entry.Shape)) continue;
                 context.GameContext.GameDataStore.Create(
                     new TerrainData(entry.TerrainType, entry.Shape, entry.HeightInches, entry.Name));
             }
@@ -159,6 +160,7 @@ namespace FDG.Stages
             foreach (TerrainPieceEntry entry in layout.Pieces)
             {
                 if (entry.Shape == null) continue;
+                if (!FitsTable(entry.Shape)) continue;
 
                 if (!IsInDeploymentZone(entry.Shape, tableH, deploy))
                 {
@@ -233,6 +235,17 @@ namespace FDG.Stages
 
         // A piece counts as "in a deployment zone" when its representative centre Z lands within the deploy
         // band of the top (z < deploy) or bottom (z > tableH - deploy) table edge.
+        /// <summary>A layout made for the 6' x 4' table, played on a smaller one (Star Quest's 4' x 4'): only the
+        /// pieces that lie on the smaller table are placed.</summary>
+        private static bool FitsTable(IZone shape)
+        {
+            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            if (shape is IBoundedZone bounded)
+                return bounded.Bounds.Left >= 0f && bounded.Bounds.Right <= w && bounded.Bounds.Bottom >= 0f && bounded.Bounds.Top <= h;
+            if (shape is CompositeZone composite) return composite.Parts.All(FitsTable);
+            return true;
+        }
+
         private static bool IsInDeploymentZone(IZone shape, float tableH, float deploy)
         {
             float cz = RepresentativeCenterZ(shape);

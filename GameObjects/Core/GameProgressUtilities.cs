@@ -33,6 +33,17 @@ namespace FDG
         /// </summary>
         public static void WriteProgress(IReadWriteableGameDataStore store, GameProgressData progress)
         {
+            // Horde Mode's score is not part of the per-turn snapshot (Capture knows nothing of it), so a
+            // snapshot that arrives without one keeps the score already on the record.
+            if (progress.Horde == null)
+                progress.Horde = TryGetProgress(store)?.Horde;
+            if (progress.Quest == null)
+                progress.Quest = TryGetProgress(store)?.Quest;
+            // Star Quest state saved during set-up (before the first progress record exists) moves in now.
+            if (progress.Quest == null && PendingQuest.TryGetValue(store, out QuestProgress? pending))
+                progress.Quest = pending.Clone();
+            PendingQuest.Remove(store);
+
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {
                 store.SetValue(existing, progress);
@@ -40,6 +51,56 @@ namespace FDG
             }
 
             store.Create(progress);
+        }
+
+        /// <summary>
+        /// Horde Mode: adds <paramref name="points"/> to the defenders' earned and available points and
+        /// returns the new score. No-op (null) if no progress record exists yet.
+        /// </summary>
+        /// <summary>Horde Mode: spends shop points (the earned total, which the high score uses, is unchanged).</summary>
+        /// <summary>Star Quest: the mission's wave state (a copy - change it and pass it to
+        /// <see cref="SetQuestProgress"/>). A fresh state if none is stored yet.</summary>
+        public static QuestProgress GetQuestProgress(IReadableGameDataStore store) =>
+            TryGetProgress(store)?.Quest?.Clone()
+            ?? (PendingQuest.TryGetValue(store, out QuestProgress? pending) ? pending.Clone() : new QuestProgress());
+
+        /// <summary>Star Quest state still waiting for the first progress record (set-up / deployment), or null.</summary>
+        public static QuestProgress? PendingQuestFor(IReadableGameDataStore store) =>
+            PendingQuest.TryGetValue(store, out QuestProgress? pending) ? pending : null;
+
+        /// <summary>Star Quest state written during map set-up / deployment, before the main phase creates the
+        /// progress record; it moves into the first record written.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, QuestProgress> PendingQuest = new();
+
+        /// <summary>Star Quest: stores the mission's wave state. No-op if no progress record exists yet.</summary>
+        public static void SetQuestProgress(IReadWriteableGameDataStore store, QuestProgress quest)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress == null)
+            {
+                PendingQuest.AddOrUpdate(store, quest.Clone());
+                return;
+            }
+            progress.Quest = quest.Clone();
+            WriteProgress(store, progress);
+        }
+
+        public static HordeScore? SpendHordePoints(IReadWriteableGameDataStore store, int points)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress == null) return null;
+            progress.Horde = (progress.Horde ?? new HordeScore(0, 0)).WithSpent(points);
+            WriteProgress(store, progress);
+            return progress.Horde;
+        }
+
+        public static HordeScore? AddHordePoints(IReadWriteableGameDataStore store, int points)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress == null) return null;
+            progress.Horde = (progress.Horde ?? new HordeScore(0, 0)).WithEarned(points);
+            WriteProgress(store, progress);
+            return progress.Horde;
         }
 
         /// <summary>

@@ -45,6 +45,8 @@ public readonly record struct TokenType(string Id)
     // army-wide "only up to one third of them per round" cap can count the uses. Cleared at round end -
     // the cap is per round, while the unit's own once-per-game gate is a separate, permanent marker.
     public const string REACTIVATED_THIS_ROUND_ID = "ReactivatedThisRound";
+    public const string HORDE_XP_ID = "HordeXP";
+    public const string HORDE_ELITE_USED_ID = "HordeEliteUsed";
 
     // #197 P19 - the turn-order primitive, deliberately named for the MECHANISM rather than for any rule
     // that uses it (Coordinate is the first, and the engine never mentions it).
@@ -116,6 +118,15 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType Shaken = new(SHAKEN_ID);
     public static readonly TokenType Fatigued = new(FATIGUED_ID);
     public static readonly TokenType ReactivatedThisRound = new(REACTIVATED_THIS_ROUND_ID);
+
+    /// <summary>
+    /// Horde Mode experience: the count IS the unit's XP (capped at 30). Every 5 XP the unit rolls a
+    /// trait. ManualOnly - XP is kept for the whole mission.
+    /// </summary>
+    public static readonly TokenType HordeXP = new(HORDE_XP_ID);
+
+    /// <summary>Horde Mode Elite trait: its once-per-round re-roll has been used this round (RoundEnd clear).</summary>
+    public static readonly TokenType HordeEliteUsed = new(HORDE_ELITE_USED_ID);
     public static readonly TokenType ActivatesNext = new(ACTIVATES_NEXT_ID);
     public static readonly TokenType ActivatedOutOfOrder = new(ACTIVATED_OUT_OF_ORDER_ID);
     public static readonly TokenType ActivatedThisRound = new(ACTIVATED_THIS_ROUND_ID);

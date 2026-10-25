@@ -28,6 +28,7 @@ namespace FDG.Stages
         public StageBinding ToEmbark;
         public StageBinding ToTeleport;
         public StageBinding ToStorm;
+        public StageBinding ToQuestAction;
         public StageBinding ToBeforeAttackAction;
         public StageBinding ToReconcileEndOfActivation;
 
@@ -53,6 +54,7 @@ namespace FDG.Stages
             ToEmbark = new StageBinding(this);
             ToTeleport = new StageBinding(this);
             ToStorm = new StageBinding(this);
+            ToQuestAction = new StageBinding(this);
             ToBeforeAttackAction = new StageBinding(this);
             ToReconcileEndOfActivation = new StageBinding(this);
             ToBackOut = new StageBinding(this);
@@ -75,6 +77,46 @@ namespace FDG.Stages
             // melee) keeps the token for its next activation. Clearing here is observably the same as
             // clearing at end of activation — nothing reads Shaken between now and end-of-turn, and
             // objectives reconcile at end of round. (#008)
+            // Star Quest: status conditions are checked when the hero activates (Afflicted, Crippled...).
+            // GF: Firefight Campaign: auras of friendly heroes within 6" (Leader, Instigator...) and Warden.
+            if (!context.CampaignActivationChecked && FirefightRules.IsSkirmishGame(GameContext))
+            {
+                context.CampaignActivationChecked = true;
+                await FirefightCampaign.OnActivated(GameContext, context.ActivatingUnit.GetValue());
+            }
+
+            if (!context.QuestActivationChecked && QuestActions.IsQuestGame(GameContext))
+            {
+                context.QuestActivationChecked = true;
+                UnitData activeHero = context.ActivatingUnit.GetValue();
+                if (activeHero.IsQuestHero) await QuestTreasure.OnActivated(GameContext, activeHero);
+                else await QuestTreasure.OnEnemyActivated(GameContext, activeHero); // Poison Grenade
+                if (!activeHero.GetIsAlive())
+                {
+                    context.PendingQuestAction = QuestActions.EndActivationOption;
+                    await ToQuestAction.Activate(context);
+                    return;
+                }
+            }
+
+            // Star Quest: a Shaken hero that knows Rally (or Steel Will) may use it (its skill action) instead of staying idle.
+            string? rallyName = context.ActivatingUnit.GetValue() is { IsQuestHero: true } maybeShaken
+                ? new[] { "Rally", "Steel Will" }.FirstOrDefault(n => QuestActions.Sheet(maybeShaken)?.Skills.Contains(n) == true)
+                : null;
+            if (context.StartedActivationShaken && QuestActions.IsQuestGame(GameContext) && context.QuestSkillsUsed == 0
+                && context.ActivatingUnit.GetValue() is { IsQuestHero: true } shakenHero && rallyName != null)
+            {
+                bool rally = await GameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
+                    shakenHero.PlayerID, $"{shakenHero.Name} is Shaken. Use {rallyName} to stop being Shaken?", defaultAnswer: true,
+                    displayName: $"{shakenHero.Name}: {rallyName}?"));
+                if (rally && QuestSkill.Find(rallyName) is { } rallySkill)
+                {
+                    context.QuestSkillsUsed++;
+                    await rallySkill.Use(GameContext, shakenHero);
+                    context.ClearStartedActivationShaken();
+                }
+            }
+
             if (context.StartedActivationShaken)
             {
                 IUnit activatingUnit = context.ActivatingUnit.GetValue();
@@ -133,6 +175,15 @@ namespace FDG.Stages
                     canCharge = false;
                     cantChargeReason = "Immobile.";
                 }
+            }
+
+            // Star Quest: within 1" of an enemy a unit must charge rather than pass - but a unit that CAN'T charge
+            // (no melee weapons) would then have nothing legal left and stall the game, so it may pass.
+            if (!canPass && !canCharge && QuestActions.IsQuestGame(GameContext)
+                && ForcedChargeUtilities.AnyEnemyWithinStandoff(GameContext, context.ActivatingPlayer(), context.ActivatingUnit.GetValue()))
+            {
+                canPass = true;
+                cantPassReason = null;
             }
 
             // #390 — the #206 obligation binds Shoot as well as Pass. A unit inside the standoff band owes a
@@ -477,6 +528,43 @@ namespace FDG.Stages
             // decision to make, so end the activation instead of prompting with a lone Pass option. (Custom
             // actions like Embark are gathered with AvailableWhen=Always but gated above, so this can't be
             // decided up front from the raw offer count.)
+            // Star Quest hero actions: Rest, a Skill, an extra action for 2 power, the class feature.
+            if (QuestActions.IsQuestGame(GameContext) && context.ActivatingUnit.GetValue() is { IsQuestHero: true } questHero)
+            {
+                void AddQuest(string option, string description)
+                {
+                    if (outcomes.ContainsKey(option)) return;
+                    validOptions.Add(option);
+                    optionDescriptions[option] = description;
+                    outcomes.Add(option, () =>
+                    {
+                        context.PendingQuestAction = option;
+                        return ToQuestAction.Activate(context);
+                    });
+                }
+
+                int maxPower = QuestActions.Sheet(questHero)?.Power ?? questHero.QuestPower;
+                bool fresh = !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
+                    && context.QuestSkillsUsed == 0;
+                if (QuestActions.AvailableFeat(GameContext, questHero) is { } feat)
+                    AddQuest(feat.Name + QuestActions.FeatSuffix, "Class feature, free: " + feat.Description);
+                if (fresh)
+                    AddQuest(QuestActions.RestOption,
+                        $"Restore all power ({questHero.QuestPower}/{maxPower}). The hero stays idle for the rest of its activation.");
+                if (context.QuestSkillsUsed < 1)
+                    AddQuest(QuestActions.SkillOption, $"Use a skill: Discover a search token, Push, Scurry, revive a hero, a class skill, or an item. Power: {questHero.QuestPower}/{maxPower}.");
+                // Star Quest free actions (Surge Charge, Surge Shot, Sweeping / Relentless Attack, Volley, Stalker's Flurry).
+                if (QuestFlags.FreeAction(GameContext, questHero) is { } freeAction)
+                    AddQuest(QuestActions.FreeActionOption, $"Free: take another action now - {freeAction}.");
+                if (!context.QuestExtraUsed)
+                {
+                    if (context.HasMoved || context.HasAttacked)
+                        AddQuest(QuestActions.ExtraActionOption, $"Spend 2 power to take another action this activation ({questHero.QuestPower} power).");
+                    if (context.QuestSkillsUsed >= 1)
+                        AddQuest(QuestActions.ExtraSkillOption, $"Spend 2 power to use another skill ({questHero.QuestPower} power).");
+                }
+            }
+
             if (validOptions.Count == 0)
             {
                 // #401: say WHY - a silent pass reads as the AI idling, and the reasons are already in hand.
@@ -650,6 +738,7 @@ namespace FDG.Stages
                 .Where(a => !alliedPlayers.Contains(a.PlayerID))
                 .SelectMany(a => a.UnitBindings)
                 .Where(enemyUnit => !Rules.Dispatch.AircraftRules.IsAircraft(enemyUnit.GetValue()))
+                .Where(enemyUnit => !QuestFlags.CannotBeTargeted(GameContext.TableState.Progress.Quest, enemyUnit.GetValue(), context.ActivatingUnit.GetValue()))
                 .Any(enemyUnit => MeleeRangeUtilities.AreUnitsInMeleeRange(
                     context.ActivatingUnit.GetValue(), enemyUnit.GetValue()));
 

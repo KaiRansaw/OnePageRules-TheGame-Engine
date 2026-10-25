@@ -85,6 +85,18 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public string CancelHint { get; }
 
+        /// <summary>
+        /// Horde Mode defender deployment: the panel offers "Undo Last Unit", answered with
+        /// <see cref="UndoUnitRequested{T}"/> - the stage picks the previous unit back up and asks for it again.
+        /// </summary>
+        public bool CanUndoUnit { get; }
+
+        /// <summary>
+        /// Horde Mode defender deployment: this unit was just undone, and the panel offers "Redo Unit",
+        /// answered with <see cref="RedoUnitRequested{T}"/> - the stage puts it back where it was.
+        /// </summary>
+        public bool CanRedoUnit { get; }
+
         // displayName: what the #322 "Waiting on" HUD shows the other players. taskName stays the
         // machine-matched discriminator (the Tactician placement resolver switches on it), so game
         // wording - including per-unit text like "Deploying Warriors" - belongs here, never there.
@@ -95,8 +107,11 @@ namespace FDG.StageResolution.Requests
             float maxDistanceFromStartInches = 0f,
             IReadOnlyList<PlacementDisc>? enemyKeepOutDiscs = null,
             IReadOnlyList<PlacementDisc>? enemyDistanceWaiverDiscs = null,
-            string cancelHint = "", string? displayName = null)
+            string cancelHint = "", string? displayName = null,
+            bool canUndoUnit = false, bool canRedoUnit = false)
         {
+            CanUndoUnit = canUndoUnit;
+            CanRedoUnit = canRedoUnit;
             MaxDistanceFromStartInches = maxDistanceFromStartInches;
             TargetPlayerID = targetPlayerID;
             TaskID = taskID;
@@ -118,10 +133,11 @@ namespace FDG.StageResolution.Requests
             float maxDistanceFromStartInches = 0f,
             IReadOnlyList<PlacementDisc>? enemyKeepOutDiscs = null,
             IReadOnlyList<PlacementDisc>? enemyDistanceWaiverDiscs = null,
-            string cancelHint = "", string? displayName = null)
+            string cancelHint = "", string? displayName = null,
+            bool canUndoUnit = false, bool canRedoUnit = false)
             : this(targetPlayerID, new TaskID(Guid.NewGuid()), taskName, deploymentZone, modelsToPlace,
                 minDistanceFromEnemiesInches, mustTouchTableEdge, allowCancel, maxDistanceFromStartInches,
-                enemyKeepOutDiscs, enemyDistanceWaiverDiscs, cancelHint, displayName)
+                enemyKeepOutDiscs, enemyDistanceWaiverDiscs, cancelHint, displayName, canUndoUnit, canRedoUnit)
         {
         }
 

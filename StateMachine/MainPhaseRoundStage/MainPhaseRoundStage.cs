@@ -7,6 +7,13 @@ namespace FDG.Stages
         public StageBinding? ToReconcileNewRound;
         public StageBinding? ToVictoryCalculation;
 
+        /// <summary>
+        /// Optional game-mode steps run at the start and end of each round (Horde Mode). Null for the
+        /// standard game. Set by the state machine builder after construction; the child stages read it
+        /// through their parent at run time.
+        /// </summary>
+        public IRoundHooks? RoundHooks { get; set; }
+
         // Captured in PopulateTransitions so a resumed game can jump straight to it, skipping the
         // round-setup children (which already ran before the save).
         private SingleRoundStage? _singleRoundStage;

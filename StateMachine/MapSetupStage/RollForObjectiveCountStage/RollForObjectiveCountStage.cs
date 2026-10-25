@@ -16,6 +16,17 @@ namespace FDG.Stages
         {
             context.LogDebug($"Entered {nameof(RollForObjectiveCountStage)}.");
 
+            // Map maker: a custom map with its own objectives skips the roll - its markers ARE the count.
+            int mapObjectives = CustomMapRules.FixedObjectives(context.GameContext.Settings).Count;
+            if (mapObjectives > 0)
+            {
+                context.Log($"The map has {mapObjectives} objectives; no objective roll.");
+                await context.Announce($"{mapObjectives} Objectives", new TextColor(255, 210, 80, 255));
+                context.SetObjectiveCount(mapObjectives);
+                await OnRollComplete.Activate(context);
+                return;
+            }
+
             // D3+2 gives 3–5 objectives. Roll a real, decisive D3 (RollDecisive resolves one concrete
             // face even under the probabilistic roller; a plain Roll would spread to an expected value).
             // Rolling a genuine 3-sided die — rather than a d6 then halving — lets the front-end show a

@@ -201,6 +201,34 @@ namespace FDG.Stages
                 }
                 _modelBudgets[model.ID] = new ModelBudget(modelAdvance, modelRush, modelCharge);
             }
+
+            // Star Quest: Heavy Rain (random event) makes one table quarter difficult terrain.
+            if (QuestActions.IsQuestGame(GameContext) && QuestChallenges.InDifficultQuarter(GameContext, unit)
+                && !MovementRuleQueries.IgnoresDifficultTerrain(unit, GameContext.RuleEvaluator))
+            {
+                _maxAdvanceDistance = Math.Min(_maxAdvanceDistance, difficultCap);
+                _maxRushDistance = Math.Min(_maxRushDistance, difficultCap);
+                _maxChargeDistance = Math.Min(_maxChargeDistance, difficultCap);
+                foreach (ModelID id in _modelBudgets.Keys.ToList())
+                {
+                    ModelBudget b = _modelBudgets[id];
+                    _modelBudgets[id] = new ModelBudget(Math.Min(b.Advance, difficultCap), Math.Min(b.Rush, difficultCap), Math.Min(b.Charge, difficultCap));
+                }
+            }
+
+            // Star Quest: Crippled heroes (and Bad weather) halve movement distance.
+            float factor = QuestActions.MoveFactor(GameContext, unit);
+            if (factor < 1f)
+            {
+                _maxAdvanceDistance *= factor;
+                _maxRushDistance *= factor;
+                _maxChargeDistance *= factor;
+                foreach (ModelID id in _modelBudgets.Keys.ToList())
+                {
+                    ModelBudget b = _modelBudgets[id];
+                    _modelBudgets[id] = new ModelBudget(b.Advance * factor, b.Rush * factor, b.Charge * factor);
+                }
+            }
         }
 
         // Read-only projection (#153): a one-shot (NextTrigger) granted movement rule must contribute to

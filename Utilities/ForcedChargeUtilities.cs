@@ -100,6 +100,11 @@ namespace FDG.Utilities
                 .Where(a => !alliedPlayers.Contains(a.PlayerID))
                 .SelectMany(a => a.UnitBindings)
                 .Where(enemyUnit => enemyUnit.GetValue().GetIsOnBattlefield())
+                // A dead unit can't be charged, so it can't force a charge either (Star Quest keeps unconscious
+                // heroes on the table; without this a unit beside one could neither Pass nor Charge).
+                .Where(enemyUnit => enemyUnit.GetValue().GetIsAlive())
+                // Star Quest Infiltrating Step: a hero that can't be targeted can't force a charge either.
+                .Where(enemyUnit => !Stages.QuestFlags.CannotBeTargeted(gameContext.TableState.Progress.Quest, enemyUnit.GetValue(), unit))
                 .Any(enemyUnit => IsInsideStandoff(UnitCompareUtilities.MinDistanceBetweenUnits(
                     unit, enemyUnit.GetValue(), out _, out _, includeVertical: true)));
         }

@@ -1,0 +1,61 @@
+using System.Text.Json;
+
+namespace FDG.Campaign
+{
+    /// <summary>
+    /// GF: Firefight Campaign: the team-level record of a strike team. A strike team is an ordinary army file
+    /// (.fdgarmy) with this block on it and a <see cref="StrikeUnit"/> sheet on every unit, so it can be picked in
+    /// the lobby like any army and keeps its progress between games.
+    /// </summary>
+    public sealed class StrikeTeamInfo
+    {
+        public string Name { get; set; } = "";
+        /// <summary>Victory points: 2 per won mission.</summary>
+        public int Vp { get; set; }
+        /// <summary>Points saved up to spend on upgrades and recruits.</summary>
+        public int BankedPoints { get; set; }
+        public int Matches { get; set; }
+        /// <summary>One line per finished match, newest last.</summary>
+        public List<string> History { get; set; } = new();
+    }
+
+    /// <summary>
+    /// GF: Firefight Campaign: one unit's strike team sheet - XP, traits, injuries, talents, hero skills and any
+    /// choices still to make. Rides on the unit in play (<see cref="UnitData.StrikeUnitJson"/>) so kills can be
+    /// counted during the game, then is written back to the team file.
+    /// </summary>
+    public sealed class StrikeUnit
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public bool IsHero { get; set; }
+        public int Xp { get; set; }
+        public List<string> Traits { get; set; } = new();
+        public List<string> Injuries { get; set; } = new();
+        public List<string> Talents { get; set; } = new();
+        public List<string> SkillSets { get; set; } = new();
+        public List<string> Skills { get; set; } = new();
+        /// <summary>Choices the player still has to make on the strike team screen: "Specialist", "FastLearner",
+        /// or "SkillSet:A|B" (pick one of two skill sets).</summary>
+        public List<string> Pending { get; set; } = new();
+        /// <summary>Points added to (or taken off) the unit's cost by level ups, injuries and talents.</summary>
+        public int CostChange { get; set; }
+        public int Games { get; set; }
+        /// <summary>Counted during a game; cleared when the result is written back.</summary>
+        public int Kills { get; set; }
+        public int HeroKills { get; set; }
+        /// <summary>The strike team file this unit belongs to (set when the team is saved).</summary>
+        public string? TeamFile { get; set; }
+
+        public int Level => Math.Min(StrikeTeamRules.MaxXp, Xp) / StrikeTeamRules.XpPerLevel;
+
+        private static readonly JsonSerializerOptions Options = new() { WriteIndented = false };
+        public string ToJson() => JsonSerializer.Serialize(this, Options);
+
+        public static StrikeUnit? FromJson(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try { return JsonSerializer.Deserialize<StrikeUnit>(json); }
+            catch (JsonException) { return null; }
+        }
+    }
+}

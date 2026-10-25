@@ -1,4 +1,4 @@
-using FDG.StageResolution.Requests;
+﻿using FDG.StageResolution.Requests;
 
 namespace FDG.Rules.Dispatch
 {
@@ -42,9 +42,40 @@ namespace FDG.Rules.Dispatch
                 unit => CapabilityRuleQueries.AmbushBeaconRange(unit, evaluator));
         }
 
-        private static IReadOnlyList<PlacementDisc> BuildDiscs(IUnit arriving, ITableState tableState,
-            RuleEvaluator evaluator, bool wantAllied, Func<IUnit, float> radiusOf)
+        /// <summary>
+        /// Rules accuracy: the basic Ambush distance ("may be deployed anywhere over 9\" away from enemy
+        /// units") measured base edge to base edge, as all distances are. Resolvers judge the flat
+        /// <see cref="PlaceObjectsRequest{T}.MinDistanceFromEnemiesInches"/> centre to centre, which let an
+        /// infantry ambusher land about 8" from an enemy base. One keep-out disc per living enemy model,
+        /// widened by that model's base and the arriving unit's widest base, closes the gap exactly for
+        /// round bases (and errs on the safe side for long ones).
+        /// </summary>
+        public static IReadOnlyList<PlacementDisc> EnemyEdgeDiscs(IUnit arriving, ITableState tableState,
+            float minDistanceInches)
         {
+            if (minDistanceInches <= 0f) return Array.Empty<PlacementDisc>();
+            return BuildDiscs(arriving, tableState, evaluator: null, wantAllied: false, _ => minDistanceInches);
+        }
+
+        /// <summary>Widest base among the arriving unit's living models (its circumscribing radius).</summary>
+        private static float ArrivingReach(IUnit arriving)
+        {
+            float reach = 0f;
+            foreach (IModel model in arriving.Models)
+            {
+                if (!model.GetIsAlive()) continue;
+                reach = Math.Max(reach, model.BaseShape.BoundingRadiusInches);
+            }
+            return reach;
+        }
+
+        private static IReadOnlyList<PlacementDisc> BuildDiscs(IUnit arriving, ITableState tableState,
+            RuleEvaluator? evaluator, bool wantAllied, Func<IUnit, float> radiusOf)
+        {
+            // Rules accuracy: the disc radii below are base-EDGE distances ("over 12\" away", "within 6\""),
+            // but PlacementDistanceRules tests the placed model's CENTRE against the disc centre. Widen each
+            // disc by both bases so the test lands on the edge-to-edge distance the rule means.
+            float arrivingReach = ArrivingReach(arriving);
             List<PlacementDisc>? discs = null;
             foreach (IUnit unit in tableState.Units.Objects)
             {
@@ -68,7 +99,8 @@ namespace FDG.Rules.Dispatch
                     Position pos = model.Position;
                     // Default-constructed Position is the unplaced sentinel; never radiate from it.
                     if (pos.x == 0f && pos.z == 0f) continue;
-                    (discs ??= new List<PlacementDisc>()).Add(new PlacementDisc(pos, radius));
+                    (discs ??= new List<PlacementDisc>()).Add(new PlacementDisc(pos,
+                        radius + model.BaseShape.BoundingRadiusInches + arrivingReach));
                 }
             }
 

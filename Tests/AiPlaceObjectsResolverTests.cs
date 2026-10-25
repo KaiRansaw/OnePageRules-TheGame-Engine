@@ -42,8 +42,8 @@ namespace FDG.Tests
             var tableState = new TableState(store);
             var resolver = new AiPlaceObjectsResolver<ModelData>(tableState);
 
-            var wholeTable = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+            var wholeTable = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                0f, GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES);
             const float minDist = 9f;
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Ambush Deploy", wholeTable,
                 placing, minDistanceFromEnemiesInches: minDist);
@@ -87,8 +87,8 @@ namespace FDG.Tests
             store.Create(new UnitData(selfPlayer, "Shifters", 4, 4, placing));
 
             var resolver = new AiPlaceObjectsResolver<ModelData>(new TableState(store));
-            var wholeTable = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+            var wholeTable = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                0f, GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES);
             const float repelRadius = 16f; // deliberately larger than the flat 9", so only the disc explains the distance
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Ambush Deploy", wholeTable,
                 placing, minDistanceFromEnemiesInches: 9f,
@@ -112,7 +112,7 @@ namespace FDG.Tests
         [Test]
         public void DefaultDeployFacing_PointsTowardTableCentre()
         {
-            float tableH = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float tableH = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
             var bottomZone = new RectangularZone(0f, 72f, 0f, 12f);
             var topZone = new RectangularZone(0f, 72f, tableH - 12f, tableH);
 
@@ -165,8 +165,8 @@ namespace FDG.Tests
             store.Create(new UnitData(selfPlayer, "Wolfborn Pack", 4, 4, placing));
 
             var resolver = new AiPlaceObjectsResolver<ModelData>(new TableState(store));
-            var wholeTable = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+            var wholeTable = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                0f, GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES);
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Reposition", wholeTable, placing,
                 allowCancel: true, maxDistanceFromStartInches: 3f);
 
@@ -201,8 +201,8 @@ namespace FDG.Tests
 
             var tableState = new TableState(store);
             var resolver = new AiPlaceObjectsResolver<ModelData>(tableState);
-            var wholeTable = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
-                0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+            var wholeTable = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES,
+                0f, GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES);
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Aircraft Redeploy", wholeTable,
                 placing, mustTouchTableEdge: true);
 
@@ -284,8 +284,8 @@ namespace FDG.Tests
 
             var tableState = new TableState(store);
             var resolver = new AiPlaceObjectsResolver<ModelData>(tableState);
-            float tableW = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
-            float tableH = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float tableW = GameWideConstants.STANDARD_TABLE_WIDTH_INCHES;
+            float tableH = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
             // A bottom deployment zone, flush with the table's bottom/left/right edges (as real zones are).
             var zone = new RectangularZone(0f, tableW, 0f, 12f);
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Place Unit Models", zone, placing);
@@ -321,8 +321,8 @@ namespace FDG.Tests
 
             var tableState = new TableState(store);
             var resolver = new AiPlaceObjectsResolver<ModelData>(tableState);
-            float tableW = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
-            float tableH = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float tableW = GameWideConstants.STANDARD_TABLE_WIDTH_INCHES;
+            float tableH = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
             // A tiny corner zone the 12-model block cannot possibly fit into.
             var zone = new RectangularZone(0f, 6f, 0f, 6f);
             var request = new PlaceObjectsRequest<ModelData>(selfPlayer, "Place Unit Models", zone, placing);

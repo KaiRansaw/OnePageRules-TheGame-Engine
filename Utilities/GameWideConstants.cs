@@ -29,7 +29,12 @@ namespace FDG
         /// <summary>
         /// Furthest any model in a unit can be from any other model in the same unit.
         /// </summary>
-        public const float MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = 9;
+        /// The full game uses 9"; the skirmish games (GF: Firefight, AoF: Skirmish) use 6". Set by
+        /// <see cref="ConfigureTable"/> when a game starts.
+        public static float MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES { get; private set; } = STANDARD_COHERENCY_INCHES;
+
+        public const float STANDARD_COHERENCY_INCHES = 9;
+        public const float SKIRMISH_COHERENCY_INCHES = 6;
 
         public const float DIFFICULT_TERRAIN_MOVE_CAP_INCHES = 6f;
 
@@ -40,17 +45,53 @@ namespace FDG
         /// </summary>
         public const float ENEMY_STANDOFF_DISTANCE_INCHES = 1f;
 
-        public const float DEPLOYMENT_DISTANCE_INCHES = 9;
+        /// <summary>
+        /// Depth of each side's deployment zone: "places one unit fully within 12\" of their table edge"
+        /// (GF v3.5.1 core rules, Deploying Armies). Was 9" before the rules-accuracy pass.
+        /// </summary>
+        public const float DEPLOYMENT_DISTANCE_INCHES = 12;
 
-        public const float DEFAULT_TABLE_WIDTH_INCHES = 72;
+        /// <summary>The table the current game is played on (72" x 48" for Grimdark Future; Star Quest plays on a
+        /// 48" x 48" table). Set by <see cref="ConfigureTable"/> when a game starts; everything that needs the table's
+        /// size reads these. Not constants any more, so a game type can change them.</summary>
+        public static float DEFAULT_TABLE_WIDTH_INCHES { get; private set; } = STANDARD_TABLE_WIDTH_INCHES;
 
-        public const float DEFAULT_TABLE_HEIGHT_INCHES = 48;
+        public static float DEFAULT_TABLE_HEIGHT_INCHES { get; private set; } = STANDARD_TABLE_HEIGHT_INCHES;
+
+        /// <summary>The standard 6' x 4' Grimdark Future table.</summary>
+        public const float STANDARD_TABLE_WIDTH_INCHES = 72;
+        public const float STANDARD_TABLE_HEIGHT_INCHES = 48;
+
+        /// <summary>The table size a game type plays on: Star Quest / Quest use a 4' x 4' area, everything else
+        /// the standard 6' x 4'.</summary>
+        public static (float Width, float Height) TableSizeFor(EGameSystem system) => system switch
+        {
+            EGameSystem.GFStarQuest or EGameSystem.AoFQuest or EGameSystem.GFFirefight or EGameSystem.AoFSkirmish => (48f, 48f),
+            _ => (STANDARD_TABLE_WIDTH_INCHES, STANDARD_TABLE_HEIGHT_INCHES),
+        };
+
+        /// <summary>Sets the table for the game about to be played. Called when a game (or a saved game) starts.</summary>
+        public static void ConfigureTable(EGameSystem system)
+        {
+            (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);
+            FDG.StateMachine.HordeRules.Configure(system);
+            MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = GameSystemInfo.IsSkirmish(system)
+                ? SKIRMISH_COHERENCY_INCHES : STANDARD_COHERENCY_INCHES;
+            // A new game starts: no Star Quest smoke left over from an earlier one.
+            FDG.Stages.QuestTreasure.SmokeSpots = Array.Empty<Position>();
+        }
 
         /// <summary>
         /// The number of rounds a game lasts before victory is calculated (the official GDF game length).
         /// After this many rounds have been reconciled the main phase hands off to victory calculation.
         /// </summary>
         public const int NUMBER_OF_ROUNDS = 4;
+
+        /// <summary>OPR Horde Mode v3.5.0: the mission lasts twelve rounds (four waves of three).</summary>
+        public const int HORDE_NUMBER_OF_ROUNDS = 12;
+
+        /// <summary>OPR Horde Mode v3.5.0: a new wave of enemies starts at rounds 4, 7 and 10.</summary>
+        public const int HORDE_ROUNDS_PER_WAVE = 3;
 
         /// <summary>
         /// Maximum number of distinct enemy units a single unit may target during one shoot action.

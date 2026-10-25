@@ -59,6 +59,14 @@ namespace FDG.Stages
                         continue;
                     }
 
+                    // Star Quest Infiltrating Step: this hero can't be targeted this round.
+                    if (QuestFlags.CannotBeTargeted(GameContext.TableState.Progress.Quest, potentialDefender.GetValue(), context.AttackingUnit.GetValue()))
+                    {
+                        invalidDefenders.Add(new CancellableSelectionRequest<UnitData>.InvalidOption(potentialDefender,
+                            potentialDefender.GetValue().Name, QuestFlags.HiddenReason));
+                        continue;
+                    }
+
                     // #022: a unit is engageable only if some model pair is within the melee cylinder
                     // (2" horizontal AND 4" vertical) — the same gate the post-pile-in strike check uses,
                     // so we never offer a defender no model could actually strike.

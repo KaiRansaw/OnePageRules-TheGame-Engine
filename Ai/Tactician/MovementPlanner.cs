@@ -1,4 +1,4 @@
-using FDG.Data;
+﻿using FDG.Data;
 using FDG.Stages;
 using FDG.StageResolution.Requests;
 using FDG.Utilities;
@@ -1228,6 +1228,9 @@ namespace FDG.Ai.Tactician
             {
                 if (!allied.Contains(unit.PlayerID)) continue;
                 if (unit.ID.Equals(excludeUnitId)) continue;
+                // Embarked / reserve units are not obstacles - same rule as the authoritative
+                // MovementUtilities.GetFriendlyModelFootprints (#207).
+                if (!unit.GetIsOnBattlefield()) continue;
                 bool anyLiving = false;
                 foreach (var model in unit.Models)
                 {

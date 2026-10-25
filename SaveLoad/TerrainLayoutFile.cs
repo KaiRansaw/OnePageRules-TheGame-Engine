@@ -12,6 +12,37 @@ namespace FDG.SaveLoad
         public string Name { get; set; } = string.Empty;
 
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
+
+        /// <summary>
+        /// Map maker: fixed objective markers. Empty (the default, and every layout written before this
+        /// field) means the game rolls D3+2 and places objectives the usual way; non-empty means exactly
+        /// these markers are placed, with no roll. Only read when the layout is the game's Custom Map.
+        /// </summary>
+        public List<MapObjectiveEntry> Objectives { get; set; } = new List<MapObjectiveEntry>();
+
+        /// <summary>
+        /// Map maker: custom deployment zones. Used instead of the standard long-edge strips when there
+        /// are at least as many zones as teams; otherwise the standard zones are used.
+        /// </summary>
+        public List<MapDeploymentZoneEntry> DeploymentZones { get; set; } = new List<MapDeploymentZoneEntry>();
+    }
+
+    /// <summary>An objective marker's position on a custom map, in table inches.</summary>
+    [Serializable]
+    public class MapObjectiveEntry
+    {
+        public float X { get; set; }
+        public float Z { get; set; }
+    }
+
+    /// <summary>A rectangular deployment zone on a custom map, in table inches.</summary>
+    [Serializable]
+    public class MapDeploymentZoneEntry
+    {
+        public float Left { get; set; }
+        public float Right { get; set; }
+        public float Bottom { get; set; }
+        public float Top { get; set; }
     }
 
     [Serializable]

@@ -22,5 +22,8 @@ namespace FDG.Ai
         /// search failure degrades to plain Tactician (plan G3). Lobby name: "Strategist Bot".
         /// </summary>
         Strategist,
+
+        /// <summary>GF: Star Quest enemies: the Star Quest AI flowchart (solo bot underneath).</summary>
+        StarQuest,
     }
 }

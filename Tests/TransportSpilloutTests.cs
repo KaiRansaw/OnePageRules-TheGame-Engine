@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using FDG.Data;
@@ -274,7 +274,8 @@ namespace FDG.Tests
             DataBinding<UnitData> occupant = MakeUnit(_player, "Grunts", 2, new Position(0f, 0f));
             TransportUtilities.Embark(occupant.GetValue(), transport.GetValue());
 
-            await RunDangerousCrossing(transport, new FixedFaceDiceRoller(1));
+            // Rules accuracy: Tough(3) now rolls three dangerous-terrain dice; this roller turns up exactly one 1.
+            await RunDangerousCrossing(transport, new FixedDiceRoller(1));
 
             Assert.That(transport.GetValue().GetIsAlive(), Is.True, "a Tough(3) transport survives one wound.");
             Assert.That(TransportUtilities.IsEmbarked(occupant.GetValue()), Is.True,

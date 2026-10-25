@@ -137,6 +137,23 @@ namespace FDG.Stages
                 results.HitRollNeeded -= markerNet;
             }
 
+            // Star Quest (Vengeful Strike +1 to hit a Shaken enemy; Dread Attack / Martial Strike note the
+            // target). Shown with the granted modifiers on the dice beat.
+            // GF: Firefight Campaign hero skills and talents (Mastermind, Suppressor, Crazed).
+            if (FirefightRules.IsSkirmishGame(GameContext))
+                FirefightCampaign.OnAttack(GameContext, attacker, defender, metaData.IsMelee, metaData.IsCharging);
+
+            if (QuestActions.IsQuestGame(GameContext))
+            {
+                float questDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _, includeVertical: true);
+                int questNet = QuestFlags.OnAttack(GameContext, attacker, defender, metaData.IsMelee, questDistance, metaData.IsCharging);
+                if (!fatiguedInMelee && questNet != 0)
+                {
+                    results.HitRollNeeded -= questNet;
+                    grantedNet += questNet;
+                }
+            }
+
             GameContext.Log($"Base hit roll required is {results.HitRollNeeded} based on attacker's quality.");
 
             // Override the computed threshold rather than stacking a modifier; the d6 comparison in

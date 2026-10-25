@@ -21,7 +21,14 @@ namespace FDG.Stages
             context.Log($"Placing objective {markerNumber} of {context.TotalMarkers}.");
 
             Position placement;
-            if (context.GameContext.Settings.ObjectivePlacementMode == EObjectivePlacementMode.AutoPlaced)
+            var mapSpots = CustomMapRules.FixedObjectives(context.GameContext.Settings);
+            if (mapSpots.Count > 0)
+            {
+                // Map maker: the custom map fixes every marker's position.
+                SaveLoad.MapObjectiveEntry spot = mapSpots[Math.Min(context.MarkersPlaced, mapSpots.Count - 1)];
+                placement = new Position(spot.X, spot.Z);
+            }
+            else if (context.GameContext.Settings.ObjectivePlacementMode == EObjectivePlacementMode.AutoPlaced)
             {
                 if (!TryAutoPlace(context, out placement))
                 {
