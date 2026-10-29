@@ -147,6 +147,11 @@ namespace FDG.Stages
             const string done = "Start the mission";
             var placed = new HashSet<UnitID>();
 
+            // Re-placements a party may make before deployment ends itself. Deliberately far more than
+            // anyone would use by hand - it exists so the loop below cannot run forever, not to ration
+            // a player's fiddling.
+            int repositionsLeft = Math.Max(200, heroes.Count * 50);
+
             while (true)
             {
                 UnitData? next = heroes.FirstOrDefault(h => !placed.Contains(h.ID));
@@ -157,10 +162,16 @@ namespace FDG.Stages
                     continue;
                 }
 
-                var labels = heroes.Select(h => $"Move {h.Name}").ToList();
-                labels.Add(done);
+                // "Start the mission" goes FIRST. Every automated answerer takes the first valid option
+                // (AiStringSelectionResolver's fallback, and the CLI resolvers' EOF default), so with
+                // "Move <hero>" first a bot-run party unplaced a hero, placed it again, and was asked
+                // again - forever. That is the deployment hang: ~500k placements and ~500k menu answers
+                // in 150s, at 100% CPU, which is what made the Star Quest horde tests report
+                // RoundsDone == 0 and never finish.
+                var labels = new List<string> { done };
+                labels.AddRange(heroes.Select(h => $"Move {h.Name}"));
                 var request = new StringSelectionRequest(heroes[0].PlayerID,
-                    "Everyone is deployed. Pick a hero up to place it again, or start the mission.",
+                    "Everyone is deployed. Start the mission, or pick a hero up to place it again.",
                     labels, Array.Empty<StringSelectionRequest.InvalidOption>(),
                     displayName: "Deployment");
                 string picked = await gameContext.PlayerRequester
@@ -169,6 +180,15 @@ namespace FDG.Stages
 
                 UnitData? again = heroes.FirstOrDefault(h => $"Move {h.Name}" == picked);
                 if (again == null) return;   // an unexpected reply (a bot, EOF): take it as "done"
+
+                // Backstop for any answerer that neither picks "done" nor replies unexpectedly - it
+                // would otherwise loop here with no way out.
+                if (--repositionsLeft <= 0)
+                {
+                    gameContext.Log("Deployment: too many re-placements in a row - starting the mission.");
+                    return;
+                }
+
                 gameContext.Log($"{again.Name} is picked back up to be placed again.");
                 Unplace(again);
                 placed.Remove(again.ID);

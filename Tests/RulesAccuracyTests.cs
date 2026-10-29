@@ -3,6 +3,7 @@ using System.Linq;
 using FDG.Data;
 using FDG.Stages;
 using FDG.StageResolution.Requests;
+using FDG.Utilities;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -22,6 +23,15 @@ namespace FDG.Tests
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             _player = new PlayerID(System.Guid.NewGuid());
+            // Rules-as-written fixture: pin the friendly-overlap house rule OFF (it is a global, and it
+            // now defaults ON) so these assert the rulebook rather than whatever ran before them.
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture, friendlyUnitsMayOverlap: false);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
         }
 
         // --- Unit coherency: "forming an uninterrupted chain of models in 1" coherency" ---------------

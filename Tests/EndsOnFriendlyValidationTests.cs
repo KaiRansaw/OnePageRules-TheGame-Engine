@@ -1,6 +1,7 @@
 ﻿using FDG.Data;
 using FDG.Stages;
 using FDG.StageResolution.Requests;
+using FDG.Utilities;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -19,6 +20,17 @@ namespace FDG.Tests
         public void SetUp()
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            // These cases are the RULES AS WRITTEN ("units may only be within 1" of other units when
+            // charging"), so pin the friendly-overlap house rule OFF. It is a global that ConfigureTable
+            // sets per game, it now defaults ON, and whichever test ran last would otherwise decide what
+            // these assert.
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture, friendlyUnitsMayOverlap: false);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
         }
 
         [Test]
