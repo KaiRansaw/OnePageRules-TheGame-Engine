@@ -1,5 +1,6 @@
 
 using System.Collections.Generic;
+using FDG.Data;
 using FDG.Utilities;
 
 namespace FDG.Stages
@@ -21,7 +22,31 @@ namespace FDG.Stages
         {
             GameContext.LogDebug($"Shoot stage entered.");
 
+            // The activating unit can die BETWEEN choosing to shoot and getting here - the Game Master's
+            // Kill button is the reliable way to see it, but anything that removes models mid-activation
+            // does the same. The weapon pool is built from LIVING models only (IUnit.AllWeapons skips the
+            // dead), so a unit with nothing left alive reaches ChooseRangedAttackStage with an empty pool
+            // and it throws "Available weapon dictionary was empty", which faults the whole state machine
+            // and ends the game with a "Game error" card (QA 9.19). There is no shooting to do here, so
+            // finish the action quietly instead of asking a corpse which gun to fire.
+            if (!HasLivingModels(context.ActivatingUnit))
+            {
+                GameContext.Log($"{context.ActivatingUnit.GetValue().Name} has no models left to shoot with.");
+                await OnFinishedShooting.Activate(context);
+                return;
+            }
+
             await base.Enter(context);
+        }
+
+        private static bool HasLivingModels(DataBinding<UnitData> unit)
+        {
+            IUnit value = unit.GetValue();
+            foreach (IModel model in value.Models)
+            {
+                if (model.GetIsAlive()) return true;
+            }
+            return false;
         }
 
         protected override ICombatActionContext GetNewChildContext(IUnitActionContext contextSelf)

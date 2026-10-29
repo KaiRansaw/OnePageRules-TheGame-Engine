@@ -87,6 +87,9 @@ namespace FDG.Network.Connection.Lobby
         IObservable<bool> SeeThroughFriendlyUnitsObservable { get; }
         /// <summary>#384 unlimited split fire house rule toggle (default off) - see <see cref="GameSettings.UnlimitedSplitFire"/>.</summary>
         IObservable<bool> UnlimitedSplitFireObservable { get; }
+
+        /// <summary>Friendly-overlap house rule toggle (default off) - see <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
+        IObservable<bool> FriendlyUnitsMayOverlapObservable { get; }
         /// <summary>#265 cosmetic table surface - see <see cref="GameSettings.TableBackground"/>.</summary>
         IObservable<ETableBackground> TableBackgroundObservable { get; }
 
@@ -136,6 +139,9 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>#384 - see <see cref="GameSettings.UnlimitedSplitFire"/>.</summary>
         bool UnlimitedSplitFire { get; }
+
+        /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
+        bool FriendlyUnitsMayOverlap { get; }
 
         ETableBackground TableBackground { get; }
 
@@ -221,6 +227,9 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>#384 - see <see cref="GameSettings.UnlimitedSplitFire"/>.</summary>
         void SetUnlimitedSplitFire(bool enabled);
+
+        /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
+        void SetFriendlyUnitsMayOverlap(bool enabled);
 
         void SetTableBackground(ETableBackground background);
 

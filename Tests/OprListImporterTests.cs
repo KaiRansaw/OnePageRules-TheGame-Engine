@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FDG.ArmyBuilding;
+using FDG.GameModel;
 using FDG.Rules.Definitions;
 using FDG.Rules.Foundation;
 using FDG.SaveLoad;
@@ -278,7 +279,9 @@ public class OprListImporterTests
     }
 
     // #378: AoF shares GDF's core ruleset, so an 'aof' list imports and records its system slug.
-    // The other OPR systems (skirmish/regiments variants) still refuse.
+    // The skirmish variants ('gff'/'aofs') now import onto their parent system's slug - they are the
+    // same ruleset at a smaller scale, and GameSettings.ArmySource already feeds a Firefight lobby
+    // from Grimdark Future armies. Only the Regiments variants still refuse.
     [Test]
     public void Import_AgeOfFantasyList_ImportsAndStampsGameSystem()
     {
@@ -293,12 +296,43 @@ public class OprListImporterTests
         Assert.That(Import().Army.GameSystem, Is.EqualTo(GameSystems.GrimdarkFuture));
     }
 
+    // A Firefight list imports as a Grimdark Future army, which is what a GF: Firefight lobby asks
+    // for. Before this, 'gff' was refused and no Firefight army could be got into the game at all.
+    [Test]
+    public void Import_FirefightList_ImportsAsGrimdarkFutureArmy()
+    {
+        string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"gff\"");
+        OprListImportResult result = OprListImporter.Import(json, Books);
+        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.GrimdarkFuture));
+    }
+
+    // The same for AoF: Skirmish onto Age of Fantasy.
+    [Test]
+    public void Import_SkirmishList_ImportsAsAgeOfFantasyArmy()
+    {
+        string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"aofs\"");
+        OprListImportResult result = OprListImporter.Import(json, Books);
+        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.AgeOfFantasy));
+    }
+
+    // An imported Firefight army must actually pass the lobby filter a Firefight game applies,
+    // otherwise the import succeeds and the army still cannot be picked.
+    [Test]
+    public void Import_FirefightList_IsPickableInAFirefightLobby()
+    {
+        string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"gff\"");
+        OprListImportResult result = OprListImporter.Import(json, Books);
+        EAllowedGameSystems allowed = GameSystemInfo.ArmySource(EGameSystem.GFFirefight);
+        Assert.That(GameSystems.IsAllowed(allowed, result.Army.GameSystem), Is.True);
+    }
+
+    // Regiments is a different scale with different unit profiles, so it still refuses.
     [Test]
     public void Import_WrongGameSystem_Throws()
     {
-        string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"gff\"");
+        string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"gfr\"");
         var ex = Assert.Throws<InvalidOperationException>(() => OprListImporter.Import(json, Books));
-        Assert.That(ex!.Message, Does.Contain("gff"));
+        Assert.That(ex!.Message, Does.Contain("gfr"));
     }
 
     [Test]

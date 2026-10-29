@@ -1225,13 +1225,18 @@ namespace FDG.Stages
                     float endGap = BaseShapeGeometry.FootprintGap(g.EndHull, friendly.Hull);
                     bool movedCloser = endGap < startGap - ENEMY_PROXIMITY_EPSILON_INCHES;
 
+                    // House rule (lobby toggle, default OFF): friendly units may close up and slip
+                    // past each other. Only the "ends stacked on a friendly base" check survives, so
+                    // models still cannot finish on top of one another.
+                    bool overlapAllowed = GameWideConstants.FRIENDLY_UNITS_MAY_OVERLAP;
+
                     bool bad =
                         // ends on top of it
                         (endGap < 0f && startGap >= 0f)
                         // ends within 1" of it (not charging)
-                        || (!isCharge && movedCloser && endGap < standoff - ENEMY_PROXIMITY_EPSILON_INCHES)
+                        || (!overlapAllowed && !isCharge && movedCloser && endGap < standoff - ENEMY_PROXIMITY_EPSILON_INCHES)
                         // passes through it on the way
-                        || (startGap > ENEMY_CONTACT_TOLERANCE_INCHES && PathSweepsThrough(g, friendly.Zone));
+                        || (!overlapAllowed && startGap > ENEMY_CONTACT_TOLERANCE_INCHES && PathSweepsThrough(g, friendly.Zone));
 
                     if (!bad) continue;
                     sink.Add(EErrorReasonType.EndedOnFriendlyUnit, g.Move.Model);

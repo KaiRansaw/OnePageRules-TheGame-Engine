@@ -50,6 +50,8 @@ namespace FDG.Network.Connection.Lobby
         public IObservable<bool> CoverProximityExceptionsObservable => _settings_CoverProximityExceptions;
         public IObservable<bool> SeeThroughFriendlyUnitsObservable => _settings_SeeThroughFriendlyUnits;
         public IObservable<bool> UnlimitedSplitFireObservable => _settings_UnlimitedSplitFire;
+
+        public IObservable<bool> FriendlyUnitsMayOverlapObservable => _settings_FriendlyUnitsMayOverlap;
         public IObservable<ETableBackground> TableBackgroundObservable => _settings_TableBackground;
 
         public string ServerName => _serverName.Value;
@@ -89,6 +91,8 @@ namespace FDG.Network.Connection.Lobby
 
         public bool UnlimitedSplitFire => _settings_UnlimitedSplitFire.Value;
 
+        public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
+
         public ETableBackground TableBackground => _settings_TableBackground.Value;
 
         private BehaviorSubject<string> _serverName;
@@ -117,6 +121,8 @@ namespace FDG.Network.Connection.Lobby
         private BehaviorSubject<bool> _settings_CoverProximityExceptions;
         private BehaviorSubject<bool> _settings_SeeThroughFriendlyUnits;
         private BehaviorSubject<bool> _settings_UnlimitedSplitFire;
+
+        private BehaviorSubject<bool> _settings_FriendlyUnitsMayOverlap;
         private BehaviorSubject<ETableBackground> _settings_TableBackground;
 
         private INetworkHost _host;
@@ -227,6 +233,7 @@ namespace FDG.Network.Connection.Lobby
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(_gameSettings.CoverProximityExceptionsEnabled);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(_gameSettings.SeeThroughFriendlyUnits);
             _settings_UnlimitedSplitFire = new BehaviorSubject<bool>(_gameSettings.UnlimitedSplitFire);
+            _settings_FriendlyUnitsMayOverlap = new BehaviorSubject<bool>(_gameSettings.FriendlyUnitsMayOverlap);
             _settings_TableBackground = new BehaviorSubject<ETableBackground>(_gameSettings.TableBackground);
 
             _playerInfos = new BehaviorSubject<IReadOnlyList<LobbyPlayerInfoSummary>>(new List<LobbyPlayerInfoSummary>());
@@ -296,6 +303,7 @@ namespace FDG.Network.Connection.Lobby
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(_gameSettings.CoverProximityExceptionsEnabled);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(_gameSettings.SeeThroughFriendlyUnits);
             _settings_UnlimitedSplitFire = new BehaviorSubject<bool>(_gameSettings.UnlimitedSplitFire);
+            _settings_FriendlyUnitsMayOverlap = new BehaviorSubject<bool>(_gameSettings.FriendlyUnitsMayOverlap);
             _settings_TableBackground = new BehaviorSubject<ETableBackground>(_gameSettings.TableBackground);
 
             _playerInfos = new BehaviorSubject<IReadOnlyList<LobbyPlayerInfoSummary>>(new List<LobbyPlayerInfoSummary>());
@@ -1199,6 +1207,13 @@ namespace FDG.Network.Connection.Lobby
         {
             _settings_UnlimitedSplitFire.OnNext(enabled);
             _gameSettings.UnlimitedSplitFire = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetFriendlyUnitsMayOverlap(bool enabled)
+        {
+            _settings_FriendlyUnitsMayOverlap.OnNext(enabled);
+            _gameSettings.FriendlyUnitsMayOverlap = enabled;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

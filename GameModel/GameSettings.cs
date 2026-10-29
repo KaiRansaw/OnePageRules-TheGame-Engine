@@ -69,6 +69,28 @@ namespace FDG
         /// </summary>
         public bool UnlimitedSplitFire;
 
+        /// <summary>
+        /// House rule (lobby toggle, default ON): when true, separate friendly units may end their
+        /// move within 1" of each other, and may pass through each other's bases. Models still may
+        /// not END overlapping another model, the enemy standoff is untouched, and within-unit
+        /// coherency is untouched.
+        /// <para>
+        /// Turning it OFF restores the rules-as-written: "Units may only be within 1" of other units
+        /// when charging" (GF/AoF core rules, Movement), which applies to friendly units too.
+        /// </para>
+        /// <para>
+        /// Default ON (Kai's call, 2026-10-29). The rule bites hardest in GF: Star Quest and AoF:
+        /// Quest, where every hero is its own unit, so a party can never close up - the opposite
+        /// pressure to the 1" within-unit coherency rule that holds a squad together. It also starves
+        /// <c>HordePlacement.PlaceUnitNear</c>: each hero placed carries a 1" exclusion ring, so
+        /// deploying a party inside a 6" circle at the table centre can leave no legal spot at all.
+        /// NOTE: this default makes that far less likely but is NOT the fix for it - the placement
+        /// search must be bounded so it reports failure instead of hunting forever. See
+        /// <see cref="Utilities.GameWideConstants.FRIENDLY_UNITS_MAY_OVERLAP"/>.
+        /// </para>
+        /// </summary>
+        public bool FriendlyUnitsMayOverlap;
+
         public int TerrainPieceCount;
 
         /// <summary>
@@ -170,6 +192,7 @@ namespace FDG
                 CoverProximityExceptions = true,
                 SeeThroughFriendlyUnits = false,
                 UnlimitedSplitFire = false,
+                FriendlyUnitsMayOverlap = true,
                 TerrainPieceCount = 20,
                 TerrainPointsTotal = 30,
                 TerrainPointsPerTurn = 3,

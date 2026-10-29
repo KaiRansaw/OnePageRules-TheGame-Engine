@@ -59,6 +59,8 @@ namespace FDG.Network.Connection.Lobby
         public IObservable<bool> CoverProximityExceptionsObservable => _settings_CoverProximityExceptions;
         public IObservable<bool> SeeThroughFriendlyUnitsObservable => _settings_SeeThroughFriendlyUnits;
         public IObservable<bool> UnlimitedSplitFireObservable => _settings_UnlimitedSplitFire;
+
+        public IObservable<bool> FriendlyUnitsMayOverlapObservable => _settings_FriendlyUnitsMayOverlap;
         public IObservable<ETableBackground> TableBackgroundObservable => _settings_TableBackground;
 
         public string ServerName => _serverName.Value;
@@ -98,6 +100,8 @@ namespace FDG.Network.Connection.Lobby
 
         public bool UnlimitedSplitFire => _settings_UnlimitedSplitFire.Value;
 
+        public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
+
         public ETableBackground TableBackground => _settings_TableBackground.Value;
 
         private BehaviorSubject<string> _serverName;
@@ -124,6 +128,8 @@ namespace FDG.Network.Connection.Lobby
         private BehaviorSubject<bool> _settings_CoverProximityExceptions;
         private BehaviorSubject<bool> _settings_SeeThroughFriendlyUnits;
         private BehaviorSubject<bool> _settings_UnlimitedSplitFire;
+
+        private BehaviorSubject<bool> _settings_FriendlyUnitsMayOverlap;
         private BehaviorSubject<ETableBackground> _settings_TableBackground;
 
         private PlayerID? _thisPlayerID = null;
@@ -203,6 +209,7 @@ namespace FDG.Network.Connection.Lobby
             _settings_CoverProximityExceptions = new BehaviorSubject<bool>(true);
             _settings_SeeThroughFriendlyUnits = new BehaviorSubject<bool>(false);
             _settings_UnlimitedSplitFire = new BehaviorSubject<bool>(false);
+            _settings_FriendlyUnitsMayOverlap = new BehaviorSubject<bool>(false);
             // #265: same deal - Forest until the host's first settings update lands.
             _settings_TableBackground = new BehaviorSubject<ETableBackground>(ETableBackground.Forest);
 
@@ -421,6 +428,10 @@ namespace FDG.Network.Connection.Lobby
             {
                 _settings_UnlimitedSplitFire.OnNext(gameSettingsUpdate.GameSettings.UnlimitedSplitFire);
             }
+            if (_settings_FriendlyUnitsMayOverlap.Value != gameSettingsUpdate.GameSettings.FriendlyUnitsMayOverlap)
+            {
+                _settings_FriendlyUnitsMayOverlap.OnNext(gameSettingsUpdate.GameSettings.FriendlyUnitsMayOverlap);
+            }
             if (_settings_TableBackground.Value != gameSettingsUpdate.GameSettings.TableBackground)
             {
                 _settings_TableBackground.OnNext(gameSettingsUpdate.GameSettings.TableBackground);
@@ -532,6 +543,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetUnlimitedSplitFire(bool enabled)
         {
             throw new InvalidOperationException("Tried to set unlimited split fire when not the host.");
+        }
+
+        public void SetFriendlyUnitsMayOverlap(bool enabled)
+        {
+            throw new InvalidOperationException("Tried to set the friendly overlap house rule when not the host.");
         }
 
         public void SetTableBackground(ETableBackground background)

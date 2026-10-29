@@ -46,6 +46,15 @@ namespace FDG
         public const float ENEMY_STANDOFF_DISTANCE_INCHES = 1f;
 
         /// <summary>
+        /// House rule: when true, separate friendly units may end within 1" of each other and may
+        /// pass through each other's bases. Ending stacked on another model stays illegal, and the
+        /// enemy standoff above is untouched. Set by <see cref="ConfigureTable"/> from
+        /// <see cref="GameModel.GameSettings.FriendlyUnitsMayOverlap"/> when a game starts; false
+        /// (rules-correct) unless the lobby turned it on.
+        /// </summary>
+        public static bool FRIENDLY_UNITS_MAY_OVERLAP { get; private set; } = false;
+
+        /// <summary>
         /// Depth of each side's deployment zone: "places one unit fully within 12\" of their table edge"
         /// (GF v3.5.1 core rules, Deploying Armies). Was 9" before the rules-accuracy pass.
         /// </summary>
@@ -71,8 +80,11 @@ namespace FDG
         };
 
         /// <summary>Sets the table for the game about to be played. Called when a game (or a saved game) starts.</summary>
-        public static void ConfigureTable(EGameSystem system)
+        /// <param name="friendlyUnitsMayOverlap">The lobby's house-rule toggle. Defaults to false so
+        /// every existing caller (tests included) keeps the rules-correct behaviour.</param>
+        public static void ConfigureTable(EGameSystem system, bool friendlyUnitsMayOverlap = false)
         {
+            FRIENDLY_UNITS_MAY_OVERLAP = friendlyUnitsMayOverlap;
             (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);
             FDG.StateMachine.HordeRules.Configure(system);
             MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = GameSystemInfo.IsSkirmish(system)

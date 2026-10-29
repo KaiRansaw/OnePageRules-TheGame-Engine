@@ -348,7 +348,40 @@ namespace FDG.Stages
         public static List<UnitData> UnconsciousHeroes(IGameContext context, UnitData hero, float range) =>
             Units(context).Where(u => u.IsQuestHero && !ReferenceEquals(u, hero) && AreFriends(context, hero, u)
                 && !u.GetIsAlive() && u.Models.Any(m => m.Position.x != 0f || m.Position.z != 0f)
-                && Distance(hero, u) <= range).ToList();
+                && DistanceToDownedHero(hero, u) <= range).ToList();
+
+        /// <summary>
+        /// Distance from a standing hero to a DOWNED one, measured to the downed hero's models even
+        /// though they are not alive.
+        /// <para>
+        /// <see cref="Distance"/> (UnitCompareUtilities.MinDistanceBetweenUnits) deliberately skips dead
+        /// models, so that a corpse left where it fell cannot put a unit in shooting or melee range. That
+        /// is right for every combat gate - and exactly wrong here: an unconscious Star Quest hero has NO
+        /// living models, so the standard measure returned +infinity and
+        /// <see cref="UnconsciousHeroes"/> was always empty. Revive, Resurrect, Opulent Revival and the
+        /// Reviving Kit could therefore never find anyone, and always answered "No unconscious hero
+        /// within X" even with a hero down at the reviver's feet (QA 3.24, 9.20/9.21).
+        /// </para>
+        /// Measured from the reviver's LIVING models (it has to be standing to revive anyone) to the
+        /// downed hero's models wherever they lie.
+        /// </summary>
+        private static float DistanceToDownedHero(IUnit reviver, IUnit downed)
+        {
+            float closest = float.PositiveInfinity;
+            foreach (IModel a in reviver.Models)
+            {
+                if (!a.GetIsAlive()) continue;
+                foreach (IModel b in downed.Models)
+                {
+                    // Models parked at the origin are off-table (never deployed, embarked), not lying
+                    // on the floor where someone could reach them.
+                    if (b.Position.x == 0f && b.Position.z == 0f) continue;
+                    float distance = a.BaseDistanceToOtherModel_2D(b);
+                    if (distance < closest) closest = distance;
+                }
+            }
+            return closest;
+        }
     }
 
     /// <summary>
