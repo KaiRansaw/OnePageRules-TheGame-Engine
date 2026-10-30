@@ -63,6 +63,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(StrikeFirst), "strikeFirst")]
 [JsonDerivedType(typeof(StrikeLast), "strikeLast")]
 [JsonDerivedType(typeof(ShootAfterRush), "shootAfterRush")]
+[JsonDerivedType(typeof(ForbidShootAfterMove), "forbidShootAfterMove")]
 [JsonDerivedType(typeof(EnableCasting), "enableCasting")]
 [JsonDerivedType(typeof(EnableTransport), "enableTransport")]
 [JsonDerivedType(typeof(EnableReDeployment), "enableReDeployment")]
@@ -1058,6 +1059,26 @@ public abstract record Effect
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.AllowShootAfterRush());
+        }
+    }
+
+    /// <summary>
+    /// The bearer may not shoot at all in an activation where it moved - Cumbersome's "can't shoot when
+    /// moving" (#409, OPR 3.6.0). The mirror image of <see cref="ShootAfterRush"/>, authored at the same
+    /// <see cref="EHookID.Activation_OnActionChoice"/> hook that collects <see cref="RestrictActions"/>,
+    /// and read by the same shoot gate.
+    /// <para>
+    /// Strictly tighter than the ordinary advance-and-shoot cap, which lets a unit Advance its full move
+    /// and still fire: a Cumbersome unit must choose. Expressed as a PERMISSION withdrawn rather than a
+    /// movement penalty, for the same reason Quick Shot is a permission granted - cutting the unit's
+    /// Advance distance would change what counts as an Advance for every other rule that asks.
+    /// </para>
+    /// </summary>
+    public sealed record ForbidShootAfterMove : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            operations.Add(new RuleOperation.ForbidShootAfterMove());
         }
     }
 

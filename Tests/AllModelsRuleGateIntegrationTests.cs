@@ -43,13 +43,34 @@ namespace FDG.Tests
                 "every model of a plain Stealth unit has the rule, so the -1-to-hit applies.");
         }
 
+        // #409 (OPR 3.6.0): Stealth's gate moved from "all models" to "MOST models", so this case flipped.
+        // The fixture is a 3-model Stealth host plus one hero without it: 3 of 4 living models carry the
+        // rule, which is a majority, so the unit keeps Stealth. Under 3.5.1 the same unit lost it outright.
         [Test]
-        public void Stealth_JoinedHeroLacksRule_Suppressed()
+        public void Stealth_JoinedHeroLacksRule_StillAppliesWhileMostModelsHaveIt()
         {
             UnitData defender = MakeStealthUnitWithHero(heroHasStealth: false);
 
+            Assert.That(StealthApplies(defender), Is.True,
+                "3 of 4 living models carry Stealth - a majority - so the -1 still applies in 3.6.");
+        }
+
+        // The other side of the new threshold: once the carriers are no longer a majority the rule stops.
+        // Built by killing host models until the ruleless hero holds half the unit, because "most" is a
+        // STRICT majority - a 1-1 split is not most.
+        [Test]
+        public void Stealth_CarriersNoLongerAMajority_Suppressed()
+        {
+            UnitData defender = MakeStealthUnitWithHero(heroHasStealth: false);
+
+            // Drop two of the three Stealth grunts: 1 carrier + 1 ruleless hero = no majority.
+            List<IModel> grunts = defender.Models
+                .Where(m => m.ID != defender.JoinedHeroModelId!.Value).ToList();
+            grunts[0].DealWounds(grunts[0].TotalWounds);
+            grunts[1].DealWounds(grunts[1].TotalWounds);
+
             Assert.That(StealthApplies(defender), Is.False,
-                "a joined hero without Stealth breaks it for the whole unit — the -1 no longer applies.");
+                "1 of 2 living models is not MOST, so Stealth stops applying.");
         }
 
         [Test]
@@ -69,7 +90,8 @@ namespace FDG.Tests
             hero.DealWounds(hero.TotalWounds); // the hero falls — only native Stealth grunts remain
 
             Assert.That(StealthApplies(defender), Is.True,
-                "the all-models check ignores dead models, so losing the ruleless hero restores Stealth.");
+                "the model-count check ignores dead models, so losing the ruleless hero leaves a unit "
+                + "where every living model has Stealth.");
         }
 
         // #183 — unit-held grants cover the joined hero too: a buff cast on the combined unit (or an aura)

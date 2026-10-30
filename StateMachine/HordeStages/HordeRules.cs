@@ -4,7 +4,7 @@ using FDG.Rules.Foundation;
 namespace FDG.StateMachine
 {
     /// <summary>
-    /// The numbers and pure checks behind OPR Horde Mode v3.5.0 (Grimdark Future). Kept free of
+    /// The numbers and pure checks behind OPR Horde Mode v3.6.0 (Grimdark Future). Kept free of
     /// stage plumbing so each rule can be unit-tested on its own.
     /// </summary>
     public static class HordeRules
@@ -23,15 +23,21 @@ namespace FDG.StateMachine
         public static int WaveOfRound(int round) => ((round - 1) / GameWideConstants.HORDE_ROUNDS_PER_WAVE) + 1;
 
         /// <summary>
-        /// The number of waves the defenders have successfully finished when the mission ends after
-        /// <paramref name="roundsFinished"/> complete rounds. Surviving the whole mission is every wave;
-        /// being overrun mid-wave does not count that wave (the rules' example: destroyed during wave
-        /// four means a multiplier of three).
+        /// The high-score multiplier: the number of ROUNDS the defenders successfully finished.
+        ///
+        /// <para>#409 (OPR 3.6.0) changed what this counts. 3.5.0 multiplied by the last WAVE finished,
+        /// so a mission could only ever score x1 to x4 and being overrun early was barely distinguishable
+        /// from being overrun late. 3.6 multiplies by the last ROUND finished - a x1 to x12 range, and the
+        /// rulebook's own worked example changed with it ("destroyed during round 6 and earned 100pts, so
+        /// they get a high score of 500pts": overrun DURING round 6 means 5 rounds were finished).</para>
+        ///
+        /// <para>That example is why being overrun does not count the round it happened in, while holding
+        /// out to the end counts every round of the mission.</para>
         /// </summary>
-        public static int WavesFinished(int roundsFinished, bool defendersSurvived)
+        public static int RoundsFinishedForScore(int roundsFinished, bool defendersSurvived)
         {
-            if (defendersSurvived) return WaveOfRound(GameWideConstants.HORDE_NUMBER_OF_ROUNDS);
-            return Math.Max(0, WaveOfRound(Math.Max(1, roundsFinished)) - 1);
+            if (defendersSurvived) return GameWideConstants.HORDE_NUMBER_OF_ROUNDS;
+            return Math.Max(0, roundsFinished - 1);
         }
 
         /// <summary>
@@ -56,12 +62,12 @@ namespace FDG.StateMachine
         /// The full game uses 9"; GF: Firefight's Horde Mode uses 6". Set by <see cref="Configure"/>.
         public static float DeploymentRadiusInches { get; private set; } = 9f;
 
-        /// <summary>Points the defenders earn for each objective they seize at the end of a wave.</summary>
-        /// 40 in the full game, 10 in Firefight.
+        /// <summary>Points the defenders earn for each objective they hold at a point-reward round.</summary>
+        /// 40 in Grimdark Future / Age of Fantasy, 30 in the two skirmish games (#409: was 10).
         public static int PointsPerSeizedObjective { get; private set; } = 40;
 
         /// <summary>Extra points when one of the seized objectives is the priority objective.</summary>
-        /// 20 in the full game, 5 in Firefight.
+        /// 20 in the full games, 15 in the skirmish games (#409: was 5).
         public static int PriorityObjectiveBonus { get; private set; } = 20;
 
         /// <summary>Rounds at whose end point rewards are paid out (3, 6, 9, 12 - the end of each wave).</summary>
@@ -69,15 +75,23 @@ namespace FDG.StateMachine
         /// 9" in the full game, 6" in Firefight.
         public static float ShopRangeInches { get; private set; } = 9f;
 
-        /// <summary>Sets the Horde Mode sizes for the game type (GF: Firefight Horde Mode v3.5.0 uses a 4'x4' table,
-        /// 6" deployment and shop areas, 10 pts per seized objective and +5 for the priority one).</summary>
+        /// <summary>
+        /// Sets the Horde Mode sizes for the game type. The skirmish books (GF: Firefight and AoF:
+        /// Skirmish Horde Mode v3.6.0) use a 4'x4' table and 6" deployment and shop areas; the full games
+        /// (Grimdark Future and Age of Fantasy) use 6'x4' and 9".
+        /// <para>
+        /// #409: the skirmish point rewards are 30 per seized objective and +15 for the priority one.
+        /// They were 10 and +5 here, which came from the 3.5.0 Firefight book; 3.6 tripled them, so a
+        /// skirmish mission's high score is now in the same ballpark as a full game's.
+        /// </para>
+        /// </summary>
         public static void Configure(EGameSystem system)
         {
             bool skirmish = GameSystemInfo.IsSkirmish(system);
             DeploymentRadiusInches = skirmish ? 6f : 9f;
             ShopRangeInches = skirmish ? 6f : 9f;
-            PointsPerSeizedObjective = skirmish ? 10 : 40;
-            PriorityObjectiveBonus = skirmish ? 5 : 20;
+            PointsPerSeizedObjective = skirmish ? 30 : 40;
+            PriorityObjectiveBonus = skirmish ? 15 : 20;
             FDG.Stages.HordePlacement.CrowdedRadiiInches = skirmish
                 ? new[] { 6f, 9f, 12f, 15f } : new[] { 9f, 12f, 15f, 18f };
         }
@@ -86,7 +100,8 @@ namespace FDG.StateMachine
             round >= 1 && round <= GameWideConstants.HORDE_NUMBER_OF_ROUNDS
             && round % GameWideConstants.HORDE_ROUNDS_PER_WAVE == 0;
 
-        /// <summary>The end-of-wave reward: 40 per seized objective, +20 if the priority one is among them (Firefight: 10 and +5).</summary>
+        /// <summary>The point reward at the end of rounds 3, 6, 9 and 12: 40 per seized objective, +20 if
+        /// the priority one is among them (30 and +15 in the skirmish games).</summary>
         public static int WaveReward(int seizedObjectives, bool prioritySeized) =>
             seizedObjectives * PointsPerSeizedObjective + (prioritySeized && seizedObjectives > 0 ? PriorityObjectiveBonus : 0);
 

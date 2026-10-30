@@ -8,15 +8,27 @@ using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    // #197 misc - Quick Readjustment ("this model ignores penalties from shooting after moving when using
-    // Indirect weapons"). Indirect's penalty is a weapon-scoped -1 at Shooting_OnHitRollModifier gated on
-    // And(AfterMoving, Not(IsMelee)). Quick Readjustment is authored weapon-scoped and routed onto every
-    // weapon (slice 0); a new Condition.WeaponHasRule lets it fire its +1 ONLY on the weapon that also
-    // carries Indirect, cancelling that rule's -1. The net a player sees is what's asserted here.
+    // #409 (OPR 3.6.0) - what used to be the Quick Readjustment integration suite.
+    //
+    // Quick Readjustment's whole text was "this unit ignores the -1 to hit penalty for shooting after
+    // moving when firing Indirect weapons". 3.6 deleted that penalty: Indirect no longer modifies hit
+    // rolls at all, it simply stops working unless the unit used a Hold action. A rule whose only job was
+    // to cancel the penalty therefore has nothing left to cancel - and worse, left in place unchanged it
+    // would stop being a cancellation and start being a free, unsourced +1 to hit after moving. That is
+    // why the shipped GdfRuleSupplement.json entry was removed along with the rules change rather than
+    // being carried forward; it is on #409's list for the eventual 3.6 army-book re-import, which is when
+    // we will learn what (if anything) OPR replaced it with.
+    //
+    // These tests now pin the two facts that removal rests on, so the rule cannot quietly come back and
+    // start paying out:
+    //   1. Core Indirect produces no hit-roll modifier in either direction (moved or held).
+    //   2. A Quick-Readjustment-shaped rule, if one were re-added unchanged, WOULD be a phantom bonus -
+    //      asserted explicitly so the reason for removal is visible rather than folklore.
     [TestFixture]
     public class QuickReadjustmentRuleIntegrationTests
     {
-        private static SpecialRuleDefinition QuickReadjustment() =>
+        // The 3.5.1 authoring, kept only as the subject of test 2 below. Not registered anywhere.
+        private static SpecialRuleDefinition LegacyQuickReadjustment() =>
             new("Quick Readjustment",
                 new[]
                 {
@@ -29,78 +41,63 @@ namespace FDG.Tests
                 Array.Empty<ActivatedAbility>(),
                 ERuleScope.Weapon);
 
-        private static int NetHitAfterMoving(TestRuleHarness harness, IUnit attacker, IUnit defender,
-            IWeapon weapon)
+        private static int NetHit(TestRuleHarness harness, IUnit attacker, IUnit defender,
+            IWeapon weapon, bool attackerMoved)
         {
             var sink = new RollModifierSink();
             sink.ApplyFrom(harness.Evaluator.EvaluateAll(
-                new HitRollModifierContext(attacker, defender, DistanceInches: 12f, AttackerMoved: true,
-                    IsMelee: false),
+                new HitRollModifierContext(attacker, defender, DistanceInches: 12f,
+                    AttackerMoved: attackerMoved, IsMelee: false),
                 RuleParticipant.Actor(attacker, weapon)));
             return sink.Net(ERollKind.Hit);
         }
 
-        [Test]
-        public void IndirectWeapon_AfterMoving_HasTheMinusOnePenalty()
+        private static Weapon Mortar()
         {
-            var harness = new TestRuleHarness();
-            IUnit attacker = harness.BuildUnit("P1", 1);
-            IUnit defender = harness.BuildUnit("P2", 1);
             var mortar = new Weapon("Mortar", rangeInches: 48f, attacks: 1, armorPenetration: 0);
             mortar.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
-
-            Assert.That(NetHitAfterMoving(harness, attacker, defender, mortar), Is.EqualTo(-1),
-                "baseline: Indirect penalises shooting after moving.");
+            return mortar;
         }
 
         [Test]
-        public void QuickReadjustment_CancelsThePenalty_OnAnIndirectWeapon()
+        public void IndirectWeapon_AfterMoving_HasNoHitPenalty()
         {
             var harness = new TestRuleHarness();
             IUnit attacker = harness.BuildUnit("P1", 1);
             IUnit defender = harness.BuildUnit("P2", 1);
-            var mortar = new Weapon("Mortar", rangeInches: 48f, attacks: 1, armorPenetration: 0);
-            mortar.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
-            mortar.AttachRuleDefinition(new ResolvedRule("Quick Readjustment", QuickReadjustment()));
 
-            Assert.That(NetHitAfterMoving(harness, attacker, defender, mortar), Is.EqualTo(0),
-                "Indirect -1 + Quick Readjustment +1 = 0: the after-moving penalty is ignored.");
+            Assert.That(NetHit(harness, attacker, defender, Mortar(), attackerMoved: true), Is.EqualTo(0),
+                "3.6 deleted Indirect's -1 for shooting after moving - there is no penalty to cancel.");
         }
 
         [Test]
-        public void QuickReadjustment_DoesNothing_OnANonIndirectWeapon()
+        public void IndirectWeapon_Holding_HasNoHitModifierEither()
         {
             var harness = new TestRuleHarness();
             IUnit attacker = harness.BuildUnit("P1", 1);
             IUnit defender = harness.BuildUnit("P2", 1);
-            // A plain rifle (no Indirect, so no penalty to cancel) that was routed Quick Readjustment anyway.
-            var rifle = new Weapon("Rifle", rangeInches: 24f, attacks: 1, armorPenetration: 0);
-            rifle.AttachRuleDefinition(new ResolvedRule("Quick Readjustment", QuickReadjustment()));
 
-            Assert.That(NetHitAfterMoving(harness, attacker, defender, rifle), Is.EqualTo(0),
-                "WeaponHasRule(Indirect) is false here, so the +1 never fires - Quick Readjustment must not " +
-                "become a blanket after-moving hit bonus on ordinary weapons.");
+            Assert.That(NetHit(harness, attacker, defender, Mortar(), attackerMoved: false), Is.EqualTo(0),
+                "Indirect is a sight permission in 3.6, not a hit modifier, so Holding changes nothing here "
+                + "either - what Holding gates is the out-of-line-of-sight shot itself.");
         }
 
+        // The reason the supplement entry had to go, stated as an assertion. If someone re-adds the 3.5.1
+        // authoring verbatim during the 3.6 book re-import, this is what they would be shipping.
         [Test]
-        public void QuickReadjustment_GivesNoBonus_WhenTheUnitDidNotMove()
+        public void LegacyQuickReadjustment_WouldNowBeAnUnsourcedBonus()
         {
             var harness = new TestRuleHarness();
             IUnit attacker = harness.BuildUnit("P1", 1);
             IUnit defender = harness.BuildUnit("P2", 1);
-            var mortar = new Weapon("Mortar", rangeInches: 48f, attacks: 1, armorPenetration: 0);
-            mortar.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
-            mortar.AttachRuleDefinition(new ResolvedRule("Quick Readjustment", QuickReadjustment()));
 
-            var sink = new RollModifierSink();
-            sink.ApplyFrom(harness.Evaluator.EvaluateAll(
-                new HitRollModifierContext(attacker, defender, DistanceInches: 12f, AttackerMoved: false,
-                    IsMelee: false),
-                RuleParticipant.Actor(attacker, mortar)));
+            Weapon mortar = Mortar();
+            mortar.AttachRuleDefinition(
+                new ResolvedRule("Quick Readjustment", LegacyQuickReadjustment()));
 
-            Assert.That(sink.Net(ERollKind.Hit), Is.EqualTo(0),
-                "no move -> no Indirect penalty and no Quick Readjustment bonus; +1 with nothing to cancel " +
-                "would wrongly buff a stationary Indirect shot.");
+            Assert.That(NetHit(harness, attacker, defender, mortar, attackerMoved: true), Is.EqualTo(+1),
+                "with Indirect's -1 gone, the old cancellation rule nets a straight +1 to hit after moving "
+                + "- a bonus no 3.6 rulebook grants. Hence its removal from GdfRuleSupplement.json.");
         }
     }
 }

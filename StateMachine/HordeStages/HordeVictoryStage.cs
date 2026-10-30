@@ -4,8 +4,10 @@ namespace FDG.Stages
 {
     /// <summary>
     /// Ends a Horde Mode mission. Horde has no objective-count winner: the defenders either held out
-    /// through round twelve or were overrun, and the score is points earned x waves finished.
-    /// Points come from the end-of-wave objective rewards (see HordeRoundHooks).
+    /// through round twelve or were overrun, and the score is points earned x ROUNDS finished (#409 -
+    /// OPR 3.6.0 changed the multiplier from waves to rounds, widening the range from x1-x4 to x1-x12).
+    /// Points come from the objective rewards paid at the end of rounds 3, 6, 9 and 12 (see
+    /// HordeRoundHooks).
     /// </summary>
     public class HordeVictoryStage : StageBase<IGameContext>
     {
@@ -30,16 +32,17 @@ namespace FDG.Stages
             var defenders = players.Where(p => p.TeamNumber == defendingTeam).ToList();
             var enemies = players.Where(p => p.TeamNumber != defendingTeam).ToList();
 
-            int waves = FDG.StateMachine.HordeRules.WavesFinished(roundsFinished, survived);
+            int scoringRounds = FDG.StateMachine.HordeRules.RoundsFinishedForScore(roundsFinished, survived);
             int pointsEarned = table.Progress.HordePointsEarned ?? 0;
-            int highScore = pointsEarned * waves;
+            int highScore = pointsEarned * scoringRounds;
 
             string how = survived
                 ? "The defenders held out!"
                 : objectivesGone && !defendersDown
                     ? $"Every objective was destroyed in round {roundsFinished}."
                     : $"The defenders were overrun in round {roundsFinished}.";
-            string message = $"{how} {pointsEarned} points x {waves} wave{(waves == 1 ? "" : "s")} = high score {highScore}.";
+            string message = $"{how} {pointsEarned} points x {scoringRounds} "
+                + $"round{(scoringRounds == 1 ? "" : "s")} = high score {highScore}.";
 
             GameContext.Log($"Horde Mode ended after round {roundsFinished}: {message}");
 

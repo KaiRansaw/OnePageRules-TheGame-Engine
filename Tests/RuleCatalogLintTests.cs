@@ -63,6 +63,10 @@ namespace FDG.Tests
             ["Skill: Warden"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated stops nearby friends being Shaken.",
             ["Self-Destruct"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name, deals X hits per participating model and self-kills any survivor (#197 P11).",
+            ["Assault"] = "engine-marker (#409, OPR 3.6.0): no dispatch entries - which attack pool a weapon " +
+                "belongs to is settled from the raw weapon list before any rule evaluation, so " +
+                "IUnitExtensions.GetMeleeWeapons consults AssaultRules.IsAssault by name to put an Assault " +
+                "weapon in the melee pool as well as the ranged one.",
         };
 
         // All plus the two standalone definitions FDGServer attaches to every unit at army setup —

@@ -164,7 +164,9 @@ namespace FDG.Tests
             GameWideConstants.ConfigureTable(EGameSystem.GFFirefight);
             Assert.That(FDG.StateMachine.HordeRules.DeploymentRadiusInches, Is.EqualTo(6f));
             Assert.That(FDG.StateMachine.HordeRules.ShopRangeInches, Is.EqualTo(6f));
-            Assert.That(FDG.StateMachine.HordeRules.WaveReward(2, prioritySeized: true), Is.EqualTo(25), "10 + 10 + 5");
+            // #409 (OPR 3.6.0): the skirmish reward is 30 per objective and +15 for the priority one.
+            // It was 10 and +5 in the 3.5.0 Firefight book - 3.6 tripled both.
+            Assert.That(FDG.StateMachine.HordeRules.WaveReward(2, prioritySeized: true), Is.EqualTo(75), "30 + 30 + 15");
             Assert.That(HordePlacement.CrowdedRadiiInches[0], Is.EqualTo(6f));
 
             GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);

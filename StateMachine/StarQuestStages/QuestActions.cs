@@ -262,7 +262,7 @@ namespace FDG.Stages
 
         /// <summary>A morale test; true when passed.</summary>
         public static async Task<bool> Morale(IGameContext context, UnitData unit) =>
-            (await MoraleUtilities.TakeMoraleTest(context, unit, HeroStatRules.GetMoraleQuality(unit))).Passed;
+            (await MoraleUtilities.TakeMoraleTest(context, unit, HeroStatRules.GetMoraleQuality(unit, context.TableState))).Passed;
 
         public static Task Toast(IGameContext context, string text) =>
             context.Announce(text, Blue, EBannerTier.Toast);

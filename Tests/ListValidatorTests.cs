@@ -51,10 +51,14 @@ public class ListValidatorTests
         Assert.That(issues.Any(i => i.Severity == ListIssueSeverity.Error && i.Message.Contains("models")), Is.True);
     }
 
+    // #409: the copy cap is "1+X copies, where X is 1 per N pts" (N per game system), not a flat 3, so
+    // these tests set a real army size instead of the old 100000-pt sandbox - at 100000 pts the books
+    // would allow 101 copies and there would be nothing to warn about. 2000 pts of Grimdark Future gives
+    // 1 + 2000/1000 = 3, which is the number the flat cap was originally derived from.
     [Test]
     public void TooManyCopies_IsAForceOrgWarning()
     {
-        var issues = Check(DemoBook.Build(), List(100000, U("gunners"), U("gunners"), U("gunners"), U("gunners")));
+        var issues = Check(DemoBook.Build(), List(2000, U("gunners"), U("gunners"), U("gunners"), U("gunners")));
         Assert.That(issues.Any(i => i.Severity == ListIssueSeverity.Warning && i.Message.Contains("copies")), Is.True);
     }
 
@@ -125,8 +129,8 @@ public class ListValidatorTests
     [Test]
     public void FourCombinedPairs_ExceedTheCopyCap()
     {
-        // Eight rows as four pairs = four squads: one over the 3-copy cap.
-        var issues = Check(DemoBook.Build(), List(100000,
+        // Eight rows as four pairs = four squads: one over the 3-copy cap at 2000 pts (1 + 2000/1000).
+        var issues = Check(DemoBook.Build(), List(2000,
             Warriors("a"), Combined("b", "a"), Warriors("c"), Combined("d", "c"),
             Warriors("e"), Combined("f", "e"), Warriors("g"), Combined("h", "g")));
 
@@ -139,7 +143,7 @@ public class ListValidatorTests
     {
         // Two pairs + two plain squads = four squads of the same unit - over the cap; merged
         // pairs keep the plain unit name, so they fall into the same copy group naturally.
-        var issues = Check(DemoBook.Build(), List(100000,
+        var issues = Check(DemoBook.Build(), List(2000,
             Warriors("a"), Combined("b", "a"), Warriors("c"), Combined("d", "c"),
             Warriors("e"), Warriors("f")));
 

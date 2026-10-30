@@ -1,4 +1,4 @@
-﻿using FDG.Data;
+using FDG.Data;
 using FDG.Players;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -74,21 +74,23 @@ namespace FDG.Tests
             await stage.Enter(deployment);
 
             float center = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES / 2f;
-            float expectedTop = System.Math.Min(GameWideConstants.DEPLOYMENT_DISTANCE_INCHES + 12f, center);
+            // #409 (OPR 3.6.0): Scout's forward range is 9", not 12". Read from the rule's own constant so
+            // the test and the catalog can never disagree about the number.
+            float expectedTop = System.Math.Min(
+                GameWideConstants.DEPLOYMENT_DISTANCE_INCHES + ScoutDeploymentRules.ForwardRangeInches, center);
 
             Assert.That(requester.PlacementCount, Is.EqualTo(2), "every reserved Scout is placed");
             Assert.That(requester.LastZone!.Bounds.Top, Is.EqualTo(expectedTop).Within(0.001f),
-                "Scout's zone is extended 12\" forward (toward table center), clamped at center.");
+                "Scout's zone is extended 9\" forward (toward table center), clamped at center.");
 
             foreach (DataBinding<UnitData> scout in new[] { scoutA, scoutB })
             {
                 foreach (DataBinding<ModelData> model in scout.GetValue().ModelBindings)
                 {
                     Position pos = model.GetValue().PositionBinding.GetValue();
-                    // Rules accuracy: with the 12" deployment zone, the Scout band (zone + 12", clamped at the
-                    // table centre) reaches exactly the centre line, so the canned centre-of-zone spot sits on
-                    // the old zone's edge. What the rule guarantees is "fully within 12\" of the deployment
-                    // zone" - check the models landed inside that band.
+                    // Rules accuracy: the Scout band is the deployment zone extended forward by the rule's
+                    // range and clamped at the table centre. What the rule guarantees is "fully within 9\" of
+                    // the deployment zone" - check the models landed inside that band.
                     Assert.That(pos.z, Is.InRange(0f, expectedTop + 0.001f),
                         $"{scout.GetValue().Name} models end inside the Scout band.");
                 }

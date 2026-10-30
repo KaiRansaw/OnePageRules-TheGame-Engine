@@ -172,9 +172,14 @@ namespace FDG
         // #197 Strafing: "this weapon may only be used in this way" - a strafe weapon is excluded from BOTH
         // attack pools. The melee exclusion is the one that bites: every corpus strafe weapon has range 0,
         // and IsMelee() is defined as "range 0", so a bomb rack would otherwise be swung in close combat.
+        // #409 Assault (OPR 3.6.0): "counts as both a ranged weapon and a melee weapon". Pool membership
+        // is decided by range alone (IsMelee() is "range 0"), so an Assault weapon has a range and would
+        // never reach this pool on its own. It stays in the ranged pool too - GetRangedWeapons already
+        // takes it on range - which is exactly what "both" means. See Rules.Dispatch.AssaultRules.
         public static List<Weapon> GetMeleeWeapons(this IUnit unit)
         {
-            return unit.AllWeapons(u => u.IsMelee() && !Rules.Dispatch.StrafingRules.IsStrafeOnly(u));
+            return unit.AllWeapons(u => (u.IsMelee() || Rules.Dispatch.AssaultRules.IsAssault(u))
+                && !Rules.Dispatch.StrafingRules.IsStrafeOnly(u));
         }
 
         public static List<Weapon> GetRangedWeapons(this IUnit unit)

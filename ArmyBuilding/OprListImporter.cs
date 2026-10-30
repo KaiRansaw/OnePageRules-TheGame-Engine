@@ -34,10 +34,33 @@ namespace FDG.ArmyBuilding
     //     as the sole source of weapons/items.
     public static partial class OprListImporter
     {
-        /// <summary>The OPR army-book major.minor this game's data and rule implementations target. A book
-        /// whose versionString is outside this prefix refuses to import (see OprVersionMismatchException).
-        /// Bump when the bundled Assets/Books snapshots are re-imported against a newer OPR release.</summary>
-        public const string SupportedVersionPrefix = "3.5";
+        /// <summary>The OPR army-book major.minor this game's rules now implement (#409: 3.6.0). Shown in
+        /// the mismatch message and the one a list is assumed to be priced against.</summary>
+        public const string SupportedVersionPrefix = "3.6";
+
+        /// <summary>
+        /// Every army-book major.minor this game will import, newest first. A book outside all of them
+        /// refuses (see <see cref="OprVersionMismatchException"/>).
+        ///
+        /// <para>#409: this used to be the single <see cref="SupportedVersionPrefix"/> constant, which
+        /// meant moving the engine to 3.6 would have locked out every army file and bundled book snapshot
+        /// already in hand - OPR does not keep old book versions downloadable, so there would have been no
+        /// way back. 3.5 therefore stays accepted as LEGACY: its points are a patch behind, but the rules
+        /// those points buy are the engine's, and a list priced a patch out is a far smaller problem than
+        /// an army that cannot be opened at all.</para>
+        ///
+        /// <para>This is deliberately not "accept anything". A book from a generation the engine does not
+        /// implement still refuses, loudly, rather than being played by the wrong rules in silence.</para>
+        /// </summary>
+        public static readonly IReadOnlyList<string> SupportedVersionPrefixes = new[] { "3.6", "3.5" };
+
+        /// <summary>
+        /// Whether an imported book's version is the one the engine targets, as opposed to a legacy
+        /// version it still accepts. Callers warn (never refuse) on false, so the player is told their
+        /// list is priced against an older book and is being played by current rules.
+        /// </summary>
+        public static bool IsCurrentVersion(string versionString) =>
+            VersionMatchesPrefix(versionString, SupportedVersionPrefix);
 
         /// <summary>The OPR game systems this game implements, as the short codes a /api/tts list
         /// carries, each mapped to the slug our data records (#378).
@@ -244,11 +267,14 @@ namespace FDG.ArmyBuilding
             (list.Units ?? new()).Select(u => u.ArmyId).OfType<string>().Distinct().ToList();
 
         // "3.5.3" matches prefix "3.5"; "3.5" itself matches; "3.50.1" must NOT (component compare, not
-        // string StartsWith). OPR's live books legitimately mix patch levels (3.5.2/3.5.3 today).
-        internal static bool VersionMatches(string versionString)
+        // string StartsWith). OPR's live books legitimately mix patch levels (3.6.0/3.6.1, 3.5.2/3.5.3).
+        internal static bool VersionMatches(string versionString) =>
+            SupportedVersionPrefixes.Any(prefix => VersionMatchesPrefix(versionString, prefix));
+
+        private static bool VersionMatchesPrefix(string versionString, string prefix)
         {
             string[] found = versionString.Split('.');
-            string[] supported = SupportedVersionPrefix.Split('.');
+            string[] supported = prefix.Split('.');
             if (found.Length < supported.Length) return false;
             for (int i = 0; i < supported.Length; i++)
                 if (!string.Equals(found[i].Trim(), supported[i], StringComparison.Ordinal)) return false;
@@ -558,8 +584,8 @@ namespace FDG.ArmyBuilding
     /// the caller fetches one army book per <see cref="ArmyIds"/> entry, then calls Import.</summary>
     public sealed record OprListHeader(string Name, string GameSystem, IReadOnlyList<string> ArmyIds);
 
-    /// <summary>The list references an army book whose current version is outside the supported
-    /// major.minor (<see cref="OprListImporter.SupportedVersionPrefix"/>). OPR does not keep old book
+    /// <summary>The list references an army book whose current version is outside every supported
+    /// major.minor (<see cref="OprListImporter.SupportedVersionPrefixes"/>). OPR does not keep old book
     /// versions available once they update, so the import refuses rather than mixing rule generations —
     /// resolving this needs a game-data update, not a different list.</summary>
     public sealed class OprVersionMismatchException : Exception
@@ -569,7 +595,7 @@ namespace FDG.ArmyBuilding
 
         public OprVersionMismatchException(string bookName, string foundVersion)
             : base($"Army book '{bookName}' is at OPR version {(string.IsNullOrEmpty(foundVersion) ? "(unknown)" : foundVersion)}; " +
-                   $"this game supports {OprListImporter.SupportedVersionPrefix}.x. " +
+                   $"this game supports {string.Join(".x, ", OprListImporter.SupportedVersionPrefixes)}.x. " +
                    "The game's data needs an update before this list can be imported.")
         {
             BookName = bookName;

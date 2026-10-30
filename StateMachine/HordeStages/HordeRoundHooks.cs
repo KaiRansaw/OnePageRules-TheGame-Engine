@@ -8,7 +8,7 @@ using FDG.StateMachine;
 namespace FDG.Stages
 {
     /// <summary>
-    /// Horde Mode's per-round steps (OPR v3.5.0):
+    /// Horde Mode's per-round steps (OPR v3.6.0):
     /// <list type="bullet">
     ///   <item>Start of rounds 1, 4, 7, 10: set a new priority objective.</item>
     ///   <item>Start of rounds 4, 7, 10: Shaken enemies are removed as destroyed, then every destroyed
@@ -177,9 +177,10 @@ namespace FDG.Stages
         }
 
         /// <summary>
-        /// End of a wave: every objective with a defending unit within 3" and no enemy within 3" counts as
-        /// seized - 40 points each, +20 if the priority objective is one of them. Uses the same "within 3""
-        /// test as objective control, so Shaken units and units that arrived this round don't count.
+        /// A point-reward round (the end of rounds 3, 6, 9 and 12): every objective with a defending unit
+        /// within 3" and no enemy within 3" counts as seized - 40 points each, +20 if the priority
+        /// objective is one of them (30 and +15 in the skirmish games). Uses the same "within 3"" test as
+        /// objective control, so Shaken units and units that arrived this round don't count.
         /// </summary>
         internal async Task<List<ObjectiveData>> AwardWavePoints(int wave)
         {
@@ -215,8 +216,11 @@ namespace FDG.Stages
             string detail = seized == 0
                 ? "no objectives held"
                 : $"{seized} objective{(seized == 1 ? "" : "s")} held" + (prioritySeized ? " incl. priority" : "");
-            _gameContext.Log($"Horde Mode: wave {wave} complete - {detail}: +{reward} points (total {total}).");
-            await _gameContext.Announce($"Wave {wave} complete: +{reward} points", new TextColor(255, 215, 0, 255),
+            // #409: the reward is a ROUND event in 3.6 (end of rounds 3, 6, 9, 12) and the high score
+            // multiplies by rounds, so the player is told which round paid out rather than which wave.
+            _gameContext.Log($"Horde Mode: round {_gameContext.TableState.Progress.RoundCount} point reward"
+                + $" - {detail}: +{reward} points (total {total}).");
+            await _gameContext.Announce($"+{reward} points: {detail}", new TextColor(255, 215, 0, 255),
                 EBannerTier.Headline);
             return seizedObjectives;
         }

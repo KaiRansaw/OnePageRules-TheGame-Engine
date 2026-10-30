@@ -58,8 +58,13 @@ namespace FDG.Tests
                 "Counter on a ranged weapon is not in melee scope — no strike-first.");
         }
 
+        // #409 (OPR 3.6.0): Counter's Impact reduction was deleted, so a Counter weapon emits NOTHING at
+        // charge contact - there is no longer a per-model count to get right. The 3.5.1 test here checked
+        // that only the one model carrying the Counter spear contributed its -1; what matters now is that
+        // no reduction is produced at all, by any number of carriers. Weapon scoping itself is still
+        // exercised by the strike-first tests, which is where Counter's surviving facet lives.
         [Test]
-        public void CounterImpactReduction_CountsOnlyModelsCarryingACounterWeapon()
+        public void CounterWeapon_ProducesNoImpactReduction()
         {
             DataBinding<UnitData> charger = MakeUnit(MakeBlade());
 
@@ -75,10 +80,8 @@ namespace FDG.Tests
                 new ChargeContactContext(charger.GetValue(), defender.GetValue()),
                 DetermineStrikeOrderStage.SubjectWithMeleeWeapons(defender.GetValue()));
 
-            RuleOperation.ChargeImpactHits reduction =
-                operations.OfType<RuleOperation.ChargeImpactHits>().Single();
-            Assert.That(reduction.DiceCount, Is.EqualTo(-1),
-                "only the one model carrying the Counter spear reduces the charger's impact dice.");
+            Assert.That(operations.OfType<RuleOperation.ChargeImpactHits>(), Is.Empty,
+                "Counter contributes no charge-contact operation in 3.6.");
         }
 
         [Test]

@@ -99,29 +99,35 @@ namespace FDG.Tests
                 "Impact(3) produces 3 failed saves → 3 wounds to assign across the surviving unit.");
         }
 
-        // Counter's companion facet: a charged Counter unit reduces the charger's Impact dice by 1 per
-        // living Counter model. Impact(3) vs a 2-model Counter defender → 3 − 2 = 1 net die → 1 hit → 1
-        // failed save → 1 wound (sub-lethal on a 2-wound unit, so it routes to the wound requester).
+        // #409 (OPR 3.6.0): Counter no longer reduces the charger's Impact dice - the clause was deleted
+        // outright, leaving only "may strike first ... unless this unit is Fatigued". A Counter defender
+        // now eats the full Impact(X) it used to blunt, which is the single biggest play change in the
+        // rule. Inverted from the 3.5.1 test that used to live here.
         [Test]
-        public async Task CounterDefender_ReducesImpactDice_ByLivingModelCount()
+        public async Task CounterDefender_NoLongerReducesImpactDice()
         {
             var requester = new CapturingWoundRequester();
             var ctx = new WoundTestContext(_store, requester, new AllOnFaceDiceRoller(2));
             DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
             AttachImpact(attacker, x: 3);
-            DataBinding<UnitData> defender = MakeUnit(modelCount: 2);
+            // 5 models so 3 wounds is sub-lethal and the volley routes to the wound requester rather than
+            // wiping the unit - the same shape Impact_SubLethal_AssignsExactWoundCount uses. The 3.5.1
+            // version of this test could use 2 models because Counter was cancelling 2 of the 3 dice.
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
             AttachCounter(defender);
 
             await RunStage(ctx, attacker, defender);
 
-            Assert.That(requester.Captured!.TotalWoundsToAssign, Is.EqualTo(1f),
-                "Impact(3) minus 2 Counter models = 1 net impact die → 1 hit → 1 wound to assign.");
+            Assert.That(requester.Captured!.TotalWoundsToAssign, Is.EqualTo(3f),
+                "all 3 Impact dice land in 3.6: Counter's per-model reduction is gone.");
         }
 
-        // The reduction can cancel Impact entirely: Impact(3) vs a 3-model Counter defender → 3 − 3 = 0
-        // net dice → the stage skips, exactly as if the charger had no Impact at all.
+        // #409 (OPR 3.6.0): the 3.5.1 companion to the test above asserted that 3 Counter models cancelled
+        // Impact(3) outright. With the reduction deleted there is nothing left to cancel, so a full Counter
+        // unit now takes the whole volley. Pinned at the size that used to zero it, so a reinstated
+        // reduction fails loudly here rather than quietly changing a number.
         [Test]
-        public async Task CounterDefender_CanReduceImpactToZero()
+        public async Task CounterDefender_FullUnit_StillTakesTheWholeImpact()
         {
             var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(2));
             DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
@@ -131,12 +137,13 @@ namespace FDG.Tests
 
             await RunStage(ctx, attacker, defender);
 
-            Assert.That(defender.RemainingWounds(), Is.EqualTo(3f),
-                "3 Counter models cancel Impact(3) → no charge-contact hits, defender untouched.");
+            Assert.That(defender.RemainingWounds(), Is.EqualTo(0f),
+                "Impact(3) kills all 3 models in 3.6 - the 3.5.1 cancellation is gone.");
         }
 
-        // A Counter defender against a charger with NO Impact emits only the negative reduction; the net
-        // dice go below zero, so the stage skips cleanly (the reduction never produces a phantom roll).
+        // #409: with the reduction gone, Counter emits nothing at all at charge contact. A charger with no
+        // Impact was already a no-op in 3.5.1 (the lone negative reduction skipped the stage); it stays one
+        // for a simpler reason now - there is no charge-contact entry on the rule.
         [Test]
         public async Task CounterDefender_NoImpactCharger_NoEffect()
         {
@@ -148,7 +155,7 @@ namespace FDG.Tests
             await RunStage(ctx, attacker, defender);
 
             Assert.That(defender.RemainingWounds(), Is.EqualTo(2f),
-                "no Impact to reduce → the lone negative reduction skips the stage, defender untouched.");
+                "no Impact and no reduction - nothing happens at charge contact.");
         }
 
         private static void AttachCounter(DataBinding<UnitData> unit) =>

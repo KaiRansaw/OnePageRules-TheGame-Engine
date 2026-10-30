@@ -4,7 +4,7 @@ using FDG.Stages;
 namespace FDG.StateMachine.StateMachineBuilders
 {
     /// <summary>
-    /// State machine for <see cref="EGameMode.Horde"/> (OPR Horde Mode v3.5.0, Grimdark Future).
+    /// State machine for <see cref="EGameMode.Horde"/> (OPR Horde Mode v3.6.0, Grimdark Future).
     /// Specialised slice by slice. Done: Horde map setup (five fixed objectives), Horde deployment
     /// (defenders at the centre, enemies at random corners), a 12-round main phase with priority
     /// objectives, enemy waves, objective damage and the Horde end conditions, and a Horde result stage.

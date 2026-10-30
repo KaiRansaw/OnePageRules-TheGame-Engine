@@ -26,20 +26,23 @@ namespace FDG.Tests
             Assert.That(HordeRules.WaveOfRound(round), Is.EqualTo(expectedWave));
         }
 
-        [TestCase(10, 3)] // the rules' example: overrun during wave four -> multiplier three
-        [TestCase(12, 3)]
-        [TestCase(4, 1)]
-        [TestCase(3, 0)]
+        // #409 (OPR 3.6.0): the high-score multiplier counts ROUNDS, not waves. 3.5.0 could only ever
+        // score x1 to x4; 3.6 runs x1 to x12, so where the defenders fell now matters much more.
+        [TestCase(6, 5)]  // the 3.6 rulebook's example: overrun DURING round 6 -> multiplier five
+        [TestCase(12, 11)]
         [TestCase(1, 0)]
-        public void WavesFinished_WhenOverrun_ExcludesTheWaveInProgress(int roundsFinished, int expected)
+        [TestCase(0, 0)]
+        public void RoundsFinishedForScore_WhenOverrun_ExcludesTheRoundInProgress(
+            int roundsFinished, int expected)
         {
-            Assert.That(HordeRules.WavesFinished(roundsFinished, defendersSurvived: false), Is.EqualTo(expected));
+            Assert.That(HordeRules.RoundsFinishedForScore(roundsFinished, defendersSurvived: false),
+                Is.EqualTo(expected));
         }
 
         [Test]
-        public void WavesFinished_WhenSurvived_IsAllFourWaves()
+        public void RoundsFinishedForScore_WhenSurvived_IsEveryRoundOfTheMission()
         {
-            Assert.That(HordeRules.WavesFinished(12, defendersSurvived: true), Is.EqualTo(4));
+            Assert.That(HordeRules.RoundsFinishedForScore(12, defendersSurvived: true), Is.EqualTo(12));
         }
 
         [Test]

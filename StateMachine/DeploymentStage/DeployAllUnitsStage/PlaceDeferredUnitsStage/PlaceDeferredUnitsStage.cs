@@ -36,9 +36,18 @@ namespace FDG.Stages
                 UnitData unit = entry.Unit.GetValue();
                 RectangularZone forwardZone = BuildForwardZone(context, unit, entry.Defer.PlacementRangeInches);
 
+                // #409 (OPR 3.6.0): Scout gained "over 9\" away from non-Scout enemy units". Built as
+                // per-source keep-out discs rather than the flat MinDistanceFromEnemiesInches, because the
+                // rule has an exception that flat field cannot express - enemy SCOUTS don't push a Scout
+                // back, so two forward screens can still meet near the middle. Snapshotted here at request
+                // build: nothing on the table moves while this placement is being resolved.
+                IReadOnlyList<PlacementDisc> keepOut =
+                    Rules.Dispatch.ScoutDeploymentRules.EnemyKeepOutDiscs(unit, GameContext.TableState);
+
                 var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, "Place Scout Unit",
                     forwardZone, unit.ModelBindings,
-                    displayName: $"Deploying {unit.Name} (Scout)");
+                    displayName: $"Deploying {unit.Name} (Scout)",
+                    enemyKeepOutDiscs: keepOut);
 
                 // #282: commit-time overlap check, same as normal deployment.
                 List<PlacedObjectEntry<ModelData>> placements = await PlacementCommitGuard

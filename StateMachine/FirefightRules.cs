@@ -146,7 +146,7 @@ namespace FDG.Stages
                     if (!unit.GetIsAlive()) continue;
                     bool wasShaken = unit.Tokens.HasToken(TokenType.Shaken);
                     MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                        c, unit, HeroStatRules.GetMoraleQuality(unit), failureCausesShakenOrRout: true);
+                        c, unit, HeroStatRules.GetMoraleQuality(unit, c.TableState), failureCausesShakenOrRout: true);
                     if (outcome.Passed) { c.Log($"  {unit.Name} passes."); continue; }
                     if (wasShaken)
                     {

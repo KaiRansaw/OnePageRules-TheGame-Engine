@@ -321,7 +321,7 @@ namespace FDG
         /// <summary>The normal Grimdark Future game: four rounds, objectives decide the winner.</summary>
         Standard,
 
-        /// <summary>OPR Horde Mode v3.5.0 (Grimdark Future): defenders survive waves of enemies.</summary>
+        /// <summary>OPR Horde Mode v3.6.0 (Grimdark Future): defenders survive waves of enemies.</summary>
         Horde,
 
         /// <summary>GF: Star Quest Horde Mode v2.0.0: 2-4 heroes hold out against waves that arrive as the

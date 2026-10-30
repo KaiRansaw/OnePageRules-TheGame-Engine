@@ -28,11 +28,13 @@ namespace FDG.Stages
                 // #006: the losing unit tests morale at a living joined hero's Quality, if present.
                 case DetermineMeleeWinnerResults.EMeleeWinnerResult.AttackerWon:
                     context.AddResult(new DetermineMoraleSaveNeededResult(
-                        HeroStatRules.GetMoraleQuality(context.DefendingUnit.GetValue()), context.DefendingUnit));
+                        HeroStatRules.GetMoraleQuality(context.DefendingUnit.GetValue(), GameContext.TableState),
+                        context.DefendingUnit));
                     break;
                 case DetermineMeleeWinnerResults.EMeleeWinnerResult.DefenderWon:
                     context.AddResult(new DetermineMoraleSaveNeededResult(
-                        HeroStatRules.GetMoraleQuality(context.AttackingUnit.GetValue()), context.AttackingUnit));
+                        HeroStatRules.GetMoraleQuality(context.AttackingUnit.GetValue(), GameContext.TableState),
+                        context.AttackingUnit));
                     break;
                 case DetermineMeleeWinnerResults.EMeleeWinnerResult.Tie:
                     throw new InvalidOperationException($"Somehow reached the {nameof(DetermineMoraleSaveNeededStage)} stage " +

@@ -376,13 +376,27 @@ public class OprListImporterTests
     [Test]
     public void Import_BookOutsideSupportedVersion_ThrowsTyped()
     {
+        // #409: 3.6.x is now the engine's own generation, so the refusal case moved up to 3.7.
         var newerBooks = new Dictionary<string, string>(Books)
         {
-            ["bookA"] = """{"uid":"bookA","name":"Legion Alpha","versionString":"3.6.1","units":[]}""",
+            ["bookA"] = """{"uid":"bookA","name":"Legion Alpha","versionString":"3.7.1","units":[]}""",
         };
         var ex = Assert.Throws<OprVersionMismatchException>(() => OprListImporter.Import(ListJson, newerBooks));
         Assert.That(ex!.BookName, Is.EqualTo("Legion Alpha"));
-        Assert.That(ex.FoundVersion, Is.EqualTo("3.6.1"));
+        Assert.That(ex.FoundVersion, Is.EqualTo("3.7.1"));
+    }
+
+    // #409: the whole point of keeping 3.5 accepted - an army file or bundled book snapshot from before
+    // the rules move still opens, rather than becoming unreadable with no way back (OPR does not keep old
+    // book versions downloadable).
+    [Test]
+    public void Import_LegacyThreeFiveBook_StillImports()
+    {
+        var legacyBooks = new Dictionary<string, string>(Books)
+        {
+            ["bookA"] = """{"uid":"bookA","name":"Legion Alpha","versionString":"3.5.3","units":[]}""",
+        };
+        Assert.DoesNotThrow(() => OprListImporter.Import(ListJson, legacyBooks));
     }
 
     [Test]
@@ -398,13 +412,22 @@ public class OprListImporterTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(OprListImporter.VersionMatches("3.5.3"), Is.True);
+            // #409: the engine targets 3.6 and still accepts 3.5 as legacy, so Kai's existing army files
+            // and the bundled 3.5 book snapshots keep opening. Anything outside both still refuses.
+            Assert.That(OprListImporter.VersionMatches("3.6.0"), Is.True);
+            Assert.That(OprListImporter.VersionMatches("3.6"), Is.True);
+            Assert.That(OprListImporter.VersionMatches("3.5.3"), Is.True, "legacy, still accepted");
             Assert.That(OprListImporter.VersionMatches("3.5.2"), Is.True);
             Assert.That(OprListImporter.VersionMatches("3.5"), Is.True);
-            Assert.That(OprListImporter.VersionMatches("3.6.0"), Is.False);
+            Assert.That(OprListImporter.VersionMatches("3.4.1"), Is.False, "a generation the engine never implemented");
             Assert.That(OprListImporter.VersionMatches("3.50.1"), Is.False, "component compare, not StartsWith");
+            Assert.That(OprListImporter.VersionMatches("3.60.1"), Is.False, "component compare, not StartsWith");
             Assert.That(OprListImporter.VersionMatches("4.5.1"), Is.False);
             Assert.That(OprListImporter.VersionMatches(""), Is.False);
+
+            Assert.That(OprListImporter.IsCurrentVersion("3.6.0"), Is.True);
+            Assert.That(OprListImporter.IsCurrentVersion("3.5.3"), Is.False,
+                "accepted, but priced against an older book - callers warn rather than refuse.");
         });
     }
 

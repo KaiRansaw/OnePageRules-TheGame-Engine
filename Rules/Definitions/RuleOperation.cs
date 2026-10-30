@@ -856,6 +856,17 @@ public abstract record RuleOperation
         public override string Describe() => "could still shoot after Rushing";
     }
 
+    /// <summary>
+    /// The bearer may not shoot in an activation where it moved - Cumbersome (#409, OPR 3.6.0). Read by
+    /// <c>ChooseActionStage.GetCanShoot</c> via <see cref="Dispatch.CumbersomeRules"/>, which closes the
+    /// shoot option outright once the unit has moved, rather than merely applying the usual
+    /// advance-and-shoot distance cap. Resolution of <see cref="Effect.ForbidShootAfterMove"/>.
+    /// </summary>
+    public sealed record ForbidShootAfterMove : RuleOperation
+    {
+        public override string Describe() => "could not shoot after moving";
+    }
+
     // --- Capabilities ------------------------------------------------------------------------------
     //
     // Answers to questions asked at Lifecycle_OnCapabilityQuery, never APPLIED by anything: presence in

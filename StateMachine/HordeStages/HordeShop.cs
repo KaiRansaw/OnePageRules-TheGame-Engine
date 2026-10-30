@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using FDG.Data;
 using FDG.GameModel;
 using FDG.Players;
@@ -14,9 +14,10 @@ using FDG.Utilities;
 namespace FDG.Stages
 {
     /// <summary>
-    /// Horde Mode's shop (OPR v3.5.0, End of Wave): after the wave's points are awarded, the defenders may
-    /// spend points to recruit new units, which deploy fully within 9" of an objective they seized that
-    /// wave. Each defending player is offered the shop in turn; bots keep their points.
+    /// Horde Mode's shop (OPR v3.6.0, End of Round): after a point-reward round pays out, the defenders
+    /// may spend points to recruit new units (deployed fully within 9" of an objective they seized), to
+    /// buy upgrades for units in range, and - new in 3.6 (#409) - to REINFORCE units in range that are
+    /// down to half strength. Each defending player is offered the shop in turn; bots keep their points.
     /// </summary>
     public static class HordeShop
     {
@@ -43,8 +44,8 @@ namespace FDG.Stages
             {
                 int points = GameProgressUtilities.TryGetProgress(gameContext.GameDataStore)?.Horde?.PointsAvailable ?? 0;
                 List<HordeShopUnit> upgradable = UpgradableUnits(gameContext, army, objectives);
-                // Points buy recruits; an upgrade can also be worth less than nothing (it pays points back),
-                // so a unit in range keeps the shop open even with an empty purse.
+                // Points buy recruits and reinforcements; an upgrade can also be worth less than nothing
+                // (it pays points back), so a unit in range keeps the shop open even with an empty purse.
                 if (points <= 0 && !upgradable.Any(u => u.NotEligibleReason == null))
                 {
                     gameContext.Log("Horde Mode: no points to spend and no unit near a seized objective - the shop stays closed.");
@@ -72,9 +73,10 @@ namespace FDG.Stages
             ArmyListFile? upgrades = ReadList(gameContext, reply.UpgradesJson);
             bool hasRecruits = recruits != null && recruits.Units.Count > 0;
             bool hasUpgrades = upgrades != null && upgrades.Units.Count > 0;
-            if (!hasRecruits && !hasUpgrades)
+            bool hasReinforcements = reply.ReinforceUnitIds.Count > 0;
+            if (!hasRecruits && !hasUpgrades && !hasReinforcements)
             {
-                gameContext.Log($"Horde Mode: {gameContext.GetPlayerName(player)} buys nothing this wave.");
+                gameContext.Log($"Horde Mode: {gameContext.GetPlayerName(player)} buys nothing.");
                 return;
             }
 
@@ -110,9 +112,34 @@ namespace FDG.Stages
                 }
             }
 
+            // #409 Reinforcing Units: collect the units the reply named, re-checking eligibility against
+            // the live table exactly as upgrades do - the shop's list was built before the player spent any
+            // time in it, and a reply is untrusted input either way.
+            var reinforceJobs = new List<(DataBinding<UnitData> Binding, int Cost)>();
+            if (hasReinforcements)
+            {
+                Dictionary<Guid, HordeShopUnit> byId = UpgradableUnits(gameContext, army, objectives)
+                    .ToDictionary(u => u.UnitId);
+                foreach (Guid id in reply.ReinforceUnitIds.Distinct())
+                {
+                    DataBinding<UnitData>? binding = army.UnitBindings.FirstOrDefault(b => b.GetValue().ID.ID == id);
+                    byId.TryGetValue(id, out HordeShopUnit? offer);
+                    if (binding == null || offer == null || offer.NotReinforceableReason != null)
+                    {
+                        string name = binding?.GetValue().Name ?? "A unit";
+                        gameContext.Log($"Horde Mode: {name} can't be reinforced right now"
+                            + (offer?.NotReinforceableReason is string why ? $" - {why}" : ".")
+                            + " - reinforcement skipped.");
+                        continue;
+                    }
+                    reinforceJobs.Add((binding, offer.ReinforceCost));
+                }
+            }
+
             int recruitCost = hasRecruits ? recruits!.Units.Sum(u => Math.Max(0, u.PointCost)) : 0;
             int upgradeCost = upgradeJobs.Sum(job => job.Entry.PointCost - OwnCost(job.Binding.GetValue()));
-            int cost = recruitCost + upgradeCost;
+            int reinforceCost = reinforceJobs.Sum(job => job.Cost);
+            int cost = recruitCost + upgradeCost + reinforceCost;
             int available = GameProgressUtilities.TryGetProgress(gameContext.GameDataStore)?.Horde?.PointsAvailable ?? 0;
             if (cost > available)
             {
@@ -133,6 +160,16 @@ namespace FDG.Stages
             foreach ((DataBinding<UnitData> binding, UnitFileEntry entry, string? loadout) in upgradeJobs)
             {
                 await ApplyUpgrade(gameContext, binding, entry, loadout, upgrades!, resolver);
+            }
+
+            // #409: reinforcements land after upgrades, so a unit that bought bigger models in the same
+            // order gets its bodies back at the new profile rather than the old one.
+            foreach ((DataBinding<UnitData> binding, int unitCost) in reinforceJobs)
+            {
+                UnitData unit = binding.GetValue();
+                string restored = HordeReinforce.Apply(unit, OwnModels(unit));
+                gameContext.Log($"Horde Mode: {unit.Name} reinforced for {unitCost} points ({restored}).");
+                await gameContext.Announce($"{unit.Name} reinforced ({restored})", ShopColor);
             }
 
             if (!hasRecruits) return;
@@ -224,14 +261,47 @@ namespace FDG.Stages
                         reason = $"It is more than {HordeRules.ShopRangeInches:0}\" from every objective your side seized this wave.";
                 }
 
-                result.Add(new HordeShopUnit(unit.ID.ID, unit.Name, OwnModels(unit).Count, OwnCost(unit),
+                // #409 Reinforcing Units (OPR 3.6.0): same range test as upgrades, plus the unit must be
+                // down to half or less of its total size (or Tough, for a single-model unit).
+                List<ModelData> own = OwnModels(unit);
+                string? reinforceReason = reason;
+                if (reinforceReason == null && !HordeReinforce.IsAtHalfStrength(
+                        own.Count, own.Count(m => m.GetIsAlive()),
+                        own.Sum(m => m.TotalWounds), own.Sum(m => m.RemainingWoundsBinding.GetValue())))
+                {
+                    reinforceReason = own.Count > 1
+                        ? "It still has more than half its models."
+                        : "It still has more than half its wounds.";
+                }
+
+                result.Add(new HordeShopUnit(unit.ID.ID, unit.Name, own.Count, OwnCost(unit),
                     unit.HordeLoadoutJson, DescribeGear(unit))
                 {
                     NotEligibleReason = reason,
                     JoinedHeroName = unit.HeroAttachment?.Name,
+                    ReinforceCost = HordeReinforce.Cost(OwnCost(unit)),
+                    NotReinforceableReason = reinforceReason,
+                    ReinforceRestores = reinforceReason != null ? null : DescribeRestore(own),
                 });
             }
             return result;
+        }
+
+        /// <summary>
+        /// #409: what reinforcing this unit would give back, in words, for the shop to show before the
+        /// player commits. Mirrors what <see cref="HordeReinforce.Apply"/> will actually do.
+        /// </summary>
+        private static string DescribeRestore(IReadOnlyList<ModelData> own)
+        {
+            if (own.Count <= 1)
+            {
+                int wounds = HordeReinforce.WoundsRestored(
+                    own[0].TotalWounds, own[0].RemainingWoundsBinding.GetValue());
+                return $"+{wounds} wound{(wounds == 1 ? "" : "s")}";
+            }
+
+            int models = HordeReinforce.ModelsRestored(own.Count, own.Count(m => m.GetIsAlive()));
+            return $"+{models} model{(models == 1 ? "" : "s")}";
         }
 
         /// <summary>The unit's own models - a joined hero's model left out.</summary>

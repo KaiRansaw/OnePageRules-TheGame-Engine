@@ -26,6 +26,8 @@ public static class CoreRuleCatalog
         Deadly, Regeneration, Unstoppable, Tough, Rending, Bane, Shred, Vanguard, Scout, Ambush, Thrust,
         Blast, Takedown, Limited, Impact, Counter, MartialProwess, Strafing, Fear, Fearless, Hero, Transport,
         FuriousBuff, Mend, Immobile, Caster,
+        // #409 - new in OPR 3.6.0.
+        Cumbersome, SpellAmplifier, Assault,
         Evasive, MeleeEvasion, Precise, GoodShot,
         Agile, Quick, RapidAdvance, RapidRush, RapidCharge,
         Lacerate, Crack, CounterAttack,
@@ -94,12 +96,19 @@ public static class CoreRuleCatalog
 
     // Hit-roll-modifier sink (DetermineHitRollStage) -----------------------
 
-    /// <summary> Defensive: enemies shooting this unit from &gt;9" take -1 to hit. </summary>
+    /// <summary>
+    /// Defensive: enemies shooting this unit from &gt;9" take -1 to hit.
+    /// <para>
+    /// #409 (OPR 3.6.0): the unit-wide gate moved from "where all models have this rule" to
+    /// "where <b>most</b> models have this rule". A unit that loses its non-Stealth hangers-on no
+    /// longer switches the rule ON mid-game, and a mixed unit keeps it while the majority carry it.
+    /// </para>
+    /// </summary>
     public static SpecialRuleDefinition Stealth { get; } = new SpecialRuleDefinition("Stealth",
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.And(new Condition.DistanceGreaterThan(9f), new Condition.AllModelsHaveThisRule()),
+                new Condition.And(new Condition.DistanceGreaterThan(9f), new Condition.MostModelsHaveThisRule()),
                 new Effect.RollModifier(ERollKind.Hit, Delta: -1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -109,34 +118,75 @@ public static class CoreRuleCatalog
         Description: "Enemies shooting this unit from over 9\" away take -1 to hit.");
 
     /// <summary>
-    /// Artillery: as an attacker, +1 to hit beyond 9" (Actor); as a target, enemies shooting it from
-    /// beyond 9" take -2 to hit (Subject). Both ride the existing hit-roll-modifier sink at
-    /// <see cref="EHookID.Shooting_OnHitRollModifier"/>; the <c>DistanceGreaterThan(9)</c> condition
-    /// naturally excludes melee (melee is within 2"), so neither needs a combat-kind gate. The
-    /// "Hold-only action restriction" facet (W5) is still deferred — see Appendix C.
+    /// Artillery, rewritten for OPR 3.6.0 (#409). Four changes from the 3.5.1 rule this replaces:
+    /// <list type="bullet">
+    /// <item>The offensive +1 now requires a <b>Hold action</b> and a target over <b>12"</b> away
+    /// (was: any shot over 9").</item>
+    /// <item>The defensive penalty is <b>-1</b>, not -2, and applies from over <b>12"</b>, not 9".</item>
+    /// <item>The defensive arm needs <b>most</b> models to carry the rule, not all.</item>
+    /// <item>The defensive arm only applies while the unit <b>has not moved this round</b>.</item>
+    /// </list>
+    /// The Hold-only ACTION restriction is gone from Artillery entirely in 3.6 - it moved wholesale into
+    /// the new <see cref="Cumbersome"/> rule, so the long-deferred "W5 Hold-only facet" is now closed by
+    /// deletion rather than implementation.
+    /// <para>
+    /// <b>Both</b> "used a Hold action" and "hasn't moved this round" are expressed as the same condition:
+    /// <c>Not(TokenPresent(MovedThisRound))</c>, the round-scoped stamp MovementStage already sets at
+    /// reconcile for the Mobile Artillery family (#197). They collapse into one fact because a unit
+    /// activates once per round and its shooting happens inside that activation, so "did not move this
+    /// round" and "did not move before this shot" are the same question asked from two seats. The token is
+    /// the right carrier for both: it lives on the UNIT, so the defensive hook can read it from the far
+    /// side of the table during the enemy's activation, where no per-activation movement state is legible.
+    /// </para>
+    /// <para>
+    /// Two deliberate consequences. A unit that declares Advance and then moves 0" counts as not having
+    /// moved (MovementStage's epsilon floor) - the rulebook would call that a Hold in every respect except
+    /// the word used. And a unit re-activated later in the same round keeps the stamp from its first move,
+    /// so it does not get the Hold bonus twice over.
+    /// </para>
+    /// Both arms ride the hit-roll-modifier sink at <see cref="EHookID.Shooting_OnHitRollModifier"/>; the
+    /// 12" distance gates exclude melee on their own, so neither needs a combat-kind gate.
     /// </summary>
     public static SpecialRuleDefinition Artillery { get; } = new SpecialRuleDefinition("Artillery",
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.DistanceGreaterThan(9f),
+                new Condition.And(
+                    new Condition.DistanceGreaterThan(12f),
+                    new Condition.Not(new Condition.TokenPresent(TokenType.MovedThisRound))),
                 new Effect.RollModifier(ERollKind.Hit, Delta: +1),
                 ELifetime.ThisAttack),
             new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.And(new Condition.DistanceGreaterThan(9f), new Condition.AllModelsHaveThisRule()),
-                new Effect.RollModifier(ERollKind.Hit, Delta: -2),
+                new Condition.And(
+                    new Condition.And(
+                        new Condition.DistanceGreaterThan(12f),
+                        new Condition.MostModelsHaveThisRule()),
+                    new Condition.Not(new Condition.TokenPresent(TokenType.MovedThisRound))),
+                new Effect.RollModifier(ERollKind.Hit, Delta: -1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
         },
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "Beyond 9\", this unit gets +1 to hit when shooting, and enemies shooting it take -2 to hit.");
+        Description: "On a Hold action, +1 to hit when shooting over 12\" away. While it hasn't moved this "
+            + "round, enemies shooting it from over 12\" away take -1 to hit.");
 
     /// <summary>
-    /// Indirect: -1 to hit when the unit moved this activation (shooting only — the AfterMoving gate is
-    /// joined with Not(IsMelee) so a charge, which sets HasMoved, doesn't wrongly penalise melee swings),
-    /// and the weapon may fire at targets out of line of sight as if in LoS, ignoring cover. The LoS- and
-    /// cover-ignore facets queue <see cref="RuleOperation.IgnoreLineOfSight"/> /
+    /// Indirect, rewritten for OPR 3.6.0 (#409). The rule used to be "fires out of line of sight always,
+    /// at -1 to hit if the unit moved". 3.6 turns it into a Hold-action rule: the out-of-line-of-sight
+    /// targeting (and the cover-ignore that rides with it) <b>only works when using a Hold action</b>, and
+    /// the -1-after-moving penalty is <b>deleted</b> - it has nothing left to penalise, because a unit that
+    /// moved no longer gets the ability at all.
+    /// <para>
+    /// "Using a Hold action" is <c>Not(TokenPresent(MovedThisRound))</c>, the same carrier
+    /// <see cref="Artillery"/> uses and for the same reasons - see its remarks. It has to be the token
+    /// rather than <c>Condition.AfterMoving</c> here for a second reason: these two facets are read through
+    /// <see cref="Contexts.CoverIgnoreContext"/> by <see cref="SightRuleQueries"/> (the cover stage, the
+    /// occlusion stage and the targeting/movement option builders), a target-independent attacker-only
+    /// context that carries no movement capability at all. A token read off the bearer works in every one
+    /// of those seams. The old <c>Not(IsMelee)</c> guard went with the -1 it protected.
+    /// </para>
+    /// The LoS- and cover-ignore facets queue <see cref="RuleOperation.IgnoreLineOfSight"/> /
     /// <see cref="RuleOperation.IgnoreCover"/> at <see cref="EHookID.Shooting_OnSaveRollModifier"/>, read
     /// by the targeting/occlusion/cover stages (and surfaced to the resolvers) via
     /// <see cref="Rules.Dispatch.SightRuleQueries"/>.
@@ -144,23 +194,20 @@ public static class CoreRuleCatalog
     public static SpecialRuleDefinition Indirect { get; } = new SpecialRuleDefinition("Indirect",
         new[]
         {
-            new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.And(new Condition.AfterMoving(), new Condition.Not(new Condition.IsMelee())),
-                new Effect.RollModifier(ERollKind.Hit, Delta: -1),
-                ELifetime.ThisAttack),
             new HookEntry(EHookID.Shooting_OnSaveRollModifier,
-                new Condition.Always(),
+                new Condition.Not(new Condition.TokenPresent(TokenType.MovedThisRound)),
                 new Effect.IgnoreLineOfSight(),
                 ELifetime.ThisAttack),
             new HookEntry(EHookID.Shooting_OnSaveRollModifier,
-                new Condition.Always(),
+                new Condition.Not(new Condition.TokenPresent(TokenType.MovedThisRound)),
                 new Effect.IgnoreCover(),
                 ELifetime.ThisAttack),
         },
         Array.Empty<ActivatedAbility>(),
         ERuleScope.Weapon,
         Valence: EValence.Positive,
-        Description: "Fires at targets out of line of sight and ignores cover; -1 to hit if the unit moved this activation.");
+        Description: "On a Hold action, fires at targets out of line of sight as if in sight, and ignores "
+            + "cover from sight blockers.");
 
     /// <summary> Weapon rule ("models attacks at Quality 2+ with this weapon"): base Quality is treated as 2+ (still modifiable). </summary>
     public static SpecialRuleDefinition Reliable { get; } = new SpecialRuleDefinition("Reliable",
@@ -250,7 +297,7 @@ public static class CoreRuleCatalog
         Valence: EValence.Positive,
         Description: "+1 to hit when this unit shoots.");
 
-    // Horde Mode traits (OPR Horde Mode v3.5.0, "Levelling Up") ---------------------
+    // Horde Mode traits (OPR Horde Mode v3.6.0, "Levelling Up") ---------------------
     // Granted by HordeExperience as permanent RuleGrant tokens when a defending unit levels up. Named
     // "Trait: X" so they can never collide with an army book's own rule of the same name (several books
     // already define an "Agile").
@@ -337,7 +384,7 @@ public static class CoreRuleCatalog
         Array.Empty<HookEntry>(),
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "Horde trait: once per round, re-roll a failed morale test.");
+        Description: "Horde trait: once per game, re-roll a failed morale test.");
 
     /// <summary> Horde trait Fast Learner: a marker that the unit picked a trait of its choice. </summary>
     public static SpecialRuleDefinition TraitFastLearner { get; } = new SpecialRuleDefinition("Trait: Fast Learner",
@@ -688,32 +735,39 @@ public static class CoreRuleCatalog
         Description: "When attacking in melee, rolls dice that deal automatic unsaveable wounds before swings.");
 
     /// <summary>
-    /// Counter: when this unit is charged, it strikes FIRST — before the charging unit's strikes — and
-    /// the charger rolls one fewer Impact die per living model of this unit. Both are defensive (Subject
-    /// seat). StrikeFirst fires at <see cref="EHookID.Melee_OnCounterTrigger"/>; DetermineStrikeOrderStage
-    /// swaps the attacker/defender roles so the existing swing/strike-back flow resolves the Counter unit
-    /// first. The impact reduction fires at <see cref="EHookID.Melee_OnChargeContact"/> (the same when the
-    /// charger's Impact(X) fires), emitting a negative <see cref="RuleOperation.ChargeImpactHits"/> that
-    /// folds into the shared impact-dice sink, so ResolveImpactHitsStage rolls the net count.
+    /// Counter, rewritten for OPR 3.6.0 (#409). The 3.5.1 rule was "strikes first with this weapon when
+    /// charged, AND the charging unit gets -1 total Impact rolls per model with Counter". 3.6 cuts it back
+    /// to the strike-first half alone and gates that on Fatigue:
+    /// <list type="bullet">
+    /// <item>The <b>Impact-dice reduction is deleted</b> - the whole
+    /// <see cref="Effect.ReduceImpactDicePerModel"/> hook is gone from this rule. (The effect itself stays
+    /// in the vocabulary; Counter was simply its only core caller.)</item>
+    /// <item>Striking first no longer applies while the unit is <b>Fatigued</b>.</item>
+    /// </list>
+    /// StrikeFirst fires at <see cref="EHookID.Melee_OnCounterTrigger"/>; DetermineStrikeOrderStage swaps
+    /// the attacker/defender roles so the existing swing/strike-back flow resolves the Counter unit first.
+    /// <para>
+    /// <b>Deferred, deliberately (not cut silently):</b> 3.6 words this as "<i>may</i> strike first", i.e.
+    /// a player choice, where 3.5.1 said "strikes first". It is implemented as automatic. Declining is
+    /// close to never correct - striking first can only remove enemy models before they swing, and the
+    /// defender's own Fatigue state is unchanged either way - so the prompt would cost a decision point in
+    /// every melee to buy an option nobody takes. Recorded in WorkItems/409; revisit if a rule ever makes
+    /// striking second preferable.
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition Counter { get; } = new SpecialRuleDefinition("Counter",
         new[]
         {
             new HookEntry(EHookID.Melee_OnCounterTrigger,
-                new Condition.Always(),
+                new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued)),
                 new Effect.StrikeFirst(),
                 ELifetime.ThisActivation,
-                ERuleSeat.Subject),
-            new HookEntry(EHookID.Melee_OnChargeContact,
-                new Condition.Always(),
-                new Effect.ReduceImpactDicePerModel(),
-                ELifetime.ThisAttack,
                 ERuleSeat.Subject),
         },
         Array.Empty<ActivatedAbility>(),
         ERuleScope.Weapon,
         Valence: EValence.Positive,
-        Description: "When charged, this unit strikes first and the charger rolls one fewer Impact die per living model.");
+        Description: "When charged, this unit strikes first with this weapon, unless it is Fatigued.");
 
     /// <summary>
     /// Counter-Attack: this unit strikes first when charged — Counter's strikes-first facet alone, without
@@ -763,12 +817,16 @@ public static class CoreRuleCatalog
     /// morale re-roll on all failures; RollForMoraleStage executes the second chance with the rulebook's
     /// fixed 4+ threshold. (Modifier-style morale rules — e.g. a future Courage — ride the separate
     /// <see cref="EHookID.Morale_OnPreMoraleTest"/> hook instead.)
+    /// <para>
+    /// #409 (OPR 3.6.0): the gate moved from "a unit where all models have this rule" to
+    /// "where <b>most</b> models have this rule".
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition Fearless { get; } = new SpecialRuleDefinition("Fearless",
         new[]
         {
             new HookEntry(EHookID.Morale_OnMoraleTestComplete,
-                new Condition.AllModelsHaveThisRule(),
+                new Condition.MostModelsHaveThisRule(),
                 new Effect.Reroll(ERollKind.Morale, new RerollCondition.AllFailures()),
                 ELifetime.ThisActivation),
         },
@@ -813,12 +871,18 @@ public static class CoreRuleCatalog
 
     // Wound-ignore sink (AssignWoundsStage) --------------------------------------
 
-    /// <summary> Defensive: the unit ignores each wound on a roll of 5+. </summary>
+    /// <summary>
+    /// Defensive: the unit ignores each wound on a roll of 5+.
+    /// <para>
+    /// #409 (OPR 3.6.0): the gate moved from "a unit where all models have this rule" to
+    /// "where <b>most</b> models have this rule".
+    /// </para>
+    /// </summary>
     public static SpecialRuleDefinition Regeneration { get; } = new SpecialRuleDefinition("Regeneration",
         new[]
         {
             new HookEntry(EHookID.Shooting_OnSaveRollComplete,
-                new Condition.AllModelsHaveThisRule(),
+                new Condition.MostModelsHaveThisRule(),
                 new Effect.IgnoreWoundOnRoll(MinRoll: 5),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -1960,22 +2024,32 @@ public static class CoreRuleCatalog
 
     /// <summary>
     /// Scout: this unit is set aside during normal deployment and placed after all other units,
-    /// within 12" of its deployment zone (forward deploy). A passive rule at
+    /// forward of its deployment zone. A passive rule at
     /// <see cref="EHookID.Deployment_OnPreDeploymentSelect"/> that queues
     /// <see cref="RuleOperation.DeferDeployment"/>; the deployment subsystem reserves the unit and
     /// the Scout pass places it forward.
+    /// <para>
+    /// OPR 3.6.0 (#409): the forward range drops from <b>12" to 9"</b>, and the rule gains a keep-out
+    /// clause it never had - the unit must land <b>over 9" away from non-Scout enemy units</b>. The
+    /// distance half of that is enforced in <see cref="ScoutDeploymentRules"/> rather than here: it is a
+    /// relational placement constraint against the live table, which a hook effect has no way to express.
+    /// Scouts deliberately do not push each other away, so the two sides' forward screens can still meet
+    /// in the middle, which is the whole point of the deployment.
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition Scout { get; } = new SpecialRuleDefinition("Scout",
         new[]
         {
             new HookEntry(EHookID.Deployment_OnPreDeploymentSelect,
                 new Condition.Always(),
-                new Effect.DeferDeployment(EDeferTiming.AfterNormalDeployment, PlacementRangeInches: 12f),
+                new Effect.DeferDeployment(EDeferTiming.AfterNormalDeployment,
+                    PlacementRangeInches: ScoutDeploymentRules.ForwardRangeInches),
                 ELifetime.UntilEndOfGame),
         },
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "Deploys after all other units, up to 12\" forward of its deployment zone.");
+        Description: "Deploys after all other units, up to 9\" forward of its deployment zone, and over 9\" "
+            + "away from non-Scout enemy units.");
 
     /// <summary>
     /// Ambush: this unit is kept in reserve instead of deploying normally, and the owner may bring it
@@ -2458,4 +2532,82 @@ public static class CoreRuleCatalog
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Negative,
         Description: "This unit can't move - it may only Hold (and shoot).");
+
+    /// <summary>
+    /// Cumbersome - new in OPR 3.6.0 (#409): "May only use Hold or Advance actions, but can't shoot when
+    /// moving." This is where 3.5.1 Artillery's Hold-only restriction went when 3.6 took it off that rule;
+    /// the two halves are separate mechanisms:
+    /// <list type="bullet">
+    /// <item>The action restriction is <see cref="Effect.RestrictActions"/> with [Hold, Advance], the same
+    /// primitive <see cref="Immobile"/> uses with [Hold] - so Rush and Charge drop out of the menu.</item>
+    /// <item>"Can't shoot when moving" is <see cref="Effect.ForbidShootAfterMove"/>, read at the action
+    /// gate by <see cref="CumbersomeRules"/>. It is strictly tighter than the ordinary advance-and-shoot
+    /// cap, which lets a unit use its whole Advance and still fire: a Cumbersome unit must pick one.</item>
+    /// </list>
+    /// Both ride <see cref="EHookID.Activation_OnActionChoice"/>, the one hook ChooseActionStage already
+    /// fires while building the menu.
+    /// </summary>
+    public static SpecialRuleDefinition Cumbersome { get; } = new SpecialRuleDefinition("Cumbersome",
+        new[]
+        {
+            new HookEntry(EHookID.Activation_OnActionChoice,
+                new Condition.Always(),
+                new Effect.RestrictActions(new[] { EActionType.Hold, EActionType.Advance }),
+                ELifetime.ThisActivation),
+            new HookEntry(EHookID.Activation_OnActionChoice,
+                new Condition.Always(),
+                new Effect.ForbidShootAfterMove(),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Negative,
+        Description: "May only Hold or Advance, and can't shoot in an activation where it moved.");
+
+    /// <summary>
+    /// Assault - promoted into the core rulebook by OPR 3.6.0 (#409): "Counts as both a ranged weapon and
+    /// a melee weapon." The engine knew the name only as inert army-supplement data before this.
+    /// <para>
+    /// A marker rule, like <see cref="Hero"/> and <see cref="Transport"/>: it has no hook entries because
+    /// there is no hook at which it could act. Which pool a weapon belongs to is settled by
+    /// <c>IUnitExtensions.GetMeleeWeapons</c> / <c>GetRangedWeapons</c> from the raw weapon list, long
+    /// before any rule evaluation happens - so the behaviour lives in <see cref="AssaultRules"/>, which
+    /// those helpers consult exactly as they consult <see cref="StrafingRules.IsStrafeOnly"/>. This
+    /// definition exists so the name resolves at army load, the picker offers it, and it has a stable
+    /// identity to test against.
+    /// </para>
+    /// Weapon-scoped: Assault is a property of one weapon, not of the model carrying it.
+    /// </summary>
+    public static SpecialRuleDefinition Assault { get; } = new SpecialRuleDefinition("Assault",
+        Array.Empty<HookEntry>(),
+        Array.Empty<ActivatedAbility>(),
+        ERuleScope.Weapon,
+        Valence: EValence.Positive,
+        Description: "Counts as both a ranged weapon and a melee weapon.");
+
+    // Casting-roll modifiers (CastSpellStage) ----------------------------------------------------------
+
+    /// <summary>
+    /// Spell Amplifier - new in OPR 3.6.0 (#409): "Gets +1 to casting rolls."
+    /// <para>
+    /// The first PASSIVE cast-roll modifier the engine has had. Everything that could previously move a
+    /// casting roll was one-shot state somebody had to spend or be granted - the caster's own token boost,
+    /// the 18" assists from other Casters, a Casting Buff / Casting Debuff token consumed through
+    /// <see cref="GrantedRollModifiers"/>. This is a standing property of the model instead, so it needed
+    /// <see cref="EHookID.Casting_OnSpellCastAttempt"/> actually wired: the hook ID had existed since #033
+    /// but no stage ever built a context for it. See <see cref="Contexts.SpellCastAttemptContext"/>.
+    /// </para>
+    /// Unit-scoped and unconditional - it applies to every cast the bearer makes, and CastSpellStage folds
+    /// it into the same net modifier that shifts the 4+ threshold.
+    /// </summary>
+    public static SpecialRuleDefinition SpellAmplifier { get; } = new SpecialRuleDefinition("Spell Amplifier",
+        new[]
+        {
+            new HookEntry(EHookID.Casting_OnSpellCastAttempt,
+                new Condition.Always(),
+                new Effect.RollModifier(ERollKind.Cast, Delta: +1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Gets +1 to casting rolls.");
 }

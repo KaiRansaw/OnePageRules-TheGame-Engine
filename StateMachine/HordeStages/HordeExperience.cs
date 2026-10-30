@@ -8,7 +8,7 @@ using FDG.StageResolution.Requests;
 namespace FDG.StateMachine
 {
     /// <summary>
-    /// Horde Mode experience and levelling up (OPR Horde Mode v3.5.0):
+    /// Horde Mode experience and levelling up (OPR Horde Mode v3.6.0):
     /// <list type="bullet">
     ///   <item>Defending units earn XP for kills: +3 for a unit, +5 for a hero unit, +8 for a hero and its unit.</item>
     ///   <item>Every 5 XP the unit rolls a trait: 1 Agile, 2 Headstrong, 3 Specialist (melee or shooting),
@@ -197,8 +197,19 @@ namespace FDG.StateMachine
                 OwnerUnitID: unit.ID));
 
         /// <summary>
-        /// The Elite trait's once-per-round re-roll: true (and marks it spent for the round) if
-        /// <paramref name="unit"/> has Elite and has not used it yet this round.
+        /// The Elite trait's re-roll: true (and marks it spent) if <paramref name="unit"/> has Elite and
+        /// has not used it yet.
+        /// <para>
+        /// #409 (OPR 3.6.0): once per GAME, not once per round - the trait was halved in strength. The
+        /// HordeEliteUsed token's clear trigger is ManualOnly for exactly that reason, so nothing sweeps
+        /// it at end of round.
+        /// </para>
+        /// <para>
+        /// Still narrower than the book in one respect, which 3.6 did not change: the rulebook says
+        /// "re-roll one ROLL of any kind", and this is wired only into the morale test. Tracked on #409
+        /// rather than cut silently; widening it needs a general per-unit re-roll offer the engine does
+        /// not have yet.
+        /// </para>
         /// </summary>
         public static bool TryUseElite(IUnit unit)
         {

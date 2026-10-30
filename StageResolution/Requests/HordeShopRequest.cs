@@ -46,6 +46,23 @@ namespace FDG.StageResolution.Requests
         [JsonProperty]
         public string? JoinedHeroName { get; set; }
 
+        /// <summary>#409 (OPR 3.6.0) Reinforcing Units: what it costs to reinforce this unit - half its
+        /// own point value, rounding up. Only meaningful when <see cref="NotReinforceableReason"/> is
+        /// null.</summary>
+        [JsonProperty]
+        public int ReinforceCost { get; set; }
+
+        /// <summary>#409: what reinforcing would give back, in words ("+5 models", "+3 wounds"), so the
+        /// shop can show the player what they are buying before they buy it.</summary>
+        [JsonProperty]
+        public string? ReinforceRestores { get; set; }
+
+        /// <summary>#409: why this unit can't be reinforced right now - most often that it is not yet down
+        /// to half strength - or null when it can. Listed anyway so the shop can say why, the same way
+        /// <see cref="NotEligibleReason"/> does for upgrades.</summary>
+        [JsonProperty]
+        public string? NotReinforceableReason { get; set; }
+
         [JsonConstructor]
         public HordeShopUnit(Guid unitId, string name, int modelCount, int pointCost, string? loadoutJson,
             string currentGear)
@@ -60,8 +77,10 @@ namespace FDG.StageResolution.Requests
     }
 
     /// <summary>
-    /// Horde Mode's shop, offered to a defending player at the end of a wave (rounds 3, 6, 9): spend points
-    /// to recruit new units, deployed fully within 9" of an objective the defenders seized that wave.
+    /// Horde Mode's shop, offered to a defending player at a point-reward round (the end of rounds 3, 6
+    /// and 9): spend points to recruit new units, deployed fully within 9" of an objective the defenders
+    /// seized; to buy upgrades for units in range; and - new in 3.6.0 (#409) - to REINFORCE units in range
+    /// that are down to half strength, bringing their models or wounds back.
     /// </summary>
     public class HordeShopRequest : IStageTaskRequest<HordeShopReply>
     {
@@ -144,6 +163,13 @@ namespace FDG.StageResolution.Requests
 
         [JsonProperty]
         public List<string?> UpgradeLoadouts { get; set; } = new List<string?>();
+
+        /// <summary>#409 (OPR 3.6.0): units to reinforce. Each costs half its own point value (rounding
+        /// up) and gets back up to half its total models, or half its wounds for a single-model unit. No
+        /// loadout or list travels with it - a reinforcement restores the unit the player already has.
+        /// </summary>
+        [JsonProperty]
+        public List<Guid> ReinforceUnitIds { get; set; } = new List<Guid>();
 
         [JsonConstructor]
         public HordeShopReply(string? recruitsJson, List<int>? objectiveNumbers)

@@ -149,7 +149,7 @@ namespace FDG.Stages
             }
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                _gameContext, unitData, HeroStatRules.GetMoraleQuality(unitData));
+                _gameContext, unitData, HeroStatRules.GetMoraleQuality(unitData, _gameContext.TableState));
 
             if (outcome.Passed)
             {

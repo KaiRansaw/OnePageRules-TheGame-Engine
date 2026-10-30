@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FDG.Data;
 using FDG.Presentation.Beats;
 using FDG.Rules.Definitions;
@@ -217,7 +218,21 @@ namespace FDG.Stages
             // removed by ConsumeNet, duration grants are left for the token sweep. Read after the cost has
             // been spent so a browsed-and-cancelled spell never burns the debuff.
             int granted = GrantedRollModifiers.ConsumeNet(caster, ERollKind.Cast);
-            int netModifier = boost + assist + granted + castOrigin.RollBonus;
+
+            // #409 Spell Amplifier (OPR 3.6.0) - "Gets +1 to casting rolls". The first PASSIVE cast-roll
+            // modifier in the game: everything above is one-shot state someone had to spend or be granted
+            // (the caster's own boost, the 18" assists, a Casting Buff token), whereas this is a standing
+            // property of the model that applies to every cast it ever makes. EHookID.Casting_OnSpellCast-
+            // Attempt had been declared since #033 but nothing ever built a context for it, so no passive
+            // rule could reach a cast at all; SpellCastAttemptContext is that context. Evaluated live, so
+            // the rule logs and the #163 trace shows it alongside the token spends.
+            var passiveSink = new RollModifierSink();
+            passiveSink.ApplyFrom(GameContext.RuleEvaluator.EvaluateAllNamedLive(
+                new Rules.Dispatch.Contexts.SpellCastAttemptContext(caster),
+                RuleParticipant.Actor(caster)).Select(entry => entry.Op));
+            int passive = passiveSink.Net(ERollKind.Cast);
+
+            int netModifier = boost + assist + granted + passive + castOrigin.RollBonus;
 
             // #274 — the caster's own models, reused by every spell visual below.
             List<Position> casterPositions = AttackBeatPositions.AlivePlaced(context.ActivatingUnit);
@@ -424,7 +439,7 @@ namespace FDG.Stages
             {
                 UnitData targetUnit = target.GetValue();
                 MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                    GameContext, targetUnit, HeroStatRules.GetMoraleQuality(targetUnit));
+                    GameContext, targetUnit, HeroStatRules.GetMoraleQuality(targetUnit, GameContext.TableState));
 
                 if (outcome.Passed)
                 {

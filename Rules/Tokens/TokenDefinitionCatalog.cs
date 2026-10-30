@@ -88,9 +88,12 @@ public static class TokenDefinitionCatalog
                 Description: "Horde Mode experience. +3 for killing a unit, +5 for a hero, +8 for a hero and " +
                              "its unit. Every 5 XP the unit gains a trait (up to 30 XP)."),
 
+            // #409 (OPR 3.6.0): Elite dropped from once per ROUND to once per GAME, so the stamp has to
+            // outlive the round that set it - ManualOnly, never swept. It is deliberately not cleared
+            // anywhere: a spent Elite stays spent for the rest of the mission.
             new(TokenType.HORDE_ELITE_USED_ID, "Elite used", EValence.Neutral, ETokenProminence.Invisible,
-                DefaultClearTrigger: new TokenClearTrigger.RoundEnd(),
-                Description: "Bookkeeping: this unit's Elite re-roll has been used this round."),
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Bookkeeping: this unit's Elite re-roll has been used this game."),
 
             new(TokenType.REACTIVATED_THIS_ROUND_ID, "Reactivated", EValence.Positive,
                 ETokenProminence.Normal,

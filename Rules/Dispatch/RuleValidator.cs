@@ -176,9 +176,17 @@ public sealed class RuleValidator
 
     // True if AllModelsHaveThisRule appears in a CONJUNCTIVE position (top-level or inside an And chain),
     // so it actually gates. Under an Or/Not it wouldn't, so those don't count.
+    // #409 (OPR 3.6.0): MostModelsHaveThisRule satisfies this gate too. 3.6 reworded a family of defensive
+    // rules - Stealth, Regeneration, Artillery's incoming-fire arm, Fearless - from "a unit where ALL models
+    // have this rule" to "where MOST models have this rule", so the catalog now legitimately carries both
+    // thresholds at these hooks. The gate's purpose is unchanged and both conditions serve it: what it
+    // exists to stop is per-model dispatch letting ONE model's copy (a lone joined hero's) fire for the
+    // whole unit, and one model out of a unit is no more a majority than it is a totality. The threshold
+    // each rule uses is the rulebook's business; whether a rule has a threshold at all is this check's.
     private static bool GatesOnAllModels(Condition condition) => condition switch
     {
         Condition.AllModelsHaveThisRule => true,
+        Condition.MostModelsHaveThisRule => true,
         Condition.And and => GatesOnAllModels(and.Left) || GatesOnAllModels(and.Right),
         _ => false,
     };

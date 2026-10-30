@@ -1,4 +1,4 @@
-﻿
+
 namespace FDG
 {
     public static class GameWideConstants
@@ -99,10 +99,12 @@ namespace FDG
         /// </summary>
         public const int NUMBER_OF_ROUNDS = 4;
 
-        /// <summary>OPR Horde Mode v3.5.0: the mission lasts twelve rounds (four waves of three).</summary>
+        /// <summary>OPR Horde Mode v3.6.0: the mission lasts twelve rounds. Waves arrive at the start of
+        /// rounds 4, 7 and 10, and point rewards are paid at the end of rounds 3, 6, 9 and 12 - but the
+        /// mission and the high score both count ROUNDS (#409).</summary>
         public const int HORDE_NUMBER_OF_ROUNDS = 12;
 
-        /// <summary>OPR Horde Mode v3.5.0: a new wave of enemies starts at rounds 4, 7 and 10.</summary>
+        /// <summary>OPR Horde Mode v3.6.0: a new wave of enemies starts at rounds 4, 7 and 10.</summary>
         public const int HORDE_ROUNDS_PER_WAVE = 3;
 
         /// <summary>

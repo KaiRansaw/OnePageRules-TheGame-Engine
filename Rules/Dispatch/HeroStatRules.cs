@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using FDG.Utilities;
 
 namespace FDG.Rules.Dispatch;
 
@@ -23,6 +24,12 @@ public static class HeroStatRules
     /// <summary>
     /// The Quality a unit tests morale at. With a living joined hero this is the hero's Quality (the rule's
     /// "may take morale tests on behalf of the unit"); otherwise the unit's own.
+    /// <para>
+    /// This overload sees only the unit itself, so it answers for the joined-hero half of the rule alone.
+    /// Prefer <see cref="GetMoraleQuality(UnitData, ITableState)"/> wherever the table is in scope: OPR
+    /// 3.6.0 added a second, relational half (the big-Hero aura) that a unit-only read cannot see. Kept for
+    /// callers with no table - and for the tests that pin the joined-hero behaviour on its own.
+    /// </para>
     /// </summary>
     public static int GetMoraleQuality(UnitData unit)
     {
@@ -36,6 +43,86 @@ public static class HeroStatRules
         }
 
         return unit.Quality;
+    }
+
+    /// <summary>
+    /// The Quality a unit tests morale at, including the OPR 3.6.0 big-Hero aura (#409):
+    /// "<i>The Hero's unit, and units within 6" of friendly Heroes with Tough(9) or higher, may use the
+    /// Hero's Quality for Morale Tests as long as the Hero isn't Shaken.</i>"
+    ///
+    /// <para>The joined-hero half is unchanged and still comes from the unit's own attachment. The aura is
+    /// new: a nearby big Hero - one on the table in its own right, since Tough(9)+ is far past
+    /// <c>HeroJoinResolver.MaxHeroToughForJoin</c> and such a Hero can never join a unit - lends its
+    /// Quality to everything friendly within 6".</para>
+    ///
+    /// <para><b>"May" is resolved as "takes the better of the two."</b> Quality is a roll-at-or-above
+    /// target, so a lower number is strictly better and there is no situation in which a unit would decline
+    /// the Hero's Quality. Making it a prompt would add a decision point to every morale test in the game
+    /// to buy an option nobody takes. Recorded in WorkItems/409 rather than cut silently.</para>
+    ///
+    /// <para>Measured unit-edge to unit-edge like every other distance in the engine, ignoring height, and
+    /// only from living models - a dead Hero lends nothing, and a Shaken one is explicitly excluded by the
+    /// rule. A Hero in reserve has no table presence and is skipped.</para>
+    /// </summary>
+    public static int GetMoraleQuality(UnitData unit, ITableState? tableState)
+    {
+        int quality = GetMoraleQuality(unit);
+        if (tableState == null) return quality;
+
+        foreach (IUnit candidate in tableState.Units.Objects)
+        {
+            if (ReferenceEquals(candidate, unit)) continue;
+            if (!candidate.GetIsAlive()) continue;
+            if (candidate.Tokens.HasToken(Foundation.TokenType.Shaken)) continue;
+            if (ReserveRules.IsInReserve(candidate)) continue;
+            if (!ITeamExtensions.AreAllied(tableState.Teams.Objects, unit.PlayerID, candidate.PlayerID)) continue;
+            if (!IsBigHero(candidate)) continue;
+
+            // A better (lower) Quality is the only reason to look further.
+            if (candidate.Quality >= quality) continue;
+
+            float distance = UnitCompareUtilities.MinDistanceBetweenUnits(
+                unit, candidate, out _, out _, includeVertical: false);
+            if (distance <= BigHeroMoraleAuraInches)
+            {
+                quality = candidate.Quality;
+            }
+        }
+
+        return quality;
+    }
+
+    /// <summary>How far a Tough(9)+ Hero lends its Quality for Morale Tests (OPR 3.6.0).</summary>
+    public const float BigHeroMoraleAuraInches = 6f;
+
+    /// <summary>The Tough value at which a Hero starts projecting the 3.6.0 morale aura.</summary>
+    public const int BigHeroMinTough = 9;
+
+    /// <summary>
+    /// Whether a unit is a Hero carrying Tough(<see cref="BigHeroMinTough"/>) or higher. Reads the Tough
+    /// rule's argument directly, the same argument-only read <c>HeroJoinResolver.TryGetToughValue</c>
+    /// makes - the aura is about the Hero's printed Tough, not a mid-game wound total.
+    /// </summary>
+    private static bool IsBigHero(IUnit unit)
+    {
+        bool isHero = false;
+        int tough = 0;
+
+        foreach (ResolvedRule rule in unit.RuleDefinitions)
+        {
+            if (rule.Definition == CoreRuleCatalog.Hero)
+            {
+                isHero = true;
+            }
+            else if (rule.Definition == CoreRuleCatalog.Tough
+                && rule.Arguments.Count > 0
+                && rule.Arguments[0] is Foundation.RuleArgument.Int toughArg)
+            {
+                tough = toughArg.Value;
+            }
+        }
+
+        return isHero && tough >= BigHeroMinTough;
     }
 
     /// <summary>

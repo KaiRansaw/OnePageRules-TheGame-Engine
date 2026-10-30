@@ -8,7 +8,7 @@ using FDG.StateMachine;
 namespace FDG.Stages
 {
     /// <summary>
-    /// Horde Mode deployment (OPR v3.5.0): the defenders place every unit within 9" of the table centre,
+    /// Horde Mode deployment (OPR v3.6.0): the defenders place every unit within 9" of the table centre,
     /// then each enemy unit rolls a die and is placed within 9" of that table corner (1-4), or of a
     /// corner the defenders pick (5-6). Defenders take the first activation of round 1.
     /// <para>Version 1 simplifications: no Ambush/Scout/transport deployment choices - every unit is

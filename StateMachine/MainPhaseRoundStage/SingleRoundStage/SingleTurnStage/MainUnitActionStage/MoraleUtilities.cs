@@ -141,8 +141,9 @@ namespace FDG.Stages
                 }
             }
 
-            // Horde Mode Elite trait: once per round the unit may re-roll a failed morale test, at the same
-            // target. After Fearless (free, and with its own fixed 4+), before the paid conversion below.
+            // Horde Mode Elite trait: once per GAME (#409 - 3.6 cut it from once per round) the unit may
+            // re-roll a failed morale test, at the same target. After Fearless (free, and with its own
+            // fixed 4+), before the paid conversion below.
             if (FDG.StateMachine.HordeExperience.TryUseElite(testingUnit))
             {
                 IDiceResults eliteReroll = gameContext.DiceRoller.RollDecisive();
@@ -287,7 +288,7 @@ namespace FDG.Stages
             // #006: a living joined hero takes morale on behalf of the unit (its Quality).
             // failureCausesShakenOrRout: this test's failure Shakens the unit, so a conversion rule
             // (#197 P7 No Retreat) may rescue it.
-            if ((await TakeMoraleTest(gameContext, unit, HeroStatRules.GetMoraleQuality(unitBinding.GetValue()),
+            if ((await TakeMoraleTest(gameContext, unit, HeroStatRules.GetMoraleQuality(unitBinding.GetValue(), gameContext.TableState),
                     failureCausesShakenOrRout: true)).Passed) return true;
 
             await ApplyShakenWithPresentation(gameContext, unitBinding);

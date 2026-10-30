@@ -368,6 +368,13 @@ public static class RuleFireLint
             EHookID.Movement_OnMoveThroughEnemy => op is RuleOperation.IgnoreEnemyMovementBlock,
 
             EHookID.Morale_OnPreMoraleTest => op is RuleOperation.ApplyRollModifier { Roll: ERollKind.Morale },
+
+            // #409: CastSpellStage folds passive cast-roll modifiers (Spell Amplifier) into the net
+            // modifier that shifts the 4+ threshold, alongside the token boost, the 18" assists and any
+            // granted delta.
+            EHookID.Casting_OnSpellCastAttempt =>
+                op is RuleOperation.ApplyRollModifier { Roll: ERollKind.Cast },
+
             // #197 P7: MoraleUtilities also reads a PassMoraleTest here (No Retreat's failure conversion).
             EHookID.Morale_OnMoraleTestComplete =>
                 op is RuleOperation.ApplyReroll { Roll: ERollKind.Morale } or RuleOperation.PassMoraleTest,
@@ -384,9 +391,11 @@ public static class RuleFireLint
             EHookID.Melee_OnPostMelee => op is RuleOperation.InvokeTriggeredMove,
 
             // #197 P20: ChooseActionStage reads AllowShootAfterRush at the same hook it reads RestrictActions
-            // - both are answers to "what may this unit do this activation".
+            // - both are answers to "what may this unit do this activation". #409 adds its opposite,
+            // ForbidShootAfterMove (Cumbersome), which the same GetCanShoot gate reads.
             EHookID.Activation_OnActionChoice =>
-                op is RuleOperation.RestrictActions or RuleOperation.AllowShootAfterRush,
+                op is RuleOperation.RestrictActions or RuleOperation.AllowShootAfterRush
+                    or RuleOperation.ForbidShootAfterMove,
 
             // UnitCreationRules applies the token grants (auras) and folds SetMaxWounds (Tough) and
             // SetDefense (Armor).
@@ -757,6 +766,11 @@ public static class RuleFireLint
                 break;
             case EHookID.Morale_OnMoraleTestComplete:
                 yield return new MoraleTestContext(bearer);
+                break;
+            // #409: CastSpellStage fires this before the casting roll, for passive cast-roll modifiers
+            // (Spell Amplifier). Carries only the caster - the modifier is a property of who is casting.
+            case EHookID.Casting_OnSpellCastAttempt:
+                yield return new SpellCastAttemptContext(bearer);
                 break;
         }
     }

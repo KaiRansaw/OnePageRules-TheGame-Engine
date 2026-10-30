@@ -113,7 +113,7 @@ namespace FDG.Stages
             }
             new TokenClearService().ClearForHook(EHookID.Round_OnRoundEnd, containers);
 
-            // Horde Mode (OPR v3.5.0) runs twelve rounds; the standard game runs NUMBER_OF_ROUNDS.
+            // Horde Mode (OPR v3.6.0) runs twelve rounds; the standard game runs NUMBER_OF_ROUNDS.
             int roundLimit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings.GameMode);
 
             if (roundHooksEndGame)

@@ -19,6 +19,9 @@ namespace FDG.Tests
         private static readonly Position AttackerPos = new Position(0, 5);
         private static readonly Position FarPos      = new Position(20, 5);  // ~18.5" base-to-base → > 9"
         private static readonly Position NearPos     = new Position(3, 5);   // ~1.5" → ≤ 9"
+        // #409: Artillery's thresholds moved from 9" to 12", so the tests need a distance that is
+        // comfortably past 9 but short of 12. Centre-to-centre 12" minus two 0.75" bases = 10.5".
+        private static readonly Position MidPos      = new Position(12, 5);  // ~10.5" → > 9" but < 12"
 
         private GameDataStore _store = null!;
         private TestGameContext _ctx = null!;
@@ -82,11 +85,11 @@ namespace FDG.Tests
             Assert.That(result.HitRollNeeded, Is.EqualTo(4), "no rules → just the attacker's quality.");
         }
 
-        // Artillery is an attacker-seat (Actor) rule: +1 to hit beyond 9", which LOWERS the
-        // threshold (easier). It reuses the distance the stage already computes — pure attach,
-        // no new wiring beyond Stealth's.
+        // #409 (OPR 3.6.0) rewrote Artillery. The attacker-seat (Actor) +1 to hit now needs BOTH a Hold
+        // action and a target over 12" away, where 3.5.1 asked only for 9" and no action at all. "Hold" is
+        // read off the MovedThisRound token, which RunStage leaves unstamped unless a test says otherwise.
         [Test]
-        public async Task ArtilleryAttacker_BeyondNine_LowersHitThreshold()
+        public async Task ArtilleryAttacker_HoldingBeyondTwelve_LowersHitThreshold()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             DataBinding<UnitData> defender = MakeUnit(FarPos);
@@ -95,7 +98,21 @@ namespace FDG.Tests
             DetermineHitRollResults result = await RunStage(attacker, defender);
 
             Assert.That(result.HitRollNeeded, Is.EqualTo(3),
-                "base 4, lowered by 1 because Artillery gives +1 to hit beyond 9\".");
+                "base 4, lowered by 1: a Hold action shooting over 12\" away gets Artillery's +1 to hit.");
+        }
+
+        // The band 3.6 took away: 9-12" used to earn the bonus and no longer does.
+        [Test]
+        public async Task ArtilleryAttacker_BetweenNineAndTwelve_NoChange()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(MidPos);
+            AttachArtillery(attacker);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "10.5\" is past the old 9\" line but short of 3.6's 12\", so Artillery gives nothing.");
         }
 
         [Test]
@@ -108,14 +125,30 @@ namespace FDG.Tests
             DetermineHitRollResults result = await RunStage(attacker, defender);
 
             Assert.That(result.HitRollNeeded, Is.EqualTo(4),
-                "Artillery's distance condition fails within 9\", so no modifier is applied.");
+                "Artillery's distance condition fails well inside 12\", so no modifier is applied.");
         }
 
-        // Artillery's defensive facet: as a TARGET, enemies shooting it from beyond 9" take -2 to
-        // hit (Subject seat), which RAISES the threshold. Mirrors Stealth's defender-seat distance
-        // modifier on the same OnHitRollModifier evaluation — proves Artillery's second HookEntry fires.
+        // #409: the other half of the new Actor gate - a unit that moved is not Holding, so no +1 even at
+        // a range that would otherwise qualify. MovedThisRound is what MovementStage stamps when a declared
+        // move actually resolves.
         [Test]
-        public async Task ArtilleryDefender_BeyondNine_RaisesAttackerHitThreshold()
+        public async Task ArtilleryAttacker_HavingMoved_NoChange()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachArtillery(attacker);
+            StampMoved(attacker);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender, attackerMoved: true);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "the +1 is a Hold-action bonus in 3.6, so a unit that moved gets nothing.");
+        }
+
+        // Artillery's defensive facet, as rewritten by #409: enemies shooting it from over 12" take -1
+        // (3.5.1: -2 from over 9"), and only while the Artillery unit has not moved this round.
+        [Test]
+        public async Task ArtilleryDefender_BeyondTwelve_RaisesAttackerHitThreshold()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             DataBinding<UnitData> defender = MakeUnit(FarPos);
@@ -123,8 +156,21 @@ namespace FDG.Tests
 
             DetermineHitRollResults result = await RunStage(attacker, defender);
 
-            Assert.That(result.HitRollNeeded, Is.EqualTo(6),
-                "base 4, raised by 2 because Artillery gives enemies -2 to hit it from beyond 9\".");
+            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
+                "base 4, raised by 1: Artillery gives enemies -1 to hit it from over 12\" in 3.6.");
+        }
+
+        [Test]
+        public async Task ArtilleryDefender_BetweenNineAndTwelve_NoChange()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(MidPos);
+            AttachArtillery(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "the defensive penalty starts past 12\" in 3.6, so 10.5\" is inside it.");
         }
 
         [Test]
@@ -137,13 +183,30 @@ namespace FDG.Tests
             DetermineHitRollResults result = await RunStage(attacker, defender);
 
             Assert.That(result.HitRollNeeded, Is.EqualTo(4),
-                "Artillery's distance condition fails within 9\", so the -2 defensive modifier is not applied.");
+                "Artillery's distance condition fails inside 12\", so the defensive modifier is not applied.");
         }
 
-        // Both facets at once: an Artillery attacker (+1 → -1 threshold) shooting an Artillery defender
-        // (-2 → +2 threshold) from beyond 9". The Actor and Subject entries both fire and stack: 4 - 1 + 2 = 5.
+        // #409: the condition the defensive arm never had before - an Artillery piece that repositioned
+        // this round stops being hard to hit. Read from the far side of the table during the attacker's
+        // activation, which is why it rides a unit token rather than per-activation movement state.
         [Test]
-        public async Task ArtilleryBothSeats_BeyondNine_StackActorAndSubject()
+        public async Task ArtilleryDefender_HavingMovedThisRound_NoChange()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachArtillery(defender);
+            StampMoved(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "an Artillery unit that moved this round loses its -1-to-hit-it protection.");
+        }
+
+        // Both facets at once, at 3.6 numbers: Artillery attacker +1 (-1 threshold) against an Artillery
+        // defender -1 (+1 threshold), both over 12", neither having moved. They cancel: 4 - 1 + 1 = 4.
+        [Test]
+        public async Task ArtilleryBothSeats_BeyondTwelve_StackActorAndSubject()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             DataBinding<UnitData> defender = MakeUnit(FarPos);
@@ -152,15 +215,16 @@ namespace FDG.Tests
 
             DetermineHitRollResults result = await RunStage(attacker, defender);
 
-            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
-                "Artillery attacker +1 (−1 threshold) and Artillery defender −2 (+2 threshold) stack: 4 − 1 + 2 = 5.");
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "Artillery attacker +1 and Artillery defender -1 both fire and cancel: 4 - 1 + 1 = 4.");
         }
 
-        // Indirect is an attacker-seat rule: -1 to hit when the unit moved this activation,
-        // which RAISES the threshold. The condition reads AttackerMoved off the metadata —
-        // this exercises the HasMoved → CombatMetadata threading, not just a distance check.
+        // #409: Indirect no longer touches hit rolls at all. 3.5.1 gave it -1 to hit after moving; 3.6
+        // deletes the penalty and makes the whole rule conditional on Holding instead, so there is nothing
+        // left for it to do on this stage in either case. Both directions are pinned so a future edit that
+        // quietly reinstates a modifier fails here.
         [Test]
-        public async Task IndirectAttacker_AfterMoving_RaisesHitThreshold()
+        public async Task IndirectAttacker_AfterMoving_NoHitModifier()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             DataBinding<UnitData> defender = MakeUnit(FarPos);
@@ -168,8 +232,8 @@ namespace FDG.Tests
 
             DetermineHitRollResults result = await RunStage(attacker, defender, attackerMoved: true);
 
-            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
-                "base 4, raised by 1 because Indirect applies -1 to hit after the attacker moved.");
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "3.6 deleted Indirect's -1-after-moving; the rule is a sight permission now, not a penalty.");
         }
 
         [Test]
@@ -182,7 +246,7 @@ namespace FDG.Tests
             DetermineHitRollResults result = await RunStage(attacker, defender, attackerMoved: false);
 
             Assert.That(result.HitRollNeeded, Is.EqualTo(4),
-                "Indirect's AfterMoving condition fails when the attacker held, so no modifier is applied.");
+                "Indirect never modifies the hit roll in 3.6, held or moved.");
         }
 
         // Indirect's -1 is gated on Not(IsMelee): a charge sets HasMoved, so without the gate an Indirect
@@ -465,6 +529,13 @@ namespace FDG.Tests
 
         private static void AttachStealth(DataBinding<UnitData> unit) =>
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Stealth", CoreRuleCatalog.Stealth));
+
+        // #409: the "has not moved" half of Artillery's 3.6 gates reads TokenType.MovedThisRound, which in
+        // a real game MovementStage stamps when a declared move resolves. These tests drive the hit stage
+        // directly, so they stamp it by hand.
+        private static void StampMoved(DataBinding<UnitData> unit) =>
+            unit.GetValue().Tokens.AddToken(
+                TokenDefinitionCatalog.Create(FDG.Rules.Foundation.TokenType.MovedThisRound));
 
         private static void AttachArtillery(DataBinding<UnitData> unit) =>
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Artillery", CoreRuleCatalog.Artillery));

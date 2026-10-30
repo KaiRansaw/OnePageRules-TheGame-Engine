@@ -919,6 +919,20 @@ namespace FDG.Stages
                 return false;
             }
 
+            // #409 Cumbersome (OPR 3.6.0): "can't shoot when moving". Stricter than the advance-and-shoot
+            // cap below, which lets an ordinary unit use its whole Advance and still fire - a Cumbersome
+            // unit that has moved at all loses the shot outright. Checked here, at the action gate, so the
+            // option is never offered rather than failing inside the shoot stage (#200).
+            if (context.HasMoved
+                && Rules.Dispatch.CumbersomeRules.CannotShootAfterMoving(
+                       context.ActivatingUnit.GetValue(), gameContext.RuleEvaluator))
+            {
+                string? source = Rules.Dispatch.CumbersomeRules.ShootAfterMoveBlockSource(
+                    context.ActivatingUnit.GetValue(), gameContext.RuleEvaluator);
+                reasonIfCant = $"{source ?? "Cumbersome"} - can't shoot after moving.";
+                return false;
+            }
+
             // The advance-and-shoot cap must include the unit's movement rules (Fast/Quick/Rapid Advance/...)
             // so a unit that legally advanced past the base 6" isn't wrongly blocked from shooting.
             //
