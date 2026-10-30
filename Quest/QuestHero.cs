@@ -137,27 +137,42 @@ namespace FDG.Quest
 
     /// <summary>
     /// Star Quest progression: the XP needed per level, what each level-up offers, and when skill / shop tiers
-    /// unlock (Core Rules v2.0.1 levelling table; tiers as Army Forge shows them).
+    /// unlock (GFSQ Campaign Builder v2.1.0 levelling table; tiers as Army Forge shows them).
     /// </summary>
     public static class QuestProgression
     {
         public const int MaxLevel = 15;
 
-        /// <summary>Total XP needed to reach each level (index = level).</summary>
-        public static readonly int[] XpForLevel = { 0, 0, 2, 4, 8, 12, 18, 24, 32, 40, 50, 60, 82, 94, 108, 122 };
+        /// <summary>
+        /// Total XP needed to reach each level (index = level), from the Campaign Builder v2.1.0 table.
+        /// <para>
+        /// Was the v2.0.1 table until 2026-10-30 (`0,0,2,4,8,12,18,24,32,40,50,60,82,94,108,122`), which is
+        /// a different curve end to end, not a tweak: level 2 cost 2 XP instead of 3, and level 15 cost 122
+        /// instead of 168. Since a mission pays 2 x difficulty XP for the primary objective, heroes were
+        /// levelling roughly a third faster than the book intends, and the gap widened at every tier.
+        /// </para>
+        /// </summary>
+        public static readonly int[] XpForLevel = { 0, 0, 3, 6, 12, 18, 27, 36, 48, 60, 75, 90, 108, 126, 147, 168 };
 
-        /// <summary>The improvements a hero may pick from on reaching each level (index = level).</summary>
+        /// <summary>
+        /// The improvements a hero may pick from on reaching each level (index = level), from the same table.
+        /// <para>
+        /// Levels 4 and 8 were swapped against the book until 2026-10-30: level 4 offered "+1 Qua" (which the
+        /// book puts at 8) and level 8 offered "+2 Pow" (which the book puts at 4). Quality is the strongest
+        /// improvement on the list, so this handed it out four levels early.
+        /// </para>
+        /// </summary>
         public static readonly string[][] LevelOptions =
         {
             Array.Empty<string>(),
             Array.Empty<string>(),
             new[] { "+1 Tou", "+1 Skill" },
             new[] { "+1 Str", "+1 Dex", "+1 Wil" },
-            new[] { "+2 Tou", "+1 Qua" },
+            new[] { "+2 Tou", "+2 Pow" },
             new[] { "+2 Pow", "+2 Skill", "+1 Caster" },
             new[] { "+1 Tou", "+1 Pow" },
             new[] { "+1 Str", "+1 Dex", "+1 Wil" },
-            new[] { "+2 Tou", "+2 Pow" },
+            new[] { "+2 Tou", "+1 Qua" },
             new[] { "+2 Pow", "+2 Skill", "+1 Caster" },
             new[] { "+1 Tou", "+1 Skill" },
             new[] { "+1 Str", "+1 Dex", "+1 Wil" },

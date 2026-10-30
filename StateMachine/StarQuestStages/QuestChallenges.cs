@@ -128,8 +128,21 @@ namespace FDG.Stages
 
         /// <summary>Set-up: the heroes' player switches optional challenges on, then picks (or rolls) the
         /// alertness, time of day and weather. A bot party plays without challenges.</summary>
-        /// <summary>Tests only: play with these challenges (rolling for alertness / time / weather) instead of asking.</summary>
+        /// <summary>
+        /// Play with exactly these challenges (rolling for alertness / time / weather) instead of asking.
+        /// Used by tests and by #413's <c>--challenges</c> headless switch.
+        /// <para>
+        /// Setting it also means YES to the boss fight (see <see cref="OfferBossFight"/>). Nobody is at the
+        /// keyboard in either caller, and an automated answerer takes a YesNoRequest's default, which is NO -
+        /// so without this the Boss Fights challenge could be switched on and the boss wave would still never
+        /// arrive, making the whole thing untestable without a human.
+        /// </para>
+        /// </summary>
         public static List<string>? ForceForTests;
+
+        /// <summary>Every optional challenge a mission offers, for a caller that wants to switch them all on.</summary>
+        public static readonly string[] AllChallenges =
+            { BossFights, HeroInjuries, IncreasedAlertness, TimeOfDayName, WeatherName, RandomEvents };
 
         public static async Task ChooseChallenges(IGameContext context, List<UnitData> heroes, bool horde)
         {
