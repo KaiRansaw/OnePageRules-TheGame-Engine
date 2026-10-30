@@ -315,6 +315,53 @@ namespace FDG.Tests
             Assert.That(hero.JoinsUnitId, Is.Null, "no dangling link is left in the army file");
         }
 
+        // -- Taking only part of the army to a mission (#410) -----------------------------------------
+
+        /// <summary>
+        /// The campaign screen plays a subset by writing a "this mission only" copy of the army file
+        /// holding just the units that are coming. That only works because the write-back matches each
+        /// result to a unit by its sheet id, not by position - so the results that come back from the
+        /// copy still land on the right units of the real army, and the ones left at home are untouched.
+        /// This is the invariant that breaks silently if a copy ever regenerates sheet ids.
+        /// </summary>
+        [Test]
+        public void ResultsFromAPartialMissionLandOnTheRealArmyByIdAndSkipTheUnitsLeftBehind()
+        {
+            (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 500);
+            CampaignNumbers n = CampaignNumbers.Firefight;
+            CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n);
+            CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
+            Assert.That(army.Units.Count, Is.EqualTo(3));
+
+            UnitFileEntry stayedHome = army.Units[1];
+            string homeId = CampaignRules.Sheet(stayedHome)!.Id;
+            var went = army.Units.Where(u => !ReferenceEquals(u, stayedHome)).ToList();
+
+            // What the mission copy would be: the same file minus the unit left behind. Sheets, and so
+            // their ids and TeamFile, ride along untouched.
+            var copy = new BuiltArmyFile { Name = army.Name, Faction = army.Faction, StrikeTeam = army.StrikeTeam };
+            copy.Units.AddRange(went);
+            Assert.That(copy.Units.Select(u => CampaignRules.Sheet(u)!.Id),
+                Is.EqualTo(went.Select(u => CampaignRules.Sheet(u)!.Id)), "a copy must not re-id the sheets");
+
+            // The results come back keyed by the copy's sheet ids, and are applied to the REAL army.
+            var results = copy.Units
+                .Select(u => new CampaignUnitResult(CampaignRules.Sheet(u)!.Id, Casualty: false, Kills: 1, HeroKills: 0))
+                .ToList();
+            CampaignRules.AfterGame(army, results, won: true, n, Dice(3));
+
+            Assert.Multiple(() =>
+            {
+                foreach (UnitFileEntry u in went)
+                    Assert.That(CampaignRules.Sheet(u)!.Xp, Is.EqualTo(2), $"{u.Name}: +1 survived, +1 kill");
+                Assert.That(CampaignRules.Sheet(stayedHome)!.Xp, Is.Zero, "the unit left at home earns nothing");
+                Assert.That(CampaignRules.Sheet(stayedHome)!.Games, Is.Zero, "and plays no game");
+                Assert.That(CampaignRules.Sheet(stayedHome)!.Id, Is.EqualTo(homeId));
+                Assert.That(army.Units.Count, Is.EqualTo(3), "nobody is lost by playing a subset");
+                Assert.That(army.StrikeTeam!.Matches, Is.EqualTo(1), "the army still counts the mission once");
+            });
+        }
+
         [Test]
         public void DisbandingTheWholeArmyClearsEverything()
         {
