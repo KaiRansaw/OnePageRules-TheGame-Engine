@@ -555,7 +555,10 @@ namespace FDG.Stages
                 "fire" => "within 3\" counts as dangerous terrain",
                 _ => "enemies treat it as a hero",
             };
-            await QuestActions.Toast(c, $"{item} marker placed: {what} (3 rounds).");
+            // The throw line above already named the item, so repeating it here just makes the
+            // reader's eye do the same work twice: "Magik throws Smoke Grenade!" / "Within 3" counts
+            // as cover (3 rounds)."
+            await QuestActions.Toast(c, $"{char.ToUpperInvariant(what[0])}{what[1..]} (3 rounds).");
         }
 
         public static void AddUnitMarker(IGameContext c, UnitData unit, string kind, int rounds = 3, string source = "")
@@ -756,7 +759,10 @@ namespace FDG.Stages
                 // One standard form for every item, so the report reads the same way each time
                 // (Kai, QA 3.17-3.20): a grenade is THROWN, everything else is used. No "a"/"an"
                 // guessing, and the item keeps its own name so it can be looked up.
-                c.Log(IsThrown(name) ? $"{h.Name} throws {name}!" : $"{h.Name} uses {name}.");
+                // Toast, not Log: Log goes to the debug channel, so this line never reached the
+                // Battle Report - the only thing a player saw when throwing a grenade was the
+                // marker line that follows it.
+                await QuestActions.Toast(c, IsThrown(name) ? $"{h.Name} throws {name}!" : $"{h.Name} uses {name}.");
                 await use(c, h);
             });
 
