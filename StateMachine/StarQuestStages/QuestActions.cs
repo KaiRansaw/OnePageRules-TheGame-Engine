@@ -237,13 +237,27 @@ namespace FDG.Stages
         }
 
         /// <summary>A buff or debuff on one roll, through the engine's granted roll modifiers.</summary>
-        public static void Grant(IUnit bearer, IUnit target, ERollKind roll, int delta, ELifetime lifetime, IGameContext context)
+        /// <summary>
+        /// Grants a roll buff or debuff outside the rules engine - the Star Quest skills, items, injuries
+        /// and random events, and the Firefight campaign skills, none of which are
+        /// <see cref="SpecialRuleDefinition"/>s and so have no rule name of their own to read.
+        ///
+        /// <para>#407: <paramref name="source"/> is what the player should see credited beside the roll
+        /// ("Rage +2"). Optional only so no caller breaks; a site that omits it renders as a bare "buff",
+        /// which is what every granted buff looked like before this. Pass the skill, item or event name.
+        /// </para>
+        /// </summary>
+        public static void Grant(IUnit bearer, IUnit target, ERollKind roll, int delta, ELifetime lifetime,
+            IGameContext context, string? source = null)
         {
-            var invocation = new RuleInvocation(Hook: null, Bearer: bearer, Arguments: Array.Empty<RuleArgument>(),
-                Target: target, DiceRoller: context.DiceRoller);
-            var ops = new List<RuleOperation>();
-            new Effect.StatModifier(roll, delta, lifetime).Apply(invocation, ops);
-            OperationApplier.ApplyTokenOperations(ops);
+            OperationApplier.ApplyTokenOperations(new List<RuleOperation>
+            {
+                new RuleOperation.GrantTokenToUnit(target,
+                    Effect.BuildStatModifierToken(roll, delta, lifetime, source,
+                        // Cross-unit provenance, matching RuleInvocation.OwnerForEffectiveTarget: stamp
+                        // the granter only when the buff lands on someone else.
+                        ownerUnitID: target.ID != bearer.ID ? bearer.ID : null)),
+            });
         }
 
         /// <summary>X hits on a unit: it rolls Defense for each (AP lowers the roll); each fail is a wound.</summary>
@@ -568,7 +582,7 @@ namespace FDG.Stages
                 }),
             new("Protector", 0, "The hero gets +1 to Def rolls until the end of the round.", Always, async (c, h) =>
                 {
-                    QuestActions.Grant(h, h, ERollKind.Save, 1, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Save, 1, ELifetime.ThisRound, c, "Protector");
                     await QuestActions.Toast(c, $"{h.Name}: +1 to Defense rolls this round.");
                 }),
 
@@ -590,21 +604,21 @@ namespace FDG.Stages
                 NeedsFriend(6f, false, false), (c, h) => BuffFriends(c, h, "Ancient Weapon", 6f, 1, false, ERollKind.Hit, 2, ELifetime.NextTrigger, "get +2 to hit the next time they attack")),
             new("Barkskin", 1, "The hero gets +1 to Def rolls next time it takes hits until the end of the round.", Always, async (c, h) =>
                 {
-                    QuestActions.Grant(h, h, ERollKind.Save, 1, ELifetime.NextTrigger, c);
+                    QuestActions.Grant(h, h, ERollKind.Save, 1, ELifetime.NextTrigger, c, "Barkskin");
                     await QuestActions.Toast(c, $"{h.Name}: +1 to Defense the next time it takes hits.");
                 }),
             new("Dark Warding", 2, "The hero takes 1 wound, and gets +2 to Defense rolls until the end of the round.", Always, async (c, h) =>
                 {
                     await CasualtyPresentation.ApplyUnitWounds(c, h, 1f);
                     if (!h.GetIsAlive()) return;
-                    QuestActions.Grant(h, h, ERollKind.Save, 2, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Save, 2, ELifetime.ThisRound, c, "Dark Warding");
                     await QuestActions.Toast(c, $"{h.Name}: +2 to Defense rolls this round.");
                 }),
             new("Rage", 0, "The hero takes 1 wound and gets +2 to hit in melee when charging until the end of the round.", Always, async (c, h) =>
                 {
                     await CasualtyPresentation.ApplyUnitWounds(c, h, 1f);
                     if (!h.GetIsAlive()) return;
-                    QuestActions.Grant(h, h, ERollKind.Hit, 2, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Hit, 2, ELifetime.ThisRound, c, "Rage");
                     await QuestActions.Toast(c, $"{h.Name} rages: +2 to hit this round (charge into melee to use it).");
                 }),
             new("Guidance", 0, "Pick two other friendly units within 6\", which get +1 to their next stat roll each.",
@@ -652,7 +666,7 @@ namespace FDG.Stages
                 {
                     var t = await QuestActions.PickUnits(c, h, "Distracting Tune", QuestActions.Enemies(c, h, 9f), 1);
                     if (t.Count == 0 || await QuestActions.Morale(c, t[0])) return;
-                    QuestActions.Grant(h, t[0], ERollKind.Save, -2, ELifetime.NextTrigger, c);
+                    QuestActions.Grant(h, t[0], ERollKind.Save, -2, ELifetime.NextTrigger, c, "Distracting Tune");
                     await QuestActions.Toast(c, $"{t[0].Name}: -2 to Defense the next time it is attacked.");
                 }),
 
@@ -707,7 +721,7 @@ namespace FDG.Stages
                 {
                     int d = D3(c);
                     await QuestActions.SpendPower(c, h, d, "Arcana");
-                    QuestActions.Grant(h, h, ERollKind.Cast, 1, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Cast, 1, ELifetime.ThisRound, c, "Arcana");
                     await QuestActions.Toast(c, $"{h.Name}: +1 to casting rolls this round.");
                 }),
             new("Fiendish Respite", 1, "Until the end of the round, the next time the hero destroys an enemy unit, it restores D3+1 power.",

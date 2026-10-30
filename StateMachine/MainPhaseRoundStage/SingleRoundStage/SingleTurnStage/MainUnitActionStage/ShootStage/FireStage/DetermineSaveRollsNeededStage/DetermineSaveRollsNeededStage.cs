@@ -37,7 +37,10 @@ namespace FDG.Stages
             // mirroring the hit stage's `HitRollNeeded -= Net(Hit)` convention.
             // #033 granted "+X to defense" buffs on the defender (one-shot / duration) lower the threshold,
             // same sign as cover; one-shot ("next time") grants are consumed by this attack's saves.
-            int grantedDefense = GrantedRollModifiers.ConsumeNet(metaData.DefendingUnit.GetValue(), ERollKind.Save);
+            // #407: ConsumeDetailed so each buff can name itself ("Protector +1") instead of all of them
+            // collapsing into one "buff" chip. Read before the one-shot grants drain, as on the hit stage.
+            (int grantedDefense, IReadOnlyList<GrantedModifier> grantedDetail) =
+                GrantedRollModifiers.ConsumeDetailed(metaData.DefendingUnit.GetValue(), ERollKind.Save);
 
             // #100 #14b: AP-side attacker-bonus markers on the defender — persistent (Piercing Target)
             // counted, spendable (Piercing Tag/Spotter) claimed via a prompt to the attacking player
@@ -65,7 +68,7 @@ namespace FDG.Stages
 
             DetermineSaveRollNeededResults results = new DetermineSaveRollNeededResults(pendingSaveRollsList);
             results.ThresholdTags = ComposeThresholdTags(baseDefense, ap, coverResults.DefenseRollBonus,
-                rollToHitResults.SaveModifierTags, grantedDefense, markerNet);
+                rollToHitResults.SaveModifierTags, grantedDefense, markerNet, grantedDetail);
             await onFinished(results);
         }
 
@@ -73,14 +76,28 @@ namespace FDG.Stages
         // ("Defense 4+ | AP 2 | Cover +1"). Null (no chips, no extended beat) when the threshold is
         // just the unmodified defense. Per-bucket differences (Rending) stay in the beat label.
         // Internal for tests.
+        /// <param name="grantedDetail">#407: the granted Defense buffs itemised by source, so each names
+        /// itself rather than merging into one "buff" chip. Empty falls back to the summed chip, which is
+        /// what the pre-roll forecast passes.</param>
         internal static List<string>? ComposeThresholdTags(int baseDefense, int ap, int coverBonus,
-            List<string>? saveModifierTags, int grantedDefense, int markerNet = 0)
+            List<string>? saveModifierTags, int grantedDefense, int markerNet = 0,
+            IReadOnlyList<GrantedModifier>? grantedDetail = null)
         {
             List<string> tags = new List<string> { $"Defense {baseDefense}+" };
             if (ap > 0) tags.Add($"AP {ap}");
             if (coverBonus > 0) tags.Add($"Cover +{coverBonus}");
             if (saveModifierTags != null) tags.AddRange(saveModifierTags);
-            if (grantedDefense != 0) tags.Add($"buff {RollTags.Delta(grantedDefense)}");
+            if (grantedDetail is { Count: > 0 })
+            {
+                foreach (GrantedModifier granted in grantedDetail)
+                {
+                    if (granted.Delta != 0) tags.Add(granted.Describe());
+                }
+            }
+            else if (grantedDefense != 0)
+            {
+                tags.Add($"buff {RollTags.Delta(grantedDefense)}");
+            }
             if (markerNet != 0) tags.Add($"markers +{markerNet}");
 
             return tags.Count > 1 ? tags : null;

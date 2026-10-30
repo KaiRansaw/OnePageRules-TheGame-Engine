@@ -622,7 +622,7 @@ namespace FDG.Stages
             var units = QuestActions.Units(c).Where(u => u.GetIsAlive() && u.GetIsOnBattlefield()).ToList();
             foreach (QuestMarker m in q.Markers.Where(m => m.Kind == "silence"))
                 if (units.FirstOrDefault(u => u.ID.ID.ToString() == m.OnUnit) is { } s)
-                    QuestActions.Grant(s, s, ERollKind.Cast, -2, ELifetime.ThisRound, c);
+                    QuestActions.Grant(s, s, ERollKind.Cast, -2, ELifetime.ThisRound, c, "Silenced");
         }
 
         /// <summary>A poisoned unit activates: on a 4+ it takes 1 wound, otherwise the poison wears off.</summary>
@@ -839,7 +839,7 @@ namespace FDG.Stages
             Item("Flash Grenade", EnemyWithin(9f), async (c, h) =>
             {
                 if (await OneEnemy(c, h, "Flash Grenade", 9f) is not { } e) return;
-                QuestActions.Grant(h, e, ERollKind.Hit, -1, ELifetime.ThisRound, c);
+                QuestActions.Grant(h, e, ERollKind.Hit, -1, ELifetime.ThisRound, c, "Flash Grenade");
                 await QuestActions.Toast(c, $"{e.Name}: -1 to hit this round.");
             }),
             Item("Web Grenade", EnemyWithin(9f), async (c, h) =>
@@ -895,7 +895,7 @@ namespace FDG.Stages
             {
                 if (await OneEnemy(c, h, "Silence Grenade", 9f) is not { } e) return;
                 AddUnitMarker(c, e, "silence");
-                QuestActions.Grant(h, e, ERollKind.Cast, -2, ELifetime.ThisRound, c);
+                QuestActions.Grant(h, e, ERollKind.Cast, -2, ELifetime.ThisRound, c, "Silence Grenade");
                 await QuestActions.Toast(c, $"{e.Name} is silenced: -2 to casting rolls (marker lasts 3 rounds).");
             }),
             Item("Poison Grenade", EnemyWithin(9f), async (c, h) =>

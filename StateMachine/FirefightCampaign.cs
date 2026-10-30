@@ -78,7 +78,7 @@ namespace FDG.Stages
         {
             if (Near(c, defender, CampaignRuleCatalog.Mastermind.Name, friendly: false).Any())
             {
-                QuestActions.Grant(defender, defender, ERollKind.Save, -1, ELifetime.NextTrigger, c);
+                QuestActions.Grant(defender, defender, ERollKind.Save, -1, ELifetime.NextTrigger, c, CampaignRuleCatalog.Mastermind.Name);
                 c.Log($"Mastermind: {defender.Name} gets -1 Defense.");
             }
             if (!melee && Has(attacker, CampaignRuleCatalog.Suppressor.Name))

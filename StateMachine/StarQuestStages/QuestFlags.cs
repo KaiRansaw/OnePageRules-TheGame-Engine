@@ -234,13 +234,24 @@ namespace FDG.Stages
         /// An attack is about to roll to hit: returns the to-hit change from Star Quest skills (both sides),
         /// grants this attack's extra hits / Defense, and notes targets and follow-ups that resolve later.
         /// </summary>
-        public static int OnAttack(IGameContext c, IUnit attacker, IUnit defender, bool melee, float distance, bool charging = false)
+        /// <summary>
+        /// The Star Quest flags that bear on an attack in flight, applied as it resolves.
+        ///
+        /// <para>#407: returns its to-hit contributions ITEMISED rather than pre-summed. They used to come
+        /// back as one <c>int</c>, which DetermineHitRollStage folded into its generic "buff" chip - so
+        /// Vengeful Strike's +1 was indistinguishable from any other buff, and Kai's QA note ("i am unsure
+        /// if the modifiers are correctly being applied") had no way to be answered from play. Each entry
+        /// names the skill that produced it; the caller can still sum them with
+        /// <see cref="QuestAttackModifiers.Net"/>.</para>
+        /// </summary>
+        public static QuestAttackModifiers OnAttack(IGameContext c, IUnit attacker, IUnit defender,
+            bool melee, float distance, bool charging = false)
         {
             QuestProgress? q = Quest(c);
-            if (q == null || q.Flags.Count == 0) return 0;
+            if (q == null || q.Flags.Count == 0) return QuestAttackModifiers.None;
             TargetedAnEnemy(c, attacker);
             q = Quest(c);
-            int bonus = 0;
+            var hitModifiers = new List<Rules.Dispatch.GrantedModifier>();
             bool close = melee || distance <= 12f;
             bool far = melee || distance > 12f;
             string target = Id(defender);
@@ -248,28 +259,28 @@ namespace FDG.Stages
             // To-hit changes.
             if (Has(q, attacker, Vengeful) && close && defender.Tokens.HasToken(TokenType.Shaken))
             {
-                bonus++;
+                hitModifiers.Add(new Rules.Dispatch.GrantedModifier("Vengeful Strike", +1));
                 c.Log($"Vengeful Strike: {attacker.Name} gets +1 to hit the Shaken {defender.Name}.");
             }
             if (Get(q, attacker, HunterMark) is { } mark && mark.Split(':') is { Length: 2 } m && m[0] == target
                 && int.TryParse(m[1], out int markBonus))
             {
-                bonus += markBonus;
+                hitModifiers.Add(new Rules.Dispatch.GrantedModifier("Hunter's Mark", markBonus));
                 c.Log($"Hunter's Mark: {attacker.Name} gets +{markBonus} to hit {defender.Name}.");
             }
             if (Get(q, defender, GuidingBolt) is { } bolter && Find(c, bolter) is { } bolterUnit && Allied(c, attacker.PlayerID, bolterUnit.PlayerID))
             {
-                bonus++;
+                hitModifiers.Add(new Rules.Dispatch.GrantedModifier("Guiding Bolt", +1));
                 c.Log($"Guiding Bolt: +1 to hit {defender.Name}.");
             }
             if (charging && ListHas(Get(q, attacker, Sneak), defender))
             {
-                bonus++;
+                hitModifiers.Add(new Rules.Dispatch.GrantedModifier("Sneak Attack", +1));
                 c.Log($"Sneak Attack: {attacker.Name} gets +1 to hit {defender.Name}.");
             }
             if (Has(q, defender, Elude) && close)
             {
-                bonus--;
+                hitModifiers.Add(new Rules.Dispatch.GrantedModifier("Elude", -1));
                 c.Log($"{defender.Name} is hard to hit: -1 to hit.");
             }
 
@@ -286,7 +297,7 @@ namespace FDG.Stages
             }
             if (close && Take(c, attacker, Disarming) != null)
             {
-                QuestActions.Grant(attacker, defender, ERollKind.Hit, -1, ELifetime.ThisRound, c);
+                QuestActions.Grant(attacker, defender, ERollKind.Hit, -1, ELifetime.ThisRound, c, "Disarming Attack");
                 c.Log($"Disarming Attack: {defender.Name} gets -1 to hit this round.");
             }
             if (Take(c, attacker, HitRun) != null) Set(c, attacker, HitRunMove);
@@ -310,14 +321,14 @@ namespace FDG.Stages
             if (Has(q, defender, Vicious))
                 QuestTreasure.GrantRule(c, defender, attacker, "Extra hit", ELifetime.NextTrigger);
             if (Has(q, defender, ToughenUp) && close)
-                QuestActions.Grant(defender, defender, ERollKind.Save, 2, ELifetime.NextTrigger, c);
+                QuestActions.Grant(defender, defender, ERollKind.Save, 2, ELifetime.NextTrigger, c, "Toughen Up");
             if (Get(q, defender, Rebuke) is { } rebuker && !Allied(c, attacker.PlayerID, defender.PlayerID))
             {
                 Take(c, defender, Rebuke);
                 Set(c, attacker, RebukeHits, rebuker);
                 c.Log($"Devoted Rebuke: {attacker.Name} will take D3 hits.");
             }
-            return bonus;
+            return new QuestAttackModifiers(hitModifiers);
         }
 
         /// <summary>
@@ -529,7 +540,7 @@ namespace FDG.Stages
             }
             if (enemies.Count > 0 && QuestFlags.Take(c, hero, QuestFlags.Illusion) != null && await PickOne("Illusion", enemies) is { } fooled)
             {
-                QuestActions.Grant(hero, fooled, ERollKind.Hit, -1, ELifetime.ThisRound, c);
+                QuestActions.Grant(hero, fooled, ERollKind.Hit, -1, ELifetime.ThisRound, c, "Illusion");
                 await QuestActions.Toast(c, $"Illusion: {fooled.Name} gets -1 to hit this round.");
             }
             if (enemies.Count > 0 && QuestFlags.Take(c, hero, QuestFlags.Necromancy) != null && await PickOne("Necromancy", enemies) is { } drained)

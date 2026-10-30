@@ -281,10 +281,10 @@ namespace FDG.Stages
             UnitData? hero = units.FirstOrDefault(u => u.ID.ID.ToString() == q.EventHero);
             switch (ev)
             {
-                case 32: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Save, -1, ELifetime.ThisRound, context); break;
-                case 33: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Hit, -1, ELifetime.ThisRound, context); break;
+                case 32: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Save, -1, ELifetime.ThisRound, context, EventNames[32]); break;
+                case 33: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Hit, -1, ELifetime.ThisRound, context, EventNames[33]); break;
                 case 35: foreach (UnitData u in units) QuestTreasure.GrantRule(context, u, u, "-6\" range when shooting", ELifetime.ThisRound); break;
-                case 36: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Morale, -1, ELifetime.ThisRound, context); break;
+                case 36: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Morale, -1, ELifetime.ThisRound, context, EventNames[36]); break;
                 case 31:
                     // Crumbling Earth: units that start the round in that quarter take a dangerous terrain test.
                     foreach (UnitData u in units.Where(u => InQuarter(u, q.EventQuarter)))
@@ -303,12 +303,12 @@ namespace FDG.Stages
             if (hero == null) return;
             switch (ev)
             {
-                case 41: QuestActions.Grant(hero, hero, ERollKind.Morale, 1, ELifetime.ThisRound, context); break;
+                case 41: QuestActions.Grant(hero, hero, ERollKind.Morale, 1, ELifetime.ThisRound, context, EventNames[41]); break;
                 case 44: QuestTreasure.GrantRule(context, hero, hero, "Increased Shooting Range", ELifetime.ThisRound); break;
                 case 52: QuestTreasure.GrantRule(context, hero, hero, "Fast", ELifetime.ThisRound); break;
                 case 53: QuestTreasure.GrantRule(context, hero, hero, "+1 to hit rolls in melee", ELifetime.ThisRound); break;
                 case 55: QuestTreasure.GrantRule(context, hero, hero, "+1 to hit rolls when shooting", ELifetime.ThisRound); break;
-                case 56: QuestActions.Grant(hero, hero, ERollKind.Save, 1, ELifetime.ThisRound, context); break;
+                case 56: QuestActions.Grant(hero, hero, ERollKind.Save, 1, ELifetime.ThisRound, context, EventNames[56]); break;
             }
         }
 

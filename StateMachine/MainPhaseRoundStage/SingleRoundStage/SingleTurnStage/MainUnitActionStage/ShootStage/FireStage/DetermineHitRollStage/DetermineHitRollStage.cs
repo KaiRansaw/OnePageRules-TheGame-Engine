@@ -118,10 +118,14 @@ namespace FDG.Stages
             // #033 granted "+X to hit" buffs on the attacker (one-shot / duration) fold in with the same
             // sign convention; one-shot ("next time") grants are consumed by this roll - skipped while
             // fatigued so the buff carries over to the attacker's next (non-fatigued) attack instead.
+            // #407: ConsumeDetailed, not ConsumeNet - the itemised buffs are read BEFORE the one-shot
+            // grants are drained, so a "next roll" buff can still name itself on the roll it is spent on.
             int grantedNet = 0;
+            IReadOnlyList<GrantedModifier> grantedDetail = Array.Empty<GrantedModifier>();
             if (!fatiguedInMelee)
             {
-                grantedNet = GrantedRollModifiers.ConsumeNet(metaData.AttackingUnit.GetValue(), ERollKind.Hit);
+                (grantedNet, grantedDetail) = GrantedRollModifiers.ConsumeDetailed(
+                    metaData.AttackingUnit.GetValue(), ERollKind.Hit);
                 results.HitRollNeeded -= grantedNet;
             }
 
@@ -146,11 +150,14 @@ namespace FDG.Stages
             if (QuestActions.IsQuestGame(GameContext))
             {
                 float questDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _, includeVertical: true);
-                int questNet = QuestFlags.OnAttack(GameContext, attacker, defender, metaData.IsMelee, questDistance, metaData.IsCharging);
-                if (!fatiguedInMelee && questNet != 0)
+                FDG.StateMachine.QuestAttackModifiers quest = QuestFlags.OnAttack(GameContext, attacker, defender,
+                    metaData.IsMelee, questDistance, metaData.IsCharging);
+                if (!fatiguedInMelee && quest.Net != 0)
                 {
-                    results.HitRollNeeded -= questNet;
-                    grantedNet += questNet;
+                    results.HitRollNeeded -= quest.Net;
+                    // #407: carried as named entries rather than summed into grantedNet, so the chips can
+                    // say "Vengeful Strike +1" instead of lumping it into a generic "buff".
+                    grantedDetail = grantedDetail.Concat(quest.HitModifiers).ToList();
                 }
             }
 
@@ -165,7 +172,7 @@ namespace FDG.Stages
             }
 
             results.ThresholdTags = ComposeThresholdTags(baseQuality, named, grantedNet, fatiguedInMelee,
-                markerNet);
+                markerNet, grantedDetail);
 
             await onFinished(results);
         }
@@ -174,9 +181,14 @@ namespace FDG.Stages
         // extended beat) when the threshold is just the unmodified quality; otherwise the base plus
         // one chip per named contribution, so "Quality 4+ | Stealth -1" reads as the arithmetic behind
         // the badge's "5+". Internal for tests.
+        /// <param name="grantedDetail">#407: the granted buffs itemised by source (skills, items, spells,
+        /// random events). When supplied, each is named on its own chip - "Vengeful Strike +1" - instead
+        /// of collapsing into one "buff" chip, which is what made it impossible to tell from play whether
+        /// a particular skill had fired. Falls back to the summed chip when empty, so a caller without
+        /// the detail (the pre-roll forecast) still reads correctly.</param>
         internal static List<string>? ComposeThresholdTags(int baseQuality,
             IReadOnlyList<(RuleOperation Op, string RuleName)> named, int grantedNet, bool fatiguedInMelee,
-            int markerNet = 0)
+            int markerNet = 0, IReadOnlyList<GrantedModifier>? grantedDetail = null)
         {
             List<string> tags = new List<string> { $"Quality {baseQuality}+" };
             foreach ((RuleOperation op, string ruleName) in named)
@@ -185,7 +197,17 @@ namespace FDG.Stages
                     continue;
                 tags.Add($"{RollTags.NameOr(ruleName, "modifier")} {RollTags.Delta(mod.Delta)}");
             }
-            if (grantedNet != 0) tags.Add($"buff {RollTags.Delta(grantedNet)}");
+            if (grantedDetail is { Count: > 0 })
+            {
+                foreach (GrantedModifier granted in grantedDetail)
+                {
+                    if (granted.Delta != 0) tags.Add(granted.Describe());
+                }
+            }
+            else if (grantedNet != 0)
+            {
+                tags.Add($"buff {RollTags.Delta(grantedNet)}");
+            }
             if (markerNet != 0) tags.Add($"markers {RollTags.Delta(markerNet)}");
             if (fatiguedInMelee) tags.Add("Fatigued: 6s only");
 

@@ -45,10 +45,23 @@ public abstract record TokenPayload
     /// Records a one-shot/duration numeric roll modifier granted to the bearer (#033 stat-modifier
     /// primitive) — a "+1 to hit / -1 to defense / -1 to morale" buff or debuff. The roll it applies to is
     /// the carrying token's <see cref="Foundation.TokenType"/> (HitRollModifier / SaveRollModifier /
-    /// MoraleRollModifier), so this payload carries only the signed <see cref="Delta"/> — keeping
-    /// <c>Tokens</c> independent of <c>ERollKind</c> (which lives in <c>Definitions</c>).
+    /// MoraleRollModifier), so this payload does not name the roll — keeping <c>Tokens</c> independent of
+    /// <c>ERollKind</c> (which lives in <c>Definitions</c>).
+    ///
+    /// <para><paramref name="Source"/> (#407) is what granted the buff - a rule, skill, item or random
+    /// event name - so the roll stages can say "Vengeful Strike +1" instead of a bare "buff +1". Kai's
+    /// QA complaint was exactly this: with ~120 skills built there was no way to tell from play whether
+    /// one had fired. Optional, and null in two cases: a save written before this field existed, and a
+    /// grant from a call site that has not been given its name yet (those still read "buff").</para>
+    ///
+    /// <para>Note this widens the token MERGE key, since <c>TokenContainer.AddToken</c> matches on payload
+    /// equality: two +1 hit buffs from different sources now stay separate entries instead of collapsing
+    /// into one count. That is deliberate and matches the reasoning already recorded there for
+    /// <see cref="RuleGrant"/> — distinct things must stay distinct or the provenance is lost. The net
+    /// delta <c>GrantedRollModifiers</c> computes is unchanged either way, since it sums
+    /// <c>Delta * Count</c> across every matching token.</para>
     /// </summary>
-    public sealed record StatModifier(int Delta) : TokenPayload;
+    public sealed record StatModifier(int Delta, string? Source = null) : TokenPayload;
 
     /// <summary>
     /// #032 Limited: names the once-per-game weapon a <see cref="Foundation.TokenType.LimitedSpent"/> token

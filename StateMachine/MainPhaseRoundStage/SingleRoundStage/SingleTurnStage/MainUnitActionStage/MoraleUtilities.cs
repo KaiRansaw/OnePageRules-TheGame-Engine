@@ -96,7 +96,10 @@ namespace FDG.Stages
             modifiers.ApplyFrom(named.Select(n => n.Op).ToList());
             // #033 granted morale modifiers (e.g. a spell's "-1 to morale" debuff) fold in with the same
             // sign; one-shot ("next time") grants are consumed by this test.
-            int grantedNet = GrantedRollModifiers.ConsumeNet(testingUnit, ERollKind.Morale);
+            // #407: itemised, so a morale buff/debuff names its source ("Fortitude +6", "Dazing Spores
+            // -1") rather than showing as a bare "buff". Read before the one-shot grants drain.
+            (int grantedNet, IReadOnlyList<GrantedModifier> grantedDetail) =
+                GrantedRollModifiers.ConsumeDetailed(testingUnit, ERollKind.Morale);
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
                 - grantedNet);
 
@@ -110,7 +113,7 @@ namespace FDG.Stages
             await gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(initialRoll, rollNeeded,
                 $"{testingUnit.Name} - Morale Test",
                 passedInitial ? "Passed" : "Failed",
-                modifierTags: ComposeMoraleTags(baseRollNeeded, named, grantedNet)));
+                modifierTags: ComposeMoraleTags(baseRollNeeded, named, grantedNet, grantedDetail)));
             if (passedInitial)
             {
                 return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: false);
@@ -241,8 +244,11 @@ namespace FDG.Stages
         // #245: the morale beat's modifier chips - base quality plus each named morale modifier and any
         // granted debuff/buff. Null (no chips, no extended beat) when the test is unmodified.
         // Internal for tests.
+        /// <param name="grantedDetail">#407: the granted morale modifiers itemised by source. Empty
+        /// falls back to the summed "buff" chip.</param>
         internal static List<string>? ComposeMoraleTags(int baseRollNeeded,
-            IReadOnlyList<(RuleOperation Op, string RuleName)> named, int grantedNet)
+            IReadOnlyList<(RuleOperation Op, string RuleName)> named, int grantedNet,
+            IReadOnlyList<GrantedModifier>? grantedDetail = null)
         {
             List<string> tags = new List<string> { $"Quality {baseRollNeeded}+" };
             foreach ((RuleOperation op, string ruleName) in named)
@@ -251,7 +257,17 @@ namespace FDG.Stages
                     continue;
                 tags.Add($"{RollTags.NameOr(ruleName, "modifier")} {RollTags.Delta(mod.Delta)}");
             }
-            if (grantedNet != 0) tags.Add($"buff {RollTags.Delta(grantedNet)}");
+            if (grantedDetail is { Count: > 0 })
+            {
+                foreach (GrantedModifier granted in grantedDetail)
+                {
+                    if (granted.Delta != 0) tags.Add(granted.Describe());
+                }
+            }
+            else if (grantedNet != 0)
+            {
+                tags.Add($"buff {RollTags.Delta(grantedNet)}");
+            }
 
             return tags.Count > 1 ? tags : null;
         }

@@ -842,10 +842,10 @@ namespace FDG.Stages
         {
             switch (injury)
             {
-                case "Chest Wound": QuestActions.Grant(hero, hero, ERollKind.Save, -1, ELifetime.UntilEndOfGame, context); break;
+                case "Chest Wound": QuestActions.Grant(hero, hero, ERollKind.Save, -1, ELifetime.UntilEndOfGame, context, "Chest Wound"); break;
                 case "Blinded Eye":
-                    QuestActions.Grant(hero, hero, ERollKind.Hit, -1, ELifetime.UntilEndOfGame, context);
-                    QuestActions.Grant(hero, hero, ERollKind.Morale, -1, ELifetime.UntilEndOfGame, context);
+                    QuestActions.Grant(hero, hero, ERollKind.Hit, -1, ELifetime.UntilEndOfGame, context, "Blinded Eye");
+                    QuestActions.Grant(hero, hero, ERollKind.Morale, -1, ELifetime.UntilEndOfGame, context, "Blinded Eye");
                     break;
                 case "Smashed Leg": QuestTreasure.GrantRule(context, hero, hero, "Slow", ELifetime.UntilEndOfGame); break;
             }

@@ -125,11 +125,26 @@ public abstract record Effect
         {
             operations.Add(new RuleOperation.GrantTokenToUnit(
                 ruleInvocation.EffectiveTarget,
-                new Token(RollModifierTokens.TypeFor(Roll), 1, ClearTriggerFor(LifetimeScope),
-                    Payload: new TokenPayload.StatModifier(Delta),
-                    OwnerUnitID: ruleInvocation.OwnerForEffectiveTarget)));
+                // #407: the firing rule's own name rides along as the buff's source, so the roll stage
+                // can attribute it. Alias-aware by construction - Definition is the resolved rule, so an
+                // army that renames a buff shows its own name.
+                BuildStatModifierToken(Roll, Delta, LifetimeScope,
+                    ruleInvocation.Definition?.Name, ruleInvocation.OwnerForEffectiveTarget)));
         }
     }
+
+    /// <summary>
+    /// #407: builds a granted roll-modifier token, with <paramref name="source"/> recorded as what
+    /// granted it. The single place that maps a lifetime onto a clear trigger for this token family -
+    /// shared by <see cref="StatModifier"/> (rule-driven buffs, which take the firing rule's name) and
+    /// <c>QuestActions.Grant</c> (Star Quest / Firefight campaign buffs, which pass their skill, item or
+    /// event name explicitly, having no <see cref="SpecialRuleDefinition"/> to read).
+    /// </summary>
+    internal static Token BuildStatModifierToken(ERollKind roll, int delta, ELifetime lifetime,
+        string? source, UnitID? ownerUnitID) =>
+        new Token(RollModifierTokens.TypeFor(roll), 1, ClearTriggerFor(lifetime),
+            Payload: new TokenPayload.StatModifier(delta, source),
+            OwnerUnitID: ownerUnitID);
 
     /// <summary>
     /// Adds or subtracts <see cref="Delta"/> to a single dice roll of the given

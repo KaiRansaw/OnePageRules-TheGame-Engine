@@ -166,7 +166,7 @@ namespace FDG.Stages
         private static async Task DefenseX(IGameContext c, UnitData h, string skill)
         {
             int x = await SpendX(c, h, skill, "+X+1 to Defense the next time it takes hits.");
-            QuestActions.Grant(h, h, ERollKind.Save, x + 1, ELifetime.NextTrigger, c);
+            QuestActions.Grant(h, h, ERollKind.Save, x + 1, ELifetime.NextTrigger, c, skill);
             await Toast(c, $"{h.Name}: +{x + 1} to Defense the next time it takes hits.");
         }
 
@@ -249,7 +249,7 @@ namespace FDG.Stages
             new("Persuade", 2, "Pick one enemy unit within 12\", which must take a morale test. If failed, it gets -2 to hit until the end of the round.",
                 NeedsEnemy(12f), (c, h) => MoraleThen(c, h, "Persuade", 12f, 1, async e =>
                 {
-                    QuestActions.Grant(h, e, ERollKind.Hit, -2, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, e, ERollKind.Hit, -2, ELifetime.ThisRound, c, "Persuade");
                     await Toast(c, $"Persuade: {e.Name} gets -2 to hit this round.");
                 })),
             new("Repelling Song", 0, "Pick two enemy units within 9\", which must take a morale test. If failed, they are pushed 6\" directly away.",
@@ -263,7 +263,7 @@ namespace FDG.Stages
                 {
                     foreach (UnitData u in await PickFriends(c, h, "Motivate", 9f, 1, false))
                     {
-                        QuestActions.Grant(h, u, ERollKind.Hit, 2, ELifetime.NextTrigger, c);
+                        QuestActions.Grant(h, u, ERollKind.Hit, 2, ELifetime.NextTrigger, c, "Motivate");
                         await Toast(c, $"Motivate: {u.Name} gets +2 to hit the next time it attacks.");
                     }
                 }),
@@ -272,7 +272,7 @@ namespace FDG.Stages
                 {
                     foreach (UnitData u in await PickFriends(c, h, "Warding Song", 9f, 1, false))
                     {
-                        QuestActions.Grant(h, u, ERollKind.Save, 2, ELifetime.NextTrigger, c);
+                        QuestActions.Grant(h, u, ERollKind.Save, 2, ELifetime.NextTrigger, c, "Warding Song");
                         await Toast(c, $"Warding Song: {u.Name} gets +2 to Defense the next time it takes hits.");
                     }
                 }),
@@ -304,7 +304,7 @@ namespace FDG.Stages
                 {
                     foreach (UnitData u in await PickFriends(c, h, "Bless", 6f, 1, false))
                     {
-                        QuestActions.Grant(h, u, ERollKind.Hit, 1, ELifetime.ThisRound, c);
+                        QuestActions.Grant(h, u, ERollKind.Hit, 1, ELifetime.ThisRound, c, "Bless");
                         await Toast(c, $"Bless: {u.Name} gets +1 to hit this round.");
                     }
                 }),
@@ -557,13 +557,13 @@ namespace FDG.Stages
                 {
                     await CasualtyPresentation.ApplyUnitWounds(c, h, 1f);
                     if (!h.GetIsAlive()) return;
-                    QuestActions.Grant(h, h, ERollKind.Cast, 1, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Cast, 1, ELifetime.ThisRound, c, "Pact of Wisdom");
                     await Flag(c, h, QuestFlags.Wisdom, "+1 to casting, and its counter-spells give the enemy an extra -1, this round");
                 }),
             new("Fey Curse", 1, "Pick one enemy unit within 12\", which must take a morale test. If failed, it gets -2 to hit until the end of the round.",
                 NeedsEnemy(12f), (c, h) => MoraleThen(c, h, "Fey Curse", 12f, 1, async e =>
                 {
-                    QuestActions.Grant(h, e, ERollKind.Hit, -2, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, e, ERollKind.Hit, -2, ELifetime.ThisRound, c, "Fey Curse");
                     await Toast(c, $"Fey Curse: {e.Name} gets -2 to hit this round.");
                 })),
             new("Dark Sacrifice", 0, "The hero takes 1 wound, and then deals 1 wound to one enemy unit within 6\".",
@@ -653,7 +653,7 @@ namespace FDG.Stages
             new("Fortitude", 2, "The hero automatically passes all morale tests until the end of the round.",
                 Always, async (c, h) =>
                 {
-                    QuestActions.Grant(h, h, ERollKind.Morale, 6, ELifetime.ThisRound, c);
+                    QuestActions.Grant(h, h, ERollKind.Morale, 6, ELifetime.ThisRound, c, "Fortitude");
                     await Toast(c, $"{h.Name} passes all morale tests this round.");
                 }),
             new("Unstoppable", 0, "The hero doesn't get fatigued until the end of the round.", Always, async (c, h) =>

@@ -92,12 +92,31 @@ namespace FDG.Tests
             UnitData enemy = Unit(_enemies, "Enemy", hero: false);
             QuestFlags.Set(_context, hero, QuestFlags.Vengeful);
 
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: true, 0f), Is.EqualTo(0), "not Shaken");
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: true, 0f).Net, Is.EqualTo(0), "not Shaken");
             enemy.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: true, 0f), Is.EqualTo(1));
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 10f), Is.EqualTo(1));
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f), Is.EqualTo(0), "shooting from over 12\"");
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: true, 0f).Net, Is.EqualTo(1));
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 10f).Net, Is.EqualTo(1));
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f).Net, Is.EqualTo(0), "shooting from over 12\"");
             Assert.That(QuestFlags.Has(_context, hero, QuestFlags.Vengeful), Is.True, "lasts the whole round");
+        }
+
+        // #407: the point of itemising OnAttack's return - the contribution names itself, so the Battle
+        // Report can say "Vengeful Strike +1" rather than a generic "buff +1". That generic chip is what
+        // left Kai unable to tell from play whether the skill had fired at all.
+        [Test]
+        public void VengefulStrike_NamesItselfInItsContribution()
+        {
+            UnitData hero = Unit(_heroes, "Hero", hero: true);
+            UnitData enemy = Unit(_enemies, "Enemy", hero: false);
+            QuestFlags.Set(_context, hero, QuestFlags.Vengeful);
+            enemy.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
+
+            QuestAttackModifiers result = QuestFlags.OnAttack(_context, hero, enemy, melee: true, 0f);
+
+            Assert.That(result.HitModifiers.Count, Is.EqualTo(1));
+            Assert.That(result.HitModifiers[0].Source, Is.EqualTo("Vengeful Strike"));
+            Assert.That(result.HitModifiers[0].Delta, Is.EqualTo(1));
+            Assert.That(result.HitModifiers[0].Describe(), Is.EqualTo("Vengeful Strike +1"));
         }
 
         [Test]
@@ -139,14 +158,14 @@ namespace FDG.Tests
             UnitData enemy = Unit(_enemies, "Enemy", hero: false);
 
             QuestFlags.Set(_context, hero, QuestFlags.Elude);
-            Assert.That(QuestFlags.OnAttack(_context, enemy, hero, melee: true, 0f), Is.EqualTo(-1), "Elude: -1 to hit the hero in melee");
-            Assert.That(QuestFlags.OnAttack(_context, enemy, hero, melee: false, 20f), Is.EqualTo(0), "not from over 12\"");
+            Assert.That(QuestFlags.OnAttack(_context, enemy, hero, melee: true, 0f).Net, Is.EqualTo(-1), "Elude: -1 to hit the hero in melee");
+            Assert.That(QuestFlags.OnAttack(_context, enemy, hero, melee: false, 20f).Net, Is.EqualTo(0), "not from over 12\"");
 
             QuestFlags.Set(_context, hero, QuestFlags.HunterMark, $"{QuestFlags.Id(enemy)}:2");
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f), Is.EqualTo(2), "Hunter's Mark +D3 (2) on the marked enemy");
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f).Net, Is.EqualTo(2), "Hunter's Mark +D3 (2) on the marked enemy");
 
             QuestFlags.Set(_context, enemy, QuestFlags.GuidingBolt, QuestFlags.Id(hero));
-            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f), Is.EqualTo(3), "Guiding Bolt adds +1 for the hero's side");
+            Assert.That(QuestFlags.OnAttack(_context, hero, enemy, melee: false, 20f).Net, Is.EqualTo(3), "Guiding Bolt adds +1 for the hero's side");
         }
 
         [Test]
