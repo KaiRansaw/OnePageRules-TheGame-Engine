@@ -12,9 +12,20 @@ namespace FDG.Campaign
         public string Name { get; set; } = "";
         /// <summary>Victory points: 2 per won mission.</summary>
         public int Vp { get; set; }
-        /// <summary>Points saved up to spend on upgrades and recruits.</summary>
+        /// <summary>The treasury: points available to spend on upgrades and recruits.</summary>
         public int BankedPoints { get; set; }
         public int Matches { get; set; }
+        /// <summary>
+        /// Which Campaign Rules v3.6.0 price list this army plays under. Defaults to
+        /// <see cref="EGameSystem.GrimdarkFuture"/> (0), so a strike team file written before the 3.6
+        /// move loads without a game system and must be read as Firefight by whoever opened it - the
+        /// Firefight campaign screen passes its own numbers explicitly for exactly that reason.
+        /// </summary>
+        public EGameSystem GameSystem { get; set; } = EGameSystem.GrimdarkFuture;
+        /// <summary>The campaign's end condition. Only <see cref="ECampaignType.Endless"/> is wired up.</summary>
+        public ECampaignType CampaignType { get; set; } = ECampaignType.Endless;
+        /// <summary>True for an army the bot runs, so the campaign screen can spend its treasury for it.</summary>
+        public bool IsBot { get; set; }
         /// <summary>One line per finished match, newest last.</summary>
         public List<string> History { get; set; } = new();
     }

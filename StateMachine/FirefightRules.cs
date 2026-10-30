@@ -39,8 +39,8 @@ namespace FDG.Stages
         {
             int wounds = (int)MathF.Round(woundsIn, MidpointRounding.AwayFromZero);
             if (wounds <= 0 || !unit.GetIsAlive()) return 0;
-            wounds -= FirefightCampaign.HerbalistIgnores(c, unit, wounds);
-            if (wounds <= 0) return 0;
+            // The v3.5.1 Herbalist let nearby friends ignore wounds on a 6. In Campaign Rules v3.6.0
+            // Herbalist is +1 to Defense rolls in melee - an ordinary rule - so nothing happens here.
 
             int killed = 0;
             List<IModel> living = (order ?? Enumerable.Empty<IModel>()).Concat(unit.Models)
@@ -69,12 +69,12 @@ namespace FDG.Stages
 
             bool shaken = unit.Tokens.HasToken(TokenType.Shaken);
             int fear = melee && attacker != null ? FearValue(attacker) : 0;
-            int campaign = FirefightCampaign.WoundRollModifier(c, unit, attacker, melee);
+            // The v3.5.1 Berserker and Chemist shifted this roll. Campaign Rules v3.6.0 replaced both
+            // with ordinary rules, so the wound effect roll has no campaign modifier. See WorkItems/410.
             int die = c.DiceRoller.RollDecisiveFace();
-            int total = die + markers + (shaken ? 1 : 0) + fear + campaign;
+            int total = die + markers + (shaken ? 1 : 0) + fear;
             int needed = 5 + tough;
-            string parts = $"rolled {die} + {markers} marker(s)" + (shaken ? " + 1 Shaken" : "") + (fear > 0 ? $" + {fear} Fear" : "")
-                + (campaign != 0 ? $" {campaign:+0;-0} campaign skills" : "");
+            string parts = $"rolled {die} + {markers} marker(s)" + (shaken ? " + 1 Shaken" : "") + (fear > 0 ? $" + {fear} Fear" : "");
             if (total >= needed)
             {
                 c.Log($"Wound effect: {unit.Name} {parts} = {total} (out on {needed}+) - Knocked Out.");

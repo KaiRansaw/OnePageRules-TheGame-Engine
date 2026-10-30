@@ -58,7 +58,7 @@ public static class CoreRuleCatalog
         TraitElite, TraitFastLearner,
         HitPenaltyWhenShooting, HitPenaltyInMelee, RangePenaltyWhenShooting,
         ExtraHitCloseUp, ExtraHitInMelee, ExtraHitWhenShooting, ExtraHitAny, TwoExtraHits,
-    }.Concat(CampaignRuleCatalog.All).ToArray();
+    }.Concat(Campaign36RuleCatalog.All).ToArray();
 
     /// <summary>
     /// A fresh <see cref="RuleResolver"/> with every catalog rule registered under

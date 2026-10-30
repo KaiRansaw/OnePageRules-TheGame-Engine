@@ -78,12 +78,9 @@ namespace FDG.Stages
             // clearing at end of activation — nothing reads Shaken between now and end-of-turn, and
             // objectives reconcile at end of round. (#008)
             // Star Quest: status conditions are checked when the hero activates (Afflicted, Crippled...).
-            // GF: Firefight Campaign: auras of friendly heroes within 6" (Leader, Instigator...) and Warden.
-            if (!context.CampaignActivationChecked && FirefightRules.IsSkirmishGame(GameContext))
-            {
-                context.CampaignActivationChecked = true;
-                await FirefightCampaign.OnActivated(GameContext, context.ActivatingUnit.GetValue());
-            }
+            // Campaign hero skills used to be applied here (the v3.5.1 Firefight auras). Campaign Rules
+            // v3.6.0 has no activation-time hero auras - its skills are ordinary rule definitions or
+            // once-per-game effects - so there is nothing to do on activation any more. See WorkItems/410.
 
             if (!context.QuestActivationChecked && QuestActions.IsQuestGame(GameContext))
             {

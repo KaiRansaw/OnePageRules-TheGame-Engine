@@ -143,9 +143,9 @@ namespace FDG.Stages
 
             // Star Quest (Vengeful Strike +1 to hit a Shaken enemy; Dread Attack / Martial Strike note the
             // target). Shown with the granted modifiers on the dice beat.
-            // GF: Firefight Campaign hero skills and talents (Mastermind, Suppressor, Crazed).
-            if (FirefightRules.IsSkirmishGame(GameContext))
-                FirefightCampaign.OnAttack(GameContext, attacker, defender, metaData.IsMelee, metaData.IsCharging);
+            // Campaign hero skills and talents used to be applied here (the v3.5.1 Firefight Mastermind,
+            // Suppressor and Crazed). In Campaign Rules v3.6.0 all three are ordinary rule definitions or
+            // once-per-game markers, so the rules engine handles them. See WorkItems/410.
 
             if (QuestActions.IsQuestGame(GameContext))
             {

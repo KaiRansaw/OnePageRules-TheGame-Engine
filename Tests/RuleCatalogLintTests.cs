@@ -44,23 +44,26 @@ namespace FDG.Tests
                 "TakeMoraleTest reads its grant (HordeExperience.TryUseElite) for the once-per-round re-roll.",
             ["Trait: Fast Learner"] = "engine-marker: Horde Mode bookkeeping only - records that the unit " +
                 "picked a trait (HordeExperience.LevelUp); it has no effect of its own by design.",
-            ["Talent: Motivated"] = "engine-marker: GF: Firefight Campaign - MoraleUtilities.TakeMoraleTest (FirefightCampaign.UseMotivated) passes the first morale test.",
-            ["Talent: Crazed"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack grants an extra hit on a charge.",
-            ["Talent: Toughened"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules writes Tough(+1) into the unit's file.",
-            ["Talent: Natural Talent"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules adds the +1 XP.",
-            ["Skill: Leader"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
-            ["Skill: Instigator"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
-            ["Skill: Tactician"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
-            ["Skill: Vanguard"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
-            ["Skill: Scavenger"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated grants the aura to friendly units within 6\".",
-            ["Skill: Mastermind"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack gives nearby enemies -1 Defense.",
-            ["Skill: Fanatic"] = "engine-marker: GF: Firefight Campaign - bookkeeping only - StrikeTeamRules writes +1 attack into the hero's melee weapon.",
-            ["Skill: Berserker"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.WoundRollModifier adds +1 to the wound effect roll.",
-            ["Skill: Suppressor"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnAttack gives the target -1 to hit when shooting.",
-            ["Skill: Climber"] = "engine-marker: GF: Firefight Campaign - no effect in this game (no jumping) - kept so the campaign skill shows on the unit.",
-            ["Skill: Chemist"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.WoundRollModifier gives nearby friends -1 to the wound effect roll.",
-            ["Skill: Herbalist"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.HerbalistIgnores lets nearby friends ignore wounds on a 6.",
-            ["Skill: Warden"] = "engine-marker: GF: Firefight Campaign - FirefightCampaign.OnActivated stops nearby friends being Shaken.",
+            // Campaign Rules v3.6.0 hero traits (#410). Eleven of the eighteen hero skills are
+            // "once per game" effects, which the engine has no general per-unit offer for (the same
+            // gap already recorded for Trait: Elite), or need a hook context it does not expose. They
+            // are markers on purpose: named and described so they show on the unit card and in the
+            // Battle Report, with no mechanical effect, rather than silently doing the wrong thing.
+            ["Talent: Toughened"] = "engine-marker (#410): bookkeeping only - CampaignRules writes Tough(+3) into the unit's file.",
+            ["Talent: Natural Talent"] = "engine-marker (#410): bookkeeping only - CampaignRules adds the +1 XP.",
+            ["Skill: Explorer"] = "not-wired (#410): once per game, ignores Difficult and Dangerous terrain - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Motivator"] = "not-wired (#410): +1 to Morale Test rolls triggered by shooting - a morale test does not record what triggered it.",
+            ["Skill: Leader"] = "not-wired (#410): +1 to Morale Test rolls in melee - a morale test does not record what triggered it.",
+            ["Skill: Idol"] = "not-wired (#410): once per game, may ignore becoming Shaken - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Duellist"] = "not-wired (#410): AP(+1) in melee when charged - a melee strike-back does not record that this unit was the one charged.",
+            ["Skill: Berserker"] = "not-wired (#410): once per game, may ignore becoming Fatigued - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Suppressor"] = "not-wired (#410): AP(+1) when using Hold and shooting - the Defense roll's context does not carry whether the attacker moved.",
+            ["Skill: Destroyer"] = "not-wired (#410): AP(+1) when using move actions and shooting - the Defense roll's context does not carry whether the attacker moved.",
+            ["Skill: Sharpshooter"] = "not-wired (#410): once per game, +12\" range when shooting - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Healer"] = "not-wired (#410): once per game, restore D3 models/wounds on activation - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Tactician"] = "not-wired (#410): once per game, re-roll one roll of any kind in melee - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Strategist"] = "not-wired (#410): once per game, re-roll one roll of any kind when shooting - needs a per-unit once-per-game offer the engine does not have.",
+            ["Skill: Mastermind"] = "not-wired (#410): once per game, force an enemy re-roll when targeted - needs a per-unit once-per-game offer the engine does not have.",
             ["Self-Destruct"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name, deals X hits per participating model and self-kills any survivor (#197 P11).",
             ["Assault"] = "engine-marker (#409, OPR 3.6.0): no dispatch entries - which attack pool a weapon " +

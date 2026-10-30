@@ -62,9 +62,9 @@ namespace FDG.Stages
         public static async Task<MoraleTestOutcome> TakeMoraleTest(IGameContext gameContext, IUnit testingUnit,
             int baseRollNeeded, bool failureCausesShakenOrRout = false)
         {
-            // GF: Firefight Campaign talent Motivated: the first morale test of the match is passed.
-            if (FirefightCampaign.UseMotivated(gameContext, testingUnit))
-                return new MoraleTestOutcome(passed: true, baseRollNeeded, passedViaReroll: false);
+            // The v3.5.1 Firefight talent Motivated auto-passed the first morale test of the match. In
+            // Campaign Rules v3.6.0 Motivated is a plain +1 to Morale Test rolls, which is an ordinary
+            // rule definition, so there is no special case here any more. See WorkItems/410.
             // Star Quest: AI units within 12" of a Villain may test on the Villain's Quality if it's better.
             if (QuestActions.IsQuestGame(gameContext))
                 baseRollNeeded = QuestChallenges.VillainMorale(gameContext, testingUnit, baseRollNeeded);
