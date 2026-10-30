@@ -296,23 +296,61 @@ public class OprListImporterTests
         Assert.That(Import().Army.GameSystem, Is.EqualTo(GameSystems.GrimdarkFuture));
     }
 
-    // A Firefight list imports as a Grimdark Future army, which is what a GF: Firefight lobby asks
-    // for. Before this, 'gff' was refused and no Firefight army could be got into the game at all.
+    // #406: a Firefight list keeps its OWN system. OPR publishes a separate book per system, so a
+    // Firefight army is not a Grimdark Future army and must not be offered as one.
     [Test]
-    public void Import_FirefightList_ImportsAsGrimdarkFutureArmy()
+    public void Import_FirefightList_KeepsItsOwnSystem()
     {
         string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"gff\"");
         OprListImportResult result = OprListImporter.Import(json, Books);
-        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.GrimdarkFuture));
+        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.GFFirefight));
     }
 
-    // The same for AoF: Skirmish onto Age of Fantasy.
     [Test]
-    public void Import_SkirmishList_ImportsAsAgeOfFantasyArmy()
+    public void Import_SkirmishList_KeepsItsOwnSystem()
     {
         string json = ListJson.Replace("\"gameSystem\": \"gf\"", "\"gameSystem\": \"aofs\"");
         OprListImportResult result = OprListImporter.Import(json, Books);
-        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.AgeOfFantasy));
+        Assert.That(result.Army.GameSystem, Is.EqualTo(GameSystems.AoFSkirmish));
+    }
+
+    // The point of keeping the slug: a Grimdark Future army must NOT pass a Firefight lobby's
+    // filter, and vice versa. Kai, 2026-10-29: strict, no warnings, no allow-anyway.
+    [Test]
+    public void GrimdarkFutureArmy_IsRefusedByAFirefightLobby()
+    {
+        EAllowedGameSystems firefight = GameSystemInfo.ArmySource(EGameSystem.GFFirefight);
+        Assert.That(GameSystems.IsAllowed(firefight, GameSystems.GrimdarkFuture), Is.False);
+        Assert.That(GameSystems.IsAllowed(firefight, GameSystems.GFFirefight), Is.True);
+    }
+
+    [Test]
+    public void FirefightArmy_IsRefusedByAGrimdarkFutureLobby()
+    {
+        EAllowedGameSystems grimdark = GameSystemInfo.ArmySource(EGameSystem.GrimdarkFuture);
+        Assert.That(GameSystems.IsAllowed(grimdark, GameSystems.GFFirefight), Is.False);
+        Assert.That(GameSystems.IsAllowed(grimdark, GameSystems.GrimdarkFuture), Is.True);
+    }
+
+    [Test]
+    public void SkirmishAndAgeOfFantasy_DoNotAcceptEachOther()
+    {
+        EAllowedGameSystems skirmish = GameSystemInfo.ArmySource(EGameSystem.AoFSkirmish);
+        EAllowedGameSystems fantasy = GameSystemInfo.ArmySource(EGameSystem.AgeOfFantasy);
+        Assert.That(GameSystems.IsAllowed(skirmish, GameSystems.AgeOfFantasy), Is.False);
+        Assert.That(GameSystems.IsAllowed(fantasy, GameSystems.AoFSkirmish), Is.False);
+        Assert.That(GameSystems.IsAllowed(skirmish, GameSystems.AoFSkirmish), Is.True);
+    }
+
+    // Horde is a game MODE, not a system: it inherits its parent game type's armies (Kai, 2026-10-29).
+    // Asserted through ArmySource, which takes only the system - mode cannot reach it.
+    [Test]
+    public void HordeInheritsItsParentSystemsArmies()
+    {
+        Assert.That(GameSystemInfo.ArmySource(EGameSystem.GFFirefight),
+            Is.EqualTo(EAllowedGameSystems.GFFirefight));
+        Assert.That(GameSystemInfo.ArmySource(EGameSystem.GrimdarkFuture),
+            Is.EqualTo(EAllowedGameSystems.GrimdarkFuture));
     }
 
     // An imported Firefight army must actually pass the lobby filter a Firefight game applies,

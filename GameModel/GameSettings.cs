@@ -261,9 +261,26 @@ namespace FDG
 
         /// <summary>Whose armies the game is played with: the Grimdark Future games take Grimdark Future
         /// armies, the Age of Fantasy games take Age of Fantasy armies.</summary>
+        /// <summary>
+        /// #406: each game type takes ONLY its own system's armies - Kai's call, 2026-10-29: no
+        /// warnings, no allow-anyway. OPR publishes a separate book per system, with different points,
+        /// unit sizes, available units and upgrade options, so a Grimdark Future list is simply not a
+        /// legal Firefight army.
+        ///
+        /// <para>Game MODE does not appear here on purpose: Horde inherits its parent game type's
+        /// system (GF Horde takes GF armies, GFF Horde takes GFF armies), so the army source is a
+        /// property of the system alone.</para>
+        ///
+        /// <para>The Quest systems take their parent's armies: heroes come from the Hero Builder, and
+        /// the ENEMY force is a Grimdark Future / Age of Fantasy army per the Quest rules. Open
+        /// question in WorkItems/406 - confirm against GFSQ Core Rules v2.0.1 whether Star Quest
+        /// publishes its own enemy book.</para>
+        /// </summary>
         public static ArmyBuilding.EAllowedGameSystems ArmySource(EGameSystem system) => system switch
         {
-            EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish or EGameSystem.AoFQuest
+            EGameSystem.GFFirefight => ArmyBuilding.EAllowedGameSystems.GFFirefight,
+            EGameSystem.AoFSkirmish => ArmyBuilding.EAllowedGameSystems.AoFSkirmish,
+            EGameSystem.AgeOfFantasy or EGameSystem.AoFQuest
                 => ArmyBuilding.EAllowedGameSystems.AgeOfFantasy,
             _ => ArmyBuilding.EAllowedGameSystems.GrimdarkFuture,
         };

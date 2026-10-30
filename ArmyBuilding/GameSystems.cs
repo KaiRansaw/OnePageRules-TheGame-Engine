@@ -10,6 +10,16 @@ namespace FDG.ArmyBuilding
         public const string GrimdarkFuture = "grimdark-future";
         public const string AgeOfFantasy = "age-of-fantasy";
 
+        // #406: the skirmish systems are their OWN books, not a scaled version of their parent's.
+        // OPR publishes different points, unit sizes, available units and upgrade options for them -
+        // Alien Hives Assault Grunts are 105pts for 10 in Grimdark Future and 30pts for 3 in
+        // Firefight, and the Hive Lord is not in the Firefight book at all. An army therefore has to
+        // record which book it was built from; collapsing them (as the import did when Firefight
+        // lists were first accepted) silently offers a Firefight army in a Grimdark Future lobby
+        // with the wrong points.
+        public const string GFFirefight = "grimdark-future-firefight";
+        public const string AoFSkirmish = "age-of-fantasy-skirmish";
+
         /// <summary>The slug a null/empty system field means: Grimdark Future.</summary>
         public static string Normalize(string? slug) =>
             string.IsNullOrWhiteSpace(slug) ? GrimdarkFuture : slug.Trim();
@@ -25,6 +35,8 @@ namespace FDG.ArmyBuilding
         {
             GrimdarkFuture => "Grimdark Future",
             AgeOfFantasy => "Age of Fantasy",
+            GFFirefight => "GF: Firefight",
+            AoFSkirmish => "AoF: Skirmish",
             var other => other,
         };
 
@@ -36,6 +48,8 @@ namespace FDG.ArmyBuilding
         {
             EAllowedGameSystems.GrimdarkFuture => SameSystem(slug, GrimdarkFuture),
             EAllowedGameSystems.AgeOfFantasy => SameSystem(slug, AgeOfFantasy),
+            EAllowedGameSystems.GFFirefight => SameSystem(slug, GFFirefight),
+            EAllowedGameSystems.AoFSkirmish => SameSystem(slug, AoFSkirmish),
             _ => true,
         };
 
@@ -44,6 +58,8 @@ namespace FDG.ArmyBuilding
         {
             EAllowedGameSystems.GrimdarkFuture => "Grimdark Future",
             EAllowedGameSystems.AgeOfFantasy => "Age of Fantasy",
+            EAllowedGameSystems.GFFirefight => "GF: Firefight",
+            EAllowedGameSystems.AoFSkirmish => "AoF: Skirmish",
             _ => "All",
         };
     }
@@ -69,5 +85,12 @@ namespace FDG.ArmyBuilding
 
         /// <summary>Age of Fantasy only.</summary>
         AgeOfFantasy = 2,
+
+        /// <summary>GF: Firefight only (#406). Its own book - NOT Grimdark Future at a smaller
+        /// scale.</summary>
+        GFFirefight = 3,
+
+        /// <summary>AoF: Skirmish only (#406). Its own book, as above.</summary>
+        AoFSkirmish = 4,
     }
 }

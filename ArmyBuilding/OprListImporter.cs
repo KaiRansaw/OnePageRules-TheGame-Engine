@@ -42,17 +42,15 @@ namespace FDG.ArmyBuilding
         /// <summary>The OPR game systems this game implements, as the short codes a /api/tts list
         /// carries, each mapped to the slug our data records (#378).
         /// <para>
-        /// The skirmish variants map onto their parent system's slug on purpose. GF: Firefight and
-        /// AoF: Skirmish are the same core ruleset played at a smaller scale with the same unit
-        /// profiles, and <see cref="GameModel.GameSettings.ArmySource"/> already feeds
-        /// <see cref="GameModel.EGameSystem.GFFirefight"/> from Grimdark Future armies and
-        /// <see cref="GameModel.EGameSystem.AoFSkirmish"/> from Age of Fantasy armies. So a 'gff'
-        /// list imports as a Grimdark Future army and is immediately pickable in a Firefight lobby,
-        /// with no extra plumbing and no new army folder.
+        /// #406: each skirmish variant keeps its OWN slug. OPR publishes a separate book per system -
+        /// different points, unit sizes, available units and upgrade options - so a Firefight list is
+        /// not a Grimdark Future army and must not be offered as one. (An earlier pass mapped them
+        /// onto the parent slug to unblock Firefight testing; that made imported Firefight armies
+        /// show up in Grimdark Future lobbies with the wrong points, which is what this replaces.)
         /// </para>
         /// <para>
-        /// Before this, 'gff' and 'aofs' were refused outright, which made every Firefight feature
-        /// (FF1-FF3, FC1) unplayable - there was no way to get a Firefight army into the game at all.
+        /// Before any of it, 'gff' and 'aofs' were refused outright, which made every Firefight
+        /// feature (FF1-FF3, FC1) unplayable - there was no way to get a Firefight army into the game.
         /// </para>
         /// Still unsupported: the Regiments variants ('gfr'/'aofr'), which use a different scale and
         /// different unit profiles, and the Quest systems, whose heroes are built in the Hero Builder
@@ -62,8 +60,8 @@ namespace FDG.ArmyBuilding
             {
                 ["gf"] = GameSystems.GrimdarkFuture,
                 ["aof"] = GameSystems.AgeOfFantasy,
-                ["gff"] = GameSystems.GrimdarkFuture,
-                ["aofs"] = GameSystems.AgeOfFantasy,
+                ["gff"] = GameSystems.GFFirefight,
+                ["aofs"] = GameSystems.AoFSkirmish,
             };
 
         /// <summary>Cheap pre-parse of the list JSON: the identifiers the caller needs BEFORE it can fetch
