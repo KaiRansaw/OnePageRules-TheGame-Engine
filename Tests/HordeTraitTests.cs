@@ -75,14 +75,39 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void Elite_RerollIsOncePerRound()
+        public void Elite_RerollIsOncePerGame()
         {
             var (_, unit, _) = Setup(HordeExperience.Elite);
             Assert.That(HordeExperience.TryUseElite(unit), Is.True);
-            Assert.That(HordeExperience.TryUseElite(unit), Is.False, "already used this round");
+            Assert.That(HordeExperience.TryUseElite(unit), Is.False, "already used - #409 made it once per GAME");
 
             var (_, plain, _) = Setup(HordeExperience.Agile);
             Assert.That(HordeExperience.TryUseElite(plain), Is.False, "no Elite trait");
+        }
+
+        // #414: the check and the spend are separate so the re-roll can be offered before it is paid for.
+        // This is the half that would be silently wrong if they ever merged again: asking the player, and
+        // being told no, must leave the unit's one use intact for the rest of the game.
+        [Test]
+        public void Elite_AskingWithoutAccepting_DoesNotSpendTheUse()
+        {
+            var (_, unit, _) = Setup(HordeExperience.Elite);
+
+            Assert.That(HordeExperience.CanUseElite(unit), Is.True);
+            Assert.That(HordeExperience.CanUseElite(unit), Is.True,
+                "checking twice must not cost anything - a declined offer is just a check.");
+
+            HordeExperience.SpendElite(unit);
+
+            Assert.That(HordeExperience.CanUseElite(unit), Is.False, "spent now, and not again this game.");
+        }
+
+        [Test]
+        public void Elite_CanUse_IsFalseForAUnitWithoutTheTrait()
+        {
+            var (_, plain, _) = Setup(HordeExperience.Agile);
+
+            Assert.That(HordeExperience.CanUseElite(plain), Is.False);
         }
 
         [TestCase(false, false, 3)]

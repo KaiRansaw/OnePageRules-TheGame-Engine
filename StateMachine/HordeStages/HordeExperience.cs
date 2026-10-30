@@ -213,10 +213,26 @@ namespace FDG.StateMachine
         /// </summary>
         public static bool TryUseElite(IUnit unit)
         {
-            if (unit.Tokens.HasToken(TokenType.HordeEliteUsed)) return false;
-            if (!OwnedTraits(unit).Contains(Elite)) return false;
-            unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HordeEliteUsed));
+            if (!CanUseElite(unit)) return false;
+            SpendElite(unit);
             return true;
         }
+
+        /// <summary>
+        /// Whether <paramref name="unit"/> has Elite and has not spent it yet - WITHOUT spending it.
+        /// <para>
+        /// Split out from <see cref="TryUseElite"/> so the re-roll can be OFFERED before it is paid for.
+        /// Kai's standing rule is that the game never auto-picks, and a once-per-game resource spent
+        /// without asking is the sharpest version of that: the unit's single re-roll could be burned on
+        /// a morale test the player would happily have failed. Checking and spending in one call made
+        /// the prompt impossible - declining would already have cost the use.
+        /// </para>
+        /// </summary>
+        public static bool CanUseElite(IUnit unit) =>
+            !unit.Tokens.HasToken(TokenType.HordeEliteUsed) && OwnedTraits(unit).Contains(Elite);
+
+        /// <summary>Marks Elite spent. Only call after the player has agreed to use it.</summary>
+        public static void SpendElite(IUnit unit) =>
+            unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HordeEliteUsed));
     }
 }

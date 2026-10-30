@@ -41,7 +41,10 @@ namespace FDG.Tests
             ["Deathstrike"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name and deals X hits per killed model back at the attacker (#197 P11).",
             ["Trait: Elite"] = "engine-marker: Horde Mode trait with no dispatch entries; MoraleUtilities." +
-                "TakeMoraleTest reads its grant (HordeExperience.TryUseElite) for the once-per-round re-roll.",
+                "TakeMoraleTest reads its grant (HordeExperience.CanUseElite/SpendElite) for the once-per-GAME " +
+                "re-roll, which it now offers rather than auto-spending (#409 made it per game, #414 made it ask). " +
+                "Still narrower than the book's 'one roll of any kind' - widening it needs the player-offered " +
+                "re-roll on the hit and save paths too (#414).",
             ["Trait: Fast Learner"] = "engine-marker: Horde Mode bookkeeping only - records that the unit " +
                 "picked a trait (HordeExperience.LevelUp); it has no effect of its own by design.",
             // Campaign Rules v3.6.0 hero traits (#410). Eleven of the eighteen hero skills are

@@ -147,8 +147,18 @@ namespace FDG.Stages
             // Horde Mode Elite trait: once per GAME (#409 - 3.6 cut it from once per round) the unit may
             // re-roll a failed morale test, at the same target. After Fearless (free, and with its own
             // fixed 4+), before the paid conversion below.
-            if (FDG.StateMachine.HordeExperience.TryUseElite(testingUnit))
+            // #414: ASK before spending it. It used to spend itself the moment a morale test failed, so a
+            // unit's single re-roll for the whole game could be burned on a test the player was content to
+            // fail - and the player was never told it had happened. Declining costs nothing: CanUseElite
+            // checks without paying, and SpendElite is only called once the answer is yes.
+            if (FDG.StateMachine.HordeExperience.CanUseElite(testingUnit)
+                && await gameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
+                    testingUnit.PlayerID,
+                    $"{testingUnit.Name} failed its morale test. Use Elite to re-roll it? "
+                    + "Elite is once per game.",
+                    displayName: $"{testingUnit.Name}: use Elite?")))
             {
+                FDG.StateMachine.HordeExperience.SpendElite(testingUnit);
                 IDiceResults eliteReroll = gameContext.DiceRoller.RollDecisive();
                 bool passedElite = eliteReroll.AtOrAbove(rollNeeded) >= 1f;
                 gameContext.Log($"{testingUnit.Name} uses Elite to re-roll its failed morale test - " +
