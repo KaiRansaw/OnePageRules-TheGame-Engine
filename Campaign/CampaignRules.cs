@@ -61,13 +61,30 @@ namespace FDG.Campaign
                 GameSystem = system,
                 CampaignType = type,
             };
+            // If the army was built in the Army Forge it carries the builder list it was compiled from.
+            // Each unit's selections move onto its own sheet, so it can be re-opened between missions to
+            // buy and sell upgrades without re-compiling the whole army and wiping its campaign changes.
+            // Matched by the author-stable id where there is one, and otherwise by position, which holds
+            // whenever the compiler produced one unit per builder unit. A unit with no match simply can't
+            // be upgraded - it still plays, levels and takes injuries normally.
+            var selections = (army as ArmyBuilding.BuiltArmyFile)?.Selections?.Units;
+            bool positional = selections != null && selections.Count == army.Units.Count;
+
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (UnitFileEntry unit in army.Units)
+            for (int index = 0; index < army.Units.Count; index++)
             {
+                UnitFileEntry unit = army.Units[index];
                 string name = unit.Name;
                 for (int i = 2; !names.Add(name); i++) name = $"{unit.Name} {i}";
                 unit.Name = name;
-                Save(unit, new StrikeUnit { IsHero = IsHero(unit), TeamFile = armyFile });
+
+                var sheet = new StrikeUnit { IsHero = IsHero(unit), TeamFile = armyFile };
+                Save(unit, sheet);
+
+                ArmyBuilding.BuilderUnit? loadout = selections?.FirstOrDefault(
+                    b => b.Id != null && string.Equals(b.Id, unit.Id, StringComparison.OrdinalIgnoreCase));
+                if (loadout == null && positional) loadout = selections![index];
+                if (loadout != null) CampaignEconomy.SaveLoadout(unit, loadout);
             }
         }
 

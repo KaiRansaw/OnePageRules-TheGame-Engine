@@ -56,6 +56,22 @@ namespace FDG.Campaign
         public int HeroKills { get; set; }
         /// <summary>The strike team file this unit belongs to (set when the team is saved).</summary>
         public string? TeamFile { get; set; }
+        /// <summary>
+        /// The unit's upgrade selections as a serialized <see cref="ArmyBuilding.BuilderUnit"/>, so it can
+        /// be re-opened between missions to buy and sell upgrades.
+        /// <para>
+        /// It lives on the sheet rather than in <c>BuiltArmyFile.Selections</c> on purpose. A campaign
+        /// army's units carry changes the book knows nothing about - levels, injuries, talents, skills and
+        /// the points those cost - and re-compiling the whole army from a builder list would wipe them,
+        /// which is why the strike team screen nulls <c>Selections</c>. Keeping a per-unit loadout here
+        /// means a campaign upgrade re-compiles exactly one unit and then re-applies that unit's campaign
+        /// changes on top (<c>CampaignEconomy.ReapplyCampaignChanges</c>). Horde Mode keeps its
+        /// mid-game loadout the same way, on the unit's <c>HordeLoadoutJson</c>.
+        /// </para>
+        /// <para>Null means the unit was never built from a book (a hand-written or imported army), and
+        /// it can be recruited alongside but not upgraded.</para>
+        /// </summary>
+        public string? LoadoutJson { get; set; }
 
         public int Level => Math.Min(StrikeTeamRules.MaxXp, Xp) / StrikeTeamRules.XpPerLevel;
 
