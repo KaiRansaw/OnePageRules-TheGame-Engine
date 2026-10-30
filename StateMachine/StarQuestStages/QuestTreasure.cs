@@ -241,7 +241,15 @@ namespace FDG.Stages
                 6 => new() { HordePlacement.RollD6(context) switch { <= 3 => "5c", <= 5 => "10c", _ => "15c" } },
                 _ => await ChooseTrove(context, hero),
             };
-            await context.Announce($"{token.Label}: {TreasureName(result)} - {string.Join(" + ", contents)}", Gold, EBannerTier.Notice);
+            // Kai, QA 3.14/3.15: when the hero is close enough to take it there and then, the
+            // discovery line and the pickup line say the same thing twice - all that matters is who
+            // ended up holding what, so only the pickup below is announced. A find made at range
+            // leaves a marker on the table, so THAT is worth announcing, by what it is rather than
+            // by which token it came out of.
+            if (!close)
+            {
+                await context.Announce($"{string.Join(" + ", contents)} has been discovered.", Gold, EBannerTier.Notice);
+            }
 
             if (close)
             {
@@ -313,7 +321,7 @@ namespace FDG.Stages
                     else s.Items.Add(c);
                 }
             });
-            await context.Announce($"{hero.Name} picks up {string.Join(" + ", list)}", Gold, EBannerTier.Toast);
+            await context.Announce($"{hero.Name} picked up {string.Join(" + ", list)}.", Gold, EBannerTier.Toast);
         }
 
         // ── Status conditions ────────────────────────────────────────────────────────────────────────────
@@ -644,13 +652,15 @@ namespace FDG.Stages
             int roll = HordePlacement.RollD6(c);
             if (roll >= 4)
             {
-                await QuestActions.Toast(c, $"Poison: {unit.Name} rolls {roll} and takes 1 wound.");
+                // Kai, QA 3.19: say what HAPPENED, not the mechanism. The roll itself is on the
+                // hover, where it belongs.
+                await QuestActions.Toast(c, $"{unit.Name} fails to fight off Poison.");
                 await CasualtyPresentation.ApplyUnitWounds(c, unit, 1f);
                 return;
             }
             q.Markers.Remove(poison);
             GameProgressUtilities.SetQuestProgress(c.GameDataStore, q);
-            await QuestActions.Toast(c, $"Poison: {unit.Name} rolls {roll} - the poison wears off.");
+            await QuestActions.Toast(c, $"{unit.Name} fights off Poison.");
         }
 
         /// <summary>Any activation ends: Adrenaline heroes shed fatigue; a Frenzy hero that destroyed an enemy
@@ -735,12 +745,18 @@ namespace FDG.Stages
             return picks.Count > 0 ? picks[0] : null;
         }
 
+        /// <summary>Items a hero lobs rather than applies - they read as "throws", not "uses".</summary>
+        private static bool IsThrown(string name) => name.EndsWith("Grenade", StringComparison.Ordinal);
+
         private static QuestSkill Item(string name, Func<IGameContext, UnitData, string?> unavailable,
             Func<IGameContext, UnitData, Task> use) =>
             new(ItemPrefix + name, -1, QuestItems.Find(name)?.Description ?? name, unavailable, async (c, h) =>
             {
                 EditSheet(h, s => s.Items.Remove(name));
-                c.Log($"{h.Name} uses a {name}.");
+                // One standard form for every item, so the report reads the same way each time
+                // (Kai, QA 3.17-3.20): a grenade is THROWN, everything else is used. No "a"/"an"
+                // guessing, and the item keeps its own name so it can be looked up.
+                c.Log(IsThrown(name) ? $"{h.Name} throws {name}!" : $"{h.Name} uses {name}.");
                 await use(c, h);
             });
 

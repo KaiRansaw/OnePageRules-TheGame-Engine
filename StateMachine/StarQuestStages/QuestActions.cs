@@ -690,7 +690,11 @@ namespace FDG.Stages
                 }),
 
             new("Reckless", 1, "Until the end of the round, whenever the hero attacks in melee or shoots from within 12\" and deals at least one wound, it deals one extra wound - but whenever it takes at least one wound, it takes one extra wound.",
-                Always, (c, h) => SetFlag(c, h, QuestFlags.Reckless, "one extra wound dealt (melee / within 12\") and taken this round")),
+                // Kai's own wording (QA 3.13b): name the skill, then say what it does in a sentence
+                // anyone can read. The old text - "one extra wound dealt (melee / within 12") and
+                // taken this round" - never said which skill it was, and read as a rules fragment.
+                Always, (c, h) => SetFlag(c, h, QuestFlags.Reckless,
+                    "Reckless - deals +1 wound in melee or within 12\", but takes +1 to each wound")),
             new("Vengeful Strike", 0, "Until the end of the round, whenever the hero attacks a Shaken enemy in melee or shoots at it from within 12\", it gets +1 to hit.",
                 Always, (c, h) => SetFlag(c, h, QuestFlags.Vengeful, "+1 to hit Shaken enemies (melee / within 12\") this round")),
             new("Dread Attack", 1, "Until the end of the round, the next time the hero attacks an enemy in melee or shoots at it from over 12\" away, that enemy must take a morale test at the end of that activation. If failed, it is Shaken.",
