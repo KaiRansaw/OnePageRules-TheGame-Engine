@@ -98,11 +98,45 @@ namespace FDG.Stages
         {
             QuestHero? sheet = Sheet(hero);
             int needed = sheet == null ? 4 : StatValue(sheet, statType);
-            int bonus = hero.QuestStatBonus;
+
+            // #407: each contribution is collected with the thing that caused it, so the test's hover can
+            // say "Impaired -1   Broken Arm -1" instead of one anonymous "penalty -2". A hero failing Str
+            // tests could not previously tell a condition from an injury from a random event, which is the
+            // same complaint ("i am unsure if the modifiers are correctly being applied") that drove the
+            // roll-modifier work - stat tests are simply where a Star Quest hero spends most of its time.
+            // Sign convention matches the roll chips: positive helps (it lowers the target below).
+            var modifiers = new List<Rules.Dispatch.GrantedModifier>();
+
+            int stored = hero.QuestStatBonus;
             hero.QuestStatBonus = 0;
-            if (QuestTreasure.Has(hero, QuestTreasure.Impaired)) bonus -= 1;
-            bonus -= QuestMission.InjuryPenalty(hero, statType);
-            bonus += QuestChallenges.EventStatBonus(context, hero, statType);
+            if (stored != 0)
+            {
+                // Deliberately generic: QuestStatBonus is a bare int on the hero with no room for a
+                // source, written by Concentrate, Guidance, Inspire and one treasure item. Naming it would
+                // need a field on UnitData (and so a save-format change) to carry what granted it; the
+                // unit card already shows "(next stat roll +X)" separately. Recorded on #407.
+                modifiers.Add(new Rules.Dispatch.GrantedModifier("skill bonus", stored));
+            }
+
+            if (QuestTreasure.Has(hero, QuestTreasure.Impaired))
+            {
+                modifiers.Add(new Rules.Dispatch.GrantedModifier(QuestTreasure.Impaired, -1));
+            }
+
+            (int injuryPenalty, string? injury) = QuestMission.InjuryPenaltyNamed(hero, statType);
+            if (injuryPenalty != 0)
+            {
+                modifiers.Add(new Rules.Dispatch.GrantedModifier(injury, -injuryPenalty));
+            }
+
+            (int eventDelta, string? eventName) =
+                QuestChallenges.EventStatBonusNamed(context, hero, statType);
+            if (eventDelta != 0)
+            {
+                modifiers.Add(new Rules.Dispatch.GrantedModifier(eventName, eventDelta));
+            }
+
+            int bonus = modifiers.Sum(modifier => modifier.Delta);
             int target = Math.Clamp(needed - bonus, 2, 6);
             IDiceResults roll = context.DiceRoller.RollDecisive(6);
             bool passed = roll.AtOrAbove(target) >= 1f;
@@ -114,7 +148,12 @@ namespace FDG.Stages
             }
             await context.Presenter.Present(DiceRolledBeat.FromDecisive(roll, target,
                 $"{hero.Name} - {StatName(statType)} test ({what})", forcedNote ?? (passed ? "Passed" : "Failed"),
-                modifierTags: bonus != 0 ? new List<string> { $"{StatName(statType)} {needed}+", bonus > 0 ? $"bonus +{bonus}" : $"penalty {bonus}" } : null));
+                // #407: one chip per source, headed by the base stat - the same shape the hit, save and
+                // morale rolls use, so a player reads every roll in the game the same way.
+                modifierTags: modifiers.Count > 0
+                    ? new List<string> { $"{StatName(statType)} {needed}+" }
+                        .Concat(modifiers.Select(modifier => modifier.Describe())).ToList()
+                    : null));
             if (passed) return true;
             if (!offerPower) return false;
 

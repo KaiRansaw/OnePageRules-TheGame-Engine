@@ -915,12 +915,19 @@ namespace FDG.Stages
         }
 
         /// <summary>-1 to a Str/Dex/Wil roll for the matching injury.</summary>
-        public static int InjuryPenalty(UnitData hero, int statType)
+        public static int InjuryPenalty(UnitData hero, int statType) => InjuryPenaltyNamed(hero, statType).Penalty;
+
+        /// <summary>
+        /// #407: the same penalty, with the injury that caused it. The name was always computed here and
+        /// then discarded, so a hero failing Str tests could not tell a Broken Arm from being Impaired
+        /// from a random event - every one of them showed as a single anonymous "penalty -1".
+        /// </summary>
+        public static (int Penalty, string? Injury) InjuryPenaltyNamed(UnitData hero, int statType)
         {
             QuestHero? sheet = QuestHero.FromJson(hero.QuestHeroJson);
-            if (sheet == null) return 0;
+            if (sheet == null) return (0, null);
             string injury = statType switch { 0 => "Broken Arm", 1 => "Spinal Injury", 2 => "Crushed Spirit", _ => "" };
-            return sheet.Injuries.Contains(injury) ? 1 : 0;
+            return sheet.Injuries.Contains(injury) ? (1, injury) : (0, null);
         }
     }
 }

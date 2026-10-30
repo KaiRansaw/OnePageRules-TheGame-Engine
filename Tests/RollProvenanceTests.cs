@@ -7,6 +7,8 @@ using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
 using FDG.Rules.Tokens;
 using FDG.Stages;
+using FDG.StateMachine;
+using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -199,6 +201,112 @@ namespace FDG.Tests
 
             Assert.That(tags,
                 Is.EqualTo(new[] { "Quality 4+", "Stealth -1", "Vengeful Strike +1" }));
+        }
+
+        // ── stat tests: the same treatment, since that is where a Star Quest hero lives ─────────────
+        //
+        // StatTest used to sum four sources - a stored skill bonus, Impaired, an injury and a random
+        // event - into one "bonus +2" / "penalty -1" chip. A hero failing Str tests could not tell which
+        // of them was responsible, or whether two had cancelled out.
+
+        [Test]
+        public void StatTest_NamesTheConditionAndTheInjurySeparately()
+        {
+            UnitData hero = MakeQuestHero(injury: "Broken Arm");
+            QuestTreasure.AddCondition(hero, QuestTreasure.Impaired);
+
+            List<string>? tags = CaptureStatTestTags(hero, statType: 0);
+
+            Assert.That(tags, Is.EqualTo(new[] { "Str 4+", "Impaired -1", "Broken Arm -1" }),
+                "both penalties name themselves rather than summing into 'penalty -2'.");
+        }
+
+        [Test]
+        public void StatTest_OnlyNamesTheInjuryThatMatchesTheStat()
+        {
+            UnitData hero = MakeQuestHero(injury: "Broken Arm");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(CaptureStatTestTags(hero, statType: 0),
+                    Is.EqualTo(new[] { "Str 4+", "Broken Arm -1" }), "Broken Arm is the Str injury.");
+                Assert.That(CaptureStatTestTags(MakeQuestHero(injury: "Broken Arm"), statType: 1),
+                    Is.Null, "it does not touch Dex, so there is nothing to show.");
+            });
+        }
+
+        [Test]
+        public void StatTest_WithNoModifiers_ShowsNoChips()
+        {
+            Assert.That(CaptureStatTestTags(MakeQuestHero(), statType: 2), Is.Null,
+                "an unmodified test needs no explanation - the chips exist to explain a change.");
+        }
+
+        [Test]
+        public void StatTest_NamesAStoredSkillBonusGenerically()
+        {
+            UnitData hero = MakeQuestHero();
+            hero.QuestStatBonus = 2;
+
+            Assert.That(CaptureStatTestTags(hero, statType: 0),
+                Is.EqualTo(new[] { "Str 4+", "skill bonus +2" }),
+                "QuestStatBonus is a bare int with no room for a source - see the note in StatTest.");
+        }
+
+        /// <summary>
+        /// Runs one stat test and returns the chips its dice beat carried. The beat is the only place the
+        /// breakdown surfaces, so capturing the presenter is the honest way to assert on it.
+        /// </summary>
+        private List<string>? CaptureStatTestTags(UnitData hero, int statType)
+        {
+            var sink = new CapturingPresenter();
+            var context = new TestGameContext(_store, new FixedDiceRoller(4),
+                presenter: sink, settings: QuestSettings());
+            QuestActions.StatTest(context, hero, statType, "test", offerPower: false)
+                .GetAwaiter().GetResult();
+            return sink.LastModifierTags;
+        }
+
+        private static GameSettings QuestSettings()
+        {
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameMode = EGameMode.StarQuestMission;
+            return settings;
+        }
+
+        private UnitData MakeQuestHero(string? injury = null)
+        {
+            var model = new ModelData(0.5f, new List<Weapon>(), new Position(10f, 10f), _store);
+            var bindings = new List<DataBinding<ModelData>>
+            {
+                _store.GetDataBinding<ModelData>(_store.Create(model)),
+            };
+            var unit = new UnitData(_player, "Hero", quality: 4, defense: 5, modelBindings: bindings);
+            // Stats pinned rather than left at the sheet's default, so the expected base chip ("Str 4+")
+            // is the test's own premise and cannot drift if that default changes.
+            var sheet = new FDG.Quest.QuestHero
+            {
+                Name = "Hero", Power = 3, Strength = 4, Dexterity = 4, Willpower = 4,
+            };
+            if (injury != null) sheet.Injuries.Add(injury);
+            unit.QuestHeroJson = sheet.ToJson();
+            return _store.GetDataBinding<UnitData>(_store.Create(unit)).GetValue();
+        }
+
+        /// <summary>Records the modifier chips of the last dice beat presented.</summary>
+        private sealed class CapturingPresenter : FDG.Presentation.IPresenter
+        {
+            public List<string>? LastModifierTags { get; private set; }
+
+            public Task Present(FDG.Presentation.PresentationBeat beat,
+                System.Threading.CancellationToken ct = default)
+            {
+                if (beat is FDG.Presentation.Beats.DiceRolledBeat dice && dice.ModifierTags != null)
+                {
+                    LastModifierTags = dice.ModifierTags.ToList();
+                }
+                return Task.CompletedTask;
+            }
         }
 
         // ── helpers ─────────────────────────────────────────────────────────────────────────────────

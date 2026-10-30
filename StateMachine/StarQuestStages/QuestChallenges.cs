@@ -313,16 +313,27 @@ namespace FDG.Stages
         }
 
         /// <summary>Random events that change one hero's Str/Dex/Wil rolls until the next event.</summary>
-        public static int EventStatBonus(IGameContext context, UnitData hero, int statType)
+        public static int EventStatBonus(IGameContext context, UnitData hero, int statType) =>
+            EventStatBonusNamed(context, hero, statType).Delta;
+
+        /// <summary>
+        /// #407: the same modifier, with the event that caused it (from <see cref="EventNames"/>), so a
+        /// stat test can say "Debilitating Static -1" rather than a bare "penalty -1".
+        /// </summary>
+        public static (int Delta, string? Event) EventStatBonusNamed(IGameContext context, UnitData hero,
+            int statType)
         {
             QuestProgress q = Q(context);
-            if (q.EventHero != hero.ID.ID.ToString()) return 0;
-            return (EventNumber(q), statType) switch
+            if (q.EventHero != hero.ID.ID.ToString()) return (0, null);
+            int number = EventNumber(q);
+            int delta = (number, statType) switch
             {
                 (13, 0) => -1, (16, 2) => -1, (25, 1) => -1,
                 (42, 1) => 1, (51, 2) => 1, (54, 0) => 1,
                 _ => 0,
             };
+            if (delta == 0) return (0, null);
+            return (delta, EventNames.TryGetValue(number, out string? name) ? name : $"Event {number}");
         }
 
         // ── Random events ────────────────────────────────────────────────────────────────────────────────
