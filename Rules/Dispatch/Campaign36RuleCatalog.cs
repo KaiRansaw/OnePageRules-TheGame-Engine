@@ -147,9 +147,49 @@ public static class Campaign36RuleCatalog
         Valence: EValence.Positive,
         Description: "Campaign skill: moves +2\" on Rush/Charge actions.");
 
-    public static SpecialRuleDefinition Explorer { get; } = Marker("Skill: Explorer",
-        "Campaign skill: once per game, ignores the effects of Difficult and Dangerous terrain "
-        + "(not wired up - the engine has no once-per-game offer yet).");
+    /// <summary>
+    /// Once per game, ignore Difficult and Dangerous terrain for an activation.
+    /// <para>
+    /// Offered at <see cref="EHookID.Activation_OnActivationStart"/> rather than at the terrain hook,
+    /// because only the ten hooks in <c>RuleFireLint.AbilityOfferingHooks</c> ever offer an
+    /// <see cref="ActivatedAbility"/> - an ability authored at
+    /// <see cref="EHookID.Movement_OnMoveThroughTerrain"/> would be dead data the fire-lint rejects.
+    /// So the ability grants <see cref="ExplorerSurefooted"/> for the activation and the real waiver
+    /// lives there as an ordinary passive, the way Flying expresses the same thing permanently.
+    /// </para>
+    /// <para>
+    /// <see cref="ETerrainIgnoreScope.AllTerrain"/>, not <c>DifficultOnly</c>: the book waives
+    /// Dangerous as well, and DifficultOnly is Strider, which does not.
+    /// </para>
+    /// </summary>
+    public static SpecialRuleDefinition Explorer { get; } = new("Skill: Explorer",
+        Array.Empty<HookEntry>(),
+        new[]
+        {
+            new ActivatedAbility(EHookID.Activation_OnActivationStart, new Cost.OncePerGame(),
+                new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
+                new Effect.AddRule(ExplorerBoostName, ELifetime.ThisActivation),
+                new Condition.Always()),
+        },
+        Valence: EValence.Positive,
+        Description: "Campaign skill: once per game, when activated, ignores the effects of Difficult "
+        + "and Dangerous terrain for that activation.");
+
+    public const string ExplorerBoostName = "Explorer: Surefooted";
+
+    /// <summary>The waiver <see cref="Explorer"/> grants itself for one activation. Not rolled on any
+    /// table and not shown as a skill - it exists only as the body of Explorer's ability.</summary>
+    public static SpecialRuleDefinition ExplorerSurefooted { get; } = new(ExplorerBoostName,
+        new[]
+        {
+            new HookEntry(EHookID.Movement_OnMoveThroughTerrain,
+                new Condition.Always(),
+                new Effect.IgnoreTerrainEffects(ETerrainIgnoreScope.AllTerrain),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Ignores the effects of Difficult and Dangerous terrain this activation.");
 
     // -- Captain skills ------------------------------------------------------------------------------
 
@@ -202,9 +242,45 @@ public static class Campaign36RuleCatalog
         "Campaign skill: AP(+1) when using move actions and shooting "
         + "(not wired up - the Defense roll does not know whether the attacker moved).");
 
-    public static SpecialRuleDefinition Sharpshooter { get; } = Marker("Skill: Sharpshooter",
-        "Campaign skill: once per game, gets +12\" range when shooting "
-        + "(not wired up - the engine has no once-per-game offer yet).");
+    /// <summary>
+    /// Once per game, +12" range when shooting, for an activation.
+    /// <para>
+    /// Same shape as <see cref="Explorer"/> and for the same reason: <c>Shooting_OnRangeCheck</c> is a
+    /// passive-only hook, so the ability is offered at activation start and grants
+    /// <see cref="SharpshooterRange"/>, whose passive is the range modifier. Offering it at
+    /// <see cref="EHookID.Activation_OnBeforeAttackAction"/> would be closer to the book's "when
+    /// shooting", but abilities there are taken INSTEAD of attacking, which would make the skill
+    /// cancel the shot it is meant to extend.
+    /// </para>
+    /// </summary>
+    public static SpecialRuleDefinition Sharpshooter { get; } = new("Skill: Sharpshooter",
+        Array.Empty<HookEntry>(),
+        new[]
+        {
+            new ActivatedAbility(EHookID.Activation_OnActivationStart, new Cost.OncePerGame(),
+                new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
+                new Effect.AddRule(SharpshooterBoostName, ELifetime.ThisActivation),
+                new Condition.Always()),
+        },
+        Valence: EValence.Positive,
+        Description: "Campaign skill: once per game, when activated, its ranged weapons get +12\" "
+        + "range for that activation.");
+
+    public const string SharpshooterBoostName = "Sharpshooter: Long Shot";
+
+    /// <summary>The +12" <see cref="Sharpshooter"/> grants itself for one activation. Mirrors the core
+    /// rule "Increased Shooting Range" (+6), which is the shipped example of this passive.</summary>
+    public static SpecialRuleDefinition SharpshooterRange { get; } = new(SharpshooterBoostName,
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnRangeCheck,
+                new Condition.Always(),
+                new Effect.RangeModifier(Delta: +12),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "This unit's ranged weapons get +12\" range this activation.");
 
     // -- Warden skills -------------------------------------------------------------------------------
 
@@ -263,6 +339,8 @@ public static class Campaign36RuleCatalog
         Suppressor, Destroyer, Sharpshooter,
         Herbalist, Chemist, Healer,
         Tactician, Strategist, Mastermind,
+        // Helper rules: never rolled on a table, granted by the skill above them for one activation.
+        ExplorerSurefooted, SharpshooterRange,
     };
 
     private static SpecialRuleDefinition Marker(string name, string description) =>
