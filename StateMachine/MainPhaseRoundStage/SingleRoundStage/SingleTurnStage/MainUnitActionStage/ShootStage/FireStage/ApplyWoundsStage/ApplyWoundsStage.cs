@@ -36,7 +36,11 @@ namespace FDG.Stages
                 float total = assignWoundsResults.PendingWounds.Sum(p => p.Wounds);
                 modelsKilled = await FirefightRules.ApplyWounds(GameContext, defendingUnit, total,
                     metaData.AttackingUnit.GetValue(), metaData.IsMelee,
-                    assignWoundsResults.PendingWounds.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model));
+                    // #413: the binding is NOT an IModel - the value inside it is. A cast straight off the
+                    // binding compiles (unrelated interface, so the compiler allows it) and then throws
+                    // InvalidCastException on the first wound, which is why no Firefight or Skirmish shot
+                    // ever resolved. Everything else in this file reaches the model through GetValue().
+                    assignWoundsResults.PendingWounds.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model.GetValue()));
                 if (defenderWasAlive && !metaData.DefendingUnit.GetIsAlive())
                 {
                     GameContext.Log($"{defendingUnit.Name} is destroyed.");

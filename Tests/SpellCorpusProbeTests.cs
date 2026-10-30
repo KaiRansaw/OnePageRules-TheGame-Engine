@@ -45,7 +45,7 @@ namespace FDG.Tests
                 Assert.Ignore($"set {BOOKS_ENV}=<books dir> to run the corpus cast sweep.");
             }
 
-            string[] bookPaths = Directory.EnumerateFiles(dir!, "*" + BookFile.EXTENSION_WITH_PERIOD)
+            string[] bookPaths = Directory.EnumerateFiles(dir!, "*" + BookFile.EXTENSION_WITH_PERIOD, SearchOption.AllDirectories)
                 .OrderBy(p => p).ToArray();
             Assert.That(bookPaths, Is.Not.Empty, $"no books in '{dir}'.");
 

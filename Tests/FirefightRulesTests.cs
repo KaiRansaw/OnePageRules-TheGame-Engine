@@ -105,6 +105,58 @@ namespace FDG.Tests
             Assert.That(unit.GetIsAlive(), Is.False, "4 + 4 + 1 Shaken = 9: Knocked Out");
         }
 
+        /// <summary>
+        /// #413 - the shooting path. ApplyWoundsStage hands over the wound assignment's own choice of which
+        /// models die first, built from <see cref="AssignWoundsResults"/>'s PendingWounds. Until now NO test
+        /// ever passed <c>order</c>, and the stage's projection of it was casting the data BINDING to IModel
+        /// instead of the value inside it - which compiles, then throws InvalidCastException on the first
+        /// wound. Every Firefight and Skirmish shot that landed killed the game instead of a model.
+        ///
+        /// <para>So this builds the order exactly as the stage does and checks the named model is the one
+        /// that dies, which is both the regression guard and the first coverage <c>order</c> has had.</para>
+        /// </summary>
+        [Test]
+        public async Task WoundEffects_HonourTheAssignmentsOrder_FromPendingWoundBindings()
+        {
+            (TestGameContext c, List<DataBinding<UnitData>> units) =
+                Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 3);
+            UnitData unit = units[0].GetValue();
+
+            // The wound assignment nominates the LAST model, not the first - so a stage that ignores the
+            // order would kill the wrong one and this would fail rather than pass by luck.
+            DataBinding<ModelData> nominatedBinding = unit.ModelBindings.Last();
+            IModel nominated = nominatedBinding.GetValue();
+            var pending = new List<PendingWounds> { new(nominatedBinding) { Wounds = 1 } };
+
+            // This projection is the stage's line under test: the model comes out of GetValue(), never off
+            // the binding itself.
+            int killed = await FirefightRules.ApplyWounds(c, unit, 1f, attacker: null, melee: false,
+                order: pending.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model.GetValue()));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(killed, Is.EqualTo(1));
+                Assert.That(nominated.GetIsAlive(), Is.False, "the nominated model is the one that died");
+                Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(2));
+            });
+        }
+
+        /// <summary>
+        /// #413 - the trap itself, written down. A DataBinding is not an IModel, but the cast compiles
+        /// because they are unrelated reference types, so the compiler cannot catch this one for us.
+        /// </summary>
+        [Test]
+        public void ADataBindingIsNotTheModelItHolds()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(typeof(IModel).IsAssignableFrom(typeof(DataBinding<ModelData>)), Is.False,
+                    "casting a binding to IModel can only ever throw at runtime");
+                Assert.That(typeof(IModel).IsAssignableFrom(typeof(ModelData)), Is.True,
+                    "the value inside it is the IModel");
+            });
+        }
+
         [Test]
         public async Task OtherWoundSources_UseWoundEffects()
         {
