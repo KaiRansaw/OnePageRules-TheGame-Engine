@@ -189,17 +189,43 @@ namespace FDG.Stages
             return true;
         }
 
-        /// <summary>A hero skill: test its stat; a pass resolves it, a fail costs 1 power and then resolves it.</summary>
-        public static async Task HeroSkillTest(IGameContext context, UnitData hero, int statType, string skill)
+        /// <summary>
+        /// A hero skill: test its stat. Returns whether the skill's effect should resolve.
+        /// <para>
+        /// **v2.1.0 changed this, and it is a real gameplay change.** The book now reads: "If passed the
+        /// effect is resolved, and if failed you **may** spend 1 Power to count as having passed it
+        /// instead." Under v2.0.1 the payment was forced and the skill worked either way, so a failed
+        /// roll cost a hero power it had no say over and could never fizzle.
+        /// </para>
+        /// <para>
+        /// So a decline now returns false and the caller must NOT resolve the effect. This is also the
+        /// rules-level answer to QA 3.10 ("never auto-spend power, always ask") - which was filed as a
+        /// preference and turns out to be what the book requires.
+        /// </para>
+        /// <para>
+        /// The default answer is yes only while the hero can actually afford it. Spending power it does
+        /// not have costs a wound per missing point, and under the old forced payment that could put a
+        /// hero down for failing a roll it was never asked about. Same shape as the stat-test offer above.
+        /// </para>
+        /// </summary>
+        public static async Task<bool> HeroSkillTest(IGameContext context, UnitData hero, int statType, string skill)
         {
-            if (statType is < 0 or > 2) return;
-            bool passed = await StatTest(context, hero, statType, skill, offerPower: false);
-            if (passed) return;
-            // No re-roll and no 2-power pass here, on purpose: a class skill works whether the test passes
-            // or not (Core Rules v2.0.1, "...1 power and then the effect is resolved"). Said out loud so a
-            // failed roll doesn't look like the skill fizzled.
-            await Toast(context, $"{hero.Name} fails the {skill} test - the skill still works, but it costs 1 power.");
-            await SpendPower(context, hero, 1, $"failed {skill} test");
+            if (statType is < 0 or > 2) return true;
+            if (await StatTest(context, hero, statType, skill, offerPower: false)) return true;
+
+            bool spend = await context.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
+                hero.PlayerID,
+                $"{hero.Name} failed the {skill} test. Spend {FailedSkillPower} power to count it as passed? "
+                + $"({hero.QuestPower} power left)",
+                defaultAnswer: hero.QuestPower >= FailedSkillPower,
+                displayName: $"{hero.Name}: spend power?"));
+            if (!spend)
+            {
+                await Toast(context, $"{hero.Name}: {skill} fails.");
+                return false;
+            }
+            await SpendPower(context, hero, FailedSkillPower, $"failed {skill} test");
+            return true;
         }
 
         // ── Shared effects ───────────────────────────────────────────────────────────────────────────────
@@ -463,8 +489,8 @@ namespace FDG.Stages
 
     /// <summary>
     /// One Star Quest skill the engine resolves. <see cref="Stat"/> is the test it takes (0 Str, 1 Dex, 2 Wil,
-    /// -1 none); common skills only work on a pass (power can buy the pass), hero skills always work (a fail
-    /// costs 1 power); a class feature is once per game, free, no test.
+    /// -1 none); a common skill only works on a pass and 2 power can buy that pass, a hero skill may buy it
+    /// for 1 and otherwise fails (#414, v2.1.0); a class feature is once per game, free, no test.
     /// </summary>
     public sealed class QuestSkill
     {
@@ -503,7 +529,10 @@ namespace FDG.Stages
             }
             else if (!Feat && Stat >= 0)
             {
-                await QuestActions.HeroSkillTest(context, hero, Stat, Name);
+                // #414 (v2.1.0): a failed hero-skill test used to resolve anyway for a forced 1 power.
+                // It can now fizzle, so this result has to be honored like the common-skill one above -
+                // HeroSkillTest already said so in a toast, hence no second one here.
+                if (!await QuestActions.HeroSkillTest(context, hero, Stat, Name)) return;
             }
             if (!hero.GetIsAlive()) return;
             // #407 wording: name the skill that is speaking, for the whole of its resolution. Every

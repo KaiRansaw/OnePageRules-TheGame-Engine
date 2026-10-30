@@ -45,7 +45,7 @@ namespace FDG.Tests
                 "ignoring Shaken from a failed morale test is still 2.");
             Assert.That(QuestActions.FailedSkillPower, Is.EqualTo(1),
                 "a failed hero-skill test is still 1 - what changed in 2.1.0 is that paying it became "
-                + "OPTIONAL, which is a separate piece of work.");
+                + "OPTIONAL, and the skill now fizzles when you decline (QuestFailedSkillPaymentTests).");
         }
 
         // The labels the player reads. These are built from the constants now; the test is here so that
