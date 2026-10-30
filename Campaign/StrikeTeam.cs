@@ -26,6 +26,17 @@ namespace FDG.Campaign
         public ECampaignType CampaignType { get; set; } = ECampaignType.Endless;
         /// <summary>True for an army the bot runs, so the campaign screen can spend its treasury for it.</summary>
         public bool IsBot { get; set; }
+        /// <summary>
+        /// The special objective rolled for the next mission, worth
+        /// <see cref="CampaignNumbers.SpecialObjectiveBonus"/> if it is completed. Empty until one is
+        /// rolled; cleared again once the mission is over.
+        /// </summary>
+        public string SpecialObjective { get; set; } = "";
+        /// <summary>
+        /// The <see cref="StrikeUnit.Id"/> of every unit coming to the next mission. Empty means the
+        /// whole army comes, which is what a brand new campaign army wants.
+        /// </summary>
+        public List<string> Bringing { get; set; } = new();
         /// <summary>One line per finished match, newest last.</summary>
         public List<string> History { get; set; } = new();
     }
