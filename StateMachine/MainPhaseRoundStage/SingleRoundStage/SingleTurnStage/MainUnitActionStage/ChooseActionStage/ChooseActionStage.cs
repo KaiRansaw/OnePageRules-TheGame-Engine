@@ -525,7 +525,7 @@ namespace FDG.Stages
             // decision to make, so end the activation instead of prompting with a lone Pass option. (Custom
             // actions like Embark are gathered with AvailableWhen=Always but gated above, so this can't be
             // decided up front from the raw offer count.)
-            // Star Quest hero actions: Rest, a Skill, an extra action for 2 power, the class feature.
+            // Star Quest hero actions: Rest, a Skill, an extra action (3 power in v2.1.0), the class feature.
             if (QuestActions.IsQuestGame(GameContext) && context.ActivatingUnit.GetValue() is { IsQuestHero: true } questHero)
             {
                 void AddQuest(string option, string description)
@@ -556,9 +556,9 @@ namespace FDG.Stages
                 if (!context.QuestExtraUsed)
                 {
                     if (context.HasMoved || context.HasAttacked)
-                        AddQuest(QuestActions.ExtraActionOption, $"Spend 2 power to take another action this activation ({questHero.QuestPower} power).");
+                        AddQuest(QuestActions.ExtraActionOption, $"Spend {QuestActions.ExtraActionPower} power to take another action this activation ({questHero.QuestPower} power).");
                     if (context.QuestSkillsUsed >= 1)
-                        AddQuest(QuestActions.ExtraSkillOption, $"Spend 2 power to use another skill ({questHero.QuestPower} power).");
+                        AddQuest(QuestActions.ExtraSkillOption, $"Spend {QuestActions.ExtraActionPower} power to use another skill ({questHero.QuestPower} power).");
                 }
             }
 

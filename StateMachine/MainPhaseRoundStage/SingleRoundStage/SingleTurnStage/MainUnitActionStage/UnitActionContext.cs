@@ -105,7 +105,7 @@ namespace FDG.Stages
         public int QuestSkillsUsed { get; set; }
         /// <summary>Star Quest: the 2-power extra action has been bought this activation.</summary>
         public bool QuestExtraUsed { get; set; }
-        /// <summary>Star Quest: 2 power bought another action - the move/attack slots open up again.</summary>
+        /// <summary>Star Quest: power bought another action - the move/attack slots open up again.</summary>
         public void BeginQuestExtraAction();
         /// <summary>Star Quest: a hero Rallied - it no longer has to stay idle this activation.</summary>
         public void ClearStartedActivationShaken();

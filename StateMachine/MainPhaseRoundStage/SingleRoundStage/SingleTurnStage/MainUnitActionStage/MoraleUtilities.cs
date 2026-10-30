@@ -336,11 +336,11 @@ namespace FDG.Stages
                 if (unit.IsQuestHero)
                 {
                     bool spend = await gameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
-                        unit.PlayerID, $"{unit.Name} failed morale. Spend 2 power to ignore being Shaken? ({unit.QuestPower} power left)",
+                        unit.PlayerID, $"{unit.Name} failed morale. Spend {QuestActions.IgnoreShakenPower} power to ignore being Shaken? ({unit.QuestPower} power left)",
                         defaultAnswer: unit.QuestPower >= 2, displayName: $"{unit.Name}: ignore Shaken?"));
                     if (spend)
                     {
-                        await QuestActions.SpendPower(gameContext, unit, 2, "to ignore being Shaken");
+                        await QuestActions.SpendPower(gameContext, unit, QuestActions.IgnoreShakenPower, "to ignore being Shaken");
                         await QuestActions.Toast(gameContext, $"{unit.Name} shrugs it off - not Shaken.");
                         return;
                     }

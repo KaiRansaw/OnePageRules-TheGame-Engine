@@ -10,20 +10,44 @@ using FDG.Utilities;
 namespace FDG.Stages
 {
     /// <summary>
-    /// GF: Star Quest hero rules (Core Rules v2.0.1): power, stat tests, resting, skill actions, the common
-    /// skills (Push, Scurry, revive) and the class skills that the engine can resolve.
+    /// GF: Star Quest hero rules (Core Rules **v2.1.0**): power, stat tests, resting, skill actions, the
+    /// common skills (Push, Scurry, revive) and the class skills that the engine can resolve.
     ///
-    /// <para>Power: a hero starts the mission at full power. 2 power buys an extra action, turns a failed
-    /// Str/Dex/Wil test into a pass, or ignores being Shaken; a failed hero-skill test costs 1 power (the skill
-    /// still works). Spending more than it has costs the hero a wound per missing point (exhaustion).</para>
+    /// <para>Power: a hero starts the mission at full power. The costs are
+    /// <see cref="ExtraActionPower"/>, <see cref="RevivePower"/>, <see cref="PassStatTestPower"/>,
+    /// <see cref="IgnoreShakenPower"/> and <see cref="FailedSkillPower"/>. Spending more than it has costs
+    /// the hero a wound per missing point (exhaustion).</para>
     /// </summary>
     public static class QuestActions
     {
+        // -- Power costs, from the v2.1.0 POWER REFERENCE ------------------------------------------------
+        // Named rather than written as literals at each site because the cost appears BOTH in the rule and
+        // in the player-facing label, and under v2.0.1 those were separate 2s in five files. #414.
+
+        /// <summary>"Heroes may spend 3 Power to use any one additional action." **Was 2 in v2.0.1.**</summary>
+        public const int ExtraActionPower = 3;
+
+        /// <summary>"Heroes may spend 3 Power to revive other Unconscious Heroes." **Was 2 in v2.0.1.**</summary>
+        public const int RevivePower = 3;
+
+        /// <summary>"Heroes may spend 2 Power to count failed Str/Dex/Wil tests as passed." Unchanged.</summary>
+        public const int PassStatTestPower = 2;
+
+        /// <summary>"Heroes may spend 2 Power to ignore being Shaken from failed Morale Tests." Unchanged.</summary>
+        public const int IgnoreShakenPower = 2;
+
+        /// <summary>
+        /// "Heroes using Hero Skill actions may spend 1 Power if they fail their stat test to count it as
+        /// passed." Unchanged at 1 - but v2.1.0 made the payment OPTIONAL, where v2.0.1 forced it and
+        /// resolved the skill either way. That half is still to do (#414).
+        /// </summary>
+        public const int FailedSkillPower = 1;
+
         public const string RestOption = "Rest";
         public const string SkillOption = "Skill";
-        public const string ExtraActionOption = "Extra Action (2 power)";
+        public static readonly string ExtraActionOption = $"Extra Action ({ExtraActionPower} power)";
         public const string FreeActionOption = "Free Action";
-        public const string ExtraSkillOption = "Extra Skill (2 power)";
+        public static readonly string ExtraSkillOption = $"Extra Skill ({ExtraActionPower} power)";
         public const string FeatSuffix = " (once per game)";
         /// <summary>Internal: the hero went down at the start of its activation.</summary>
         public const string EndActivationOption = "__end_activation";
@@ -158,10 +182,10 @@ namespace FDG.Stages
             if (!offerPower) return false;
 
             bool spend = await context.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(hero.PlayerID,
-                $"{hero.Name} failed the {StatName(statType)} test. Spend 2 power to pass it anyway? ({hero.QuestPower} power left)",
+                $"{hero.Name} failed the {StatName(statType)} test. Spend {PassStatTestPower} power to pass it anyway? ({hero.QuestPower} power left)",
                 defaultAnswer: hero.QuestPower >= 2, displayName: $"{hero.Name}: spend power?"));
             if (!spend) return false;
-            await SpendPower(context, hero, 2, $"to pass the {StatName(statType)} test");
+            await SpendPower(context, hero, PassStatTestPower, $"to pass the {StatName(statType)} test");
             return true;
         }
 
@@ -446,7 +470,7 @@ namespace FDG.Stages
     {
         public const string PushName = "Push";
         public const string ScurryName = "Scurry";
-        public const string ReviveName = "Revive a hero (2 power)";
+        public static readonly string ReviveName = $"Revive a hero ({QuestActions.RevivePower} power)";
         public const string DiscoverName = "Discover";
 
         public string Name { get; }
@@ -584,7 +608,7 @@ namespace FDG.Stages
                     await QuestActions.Toast(c, $"{h.Name} scurries up to {d}\".");
                     await new GameOperationServices(c).MoveUnit(h, d, isOptional: true, controller: h.PlayerID);
                 }, common: true),
-            new(ReviveName, -1, "Heroes within 3\" of an unconscious hero may spend 2 power to revive it; it restores 3 wounds.",
+            new(ReviveName, -1, $"Heroes within 3\" of an unconscious hero may spend {QuestActions.RevivePower} power to revive it; it restores 3 wounds.",
                 (c, h) => QuestActions.UnconsciousHeroes(c, h, 3f).Count > 0 ? null : "No unconscious hero within 3\".",
                 async (c, h) =>
                 {
@@ -595,7 +619,7 @@ namespace FDG.Stages
                         displayName: "Choosing a hero to revive");
                     string pick = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
                     UnitData target = down.FirstOrDefault(d => d.Name == pick) ?? down[0];
-                    await QuestActions.SpendPower(c, h, 2, $"to revive {target.Name}");
+                    await QuestActions.SpendPower(c, h, QuestActions.RevivePower, $"to revive {target.Name}");
                     QuestActions.Revive(target);
                     await c.Announce($"{h.Name} revives {target.Name}!", new TextColor(120, 230, 140, 255), EBannerTier.Notice);
                 }, common: true),
@@ -926,7 +950,7 @@ namespace FDG.Stages
 
             if (action == QuestActions.ExtraActionOption || action == QuestActions.ExtraSkillOption)
             {
-                await QuestActions.SpendPower(GameContext, hero, 2, "extra action");
+                await QuestActions.SpendPower(GameContext, hero, QuestActions.ExtraActionPower, "extra action");
                 context.QuestExtraUsed = true;
                 if (action == QuestActions.ExtraActionOption) context.BeginQuestExtraAction();
                 else context.QuestSkillsUsed--;
