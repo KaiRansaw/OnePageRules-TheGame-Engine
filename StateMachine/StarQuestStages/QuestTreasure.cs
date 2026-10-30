@@ -781,7 +781,7 @@ namespace FDG.Stages
         private static QuestSkill SelfBuff(string name, ERollKind roll, int delta, string text) => Item(name, Always, async (c, h) =>
         {
             QuestActions.Grant(h, h, roll, delta, ELifetime.ThisRound, c);
-            await QuestActions.Toast(c, $"{h.Name}: {text}.");
+            await QuestActions.Toast(c, QuestSkill.Line(h.Name, text));
         });
 
         public static readonly IReadOnlyList<QuestSkill> ItemSkills = new List<QuestSkill>

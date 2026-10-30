@@ -429,8 +429,38 @@ namespace FDG.Stages
                 await QuestActions.HeroSkillTest(context, hero, Stat, Name);
             }
             if (!hero.GetIsAlive()) return;
-            await _resolve(context, hero);
+            // #407 wording: name the skill that is speaking, for the whole of its resolution. Every
+            // skill's effect text was written as a bare rules fragment ("one extra hit on its next
+            // charge"), so the report said WHAT changed but never WHICH skill did it - Kai could not
+            // tell a working skill from a silent one. Setting it here covers all ~120 at once rather
+            // than editing every line.
+            string? previous = Speaking;
+            Speaking = Name;
+            try
+            {
+                await _resolve(context, hero);
+            }
+            finally
+            {
+                Speaking = previous;   // restore, since a skill may resolve another (free actions)
+            }
         }
+
+        /// <summary>
+        /// The skill currently resolving, or null outside one. Read by the wording helpers
+        /// (<c>SetFlag</c> / <c>GrantSelf</c> / <c>Flag</c>) so a skill's message names itself.
+        /// <para>Per-call rather than per-game on purpose: skills resolve one at a time on the engine
+        /// thread, and the nesting a free action creates is handled by save/restore above.</para>
+        /// </summary>
+        public static string? Speaking { get; private set; }
+
+        /// <summary>
+        /// The standard form for a skill's effect message: "Hero: Skill - what it does".
+        /// Falls back to "Hero: what it does" when no skill is resolving, so a non-skill caller reads
+        /// the same as it always did.
+        /// </summary>
+        public static string Line(string heroName, string text) =>
+            Speaking is { Length: > 0 } skill ? $"{heroName}: {skill} - {text}." : $"{heroName}: {text}.";
 
         public static QuestSkill? Find(string name) =>
             All.FirstOrDefault(s => s.Name == name)
@@ -476,13 +506,13 @@ namespace FDG.Stages
         private static async Task SetFlag(IGameContext c, UnitData h, string flag, string text)
         {
             QuestFlags.Set(c, h, flag);
-            await QuestActions.Toast(c, $"{h.Name}: {text}.");
+            await QuestActions.Toast(c, QuestSkill.Line(h.Name, text));
         }
 
         private static async Task GrantSelf(IGameContext c, UnitData h, string rule, ELifetime life, string text)
         {
             QuestTreasure.GrantRule(c, h, h, rule, life);
-            await QuestActions.Toast(c, $"{h.Name}: {text}.");
+            await QuestActions.Toast(c, QuestSkill.Line(h.Name, text));
         }
 
         public static readonly IReadOnlyList<QuestSkill> All = new List<QuestSkill>
@@ -694,7 +724,7 @@ namespace FDG.Stages
                 // anyone can read. The old text - "one extra wound dealt (melee / within 12") and
                 // taken this round" - never said which skill it was, and read as a rules fragment.
                 Always, (c, h) => SetFlag(c, h, QuestFlags.Reckless,
-                    "Reckless - deals +1 wound in melee or within 12\", but takes +1 to each wound")),
+                    "deals +1 wound in melee or within 12\", but takes +1 to each wound")),
             new("Vengeful Strike", 0, "Until the end of the round, whenever the hero attacks a Shaken enemy in melee or shoots at it from within 12\", it gets +1 to hit.",
                 Always, (c, h) => SetFlag(c, h, QuestFlags.Vengeful, "+1 to hit Shaken enemies (melee / within 12\") this round")),
             new("Dread Attack", 1, "Until the end of the round, the next time the hero attacks an enemy in melee or shoots at it from over 12\" away, that enemy must take a morale test at the end of that activation. If failed, it is Shaken.",

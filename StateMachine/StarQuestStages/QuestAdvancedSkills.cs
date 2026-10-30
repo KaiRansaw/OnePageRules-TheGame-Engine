@@ -71,13 +71,13 @@ namespace FDG.Stages
         private static async Task Flag(IGameContext c, UnitData h, string flag, string text, string value = "")
         {
             QuestFlags.Set(c, h, flag, value);
-            await Toast(c, $"{h.Name}: {text}.");
+            await Toast(c, QuestSkill.Line(h.Name, text));
         }
 
         private static async Task GrantSelf(IGameContext c, UnitData h, string rule, ELifetime life, string text)
         {
             QuestTreasure.GrantRule(c, h, h, rule, life);
-            await Toast(c, $"{h.Name}: {text}.");
+            await Toast(c, QuestSkill.Line(h.Name, text));
         }
 
         private static async Task ApPlusOne(IGameContext c, UnitData h)
@@ -135,7 +135,7 @@ namespace FDG.Stages
         {
             Position p = h.Models.FirstOrDefault(m => m.GetIsAlive())?.Position ?? new Position(0f, 0f);
             QuestTreasure.PlaceMarkerAt(c, kind, new Position(p.x, p.z), 1);
-            await Toast(c, $"{h.Name}: {text} (around where it stands now).");
+            await Toast(c, QuestSkill.Line(h.Name, $"{text} (around where it stands now)"));
         }
 
         private static async Task Heal(IGameContext c, UnitData u, int wounds, string skill)
