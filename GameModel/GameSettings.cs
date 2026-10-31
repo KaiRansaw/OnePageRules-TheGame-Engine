@@ -286,10 +286,11 @@ namespace FDG
         /// its own game. So Star Quest takes Star Quest armies.
         /// </para>
         /// <para>
-        /// AoF: Quest still falls through to Age of Fantasy, and that is a known gap rather than a
-        /// finding: its own enemy books exist at Army Forge (id 8, 48 of them) and are simply not
-        /// imported yet. The system is not selectable in the lobby either, so nothing plays on the wrong
-        /// data today - but the moment it becomes selectable this line has to move with it.
+        /// #417 does the same for AoF: Quest, which used to fall through to Age of Fantasy: its 48 enemy
+        /// books are imported now (Army Forge id 8, NOT id 7 - that one is the hero roster), so AoF:
+        /// Quest takes AoF: Quest armies. The hero roster is still missing, which is why the system is
+        /// not selectable yet - but the enemy data is right, so when it becomes selectable this line
+        /// does not have to move.
         /// </para>
         /// </summary>
         public static ArmyBuilding.EAllowedGameSystems ArmySource(EGameSystem system) => system switch
@@ -297,8 +298,8 @@ namespace FDG
             EGameSystem.GFFirefight => ArmyBuilding.EAllowedGameSystems.GFFirefight,
             EGameSystem.AoFSkirmish => ArmyBuilding.EAllowedGameSystems.AoFSkirmish,
             EGameSystem.GFStarQuest => ArmyBuilding.EAllowedGameSystems.GFStarQuest,
-            EGameSystem.AgeOfFantasy or EGameSystem.AoFQuest
-                => ArmyBuilding.EAllowedGameSystems.AgeOfFantasy,
+            EGameSystem.AoFQuest => ArmyBuilding.EAllowedGameSystems.AoFQuest,
+            EGameSystem.AgeOfFantasy => ArmyBuilding.EAllowedGameSystems.AgeOfFantasy,
             _ => ArmyBuilding.EAllowedGameSystems.GrimdarkFuture,
         };
 
@@ -310,7 +311,11 @@ namespace FDG
         /// <summary>The Game Modes this game offers.</summary>
         public static EGameMode[] Modes(EGameSystem system) => system switch
         {
-            EGameSystem.GFStarQuest => new[] { EGameMode.StarQuestMission, EGameMode.StarQuestHorde },
+            // Both Quest systems play the Quest modes. AoF: Quest is not selectable yet (no hero
+            // roster), but its modes are the Quest ones the day it is - the mode enum members are named
+            // for Star Quest only because it got here first; they are the shared Quest modes.
+            EGameSystem.GFStarQuest or EGameSystem.AoFQuest
+                => new[] { EGameMode.StarQuestMission, EGameMode.StarQuestHorde },
             _ => new[] { EGameMode.Standard, EGameMode.Horde },
         };
 

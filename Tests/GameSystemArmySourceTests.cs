@@ -28,6 +28,7 @@ namespace FDG.Tests
         [TestCase(EGameSystem.GFFirefight, EAllowedGameSystems.GFFirefight)]
         [TestCase(EGameSystem.AoFSkirmish, EAllowedGameSystems.AoFSkirmish)]
         [TestCase(EGameSystem.GFStarQuest, EAllowedGameSystems.GFStarQuest)]
+        [TestCase(EGameSystem.AoFQuest, EAllowedGameSystems.AoFQuest)]
         public void EachGameSystem_TakesItsOwnArmies(EGameSystem system, EAllowedGameSystems expected)
         {
             Assert.That(GameSystemInfo.ArmySource(system), Is.EqualTo(expected),
@@ -65,18 +66,54 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void AoFQuest_StillFallsBackToAgeOfFantasy_AndIsNotSelectable()
+        public void AoFQuest_TakesItsOwnBooks_AndIsStillNotSelectable()
         {
-            // A known gap, pinned so it cannot be forgotten rather than left as a comment: AoF: Quest's
-            // own enemy books exist at Army Forge (id 8, 48 of them) and are not imported, so it falls
-            // back the way Star Quest used to. That is harmless ONLY while the lobby cannot pick it - so
-            // this asserts both halves together, and making it selectable without importing its books
-            // fails here.
+            // #417 closed the half of this that was dangerous: AoF: Quest's own enemy books are imported
+            // (Army Forge id 8, 46 books) and ArmySource points at them, so the data is right. What is
+            // still missing is the PLAYER side - AoF: Quest heroes are Army Forge id 7, a separate
+            // dataset with different stats for the same unit (Beastmen's Ndoli Beast Lord is 45pts Q6 D6
+            // as a hero against the enemy book's Ndoli Warrior at 35pts Q4 D4), and there is no AoF
+            // Hero Builder yet. So the system stays unselectable, and this pins WHY: without a party
+            // there is nothing to play, not that the enemy points are wrong.
             Assert.That(GameSystemInfo.ArmySource(EGameSystem.AoFQuest),
-                Is.EqualTo(EAllowedGameSystems.AgeOfFantasy));
+                Is.EqualTo(EAllowedGameSystems.AoFQuest),
+                "AoF: Quest's enemy side must come from its own books, not Age of Fantasy's - the Quest "
+                + "scale is about 3x (Beastmen's Hakemba is 40pts in AoF and 110pts here)");
             Assert.That(GameSystemInfo.IsAvailable(EGameSystem.AoFQuest), Is.False,
-                "AoF: Quest must not become selectable while it would be played on Age of Fantasy's "
-                + "points - import its own books (Army Forge id 8) and move ArmySource with it");
+                "AoF: Quest cannot be picked until its hero roster (Army Forge id 7) is imported and the "
+                + "Hero Builder can build an AoF party - the enemy books alone are half a game");
+        }
+
+        [Test]
+        public void TheTwoQuestSystems_AreNeverTheirParentSystem()
+        {
+            // The whole class of bug this fixture exists for, asserted as a rule rather than per system:
+            // a Quest game played on its parent's book buys the wrong amount of enemy at every points
+            // value, and nothing visible goes wrong.
+            Assert.That(GameSystemInfo.ArmySource(EGameSystem.GFStarQuest),
+                Is.Not.EqualTo(EAllowedGameSystems.GrimdarkFuture));
+            Assert.That(GameSystemInfo.ArmySource(EGameSystem.AoFQuest),
+                Is.Not.EqualTo(EAllowedGameSystems.AgeOfFantasy));
+
+            // And neither Quest system's books may be let into its parent's lobby, or the mispricing
+            // simply runs the other way.
+            Assert.That(GameSystems.IsAllowed(EAllowedGameSystems.AgeOfFantasy, GameSystems.AoFQuest),
+                Is.False);
+            Assert.That(GameSystems.IsAllowed(EAllowedGameSystems.AoFQuest, GameSystems.AgeOfFantasy),
+                Is.False);
+            Assert.That(GameSystems.IsAllowed(EAllowedGameSystems.AoFQuest, null), Is.False,
+                "an army with no system field is a Grimdark Future list (#378), never an AoF: Quest one");
+        }
+
+        [Test]
+        public void BothQuestSystems_OfferTheQuestModes()
+        {
+            // The mode enum members are named for Star Quest because it got here first; they are the
+            // shared Quest modes. An AoF: Quest game that offered Standard/Horde would be playing the
+            // ordinary mission rules with a party of heroes.
+            Assert.That(GameSystemInfo.Modes(EGameSystem.AoFQuest),
+                Is.EqualTo(GameSystemInfo.Modes(EGameSystem.GFStarQuest)));
+            Assert.That(GameSystemInfo.IsQuest(EGameSystem.AoFQuest), Is.True);
         }
 
         [Test]
@@ -97,7 +134,7 @@ namespace FDG.Tests
                     Assert.That(system, Is.EqualTo(EGameSystem.GrimdarkFuture),
                         $"{system} falls through to Grimdark Future's armies. If that is deliberate "
                         + "(its own books are not imported yet) say so in ArmySource and add it to "
-                        + nameof(AoFQuest_StillFallsBackToAgeOfFantasy_AndIsNotSelectable)
+                        + nameof(AoFQuest_TakesItsOwnBooks_AndIsStillNotSelectable)
                         + "; otherwise it is being played on the wrong points.");
                 }
             }
