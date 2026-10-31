@@ -70,6 +70,19 @@ namespace FDG.StateMachine
         /// 20 in the full games, 15 in the skirmish games (#409: was 5).
         public static int PriorityObjectiveBonus { get; private set; } = 20;
 
+        /// <summary>
+        /// Whether killing a Hero together with its unit is worth more than killing the Hero alone.
+        /// <para>
+        /// #416, and the one place the four Horde books diverge on a RULE rather than a measurement.
+        /// Grimdark Future and Age of Fantasy both list three XP tiers - <i>"+3 XP: Killed a unit / +5 XP:
+        /// Killed a Hero unit / +8 XP: Killed a Hero and its unit"</i> - and GF: Firefight and AoF:
+        /// Skirmish list the first two and stop. There is no "Hero and its unit" line in either skirmish
+        /// book. So in those two games a unit that wipes out a joined hero's squad earns 5, the same as
+        /// killing the hero alone, and the engine awarded 8 everywhere.
+        /// </para>
+        /// </summary>
+        public static bool AwardsHeroAndUnitXp { get; private set; } = true;
+
         /// <summary>Rounds at whose end point rewards are paid out (3, 6, 9, 12 - the end of each wave).</summary>
         /// <summary>How close to a seized objective a unit must be to buy upgrades (and recruits deploy).</summary>
         /// 9" in the full game, 6" in Firefight.
@@ -92,6 +105,12 @@ namespace FDG.StateMachine
             ShopRangeInches = skirmish ? 6f : 9f;
             PointsPerSeizedObjective = skirmish ? 30 : 40;
             PriorityObjectiveBonus = skirmish ? 15 : 20;
+            // #416: the skirmish Horde books have only TWO XP tiers. GF and AoF list
+            //   +3 XP: Killed a unit / +5 XP: Killed a Hero unit / +8 XP: Killed a Hero and its unit
+            // and GFF and AoFS list the first two and stop - there is no "Hero and its unit" line in
+            // either of them. Read word for word out of all four Horde Mode v3.6.0 books. So a Firefight
+            // or Skirmish unit that wipes out a hero's squad scores 5, not 8.
+            AwardsHeroAndUnitXp = !skirmish;
             FDG.Stages.HordePlacement.CrowdedRadiiInches = skirmish
                 ? new[] { 6f, 9f, 12f, 15f } : new[] { 9f, 12f, 15f, 18f };
         }

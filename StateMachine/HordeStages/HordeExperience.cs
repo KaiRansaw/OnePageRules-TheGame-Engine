@@ -35,9 +35,21 @@ namespace FDG.StateMachine
         /// <summary>The die faces of the trait table.</summary>
         public enum ETraitRoll { Agile = 1, Headstrong = 2, Specialist = 3, Resilient = 4, Elite = 5, FastLearner = 6 }
 
-        /// <summary>XP for destroying a unit: +8 for a hero together with its unit, +5 for a hero on its own, else +3.</summary>
+        /// <summary>
+        /// XP for destroying a unit: +8 for a hero together with its unit, +5 for a hero on its own,
+        /// else +3.
+        /// <para>
+        /// #416: the top tier exists only in Grimdark Future and Age of Fantasy. Both skirmish Horde
+        /// books stop after "+5 XP: Killed a Hero unit", so there a hero's squad is worth the same as the
+        /// hero - see <see cref="HordeRules.AwardsHeroAndUnitXp"/>. Read off <see cref="HordeRules"/>
+        /// rather than taken as a parameter because every caller would have to pass the same thing, and
+        /// the sizes for the game in play already live there.
+        /// </para>
+        /// </summary>
         public static int XpForKill(bool hadJoinedHero, bool wasSoloHero) =>
-            hadJoinedHero ? 8 : wasSoloHero ? 5 : 3;
+            hadJoinedHero && HordeRules.AwardsHeroAndUnitXp ? 8
+            : hadJoinedHero || wasSoloHero ? 5
+            : 3;
 
         /// <summary>How many 5-XP thresholds were crossed going from <paramref name="before"/> to <paramref name="after"/>.</summary>
         public static int LevelUps(int before, int after) =>
