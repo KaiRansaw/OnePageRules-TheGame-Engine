@@ -119,10 +119,19 @@ namespace FDG.Tests
                 Is.False);
         }
 
-        // --- Dangerous terrain: "roll one die (or as many dice as the model's Tough value)" -------------
+        // --- Dangerous terrain (#414 / 3.6.0): "Units with models moving across Dangerous terrain, or that
+        // activate in it, must roll as many dice as the number of WOUNDS IT WOULD TAKE TO FULLY DESTROY
+        // THEM, and for each roll of 1 the unit takes one wound." Identical in GF, AoF, AoFS v3.6.0 and
+        // GFSQ v2.1.0.
+        //
+        // The pool used to be per crossing MODEL ("roll one die, or as many dice as the model's Tough
+        // value"), which these tests were originally written against. Two of them keep the same numbers
+        // under the new wording - a lone full-health Tough(6) model is both "Tough 6" and "6 remaining
+        // wounds" - so they survived the change without being re-derived, and the case that actually
+        // DISTINGUISHES the two readings is the last one here.
 
         [Test]
-        public void DangerousTerrain_ToughModel_RollsToughDice()
+        public void DangerousTerrain_DicePoolIsTheUnitsRemainingWounds()
         {
             DataBinding<UnitData> unit = MakeUnit("Walker", 1, new Position(0f, 0f));
             unit.GetValue().Models[0].SetMaxWounds(6);
@@ -130,12 +139,13 @@ namespace FDG.Tests
             MovementExecutor.DangerousTerrainResult rolled = CrossMinefield(unit, new FixedFaceDiceRoller(4));
 
             Assert.That(rolled.Roll, Is.Not.Null);
-            Assert.That(rolled.Roll!.TotalRolls, Is.EqualTo(6f).Within(0.001f), "Tough(6) rolls six dice");
+            Assert.That(rolled.Roll!.TotalRolls, Is.EqualTo(6f).Within(0.001f),
+                "6 wounds would destroy this unit, so it rolls six dice");
             Assert.That(rolled.Wounds, Is.EqualTo(0f), "no 1s, no wounds");
         }
 
         [Test]
-        public void DangerousTerrain_ToughModel_TakesAWoundPerOne()
+        public void DangerousTerrain_TakesAWoundPerOne()
         {
             DataBinding<UnitData> unit = MakeUnit("Walker", 1, new Position(0f, 0f));
             unit.GetValue().Models[0].SetMaxWounds(3);
@@ -147,13 +157,29 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void DangerousTerrain_OrdinaryModels_StillRollOneDieEach()
+        public void DangerousTerrain_OrdinaryModels_RollOneDieEach()
         {
             DataBinding<UnitData> unit = MakeUnit("Grunts", 3, new Position(0f, 0f));
 
             MovementExecutor.DangerousTerrainResult rolled = CrossMinefield(unit, new FixedFaceDiceRoller(4));
 
             Assert.That(rolled.Roll!.TotalRolls, Is.EqualTo(3f).Within(0.001f));
+        }
+
+        [Test]
+        public void DangerousTerrain_AWoundedUnitRollsFewerDice()
+        {
+            // The discriminating case for "remaining" vs "total": under the old per-model-Tough reading
+            // this would still roll 6, because Tough doesn't change when a model is hurt. Under 3.6.0 a
+            // Tough(6) walker on its last 2 wounds needs only 2 more to be destroyed, so it rolls 2.
+            DataBinding<UnitData> unit = MakeUnit("Walker", 1, new Position(0f, 0f));
+            unit.GetValue().Models[0].SetMaxWounds(6);
+            unit.GetValue().Models[0].DealWounds(4f);
+
+            MovementExecutor.DangerousTerrainResult rolled = CrossMinefield(unit, new FixedFaceDiceRoller(4));
+
+            Assert.That(rolled.Roll!.TotalRolls, Is.EqualTo(2f).Within(0.001f),
+                "2 wounds left, so 2 dice - the pool is sized to finish the unit, not to re-read its Tough");
         }
 
         // --- Horde shop: "within 9" of a seized objective" measured from the base edge -----------------

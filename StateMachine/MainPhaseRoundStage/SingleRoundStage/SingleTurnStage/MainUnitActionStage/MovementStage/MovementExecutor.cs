@@ -79,16 +79,25 @@ namespace FDG.Stages
             // its path actually crosses — so the no-dangerous-on-table early-out doesn't apply.
             if (dangerous.Count == 0 && !countsAsInDangerousTerrain) return DangerousTerrainResult.None;
 
-            List<IModel> testers = new List<IModel>();
+            // #414 / OPR 3.6.0: the trigger is per-path, the TEST is per-unit. "Units with models moving
+            // across Dangerous terrain, or that activate in it, must roll as many dice as the number of
+            // wounds it would take to fully destroy them" - word for word in GF, AoF, AoFS v3.6.0 and GFSQ
+            // v2.1.0, so this is every game system. Before 3.6 each crossing model tested for itself, which
+            // meant one model clipping a corner of a minefield risked one die while the nine models behind
+            // it risked nothing. Now the unit tests as a unit: one model's path touching the piece is enough
+            // to put the whole unit's remaining wounds on the table.
+            bool anyCrossed = false;
             foreach (ModelMoveEntry move in paths)
             {
                 if (move.Positions.Count == 0) continue;
                 if (!countsAsInDangerousTerrain
                     && !MovementUtilities.DoesPathCrossDangerousTerrain(move, dangerous)) continue;
-                testers.Add(move.Model.GetValue());
+                anyCrossed = true;
+                break;
             }
+            if (!anyCrossed) return DangerousTerrainResult.None;
 
-            return RollBatch(gameContext, testers, unit);
+            return RollBatch(gameContext, UnitTesters(unit), unit);
         }
 
         /// <summary>
@@ -110,28 +119,88 @@ namespace FDG.Stages
         {
             if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
 
-            List<IModel> testers = unit.Models.Where(model => model.GetIsAlive()).ToList();
-            return RollBatch(gameContext, testers, unit);
+            return RollBatch(gameContext, UnitTesters(unit), unit);
         }
 
         /// <summary>
-        /// The batched roll shared by the move-driven and forced tests: ONE roll of N d6 for N testing
-        /// models, a wound per 1. Batching is what lets the probabilistic roller work here — a single
-        /// N-die roll yields the expected number of 1s, which N separate decisive rolls could not.
+        /// A dangerous-terrain test on a unit that simply ACTIVATED in Dangerous terrain, having moved
+        /// nowhere - the clause 3.6.0 added: *"Units with models moving across Dangerous terrain, **or that
+        /// activate in it**, must roll..."*. Identical in GF, AoF, AoFS v3.6.0 and GFSQ v2.1.0.
+        ///
+        /// <para>
+        /// This closes a real hole: before 3.6 a unit could Hold inside a minefield indefinitely and never
+        /// test, so sitting in dangerous terrain was strictly safer than walking out of it. It also settles
+        /// a design fork this repo had carried open for months ("what happens when you hold in dangerous
+        /// terrain?") - the book now answers it outright.
+        /// </para>
+        ///
+        /// <para>
+        /// Membership is "any living model touching the piece", measured with
+        /// <see cref="Rules.Definitions.TerrainProximityQueries.IsModelWithinInches"/> at 0", which is
+        /// base-aware rather than centre-only: a model whose base overlaps the edge of a minefield is in
+        /// the minefield. Same waiver as every other dangerous path - Flying (AllTerrain) and Explorer skip
+        /// it; Strider is DifficultOnly and does not.
+        /// </para>
+        /// </summary>
+        public static DangerousTerrainResult RollActivationDangerousTerrain(IGameContext gameContext,
+            IUnit unit, IEnumerable<ITerrain> relevantTerrain, bool ignoresDangerousTerrain = false)
+        {
+            if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
+
+            List<ITerrain> dangerous = relevantTerrain
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
+                .ToList();
+            if (dangerous.Count == 0) return DangerousTerrainResult.None;
+
+            bool standingInIt = false;
+            foreach (IModel model in unit.Models)
+            {
+                if (!model.GetIsAlive()) continue;
+                if (!Rules.Definitions.TerrainProximityQueries.IsModelWithinInches(model, dangerous, 0f))
+                    continue;
+                standingInIt = true;
+                break;
+            }
+            if (!standingInIt) return DangerousTerrainResult.None;
+
+            return RollBatch(gameContext, UnitTesters(unit), unit);
+        }
+
+        /// <summary>
+        /// The unit's living models, which under 3.6.0 is the testing pool for EVERY dangerous-terrain test
+        /// however it was triggered - a crossing, an activation, or a forced one. Kept in one place so the
+        /// three triggers cannot drift into rolling different numbers of dice for the same rule.
+        /// </summary>
+        private static List<IModel> UnitTesters(IUnit unit) =>
+            unit.Models.Where(model => model.GetIsAlive()).ToList();
+
+        /// <summary>
+        /// The batched roll shared by every dangerous-terrain trigger: ONE roll of N d6, a wound per 1.
+        /// Batching is what lets the probabilistic roller work here — a single N-die roll yields the
+        /// expected number of 1s, which N separate decisive rolls could not.
         /// </summary>
         private static DangerousTerrainResult RollBatch(IGameContext gameContext, IReadOnlyList<IModel> testers,
             IUnit unit)
         {
             if (testers.Count == 0) return DangerousTerrainResult.None;
 
-            // Rules accuracy: "roll one die (or as many dice as the model's Tough value), and if the result
-            // is 1, then the unit takes one automatic wound" - a Tough(6) model rolls six dice, not one.
-            // TotalWounds is the model's Tough (1 for an ordinary model).
+            // #414 / 3.6.0: "as many dice as the number of wounds it would take to fully destroy them" -
+            // the unit's REMAINING wounds, summed over its living models, not its Tough at full strength.
+            // "Fully destroy" is measured from where the unit is now, so a mauled squad rolls fewer dice
+            // than a fresh one, which is the same reading Falling and Regeneration use.
+            //
+            // This replaces the 3.5.x wording ("roll one die, or as many dice as the model's Tough value"),
+            // which was per crossing MODEL. The arithmetic below is unchanged on purpose: each entry is
+            // still that model's share of the pool, so the pending-wound distribution, the per-model cap and
+            // the probabilistic spread all keep working. What changed is WHO is in the pool and how many
+            // dice each one brings - and because a model's share is now its remaining wounds rather than its
+            // Tough, the cap is also exactly the damage that model can absorb, so a 3-wound roll can no
+            // longer be parked on a model with 1 wound left.
             int[] dice = new int[testers.Count];
             int totalDice = 0;
             for (int i = 0; i < testers.Count; i++)
             {
-                dice[i] = Math.Max(1, (int)MathF.Round(testers[i].TotalWounds));
+                dice[i] = Math.Max(1, (int)MathF.Round(testers[i].RemainingWounds));
                 totalDice += dice[i];
             }
 
@@ -166,7 +235,11 @@ namespace FDG.Stages
                 woundsRolled = wounds;
             }
 
-            gameContext.Log($"{unit.Name}: {testers.Count} model(s) tested dangerous terrain - {woundsRolled:0.##} wound(s) dealt.");
+            // The die count is the player-facing number now that the pool is unit-wide: "6 dice" is what
+            // they can check against the unit's own wound total, where "3 models tested" no longer explains
+            // the handful of dice on the table.
+            gameContext.Log($"{unit.Name}: dangerous terrain test - {totalDice} dice, "
+                + $"{woundsRolled:0.##} wound(s) dealt.");
             return new DangerousTerrainResult(roll, testers.Count, woundsRolled, pending, unit);
         }
 

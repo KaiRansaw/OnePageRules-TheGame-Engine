@@ -99,7 +99,56 @@ namespace FDG.Stages
                     : $"{unit.Name}: {outcome.Chosen.RuleName} - chose {outcome.Chosen.Ability.Label}.");
             }
 
+            await TestDangerousTerrainOnActivation(context, unit);
+
             await OnFinished.Activate(context);
+        }
+
+        /// <summary>
+        /// #414 / OPR 3.6.0: *"Units with models moving across Dangerous terrain, **or that activate in
+        /// it**, must roll as many dice as the number of wounds it would take to fully destroy them, and for
+        /// each roll of 1 the unit takes one wound."* Word for word in GF, AoF and AoFS v3.6.0 and GFSQ
+        /// v2.1.0, so this fires in every game system.
+        ///
+        /// <para>
+        /// Before 3.6 there was no such clause, and the engine had none: a unit could Hold inside a
+        /// minefield for the whole game and never roll, which made standing in dangerous terrain strictly
+        /// safer than leaving it. It also closes the long-open design fork in this repo's to-do list about
+        /// what holding in dangerous terrain should do - OPR answered it rather than us.
+        /// </para>
+        ///
+        /// <para>
+        /// **Placed last on purpose.** Explorer (the campaign once-per-game skill) is offered at this very
+        /// hook and waives all terrain for the activation, so the test has to come after the offers or
+        /// spending Explorer would not save the unit from the thing it was spent on. Flying waives it the
+        /// same way; Strider is Difficult-only and does not, exactly as when it walks through the real
+        /// thing.
+        /// </para>
+        ///
+        /// <para>
+        /// A unit that activates in dangerous terrain and then also walks through it tests twice - once
+        /// here, once in the movement stage. That is the book read literally ("moving across ... or that
+        /// activate in it" are two triggers, with nothing limiting the rule to once per activation), and it
+        /// is the reading Kai's standing "rules as written" call asks for. Recorded in WorkItems/414 as a
+        /// deliberate reading rather than an oversight.
+        /// </para>
+        /// </summary>
+        private async Task TestDangerousTerrainOnActivation(IUnitActionContext context, IUnit unit)
+        {
+            bool ignoresDangerousTerrain = MovementRuleQueries.IgnoresAllTerrain(
+                unit, GameContext.RuleEvaluator);
+
+            MovementExecutor.DangerousTerrainResult result =
+                MovementExecutor.RollActivationDangerousTerrain(GameContext, unit,
+                    GameContext.TableState.Terrain.Objects, ignoresDangerousTerrain);
+
+            if (!result.AnyTested) return;
+
+            // Dice have been drawn from the seeded stream and wounds are about to land, so the activation
+            // can no longer be backed out of - same rule the ability grants above follow.
+            context.MarkIrreversibleAction();
+
+            await MovementExecutor.ResolveDangerousTerrain(GameContext, result);
         }
 
         /// <summary>
