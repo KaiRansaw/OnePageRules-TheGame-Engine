@@ -734,6 +734,22 @@ public static class RuleFireLint
                 // save-side rules (not distance-gated).
                 yield return new SaveRollCompleteContext(attacker, defender, OneOfEachFace(),
                     TerrainPieces: OriginTerrain);
+                // #412: the save hook already carries the defender as IHasTarget, so target-gated
+                // conditions are legal here - but with only a Defense 4, non-Tough opponent synthesized,
+                // none of them could ever pass, and every 3.6.0 rule of the shape "when attacking units
+                // where most models have Defense 5+ / Tough(3)+, the target must re-roll its Defense"
+                // read as dead. Same treatment #377 gave the hit side. Actor seat only: a Subject-seat
+                // entry puts the BEARER in the defender chair, and no rule of this family reads its own
+                // armour or toughness.
+                if (seat == ERuleSeat.Actor)
+                {
+                    foreach (UnitData special in new[] { world.ToughOther, world.WeakArmorOther })
+                    foreach (bool isMelee in new[] { false, true })
+                    {
+                        yield return new SaveRollCompleteContext(attacker, special, OneOfEachFace(),
+                            isMelee, IsSpell: false, DistanceInches: FarInches);
+                    }
+                }
                 break;
             case EHookID.Shooting_OnPreApplyWound:
                 yield return new PreApplyWoundContext(attacker, defender);
@@ -800,6 +816,13 @@ public static class RuleFireLint
         /// conditions (#377) — 9 satisfies every gate the corpus uses (3 and 9). </summary>
         public UnitData ToughOther { get; private init; } = null!;
 
+        /// <summary> #412: an opposing unit with Defense 6+, for statGreaterOrEqualTo conditions keyed on
+        /// the TARGET's armour. The ordinary <see cref="Other"/> is Defense 4, so a rule gated on
+        /// "most models have Defense 5+ to Defense 6+" (Fragment and the rest of the 3.6.0 anti-armour
+        /// family) could never prove fireable against it, and read as dead when it is not. 6 is the
+        /// weakest armour the corpus gates on, so it satisfies both the 5+ and 6+ forms. </summary>
+        public UnitData WeakArmorOther { get; private init; } = null!;
+
         /// <summary> The bearer's carrying weapon for weapon-scoped rules; null for unit rules. </summary>
         public Weapon? Weapon { get; private init; }
 
@@ -830,11 +853,14 @@ public static class RuleFireLint
                 Bearer = bearer,
                 Other = BuildUnit(store, "Lint opponent", carriedWeapon: null),
                 ToughOther = toughOther,
+                WeakArmorOther = BuildUnit(store, "Lint weak-armor opponent", carriedWeapon: null,
+                    defense: 6),
                 Weapon = weapon,
             };
         }
 
-        private static UnitData BuildUnit(GameDataStore store, string name, Weapon? carriedWeapon)
+        private static UnitData BuildUnit(GameDataStore store, string name, Weapon? carriedWeapon,
+            int defense = 4)
         {
             var modelBindings = new List<DataBinding<ModelData>>(LintModelsPerUnit);
             for (int i = 0; i < LintModelsPerUnit; i++)
@@ -844,7 +870,7 @@ public static class RuleFireLint
                 modelBindings.Add(store.GetDataBinding<ModelData>(store.Create(model)));
             }
 
-            var unit = new UnitData(new PlayerID(Guid.NewGuid()), name, quality: 4, defense: 4,
+            var unit = new UnitData(new PlayerID(Guid.NewGuid()), name, quality: 4, defense: defense,
                 modelBindings);
             store.Create(unit);
             return unit;
