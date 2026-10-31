@@ -2,14 +2,31 @@ using FDG.Data;
 using FDG.Players;
 using FDG.Rules.Tokens;
 using FDG.Rules.Foundation;
-using FDG.Rules.Definitions;
 using FDG.Stages;
 using FDG.GameMasterTools;
 using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    /// <summary>GF: Firefight slice 1: table, coherency, and end-of-round army morale.</summary>
+    /// <summary>
+    /// GF: Firefight and AoF: Skirmish, **on OPR 3.6.0**.
+    ///
+    /// <para>
+    /// **#414 rewrote this fixture, and what it deleted is the point.** It used to pin Firefight's
+    /// v3.5.1 subsystems: wound markers on the last model with a Tough-gated wound-effect roll, and an
+    /// army-wide morale test at the end of every round *instead of* ordinary morale. **GFF Core Rules
+    /// v3.6.0 contains neither** - it reads like the full game, with standard wounds, standard Morale
+    /// Tests and standard Melee Results. So those tests are gone rather than updated, and the cases
+    /// below pin the opposite: that Firefight now behaves like Grimdark Future everywhere those two
+    /// systems used to intervene.
+    /// </para>
+    ///
+    /// <para>
+    /// What is still Firefight: the 4'x4' table, 6" coherency, the Horde Mode sizes and rewards, and
+    /// **Pushing**, which survived 3.6.0 but had to be re-triggered - it used to hang off the
+    /// wound-effect roll that no longer exists.
+    /// </para>
+    /// </summary>
     [TestFixture]
     public class FirefightRulesTests
     {
@@ -29,184 +46,169 @@ namespace FDG.Tests
             Assert.That(GameWideConstants.MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES, Is.EqualTo(9f));
         }
 
-        [Test]
-        public async Task ArmyAtHalf_EveryUnitTests_FailShakens_FailWhileShakenRouts()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 4);
-            Kill(units[0]); Kill(units[1]);
-            units[3].GetValue().Tokens.AddToken(new Token(TokenType.Shaken, 1, new TokenClearTrigger.ManualOnly()));
-
-            await FirefightRules.ArmyMoraleAtRoundEnd(c);
-
-            Assert.That(units[2].GetValue().Tokens.HasToken(TokenType.Shaken), Is.True, "failed test: Shaken");
-            Assert.That(units[3].GetValue().GetIsAlive(), Is.False, "failed while Shaken: routed");
-        }
+        // ── Wounds: the same as the full game now ────────────────────────────────────────────────────
 
         [Test]
-        public async Task ArmyAboveHalf_NoTest()
+        public async Task Wounds_KillAModelEach_WithNoMarkersLeftBehind()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 4);
-            Kill(units[0]);
-            await FirefightRules.ArmyMoraleAtRoundEnd(c);
-            Assert.That(units.Skip(1).Any(u => u.GetValue().Tokens.HasToken(TokenType.Shaken)), Is.False);
-        }
-
-        [Test]
-        public async Task FullGame_NoRoundEndArmyMorale()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GrimdarkFuture, die: 1, count: 2);
-            Kill(units[0]);
-            await FirefightRules.ArmyMoraleAtRoundEnd(c);
-            Assert.That(units[1].GetValue().Tokens.HasToken(TokenType.Shaken), Is.False);
-        }
-
-        [Test]
-        public async Task Firefight_NoMoraleFromWounds()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 2);
+            // 3.6.0: "Once a model has taken as many wounds as its Tough value, it is killed (remove from
+            // play)." Under 3.5.1 this unit would have lost two models and the third would be standing
+            // with a wound marker on it, waiting on a roll.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1,
+                count: 1, models: 3);
             UnitData unit = units[0].GetValue();
-            unit.Models.First().DealWounds(unit.Models.First().TotalWounds);
-            Assert.That(await MoraleUtilities.ResolveWoundDrivenMorale(c, units[0], remainingWoundsBefore: 2f), Is.Null);
+
+            await CasualtyPresentation.ApplyUnitWounds(c, unit, 3f);
+
+            Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.Zero,
+                "three wounds kill three one-wound models, exactly as in Grimdark Future.");
+            Assert.That(unit.Tokens.GetAllTokens().Any(t => t.Type.Id.Contains("WoundMarker")), Is.False,
+                "and nothing marker-shaped is left on the unit - that system is deleted, not disabled.");
         }
 
         [Test]
-        public async Task WoundEffects_EachWoundKillsAModel_LastModelRolls_LowRollShakens()
+        public async Task Wounds_StopAtTheLastModel_InsteadOfRollingForIt()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 3);
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1,
+                count: 1, models: 2);
             UnitData unit = units[0].GetValue();
-            int killed = await FirefightRules.ApplyWounds(c, unit, 3f, attacker: null, melee: false);
-            Assert.That(killed, Is.EqualTo(2));
+
+            await CasualtyPresentation.ApplyUnitWounds(c, unit, 1f);
+
             Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(1));
-            Assert.That(unit.Tokens.GetTokenCount(FirefightRules.WoundMarker), Is.EqualTo(1));
-            Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.True, "1 + 1 marker = 2, below 6");
+            Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.False,
+                "the 3.5.1 wound-effect roll could Shake a unit off a single wound. 3.6.0 has no such "
+                + "roll - a wound is a wound, and morale is tested in the ordinary places.");
         }
 
+        // ── Morale: also the same as the full game now ───────────────────────────────────────────────
+
         [Test]
-        public async Task WoundEffects_HighRoll_KnocksOut()
+        public async Task AUnitLeftAtHalfStrength_TakesAWoundDrivenMoraleTest()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 5, count: 1);
+            // THE morale case. `ResolveWoundDrivenMorale` used to return null on sight of a skirmish game
+            // ("Firefight: army morale at round end only"), so a Firefight unit shot to half strength
+            // never tested. 3.6.0 restored the ordinary rule, so it tests - and on a 1 it is Shaken.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1,
+                count: 1, models: 4);
             UnitData unit = units[0].GetValue();
-            await FirefightRules.ApplyWounds(c, unit, 1f, attacker: null, melee: false);
-            Assert.That(unit.GetIsAlive(), Is.False, "5 + 1 marker = 6: Knocked Out");
-        }
+            foreach (IModel model in unit.Models.Take(2)) model.DealWounds(model.TotalWounds);
 
-        [Test]
-        public async Task WoundEffects_Tough_RollsOnlyAtXMarkers_OutOn5PlusX()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 4, count: 1);
-            UnitData unit = units[0].GetValue();
-            ((ModelData)unit.Models.First()).SetMaxWounds(3);
-            await FirefightRules.ApplyWounds(c, unit, 2f, attacker: null, melee: false);
-            Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.False, "2 markers, Tough(3): no roll yet");
-            await FirefightRules.ApplyWounds(c, unit, 1f, attacker: null, melee: false);
-            Assert.That(unit.GetIsAlive(), Is.True, "4 + 3 = 7, needs 8");
-            Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.True);
-            await FirefightRules.ApplyWounds(c, unit, 1f, attacker: null, melee: false);
-            Assert.That(unit.GetIsAlive(), Is.False, "4 + 4 + 1 Shaken = 9: Knocked Out");
-        }
+            bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(c, units[0],
+                remainingWoundsBefore: 4f);
 
-        /// <summary>
-        /// #413 - the shooting path. ApplyWoundsStage hands over the wound assignment's own choice of which
-        /// models die first, built from <see cref="AssignWoundsResults"/>'s PendingWounds. Until now NO test
-        /// ever passed <c>order</c>, and the stage's projection of it was casting the data BINDING to IModel
-        /// instead of the value inside it - which compiles, then throws InvalidCastException on the first
-        /// wound. Every Firefight and Skirmish shot that landed killed the game instead of a model.
-        ///
-        /// <para>So this builds the order exactly as the stage does and checks the named model is the one
-        /// that dies, which is both the regression guard and the first coverage <c>order</c> has had.</para>
-        /// </summary>
-        [Test]
-        public async Task WoundEffects_HonourTheAssignmentsOrder_FromPendingWoundBindings()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) =
-                Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 3);
-            UnitData unit = units[0].GetValue();
-
-            // The wound assignment nominates the LAST model, not the first - so a stage that ignores the
-            // order would kill the wrong one and this would fail rather than pass by luck.
-            DataBinding<ModelData> nominatedBinding = unit.ModelBindings.Last();
-            IModel nominated = nominatedBinding.GetValue();
-            var pending = new List<PendingWounds> { new(nominatedBinding) { Wounds = 1 } };
-
-            // This projection is the stage's line under test: the model comes out of GetValue(), never off
-            // the binding itself.
-            int killed = await FirefightRules.ApplyWounds(c, unit, 1f, attacker: null, melee: false,
-                order: pending.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model.GetValue()));
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(killed, Is.EqualTo(1));
-                Assert.That(nominated.GetIsAlive(), Is.False, "the nominated model is the one that died");
-                Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(2));
-            });
-        }
-
-        /// <summary>
-        /// #413 - the trap itself, written down. A DataBinding is not an IModel, but the cast compiles
-        /// because they are unrelated reference types, so the compiler cannot catch this one for us.
-        /// </summary>
-        [Test]
-        public void ADataBindingIsNotTheModelItHolds()
-        {
-            Assert.Multiple(() =>
-            {
-                Assert.That(typeof(IModel).IsAssignableFrom(typeof(DataBinding<ModelData>)), Is.False,
-                    "casting a binding to IModel can only ever throw at runtime");
-                Assert.That(typeof(IModel).IsAssignableFrom(typeof(ModelData)), Is.True,
-                    "the value inside it is the IModel");
-            });
-        }
-
-        [Test]
-        public async Task OtherWoundSources_UseWoundEffects()
-        {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 2);
-            UnitData unit = units[0].GetValue();
-            await CasualtyPresentation.ApplyUnitWounds(c, unit, 2f);
-            Assert.That(unit.GetIsAlive(), Is.True);
+            Assert.That(result, Is.False, "it tested (not null) and failed on a 1.");
             Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.True);
         }
 
         [Test]
-        public async Task BatchedWounds_UseWoundEffects()
+        public async Task TheSameUnitInGrimdarkFuture_BehavesIdentically()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 3);
-            UnitData unit = units[0].GetValue();
-            var pending = unit.Models.Select(m => new PendingModelWound(m, 1f)).ToList();
-            await CasualtyPresentation.ApplyAndPresent(c, pending, unit.ID, unit.Name);
-            Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(1), "two die, the last gets a marker");
-            Assert.That(unit.Tokens.GetTokenCount(FirefightRules.WoundMarker), Is.EqualTo(1));
+            // The other half of the claim: Firefight is not merely testing now, it is testing the SAME
+            // way. If these two ever diverge, one of them has grown a special case.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GrimdarkFuture,
+                die: 1, count: 1, models: 4);
+            foreach (IModel model in units[0].GetValue().Models.Take(2)) model.DealWounds(model.TotalWounds);
+
+            bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(c, units[0],
+                remainingWoundsBefore: 4f);
+
+            Assert.That(result, Is.False);
+        }
+
+        // ── Pushing: kept by 3.6.0, re-triggered by #414 ─────────────────────────────────────────────
+
+        [Test]
+        public void Pushing_OffersTheMove_WhenTheAttackerRolls4Plus()
+        {
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 4,
+                count: 2);
+            UnitData target = units[0].GetValue();
+            target.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
+
+            // ShouldPush, not TryPush: the push itself raises a move request, which in a unit test has
+            // nobody to answer it and hangs the run. The gate and the die are the rules; where the model
+            // ends up is the player's.
+            bool pushed = FirefightRules.ShouldPush(c, target, units[1].GetValue());
+
+            Assert.That(pushed, Is.True, "a 4+ lets the attacker push a Shaken target up to 2\".");
         }
 
         [Test]
-        public async Task MarkerSummary_ShowsMarkersAndThreshold()
+        public void Pushing_DoesNothing_OnAThreeOrLess()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1);
-            UnitData unit = units[0].GetValue();
-            ((ModelData)unit.Models.First()).SetMaxWounds(3);
-            Assert.That(FirefightRules.MarkerSummary(unit), Is.Null);
-            await FirefightRules.ApplyWounds(c, unit, 2f, attacker: null, melee: false);
-            Assert.That(FirefightRules.MarkerSummary(unit), Is.EqualTo("Wound markers: 2 (rolls from 3, Knocked Out on 8+)"));
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 3,
+                count: 2);
+            UnitData target = units[0].GetValue();
+            target.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
+
+            Assert.That(FirefightRules.ShouldPush(c, target, units[1].GetValue()), Is.False);
         }
 
         [Test]
-        public async Task GameMaster_WoundHealRevive_UseMarkersInFirefight()
+        public void Pushing_NeedsTheTargetToActuallyBeShaken()
         {
-            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1, count: 1, models: 2);
+            // The book's trigger is "whenever a unit IS Shaken after being attacked", not "fails a test".
+            // A unit rescued by Fearless or No Retreat failed its test and is not Shaken, so there is
+            // nothing to push.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 6,
+                count: 2);
+
+            Assert.That(FirefightRules.ShouldPush(c, units[0].GetValue(), units[1].GetValue()), Is.False);
+        }
+
+        [Test]
+        public void Pushing_IsSkirmishOnly()
+        {
+            // Pushing is in the GFF and AoFS books and in neither full-game book, so a Grimdark Future
+            // game must never roll for it - including never consuming a die, which would desync a seeded
+            // run against the same game played in Firefight.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GrimdarkFuture,
+                die: 6, count: 2);
+            UnitData target = units[0].GetValue();
+            target.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
+
+            Assert.That(FirefightRules.ShouldPush(c, target, units[1].GetValue()), Is.False);
+        }
+
+        [Test]
+        public void Pushing_NeedsALivingAttacker()
+        {
+            // A unit wiped out by the strike-back it provoked cannot push what it Shook on its way out.
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 6,
+                count: 2);
+            UnitData target = units[0].GetValue();
+            target.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Shaken));
+            Kill(units[1]);
+
+            Assert.That(FirefightRules.ShouldPush(c, target, units[1].GetValue()), Is.False);
+            Assert.That(FirefightRules.ShouldPush(c, target, attacker: null), Is.False,
+                "and a wound with no attacker at all - dangerous terrain, a random event - pushes nothing.");
+        }
+
+        // ── Game Master, on the standard wound path ──────────────────────────────────────────────────
+
+        [Test]
+        public async Task GameMaster_WoundAndHeal_UseOrdinaryWoundsInFirefight()
+        {
+            (TestGameContext c, List<DataBinding<UnitData>> units) = Army(EGameSystem.GFFirefight, die: 1,
+                count: 1, models: 2);
             UnitData unit = units[0].GetValue();
             var hub = new GameMasterHub();
             hub.Attach(c);
+
             hub.WoundUnit(unit.ID, 2);
             await hub.DrainAsync();
-            Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(1));
-            Assert.That(unit.Tokens.GetTokenCount(FirefightRules.WoundMarker), Is.EqualTo(1));
+            Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.Zero,
+                "two wounds kill both one-wound models; the old path left one standing with a marker.");
+
             hub.HealUnit(unit.ID, 1);
             await hub.DrainAsync();
-            Assert.That(unit.Tokens.GetTokenCount(FirefightRules.WoundMarker), Is.EqualTo(0), "heal takes a marker off first");
-            hub.WoundUnit(unit.ID, 1);
+            Assert.That(unit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(1),
+                "and a heal brings a model back rather than peeling a marker off first.");
+
             hub.ReviveUnit(unit.ID);
             await hub.DrainAsync();
-            Assert.That(unit.Tokens.HasToken(FirefightRules.WoundMarker), Is.False);
             Assert.That(unit.Models.All(m => m.GetIsAlive()), Is.True);
         }
 

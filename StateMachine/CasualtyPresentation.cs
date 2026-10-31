@@ -42,16 +42,6 @@ namespace FDG.Stages
         public static async Task ApplyAndPresent(IGameContext gameContext,
             IReadOnlyList<PendingModelWound> pending, UnitID unit, string unitName)
         {
-            // GF: Firefight: a batched test (a whole unit in dangerous terrain) uses wound effects too.
-            if (FirefightRules.IsSkirmishGame(gameContext)
-                && gameContext.GameDataStore.GetAllValues<UnitData>().FirstOrDefault(u => u.ID.Equals(unit)) is { } owner)
-            {
-                var hit = pending.Where(p => p.Wounds > 0f && p.Model.GetIsAlive()).ToList();
-                await FirefightRules.ApplyWounds(gameContext, owner, hit.Sum(p => p.Wounds), attacker: null,
-                    melee: false, order: hit.Select(p => p.Model));
-                return;
-            }
-
             // The last entry that will actually emit a beat - everything before it overlaps (#232).
             int lastCasualtyIndex = -1;
             for (int i = 0; i < pending.Count; i++)
@@ -112,10 +102,9 @@ namespace FDG.Stages
             if (wounds <= 0f) return;
 
             bool wasAlive = unit.GetIsAlive();
-            if (FirefightRules.IsSkirmishGame(gameContext))
-                await FirefightRules.ApplyWounds(gameContext, unit, wounds, attacker: null, melee: false);
-            else
-                await ApplyAndPresent(gameContext, SpreadWounds(unit, wounds), unit.ID, unit.Name);
+            // #414: no Firefight branch any more - 3.6.0 Firefight kills a model at its Tough value like
+            // every other system, so a batched test resolves the same way everywhere.
+            await ApplyAndPresent(gameContext, SpreadWounds(unit, wounds), unit.ID, unit.Name);
 
             // Self-inflicted, but a destruction like any other: OwnerDestroyed marks on other units have
             // to clear and a wrecked Transport has to spill its cargo. Killer-less, so no attacker is

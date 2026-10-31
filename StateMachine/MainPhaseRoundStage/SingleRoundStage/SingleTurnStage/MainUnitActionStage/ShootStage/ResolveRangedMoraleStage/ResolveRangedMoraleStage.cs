@@ -27,7 +27,7 @@ namespace FDG.Stages
             // tested only the current weapon's target and re-baselined its wounds on every weapon.
             foreach (AttackedDefender attacked in context.AttackedDefenders)
             {
-                await ResolveForDefender(attacked);
+                await ResolveForDefender(attacked, context.AttackingUnit.GetValue());
             }
 
             await ToFinished.Activate(context);
@@ -39,7 +39,7 @@ namespace FDG.Stages
         // or less — a unit already below half tests again every activation it takes wounds (#254). The
         // baseline is its wound count when this attacker first targeted it, so a unit shot by three
         // weapons tests at most once, and a targeted-but-unwounded unit doesn't test.
-        private async Task ResolveForDefender(AttackedDefender attacked)
+        private async Task ResolveForDefender(AttackedDefender attacked, IUnit attacker)
         {
             DataBinding<UnitData> defenderBinding = attacked.Defender;
 
@@ -53,6 +53,11 @@ namespace FDG.Stages
             else if (result == false)
             {
                 GameContext.Log($"{defenderBinding.Name()} is at half strength or less, failed its morale test, and is now Shaken.");
+                // #414 Pushing (Firefight/Skirmish only): "whenever a unit is Shaken after being
+                // attacked, the attacker may try to push it". This is one of the two places an attack can
+                // Shake a unit; before 3.6.0 the trigger hung off Firefight's wound-effect roll, which no
+                // longer exists. No-op in every other game system.
+                await FirefightRules.TryPush(GameContext, defenderBinding.GetValue(), attacker);
             }
         }
     }

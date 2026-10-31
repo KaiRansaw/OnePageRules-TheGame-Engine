@@ -181,18 +181,13 @@ namespace FDG.GameMasterTools
         /// <summary>Deals <paramref name="wounds"/> wounds, one at a time to the first living model.</summary>
         public void WoundUnit(UnitID unitID, int wounds = 1)
         {
-            // GF: Firefight: wounds go through the wound effects (models die one per wound, then markers and a roll).
-            Post("Wound", async ctx =>
+            // #414: this used to route Firefight through its own wound effects. 3.6.0 deleted them, so
+            // every system takes the same one-wound-at-a-time path.
+            Post("Wound", ctx =>
             {
                 UnitData? unit = FindUnit(ctx, unitID);
-                if (unit == null) return;
-                if (FDG.Stages.FirefightRules.IsSkirmishGame(ctx))
-                {
-                    ctx.Log($"Game Master: {unit.Name} takes {wounds} wound(s).");
-                    await FDG.Stages.CasualtyPresentation.ApplyUnitWounds(ctx, unit, wounds);
-                    return;
-                }
-                WoundUnitNow(ctx, unit, wounds);
+                if (unit != null) WoundUnitNow(ctx, unit, wounds);
+                return Task.CompletedTask;
             });
         }
 
@@ -211,8 +206,6 @@ namespace FDG.GameMasterTools
         {
             for (int i = 0; i < wounds; i++)
             {
-                // GF: Firefight: a wound marker comes off first.
-                if (FDG.Stages.FirefightRules.RemoveMarker(unit)) continue;
                 ModelData? model = unit.ModelBindings.Select(b => b.GetValue())
                     .Where(m => m.WoundsDealt > 0f)
                     .OrderBy(m => m.GetIsAlive() ? 0 : 1)

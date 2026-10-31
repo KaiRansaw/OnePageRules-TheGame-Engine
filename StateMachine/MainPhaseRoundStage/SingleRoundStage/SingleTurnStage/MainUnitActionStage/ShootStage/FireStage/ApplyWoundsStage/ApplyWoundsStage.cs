@@ -30,28 +30,10 @@ namespace FDG.Stages
             // presenter paces only the stagger), so a multi-casualty volley plays as a rapid-fire
             // cascade with the final death/flinch running out in full. The assignments are
             // precomputed, so the last entry that will emit a beat (Wounds > 0) is known up front.
-            // GF: Firefight wound effects replace the normal per-model wounds.
-            if (FirefightRules.IsSkirmishGame(GameContext))
-            {
-                float total = assignWoundsResults.PendingWounds.Sum(p => p.Wounds);
-                modelsKilled = await FirefightRules.ApplyWounds(GameContext, defendingUnit, total,
-                    metaData.AttackingUnit.GetValue(), metaData.IsMelee,
-                    // #413: the binding is NOT an IModel - the value inside it is. A cast straight off the
-                    // binding compiles (unrelated interface, so the compiler allows it) and then throws
-                    // InvalidCastException on the first wound, which is why no Firefight or Skirmish shot
-                    // ever resolved. Everything else in this file reaches the model through GetValue().
-                    assignWoundsResults.PendingWounds.Where(p => p.Wounds > 0).Select(p => (IModel)p.Model.GetValue()));
-                if (defenderWasAlive && !metaData.DefendingUnit.GetIsAlive())
-                {
-                    GameContext.Log($"{defendingUnit.Name} is destroyed.");
-                    await UnitDestructionNotifier.NotifyUnitDestroyed(GameContext, defendingUnit,
-                        metaData.AttackingUnit.GetValue());
-                }
-                await ApplySelfWounds(metaData);
-                await onFinished(new ApplyWoundsResults(modelsKilled));
-                return;
-            }
-
+            // #414: Firefight used to branch here into its own wound effects (models die one per wound,
+            // then markers on the last one and a roll). The GFF Core Rules v3.6.0 deleted that system -
+            // "Once a model has taken as many wounds as its Tough value, it is killed" - so every system
+            // now takes the same path below. Kai's call, 2026-10-30: play the rules as written.
             int lastCasualtyIndex = -1;
             for (int i = 0; i < assignWoundsResults.PendingWounds.Count; i++)
             {

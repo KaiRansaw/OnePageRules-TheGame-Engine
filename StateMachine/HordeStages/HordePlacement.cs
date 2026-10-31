@@ -368,7 +368,8 @@ namespace FDG.Stages
                 model.SetMaxWounds((int)MathF.Round(model.TotalWounds));
             }
 
-            foreach (TokenType type in new[] { TokenType.Shaken, TokenType.Fatigued, FDG.Stages.FirefightRules.WoundMarker })
+            // #414: the Firefight wound marker used to be swept here too; 3.6.0 deleted that system.
+            foreach (TokenType type in new[] { TokenType.Shaken, TokenType.Fatigued })
             {
                 int count = unit.Tokens.GetTokenCount(type);
                 if (count > 0) unit.Tokens.RemoveTokens(type, count);

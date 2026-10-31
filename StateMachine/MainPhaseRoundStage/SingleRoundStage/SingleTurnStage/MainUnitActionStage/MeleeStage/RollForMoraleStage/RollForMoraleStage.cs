@@ -30,13 +30,11 @@ namespace FDG.Stages
 
             // A unit wiped out in the melee (e.g. destroyed outright by the charge) has nothing left to
             // test — skip the roll and continue with no penalty rather than making a dead unit roll.
-            // GF: Firefight has no melee morale - armies test at the end of each round instead.
-            if (FirefightRules.IsSkirmishGame(GameContext))
-            {
-                await OnMoralePassed.Activate(context);
-                return;
-            }
-
+            //
+            // #414: Firefight used to skip melee morale entirely (3.5.1 replaced it with an army-wide
+            // test at the end of each round). GFF Core Rules v3.6.0 carries the standard Melee Results
+            // rule - "the unit with the highest total loses, and must take a Morale Test" - so the
+            // skirmish games take this test like everyone else now.
             if (!testingUnit.GetIsAlive())
             {
                 GameContext.Log($"{testingUnit.Name} was destroyed in melee - no morale test.");

@@ -307,7 +307,9 @@ namespace FDG.Stages
             float remainingWoundsBefore)
         {
             IUnit unit = unitBinding.GetValue();
-            if (FirefightRules.IsSkirmishGame(gameContext)) return null;     // Firefight: army morale at round end only
+            // #414: the skirmish early-out is gone. 3.5.1 Firefight had no morale from wounds (an
+            // army-wide test at round end instead); GFF Core Rules v3.6.0 uses the standard rule, so a
+            // Firefight unit left at half strength tests like any other.
             if (!unit.GetIsAlive()) return null;                              // wiped out outright — no test
             if (!WoundsLeftUnitAtHalfStrength(remainingWoundsBefore, unit)) return null;
 

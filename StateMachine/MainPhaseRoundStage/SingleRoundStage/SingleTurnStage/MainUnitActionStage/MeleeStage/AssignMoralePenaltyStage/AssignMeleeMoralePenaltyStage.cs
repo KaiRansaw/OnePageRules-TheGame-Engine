@@ -46,6 +46,15 @@ namespace FDG.Stages
             {
                 await MoraleUtilities.ApplyShakenWithPresentation(GameContext, losingUnit);
                 GameContext.Log($"{losingUnit.Name()} failed its morale test and is now Shaken.");
+
+                // #414 Pushing (Firefight/Skirmish only): the other place an attack Shakes a unit. The
+                // pusher is whichever side of this melee did NOT lose it - either can be the loser, since
+                // a charger that comes off worse takes the test itself.
+                IUnit loser = losingUnit.GetValue();
+                IUnit? pusher = ReferenceEquals(context.DefendingUnit.GetValue(), loser)
+                    ? context.AttackingUnit.GetValue()
+                    : context.DefendingUnit.GetValue();
+                await FirefightRules.TryPush(GameContext, loser, pusher);
             }
 
             await OnAssignedPenalty.Activate(context);

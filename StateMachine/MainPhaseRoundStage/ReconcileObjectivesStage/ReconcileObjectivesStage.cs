@@ -99,7 +99,8 @@ namespace FDG.Stages
             }
 
             // GF: Firefight army morale (end of every round, armies at half or fewer of their units).
-            if (!gameMasterEnd) await FirefightRules.ArmyMoraleAtRoundEnd(GameContext);
+            // #414: the Firefight army-wide morale test at the end of every round is gone - it was the
+            // 3.5.1 replacement for ordinary morale, and 3.6.0 restored ordinary morale instead.
 
             // End of round: clear "this round" tokens across every unit AFTER the objective check above —
             // the once-per-round cost gates and the "arrived from reserve this round" marker (which the
