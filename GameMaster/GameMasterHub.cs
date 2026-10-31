@@ -48,6 +48,10 @@ namespace FDG.GameMasterTools
         /// <summary>Whether this is a Horde Mode game (the Horde tools only apply there).</summary>
         public bool IsHorde => _context?.Settings.GameMode == EGameMode.Horde;
 
+        /// <summary>The game system being played, so a panel can name things the way this game does
+        /// (#418: the two Quest systems' random events and items have different names).</summary>
+        public EGameSystem GameSystem => _context?.Settings.GameSystem ?? EGameSystem.GrimdarkFuture;
+
         /// <summary>The live table, for the panel to read (units, objectives, progress).</summary>
         public ITableState? TableState => _context?.TableState;
 

@@ -373,10 +373,10 @@ namespace FDG.Stages
             UnitData? hero = units.FirstOrDefault(u => u.ID.ID.ToString() == q.EventHero);
             switch (ev)
             {
-                case 32: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Save, -1, ELifetime.ThisRound, context, EventNames[32]); break;
-                case 33: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Hit, -1, ELifetime.ThisRound, context, EventNames[33]); break;
+                case 32: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Save, -1, ELifetime.ThisRound, context, EventName(32, context.Settings.GameSystem)); break;
+                case 33: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Hit, -1, ELifetime.ThisRound, context, EventName(33, context.Settings.GameSystem)); break;
                 case 35: foreach (UnitData u in units) QuestTreasure.GrantRule(context, u, u, "-6\" range when shooting", ELifetime.ThisRound); break;
-                case 36: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Morale, -1, ELifetime.ThisRound, context, EventNames[36]); break;
+                case 36: foreach (UnitData u in units) QuestActions.Grant(u, u, ERollKind.Morale, -1, ELifetime.ThisRound, context, EventName(36, context.Settings.GameSystem)); break;
                 case 31:
                     // Crumbling Earth: units that start the round in that quarter take a dangerous terrain test.
                     foreach (UnitData u in units.Where(u => InQuarter(u, q.EventQuarter)))
@@ -395,12 +395,12 @@ namespace FDG.Stages
             if (hero == null) return;
             switch (ev)
             {
-                case 41: QuestActions.Grant(hero, hero, ERollKind.Morale, 1, ELifetime.ThisRound, context, EventNames[41]); break;
+                case 41: QuestActions.Grant(hero, hero, ERollKind.Morale, 1, ELifetime.ThisRound, context, EventName(41, context.Settings.GameSystem)); break;
                 case 44: QuestTreasure.GrantRule(context, hero, hero, "Increased Shooting Range", ELifetime.ThisRound); break;
                 case 52: QuestTreasure.GrantRule(context, hero, hero, "Fast", ELifetime.ThisRound); break;
                 case 53: QuestTreasure.GrantRule(context, hero, hero, "+1 to hit rolls in melee", ELifetime.ThisRound); break;
                 case 55: QuestTreasure.GrantRule(context, hero, hero, "+1 to hit rolls when shooting", ELifetime.ThisRound); break;
-                case 56: QuestActions.Grant(hero, hero, ERollKind.Save, 1, ELifetime.ThisRound, context, EventNames[56]); break;
+                case 56: QuestActions.Grant(hero, hero, ERollKind.Save, 1, ELifetime.ThisRound, context, EventName(56, context.Settings.GameSystem)); break;
             }
         }
 
@@ -425,13 +425,18 @@ namespace FDG.Stages
                 _ => 0,
             };
             if (delta == 0) return (0, null);
-            return (delta, EventNames.TryGetValue(number, out string? name) ? name : $"Event {number}");
+            return (delta, EventName(number, context.Settings.GameSystem));
         }
 
         // ── Random events ────────────────────────────────────────────────────────────────────────────────
 
         public static int EventNumber(QuestProgress q) => q.Event.Length >= 2 && int.TryParse(q.Event[..2], out int n) ? n : 0;
 
+        /// <summary>
+        /// The random-event names in canonical (Star Quest) form. #418: AoF: Quest renames 21 of the 36
+        /// - its book calls event 51 Mystic Fog where this says Psychic Fog - so anything shown to a
+        /// player goes through <see cref="EventName"/> rather than reading this directly.
+        /// </summary>
         public static readonly IReadOnlyDictionary<int, string> EventNames = new Dictionary<int, string>
         {
             [11] = "Lightning Strike", [12] = "Stuck in the Mud", [13] = "Debilitating Static", [14] = "Falling Debris",
@@ -444,6 +449,22 @@ namespace FDG.Stages
             [55] = "Enhancing Force-Field", [56] = "Shield-Projector Drone", [61] = "Injector Pouch", [62] = "Prophetic Vision",
             [63] = "Grenade Bag", [64] = "Credits Stash", [65] = "Kit Box", [66] = "Godly Blessing",
         };
+
+        /// <summary>This game's name for an event (#418).</summary>
+        public static string EventName(int number, EGameSystem system) =>
+            FDG.Quest.QuestEventNames.Name(number, system,
+                EventNames.TryGetValue(number, out string? canonical) ? canonical : $"Event {number}");
+
+        /// <summary>Every event, named for this game - the Game Master's list.</summary>
+        public static IReadOnlyList<KeyValuePair<int, string>> EventsFor(EGameSystem system) =>
+            EventNames.OrderBy(e => e.Key)
+                .Select(e => new KeyValuePair<int, string>(e.Key, EventName(e.Key, system)))
+                .ToList();
+
+        /// <summary>This game's wording for an event's effect (#418).</summary>
+        public static string EventTextFor(int number, EGameSystem system) =>
+            FDG.Quest.QuestEventNames.Fill(
+                EventText.TryGetValue(number, out string? text) ? text : "", system);
 
         private static readonly Dictionary<int, string> EventText = new()
         {
@@ -464,8 +485,12 @@ namespace FDG.Stages
             [52] = "moves +2\" on Advance and +4\" on Rush/Charge until the next event",
             [53] = "gets +1 to hit in melee until the next event", [54] = "gets +1 to Str rolls until the next event",
             [55] = "gets +1 to hit when shooting until the next event", [56] = "gets +1 to Defense rolls until the next event",
-            [61] = "gets a Power Injector", [62] = "D3 search tokens show what they hold", [63] = "gets a Stun Grenade",
-            [64] = "gets 15c", [65] = "gets a Med Kit", [66] = "gets D3 XP",
+            // #418: these four hand over gear or money, and the two Quest systems call them different
+            // things. The placeholders are filled per game by QuestEventNames.Fill, so the sentence a
+            // player reads is the item that actually lands in the pack.
+            [61] = "gets a {item:Power Injector}", [62] = "D3 search tokens show what they hold",
+            [63] = "gets a {item:Stun Grenade}", [64] = "gets {money:15}",
+            [65] = "gets a {item:Med Kit}", [66] = "gets D3 XP",
         };
 
         /// <summary>Rolls two dice (tens, then ones) and resolves that random event.</summary>
@@ -479,16 +504,18 @@ namespace FDG.Stages
             QuestProgress q = Q(context);
             List<UnitData> heroes = StarQuestHordeRules.Heroes(context).Where(h => h.GetIsAlive() && h.GetIsOnBattlefield()).ToList();
             UnitData? hero = heroes.Count == 0 ? null : heroes[(HordePlacement.RollD6(context) * 5 + ones) % heroes.Count];
-            q.Event = $"{n} - {EventNames[n]}";
+            q.Event = $"{n} - {EventName(n, context.Settings.GameSystem)}";
             q.EventHero = hero?.ID.ID.ToString() ?? "";
             q.EventQuarter = 1 + (HordePlacement.RollD6(context) - 1) % 4;
             Save(context, q);
 
             bool heroEvent = n is < 30 or > 40 && n is not (43 or 46 or 62);
-            string text = heroEvent && hero != null ? $"{hero.Name} {EventText[n]}" : EventText[n];
+            string effect = EventTextFor(n, context.Settings.GameSystem);
+            string text = heroEvent && hero != null ? $"{hero.Name} {effect}" : effect;
             if (n is 31 or 34) text += $" (quarter {q.EventQuarter}: {HordeRules.CornerName(q.EventQuarter)})";
-            context.Log($"Star Quest: random event {n} - {EventNames[n]}: {text}.");
-            await context.Announce($"Event {n} - {EventNames[n]}: {text}", new TextColor(220, 160, 255, 255), EBannerTier.Notice);
+            context.Log($"Quest: random event {n} - {EventName(n, context.Settings.GameSystem)}: {text}.");
+            await context.Announce($"Event {n} - {EventName(n, context.Settings.GameSystem)}: {text}",
+                new TextColor(220, 160, 255, 255), EBannerTier.Notice);
             int d3 = (HordePlacement.RollD6(context) + 1) / 2;
 
             if (hero != null)
