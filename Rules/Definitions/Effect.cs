@@ -486,13 +486,24 @@ public abstract record Effect
     /// hit/save/wound resolution is a child-stage chain. Any other hook's generic op application drops it,
     /// and <c>RuleFireLint</c> reports it as unhandled there.</para>
     /// </summary>
-    public sealed record ExtraAttack(string WeaponName, int Attacks, int ArmorPenetration,
+    /// <summary>
+    /// One-shot extra attacks with a synthetic weapon (#197 P16: Takedown Strike / Takedown Shot).
+    /// <para>
+    /// #412: <paramref name="Attacks"/> is a <see cref="ValueSource"/>, not an int, because OPR 3.6.0
+    /// gave both corpus rules a rating - "it may make X attacks" where 3.5.1 said "one attack". The
+    /// books now reference them as Takedown Strike(1), Takedown Shot(2) and so on, and a hard-coded 1
+    /// would quietly ignore every rating above it. A literal still works for a rule that has no rating.
+    /// </para>
+    /// </summary>
+    public sealed record ExtraAttack(string WeaponName, ValueSource Attacks, int ArmorPenetration,
         IReadOnlyList<string> WithRules) : Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
+            int attacks = Attacks.Resolve(ruleInvocation);
+            if (attacks <= 0) return;
             operations.Add(new RuleOperation.InvokeExtraAttack(ruleInvocation.EffectiveTarget,
-                WeaponName, Attacks, ArmorPenetration, WithRules));
+                WeaponName, attacks, ArmorPenetration, WithRules));
         }
     }
 

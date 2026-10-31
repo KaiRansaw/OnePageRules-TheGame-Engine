@@ -19,11 +19,16 @@ namespace FDG.Rules.Definitions;
 /// for a future call site to reach for, and would silently return a wrong answer for any state-reading
 /// variant.</para>
 /// </summary>
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
-[JsonDerivedType(typeof(Literal), "literal")]
-[JsonDerivedType(typeof(Arg), "arg")]
-[JsonDerivedType(typeof(RuleCarrierCount), "ruleCarrierCount")]
-[JsonDerivedType(typeof(Negate), "negate")]
+/// <para>
+/// #412: serialized by <see cref="Serialization.ValueSourceJsonConverter"/> rather than by
+/// [JsonPolymorphic] attributes. The converter has to read a BARE NUMBER as a
+/// <see cref="Literal"/> - saved armies written before <c>Effect.ExtraAttack.Attacks</c> became a
+/// ValueSource store a plain int, and those files are a player's own data - and System.Text.Json
+/// refuses a custom converter on a type that also declares polymorphism ("the converter for derived
+/// type does not support metadata writes or reads"). So the converter owns the whole "kind" mapping,
+/// which <c>ValueSourceJsonConverterTests</c> checks against the subtypes declared here: add one
+/// without teaching the converter about it and that test fails, loudly, rather than the next save.
+/// </para>
 public abstract record ValueSource
 {
     public abstract int Resolve(RuleInvocation invocation);

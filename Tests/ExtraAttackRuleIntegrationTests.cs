@@ -317,7 +317,8 @@ namespace FDG.Tests
                 {
                     new ActivatedAbility(EHookID.Combat_OnAttackWindow, new Cost.OncePerGame(),
                         new TargetSelector(0f, 1, 1, ETargetAffinity.Foe, false),
-                        new Effect.ExtraAttack(name, Attacks: 1, ArmorPenetration: armorPenetration,
+                        new Effect.ExtraAttack(name, Attacks: new ValueSource.Literal(1),
+                            ArmorPenetration: armorPenetration,
                             WithRules: withRules),
                         isMelee ? new Condition.IsMelee() : new Condition.Not(new Condition.IsMelee())),
                 },

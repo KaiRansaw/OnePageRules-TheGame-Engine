@@ -10,7 +10,9 @@ public static class RuleJson
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        // ValueSourceJsonConverter: reads a bare number as ValueSource.Literal, so files saved while an
+        // effect's value was a plain int still load (#412 - see that converter for why that matters).
+        Converters = { new JsonStringEnumConverter(), new ValueSourceJsonConverter() },
         TypeInfoResolver = new DefaultJsonTypeInfoResolver()
         {
             Modifiers = { DropComputedRuleProperties },
