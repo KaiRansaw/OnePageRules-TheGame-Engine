@@ -162,9 +162,18 @@ namespace FDG.Tests
             // uses gets implemented), the parity test above silently loses coverage of that branch.
             ArmyRuleAuditResult audit = ArmyRuleAudit.Audit(MessyArmy());
 
+            // #412: WrongScope is no longer reachable from an ARMY LIST. Both directions of scope
+            // crossing are legitimate attachments now - a weapon rule named at unit level re-homes onto
+            // the unit's weapons (#197 slice 0), and a unit rule named on a weapon is wargear that
+            // promotes onto its carrier (Spell Amplifier on a staff, Brace(X) on a spear). The reason
+            // still exists because ArmyListSpellResolution produces it for a spell that grants a rule
+            // at the wrong scope, which is not an army-list path and not what this fixture covers.
+            var reachableFromAnArmyList = Enum.GetValues<ERuleDropReason>()
+                .Where(reason => reason != ERuleDropReason.WrongScope);
+
             Assert.That(audit.Drops.Select(d => d.Reason).Distinct(),
-                Is.EquivalentTo(Enum.GetValues<ERuleDropReason>()),
-                "the messy army must keep exercising every ERuleDropReason.");
+                Is.EquivalentTo(reachableFromAnArmyList),
+                "the messy army must keep exercising every ERuleDropReason an army list can produce.");
         }
 
         [Test]

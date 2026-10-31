@@ -69,12 +69,15 @@ namespace FDG.SaveLoad
             foreach (UnitFileEntry unit in armyListFile.Units)
             {
                 // Weapon-level rules: the UnitData ctor resolves each weapon entry's rule names once
-                // (shared across the entry's quantity), scope-gated to Weapon.
+                // (shared across the entry's quantity), any-scope since #412 - a UNIT-scoped rule named
+                // on a weapon is wargear whose effect is about the model (Spell Amplifier on a staff,
+                // Brace(X) on a spear) and is promoted onto the carrier rather than dropped. Only an
+                // unimplemented name or a bad argument is a real drop here now.
                 foreach (WeaponFileEntry weapon in unit.Weapons)
                 {
                     foreach (SpecialRuleEntry ruleEntry in weapon.SpecialRules)
                     {
-                        Classify(resolver, ruleEntry, ERuleScope.Weapon,
+                        Classify(resolver, ruleEntry, attachmentScope: null,
                             $"weapon '{weapon.Name}' of unit '{unit.Name}'", drops);
                     }
                 }

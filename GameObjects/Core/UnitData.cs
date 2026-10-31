@@ -222,13 +222,19 @@ namespace FDG
             //Distribute weapons in order of quantity, should be a decent approximate of how they're
             //actually distributed.
             List<Weapon> unitWeapons = new List<Weapon>();
+
+            // #412: rules written onto a weapon whose definition is about the MODEL get collected here
+            // and attached to the unit once the weapons are built, rather than being dropped as a
+            // scope mismatch. See ResolveWeaponRules.
+            List<ResolvedRule> promotedToUnit = new List<ResolvedRule>();
             for (int i = 0; i < sortedWeaponEntries.Count; i++)
             {
                 WeaponFileEntry weaponEntry = sortedWeaponEntries[i];
 
                 //Resolved once per entry and shared across the quantity's instances —
                 //ResolvedRule is immutable, so duplicates of the same weapon can share it.
-                List<ResolvedRule> weaponRuleDefinitions = ResolveWeaponRules(weaponEntry, ruleResolver);
+                List<ResolvedRule> weaponRuleDefinitions =
+                    ResolveWeaponRules(weaponEntry, ruleResolver, promotedToUnit);
 
                 // #239: the entry's explicit effect-set key, else the army default for the weapon's
                 // kind. Resolved once here so beat emission just reads Weapon.EffectKey.
@@ -247,6 +253,11 @@ namespace FDG
 
                     unitWeapons.Add(weapon);
                 }
+            }
+
+            foreach (ResolvedRule promoted in promotedToUnit)
+            {
+                AttachRuleDefinition(promoted);
             }
 
             // The unit's base shape (#149), authored per-unit in the army file; all its models share it.
@@ -276,7 +287,21 @@ namespace FDG
         /// warning. A null resolver (e.g. template-copy construction paths that never see an
         /// army file) yields no rules.
         /// </summary>
-        private List<ResolvedRule> ResolveWeaponRules(WeaponFileEntry weaponEntry, IRuleResolver? ruleResolver)
+        /// <summary>
+        /// Resolves a weapon entry's rule names. Weapon-scoped ones come back to be attached to the
+        /// weapon; UNIT-scoped ones are added to <paramref name="promotedToUnit"/> for the caller to
+        /// attach to the unit instead.
+        /// <para>
+        /// #412: the promotion is the mirror of the unit-level wargear re-homing #197 slice 0 added
+        /// (a weapon rule named at unit level is spread across the unit's weapons). OPR routinely
+        /// writes a rule about the MODEL onto a piece of its gear - Spell Amplifier on a magic staff,
+        /// Brace(X) on a spear - and a weapon's rules are only consulted when that weapon is the one
+        /// in the attack context. A defender bracing against a charge, or a hero casting a spell, is
+        /// never that, so before this those rules resolved, validated, and then silently never fired.
+        /// </para>
+        /// </summary>
+        private List<ResolvedRule> ResolveWeaponRules(WeaponFileEntry weaponEntry, IRuleResolver? ruleResolver,
+            List<ResolvedRule> promotedToUnit)
         {
             List<ResolvedRule> resolved = new List<ResolvedRule>();
 
@@ -287,13 +312,33 @@ namespace FDG
 
             foreach (SpecialRuleEntry ruleEntry in weaponEntry.SpecialRules)
             {
-                ResolvedRule? rule = ArmyListRuleResolution.ResolveForScope(
-                    ruleResolver, ruleEntry, ERuleScope.Weapon, $"weapon '{weaponEntry.Name}' of unit '{Name}'");
+                ResolvedRule? rule = ArmyListRuleResolution.ResolveAnyScope(
+                    ruleResolver, ruleEntry, $"weapon '{weaponEntry.Name}' of unit '{Name}'");
 
-                if (rule != null)
+                if (rule == null)
                 {
-                    resolved.Add(rule);
+                    continue;
                 }
+
+                if (rule.Definition.Scope == ERuleScope.Unit)
+                {
+                    // One copy per unit however many weapons or duplicates name it: ResolvedRule is
+                    // immutable and the dispatcher dedups by definition and arguments anyway, so a
+                    // squad of ten spears must not grant Brace ten times over.
+                    bool alreadyPromoted = promotedToUnit.Exists(existing =>
+                        existing.Definition == rule.Definition
+                        && existing.Arguments.Count == rule.Arguments.Count
+                        && !existing.Arguments.Where((a, i) => !a.Equals(rule.Arguments[i])).Any());
+
+                    if (!alreadyPromoted)
+                    {
+                        promotedToUnit.Add(rule);
+                    }
+
+                    continue;
+                }
+
+                resolved.Add(rule);
             }
 
             return resolved;
