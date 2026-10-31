@@ -231,8 +231,24 @@ namespace FDG.ArmyBuilding
             ["Rebel Guerrillas"]             = (Sets.BallisticSlug, Sets.EnergyBlade),
             ["Robot Legions"]                = (Sets.GaussParticle, Sets.TitanImpact),
             ["Saurian Starhost"]             = (Sets.GaussParticle, Sets.ClawRend),
+            ["Saurian Starhosts"]            = (Sets.GaussParticle, Sets.ClawRend),   // #412: renamed in 3.6.0
             ["Soul-Snatcher Cults"]          = (Sets.BallisticSlug, Sets.CrudeMelee),
             ["Titan Lords"]                  = (Sets.FusionMelta, Sets.TitanImpact),
+            // #412: factions that arrived with OPR 3.6.0 and with the Firefight books. Assigned by the
+            // same reading the #239 survey used - what the faction's weapons mostly ARE - rather than
+            // left to fall through to the global default, which gives a whole army one generic sound.
+            ["Voidspace Stalkers"]           = (Sets.BioOrganic, Sets.ClawRend),
+            ["Badland Nomads"]               = (Sets.BallisticSlug, Sets.CrudeMelee),
+            ["Berserker Clans"]              = (Sets.BallisticSlug, Sets.CrudeMelee),
+            ["Brute Coalitions"]             = (Sets.BallisticSlug, Sets.CrudeMelee),
+            ["City Runners"]                 = (Sets.BallisticSlug, Sets.BladeStandard),
+            ["Mega-Corps"]                   = (Sets.LaserBeam, Sets.EnergyBlade),
+            ["Mercenaries"]                  = (Sets.BallisticSlug, Sets.BladeStandard),
+            ["Psycho Cults"]                 = (Sets.BallisticSlug, Sets.CrudeMelee),
+            ["Security Forces"]              = (Sets.BallisticSlug, Sets.ShockMelee),
+            ["Shadow Leagues"]               = (Sets.BallisticSlug, Sets.BladeStandard),
+            ["Shortling Federations"]        = (Sets.BallisticSlug, Sets.BladeStandard),
+            ["Worker Unions"]                = (Sets.BallisticSlug, Sets.CrudeMelee),
             // #412: new in OPR 3.6.0. Same raider silhouette as Dark Elf Raiders (splinter shot, blades
             // and claws), so it takes the same pair rather than falling through to the global default.
             ["Voidspace Stalkers"]           = (Sets.BioOrganic, Sets.ClawRend),
@@ -249,6 +265,13 @@ namespace FDG.ArmyBuilding
             ["Wormhole Daemons of Lust"]     = (Sets.BallisticSlug, Sets.DaemonArcaneMelee),
             ["Wormhole Daemons of Plague"]   = (Sets.BioOrganic, Sets.ToxicMelee),
             ["Wormhole Daemons of War"]      = (Sets.BioOrganic, Sets.BladeStandard),
+            // #412: OPR 3.6.0 dropped the "Wormhole" prefix. Both names are kept rather than renamed,
+            // because an army saved before the rebuild still carries the old faction string, and the
+            // Firefight books (new in #412) only ever had the current one.
+            ["Daemons of Change"]            = (Sets.ArcanePsychic, Sets.DaemonArcaneMelee),
+            ["Daemons of Lust"]              = (Sets.BallisticSlug, Sets.DaemonArcaneMelee),
+            ["Daemons of Plague"]            = (Sets.BioOrganic, Sets.ToxicMelee),
+            ["Daemons of War"]               = (Sets.BioOrganic, Sets.BladeStandard),
         };
 
         // Per-faction default sets for the 40 Age of Fantasy books (#378 survey, 2026-08-23). A separate
@@ -290,7 +313,26 @@ namespace FDG.ArmyBuilding
             ["Rift Daemons of Lust"]         = (Sets.ArcaneBolt, Sets.DaemonArcaneMelee),
             ["Rift Daemons of Plague"]       = (Sets.BioOrganic, Sets.ToxicMelee),
             ["Rift Daemons of War"]          = (Sets.ArcaneBolt, Sets.DaemonArcaneMelee),
+            // #412: as the Grimdark Future table - 3.6.0 dropped the "Rift" prefix, and the Skirmish
+            // books (new in #412) only ever had the current name.
+            ["Daemons of Change"]            = (Sets.ArcaneBolt, Sets.DaemonArcaneMelee),
+            ["Daemons of Lust"]              = (Sets.ArcaneBolt, Sets.DaemonArcaneMelee),
+            ["Daemons of Plague"]            = (Sets.BioOrganic, Sets.ToxicMelee),
+            ["Daemons of War"]               = (Sets.ArcaneBolt, Sets.DaemonArcaneMelee),
             ["Saurians"]                     = (Sets.ThrownSpear, Sets.ClawRend),
+            // #412: Skirmish-only factions, which arrived with the Skirmish books. Same reading as the
+            // #239 survey - the warband's characteristic weapon, not a generic fallback.
+            ["Brute Clans"]                  = (Sets.ThrownSpear, Sets.CrudeMelee),
+            ["Crazed Zealots"]               = (Sets.SlingStone, Sets.CrudeMelee),
+            ["Furious Tribes"]               = (Sets.ThrownSpear, Sets.CrudeMelee),
+            ["Hidden Syndicates"]            = (Sets.CrossbowBolt, Sets.BladeStandard),
+            ["Hired Guards"]                 = (Sets.CrossbowBolt, Sets.SpearPierce),
+            ["Mercenaries"]                  = (Sets.CrossbowBolt, Sets.BladeStandard),
+            ["Merchant Unions"]              = (Sets.CrossbowBolt, Sets.BladeStandard),
+            ["Outskirt Raiders"]             = (Sets.ArrowLoose, Sets.CrudeMelee),
+            ["Shortling Alliances"]          = (Sets.SlingStone, Sets.BladeStandard),
+            ["Trade Federations"]            = (Sets.CrossbowBolt, Sets.BladeStandard),
+            ["Treasure Hunters"]             = (Sets.ArrowLoose, Sets.BladeStandard),
             ["Shadow Stalkers"]              = (Sets.ThrownSpear, Sets.ClawRend),
             ["Sky-City Dwarves"]             = (Sets.BallisticSlug, Sets.CrudeMelee),
             ["Vampiric Undead"]              = (Sets.ArrowLoose, Sets.BladeStandard),
@@ -320,8 +362,14 @@ namespace FDG.ArmyBuilding
                 if (!string.IsNullOrWhiteSpace(previous)) yield return previous;
         }
 
+        // #412: Skirmish is Age of Fantasy at a smaller scale - same factions, same weapons, same
+        // fantasy vocabulary - so it reads the fantasy tables too. Before the Skirmish books existed
+        // this only ever saw the two parent systems and the distinction never came up; the moment they
+        // were imported, all 46 of them fell through to the sci-fi table and came out with no effect
+        // sets at all. Firefight is deliberately absent: it is Grimdark Future's vocabulary, which is
+        // what the default branch already gives it.
         private static bool IsAof(string? gameSystem) =>
-            string.Equals(GameSystems.Normalize(gameSystem), GameSystems.AgeOfFantasy, StringComparison.OrdinalIgnoreCase);
+            GameSystems.Normalize(gameSystem) is GameSystems.AgeOfFantasy or GameSystems.AoFSkirmish;
 
         /// <summary>
         /// The keyword/override match for a weapon name, or null when nothing distinctive matches
