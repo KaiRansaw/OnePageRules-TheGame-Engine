@@ -11,15 +11,36 @@ namespace FDG
 
         /// <summary>
         /// How close models must be to engage in melee, after the charge has already happened.
-        /// This is for horizontal distances.
+        ///
+        /// <para>
+        /// **#414: a flat 3", and this is an OPR 3.6.0 correction rather than a Star Quest one.** Every
+        /// 3.6.0 core book reads *"Charging models must move into base contact with targets, or as close
+        /// as possible, and then defenders must do the same by moving up to 3". Models within 3" of
+        /// enemies must strike with all melee weapons"* - checked word for word in **GF Core Rules
+        /// v3.6.0**, **GFF Core Rules v3.6.0** and **GFSQ Core Rules v2.1.0**. One distance, no vertical
+        /// clause anywhere.
+        /// </para>
+        ///
+        /// <para>
+        /// The split 2" horizontal / 4" vertical the engine used until now is the **3.5.1** wording
+        /// ("All models that are within 2" horizontally and 4" vertically ... may attack it"), which
+        /// only ever appeared in the Advanced Rules and the pre-3.6 Firefight book. R1 moved the game to
+        /// 3.6.0 and missed it, so it is kept as one constant for both axes rather than made per-system:
+        /// there is no system left that wants the split.
+        /// </para>
+        ///
+        /// <para>
+        /// It cuts both ways in play - reach grows by an inch on the flat, and shrinks by one up or
+        /// down, so a model on a 4" ledge can no longer fight what is below it.
+        /// </para>
         /// </summary>
-        public const float MELEE_RANGE_INCHES_HORIZONTAL = 2;
+        public const float MELEE_RANGE_INCHES_HORIZONTAL = MELEE_RANGE_INCHES;
 
-        /// <summary>
-        /// How close models must be to engage in melee, after the charge has already happened.
-        /// This is for vertical distance.
-        /// </summary>
-        public const float MELEE_RANGE_INCHES_VERTICAL = 4;
+        /// <summary>The same 3": 3.6.0 states one melee distance and no vertical exception.</summary>
+        public const float MELEE_RANGE_INCHES_VERTICAL = MELEE_RANGE_INCHES;
+
+        /// <summary>Melee reach, OPR 3.6.0 / GFSQ 2.1.0: a flat 3" in every direction.</summary>
+        public const float MELEE_RANGE_INCHES = 3;
 
         /// <summary>
         /// Furthest any model in a unit can be from the closest other model in the same unit.

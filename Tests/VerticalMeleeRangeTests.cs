@@ -8,10 +8,11 @@ using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    // #022 — Vertical melee range handling. Melee range is the 2"-horizontal AND 4"-vertical cylinder
-    // (GF v3.5.1). Before #022 the *defender-eligibility* gate (ChooseMeleeDefenderStage) and the
-    // *charge-availability* gate (ChooseActionStage.GetCanCharge) applied only the horizontal half, so a
-    // unit within 2" horizontally but beyond 4" vertically (e.g. on a tall ledge) was offered/engageable
+    // #022 — Vertical melee range handling. Melee range is a 3" cylinder, horizontal AND vertical
+    // (#414: OPR 3.6.0 flattened the old 2"/4" split; see GameWideConstants.MELEE_RANGE_INCHES). Before
+    // #022 the *defender-eligibility* gate (ChooseMeleeDefenderStage) and the *charge-availability* gate
+    // (ChooseActionStage.GetCanCharge) applied only the horizontal half, so a unit in horizontal reach
+    // but beyond the vertical one (e.g. on a tall ledge) was offered/engageable
     // even though no model could actually strike it. Both gates now share
     // MeleeRangeUtilities.AreUnitsInMeleeRange — the same cylinder the post-pile-in strike gate uses
     // (covered separately by MeleeInRangeIntegrationTests). These tests pin the unit-level predicate and
@@ -47,7 +48,7 @@ namespace FDG.Tests
         public void AreUnitsInMeleeRange_HorizontallyCloseButVerticallyTooFar_False()
         {
             // The whole point of #022: 1" horizontal centre distance (in range), but 5" up — beyond the
-            // 4" vertical reach. No model can strike, so the units are not in melee range.
+            // vertical reach. No model can strike, so the units are not in melee range.
             DataBinding<UnitData> a = MakeUnit(new Position(10f, 0f, 0f));
             DataBinding<UnitData> b = MakeUnit(new Position(11f, 5f, 0f));
 
@@ -57,11 +58,27 @@ namespace FDG.Tests
         [Test]
         public void AreUnitsInMeleeRange_VerticalExactlyAtCeiling_True()
         {
-            // Boundary: exactly 4" vertical is still in range (the check excludes only > 4").
+            // Boundary: exactly at the reach is still in range (the check excludes only beyond it). Read
+            // from the constant rather than typed: #414 moved this from 4" to 3" and a hard-coded 4 here
+            // was one of the three tests that caught the change, which is the point of pinning it.
             DataBinding<UnitData> a = MakeUnit(new Position(10f, 0f, 0f));
-            DataBinding<UnitData> b = MakeUnit(new Position(11f, 4f, 0f));
+            DataBinding<UnitData> b = MakeUnit(
+                new Position(11f, GameWideConstants.MELEE_RANGE_INCHES_VERTICAL, 0f));
 
             Assert.That(MeleeRangeUtilities.AreUnitsInMeleeRange(a.GetValue(), b.GetValue()), Is.True);
+        }
+
+        [Test]
+        public void AreUnitsInMeleeRange_JustBeyondTheCeiling_False()
+        {
+            // #414: the other side of that boundary, so the reach cannot silently grow back. A model 4"
+            // up was in reach under 3.5.1 and is not under 3.6.0.
+            DataBinding<UnitData> a = MakeUnit(new Position(10f, 0f, 0f));
+            DataBinding<UnitData> b = MakeUnit(
+                new Position(11f, GameWideConstants.MELEE_RANGE_INCHES_VERTICAL + 1f, 0f));
+
+            Assert.That(MeleeRangeUtilities.AreUnitsInMeleeRange(a.GetValue(), b.GetValue()), Is.False,
+                "3.6.0 melee reach is a flat 3\" - 4\" up is out of reach, where 3.5.1 allowed it.");
         }
 
         [Test]
@@ -106,7 +123,7 @@ namespace FDG.Tests
         [Test]
         public async Task ChooseMeleeDefender_EnemyWithinCylinder_IsChosen()
         {
-            // Same horizontal placement, but within the 4" vertical reach — now a valid defender.
+            // Same horizontal placement, but within the vertical reach — now a valid defender.
             DataBinding<UnitData> attacker = MakeUnit(new Position(10f, 0f, 0f));
             MakeEnemyArmy(new Position(11f, 2f, 0f));
 

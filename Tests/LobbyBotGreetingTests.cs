@@ -100,11 +100,31 @@ namespace FDG.Tests
         }
 
         // Chat also carries host-side "System" notices (server start), which are not bot banter.
-        private static IReadOnlyList<LobbyChatMessage> BotGreetingsIn(LobbyViewModel_Host hostVm) =>
-            hostVm.ChatMessages
-                .Where(msg => msg.SendingPlayerName.StartsWith("Tactician Bot")
-                              || msg.SendingPlayerName.StartsWith("DerpBot"))
-                .ToArray();
+        //
+        // #414: the enumeration is guarded because each bot's greeting is appended from its own timer
+        // thread while this polls. Reading a List<T> mid-append throws IndexOutOfRangeException out of
+        // LINQ, which is exactly what started happening once the poll below ran for 20s instead of 5 -
+        // a torn read, not a missing greeting, so the right answer is "nothing to see yet, poll again".
+        //
+        // **Worth a real look separately:** the same race exists in the running game, where the UI
+        // thread draws ChatMessages while the lobby appends to it, so a lobby with several bots could in
+        // principle throw while drawing. The engine-side fix (a lock or an immutable snapshot on the
+        // view model) is a lobby thread-safety job and is recorded in WorkItems/414 rather than done
+        // here, because a test must not be the thing that makes a production race look handled.
+        private static IReadOnlyList<LobbyChatMessage> BotGreetingsIn(LobbyViewModel_Host hostVm)
+        {
+            try
+            {
+                return hostVm.ChatMessages
+                    .Where(msg => msg.SendingPlayerName.StartsWith("Tactician Bot")
+                                  || msg.SendingPlayerName.StartsWith("DerpBot"))
+                    .ToArray();
+            }
+            catch (Exception) // torn read while a bot thread appends; the caller polls again
+            {
+                return Array.Empty<LobbyChatMessage>();
+            }
+        }
 
         private static async Task<IReadOnlyList<LobbyChatMessage>> WaitForBotGreetings(
             LobbyViewModel_Host hostVm, int expected)

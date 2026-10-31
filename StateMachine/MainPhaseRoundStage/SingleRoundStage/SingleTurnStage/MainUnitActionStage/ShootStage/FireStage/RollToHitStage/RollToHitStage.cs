@@ -80,8 +80,17 @@ namespace FDG.Stages
             // #204: the LIVE named evaluation - spends grants / narrates exactly like EvaluateAll, but also
             // pairs each op with the alias-aware rule name so the save presentation can say "+1 (Furious)",
             // "x3 (Blast)", "Rending AP+1". `operations` is the plain-op view the existing sinks consume.
+            // #414 (OPR 3.6.0 Fatigue): "...and those hits don't count as rolls of 6 for special rules".
+            // A fatigued unit hits ONLY on 6s, so without this every 6-triggered rule it owns would fire
+            // on every hit it scores - Rending promoting all of them to AP(+4), Furious and Surge
+            // doubling them. The masked view goes to the RULES only; the beat below and the hit count
+            // still carry the dice that were really rolled.
+            IDiceResults rulesSeeRolls = metaData.IsMelee && FatigueUtilities.CountsAsFatiguedInMelee(attacker)
+                ? FatigueUtilities.HideSixesFromRules(rollToHitResults)
+                : rollToHitResults;
+
             IReadOnlyList<(RuleOperation Op, string RuleName)> named = GameContext.RuleEvaluator.EvaluateAllNamedLive(
-                new HitRollCompleteContext(attacker, defender, rollToHitResults, distance, metaData.IsMelee,
+                new HitRollCompleteContext(attacker, defender, rulesSeeRolls, distance, metaData.IsMelee,
                     metaData.IsCharging, IsSpell: false,
                     ChargeOriginDistanceInches: metaData.ChargeOriginDistanceInches,
                     UnpredictableBranch: metaData.UnpredictableBranch,

@@ -351,9 +351,16 @@ namespace FDG.Ai.Tactician
             IDiceResults rolls = Dice.Roll(attackCount);
             IDiceResults successful = rolls.SubsetAtOrAbove(DiceUtilities.ClampSuccessRollNeeded(hitRollNeeded));
 
+            // #414: mirror RollToHitStage's fatigue mask, or the bot would price a fatigued melee swing
+            // as if its 6s still triggered Rending / Furious / Surge - overvaluing a second charge with
+            // the one unit whose dice the rule just stopped counting.
+            IDiceResults rulesSeeRolls = context.IsMelee && FatigueUtilities.CountsAsFatiguedInMelee(atk)
+                ? FatigueUtilities.HideSixesFromRules(rolls)
+                : rolls;
+
             var __completeProbe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
             IReadOnlyList<RuleOperation> completeOps = Ops(evaluator.EvaluateAllNamed(
-                new HitRollCompleteContext(atk, def, rolls, context.DistanceInches,
+                new HitRollCompleteContext(atk, def, rulesSeeRolls, context.DistanceInches,
                     context.IsMelee, context.IsCharging),
                 attackerBatch,
                 defenderSeat));
