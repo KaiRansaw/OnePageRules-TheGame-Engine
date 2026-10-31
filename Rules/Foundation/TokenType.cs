@@ -45,6 +45,13 @@ public readonly record struct TokenType(string Id)
     // army-wide "only up to one third of them per round" cap can count the uses. Cleared at round end -
     // the cap is per round, while the unit's own once-per-game gate is a separate, permanent marker.
     public const string REACTIVATED_THIS_ROUND_ID = "ReactivatedThisRound";
+    // #412 Scourge: a running tally of extra wounds the bearer counts as having DEALT for the
+    // who-won-melee comparison and the shooting morale trigger - not real wounds, and never applied to
+    // a model. Needed because the trigger and the consumer sit at different hooks: the tally is earned
+    // from the defender's unmodified block rolls (Shooting_OnSaveRollComplete) and spent at
+    // Melee_OnMeleeResolution, whose context knows nothing of those rolls. Cleared at activation end,
+    // so a tally never leaks into the next melee.
+    public const string MELEE_WOUND_TALLY_ID = "MeleeWoundTally";
     public const string HORDE_XP_ID = "HordeXP";
     public const string HORDE_ELITE_USED_ID = "HordeEliteUsed";
 
@@ -123,6 +130,7 @@ public readonly record struct TokenType(string Id)
     /// Horde Mode experience: the count IS the unit's XP (capped at 30). Every 5 XP the unit rolls a
     /// trait. ManualOnly - XP is kept for the whole mission.
     /// </summary>
+    public static readonly TokenType MeleeWoundTally = new(MELEE_WOUND_TALLY_ID);
     public static readonly TokenType HordeXP = new(HORDE_XP_ID);
 
     /// <summary>Horde Mode Elite trait: its once-per-round re-roll has been used this round (RoundEnd clear).</summary>

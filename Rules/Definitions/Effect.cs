@@ -85,6 +85,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(IgnoreTerrainEffects), "ignoreTerrainEffects")]
 [JsonDerivedType(typeof(IgnoreEnemyMovementBlock), "ignoreEnemyMovementBlock")]
 [JsonDerivedType(typeof(IgnoreCover), "ignoreCover")]
+[JsonDerivedType(typeof(IgnorePositiveDefenseModifiers), "ignorePositiveDefenseModifiers")]
 [JsonDerivedType(typeof(IgnoreLineOfSight), "ignoreLineOfSight")]
 [JsonDerivedType(typeof(DeferDeployment), "deferDeployment")]
 [JsonDerivedType(typeof(Disembark), "disembark")]
@@ -95,6 +96,8 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(MarkTarget), "markTarget")]
 [JsonDerivedType(typeof(ReduceArmorPenetration), "reduceArmorPenetration")]
 [JsonDerivedType(typeof(TokenScaledRollModifier), "tokenScaledRollModifier")]
+[JsonDerivedType(typeof(BankTokenPerUnmodifiedSaveRoll), "bankTokenPerUnmodifiedSaveRoll")]
+[JsonDerivedType(typeof(TokenScaledExtraMeleeWoundCount), "tokenScaledExtraMeleeWoundCount")]
 [JsonDerivedType(typeof(TokenScaledReduceArmorPenetration), "tokenScaledReduceArmorPenetration")]
 [JsonDerivedType(typeof(CountAsInTerrain), "countAsInTerrain")]
 [JsonDerivedType(typeof(DangerousTerrainTest), "dangerousTerrainTest")]
@@ -612,7 +615,7 @@ public abstract record Effect
             // total (Σ face·count) — fractional under the probabilistic roller, hence
             // InvokeHeal.Amount is a float. Model selection ("most-wounded first") is
             // Phase 8; queue-level just needs a model.
-            IDiceResults results = ruleInvocation.DiceRoller!.Roll(Amount.Sides, 1f);
+            IDiceResults results = ruleInvocation.DiceRoller!.Roll(Amount.Sides, Amount.Count);
             float amount = 0f;
             for (int face = results.SideMin; face <= results.SideMax; face++)
             {
@@ -894,6 +897,59 @@ public abstract record Effect
     /// not here. Covers Piercing/Precision/Defensive Frenzy (per marker) and the Growth family
     /// (per two markers).
     /// </summary>
+    /// <summary>
+    /// #412 Scourge: "for each unmodified result of 1 to block hits, enemies count as having taken
+    /// <paramref name="PerMatch"/> extra wounds". Banks one token per matching block roll on the
+    /// BEARER, for a later hook to spend.
+    /// <para>
+    /// Deliberately a bank rather than a direct effect: the rolls that earn the wounds are only visible
+    /// at the save hook, and the comparison that spends them (DetermineMeleeWinnerStage, the shooting
+    /// morale trigger) runs later against a context that cannot see those rolls at all. Granting to
+    /// <c>Bearer</c>, not <c>EffectiveTarget</c>, because the tally belongs to the unit that DEALT the
+    /// hits whichever seat the rule fires from.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// #412 Scourge, the spending half: turns a banked tally (see
+    /// <see cref="BankTokenPerUnmodifiedSaveRoll"/>) into the who-won-melee bonus Fear(X) already
+    /// uses, so the comparison code needs no new concept.
+    /// </summary>
+    public sealed record TokenScaledExtraMeleeWoundCount(TokenType TType, int PerMarkers = 1) : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            int steps = ruleInvocation.Bearer.Tokens.GetTokenCount(TType) / PerMarkers;
+            if (steps > 0) operations.Add(new RuleOperation.ExtraMeleeWoundCount(steps));
+        }
+    }
+
+    public sealed record BankTokenPerUnmodifiedSaveRoll(TokenType TType, int OnRollValue,
+        int PerMatch = 1) : Effect
+    {
+        // Not a CapabilityEffect<IHasUnmodifiedSaveRolls>: that base seals Apply and hands ApplyCore
+        // only the hook context, and this effect needs the invocation too (to name the bearer the
+        // tokens land on). So it declares the same capability requirement - which is what the rule
+        // validator and the fire-lint read - and does the cast itself.
+        public override IReadOnlyCollection<Type> RequiredCapabilities =>
+            [typeof(IHasUnmodifiedSaveRolls)];
+
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            if (ruleInvocation.Hook is not IHasUnmodifiedSaveRolls context)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(BankTokenPerUnmodifiedSaveRoll)} requires {nameof(IHasUnmodifiedSaveRolls)}, "
+                    + $"but the firing context ({ruleInvocation.Hook.GetType().Name}) does not provide it.");
+            }
+
+            int matches = (int)Math.Floor(context.UnmodifiedSaveRolls.At(OnRollValue));
+            int count = matches * PerMatch;
+            if (count <= 0) return;
+            operations.Add(new RuleOperation.GrantTokenToUnit(ruleInvocation.Bearer,
+                new Token(TType, count, new TokenClearTrigger.ActivationEnd())));
+        }
+    }
+
     public sealed record TokenScaledRollModifier(TokenType TType, ERollKind RollKind, int Delta,
         int PerMarkers = 1) : Effect
     {
@@ -1471,6 +1527,21 @@ public abstract record Effect
     }
 
     /// <summary>
+    /// #412 Pierce: "ignores all positive Defense modifiers on the target" - the rule-sourced half.
+    /// Cover is a positive Defense modifier too, but it is read at a DIFFERENT hook
+    /// (Shooting_OnSaveRollModifier, via <see cref="RuleOperation.IgnoreCover"/>), so a rule that
+    /// pierces cover as well carries a second hook entry for it rather than having this effect emit an
+    /// operation into a context that would never read it.
+    /// </summary>
+    public sealed record IgnorePositiveDefenseModifiers : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            operations.Add(new RuleOperation.IgnorePositiveDefenseModifiers());
+        }
+    }
+
+    /// <summary>
     /// The bearer's attack ignores intervening terrain for line of sight — it may fire at targets it has
     /// no clear line to, as if in line of sight. Covers Indirect's "target non-LoS as if LoS" facet.
     /// (Takedown does NOT grant it - see #314.) Read by the ranged-target enumeration and the occlusion
@@ -1596,7 +1667,8 @@ public abstract record Effect
             // Σ face·count over the histogram, like Heal: a distance is a continuous magnitude, so the
             // probabilistic roller's expected value is meaningful here (unlike a pass/fail test, which must
             // ride RollDecisive to stay binary).
-            IDiceResults results = ruleInvocation.DiceRoller!.Roll(Distance.Sides, 1f);
+            // Distance.Count is the N in "2D3" (#412): throw that many, then sum the pips.
+            IDiceResults results = ruleInvocation.DiceRoller!.Roll(Distance.Sides, Distance.Count);
             float inches = PlusInches;
             for (int face = results.SideMin; face <= results.SideMax; face++)
             {

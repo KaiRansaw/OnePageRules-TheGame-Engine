@@ -289,10 +289,26 @@ namespace FDG.Stages
         /// wounds leave the unit at half or less (GF v3.5.1) — including a unit that was already below
         /// half before this activation's wounds (#254; an earlier crossing-only check skipped those).
         /// </summary>
-        public static bool WoundsLeftUnitAtHalfStrength(float remainingWoundsBefore, IUnit unitAfter)
+        /// <param name="extraWoundsCounted">
+        /// #412 Scourge: wounds the ATTACKER counts as having dealt for this check only ("enemies count
+        /// as having taken X extra wounds ... if shooting wounds would trigger Morale Tests"). No model
+        /// loses anything - the figure is added to what the defender is treated as having taken, so a
+        /// unit just above half can be pushed under the line. Zero everywhere else.
+        /// </param>
+        public static bool WoundsLeftUnitAtHalfStrength(float remainingWoundsBefore, IUnit unitAfter,
+            float extraWoundsCounted = 0f)
         {
             bool tookWounds = unitAfter.RemainingWounds < remainingWoundsBefore;
-            return tookWounds && unitAfter.GetIsAtHalfStrength();
+            if (!tookWounds) return false;
+            if (unitAfter.GetIsAtHalfStrength()) return true;
+            if (extraWoundsCounted <= 0f) return false;
+
+            // Re-run the half-strength comparison against the notional total, which is the unit's real
+            // remaining wounds minus the counted-only extras. Compared against the unit's own maximum so
+            // the "half" line is the same one GetIsAtHalfStrength uses.
+            float notionalRemaining = unitAfter.RemainingWounds - extraWoundsCounted;
+            float maximum = unitAfter.Models.Sum(m => m.TotalWounds);
+            return maximum > 0f && notionalRemaining <= maximum / 2f;
         }
 
         /// <summary>
@@ -304,14 +320,14 @@ namespace FDG.Stages
         /// passed, false if failed and Shaken. Logging is left to the caller, which knows the wound source.
         /// </summary>
         public static async Task<bool?> ResolveWoundDrivenMorale(IGameContext gameContext, DataBinding<UnitData> unitBinding,
-            float remainingWoundsBefore)
+            float remainingWoundsBefore, float extraWoundsCounted = 0f)
         {
             IUnit unit = unitBinding.GetValue();
             // #414: the skirmish early-out is gone. 3.5.1 Firefight had no morale from wounds (an
             // army-wide test at round end instead); GFF Core Rules v3.6.0 uses the standard rule, so a
             // Firefight unit left at half strength tests like any other.
             if (!unit.GetIsAlive()) return null;                              // wiped out outright — no test
-            if (!WoundsLeftUnitAtHalfStrength(remainingWoundsBefore, unit)) return null;
+            if (!WoundsLeftUnitAtHalfStrength(remainingWoundsBefore, unit, extraWoundsCounted)) return null;
 
             // #006: a living joined hero takes morale on behalf of the unit (its Quality).
             // failureCausesShakenOrRout: this test's failure Shakens the unit, so a conversion rule

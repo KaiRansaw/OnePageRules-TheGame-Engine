@@ -1,4 +1,5 @@
 using FDG.Data;
+using FDG.Rules.Foundation;
 using FDG.Utilities;
 
 namespace FDG.Stages
@@ -43,8 +44,19 @@ namespace FDG.Stages
         {
             DataBinding<UnitData> defenderBinding = attacked.Defender;
 
+            // #412 Scourge banks "counts as extra wounds dealt" on the attacker during the save rolls
+            // (see Effect.BankTokenPerUnmodifiedSaveRoll). Spent here for the half-strength comparison
+            // only - the defender loses no actual wounds - which is the shooting half of the rule's
+            // "or if shooting wounds would trigger Morale Tests".
+            float counted = attacker.Tokens.GetTokenCount(TokenType.MeleeWoundTally);
+            if (counted > 0f)
+            {
+                GameContext.Log($"{defenderBinding.Name()} counts as having taken +{counted} wound(s) "
+                    + $"from {attacker.Name} for this morale check (Scourge).");
+            }
+
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(
-                GameContext, defenderBinding, attacked.RemainingWoundsAtStart);
+                GameContext, defenderBinding, attacked.RemainingWoundsAtStart, counted);
 
             if (result == true)
             {

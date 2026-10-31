@@ -266,7 +266,20 @@ namespace FDG.Stages
             // this now holds only genuinely attack-wide modifiers.
             RollModifierSink saveModifiers = new RollModifierSink();
             saveModifiers.ApplyFrom(operations);
-            results.SaveModifier = saveModifiers.Net(ERollKind.Save);
+            // #412 Pierce discards the FAVOURABLE half of that total ("ignores all positive Defense
+            // modifiers on the target") and leaves the attacker's own AP alone. Clamping the net at
+            // zero would have been wrong in the common case: +1 cover against AP(1) nets to 0, and a
+            // clamp would then have thrown away the AP as well as the cover.
+            bool piercesDefenseBonuses =
+                operations.OfType<RuleOperation.IgnorePositiveDefenseModifiers>().Any();
+            results.SaveModifier = piercesDefenseBonuses
+                ? saveModifiers.NetIgnoringPositive(ERollKind.Save)
+                : saveModifiers.Net(ERollKind.Save);
+            if (piercesDefenseBonuses)
+            {
+                GameContext.Log($"{attacker.Name} pierces {defender.Name}'s Defense bonuses "
+                    + $"(net {saveModifiers.Net(ERollKind.Save)} -> {results.SaveModifier}).");
+            }
 
             // Fortified (defender) reduces the incoming WEAPON AP, floored at the save stage. Sum any
             // reduction ops here and carry the total alongside the save modifier.

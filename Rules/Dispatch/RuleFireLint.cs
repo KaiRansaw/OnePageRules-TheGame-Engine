@@ -118,6 +118,7 @@ public static class RuleFireLint
         LintWorld world = LintWorld.Build(definition);
         IReadOnlyList<RuleArgument> args = ArgumentsFor(definition);
         SatisfyCondition(entry.Condition, world, positive: true);
+        SatisfyEffect(entry.Effect, world);
 
         bool conditionEverPassed = false;
         string? applyError = null;
@@ -344,6 +345,8 @@ public static class RuleFireLint
                     or RuleOperation.MultiplyHits
                     or RuleOperation.ApplyPerHitSaveModifier
                     or RuleOperation.ReduceArmorPenetration
+                    // #412 Pierce: RollToHitStage drops the target's favourable Defense modifiers.
+                    or RuleOperation.IgnorePositiveDefenseModifiers
                     // #197 Hazardous: RollToHitStage sums these and wounds the attacker after the attack.
                     or RuleOperation.InflictSelfWounds,
 
@@ -357,7 +360,11 @@ public static class RuleFireLint
                 op is RuleOperation.ApplyReroll { Roll: ERollKind.Save }
                     or RuleOperation.InsertExtraWounds
                     or RuleOperation.IgnoreWound
-                    or RuleOperation.AddBonusAttacks,
+                    or RuleOperation.AddBonusAttacks
+                    // #412 Scourge banks its "counts as extra wounds dealt" tally here, off the
+                    // defender's unmodified block rolls; Melee_OnMeleeResolution and the ranged-morale
+                    // stage spend it.
+                    or RuleOperation.GrantTokenToUnit,
 
             EHookID.Shooting_OnPreApplyWound => op is RuleOperation.MultiplyWounds,
             EHookID.Shooting_OnRangeCheck => op is RuleOperation.ApplyRangeModifier,
@@ -409,6 +416,12 @@ public static class RuleFireLint
                 op is RuleOperation.SetMaxWounds or RuleOperation.SetDefense || IsTokenOrExecutable(op),
 
             EHookID.Deployment_OnPreDeploymentSelect => op is RuleOperation.DeferDeployment,
+
+            // DeployUnitStage folds RepositionModels into a post-deployment placement (Fanatic's "may
+            // be placed anywhere fully within Xin of its position", #412 Union Assault's the same) and
+            // runs the usual token/executable pair.
+            EHookID.Deployment_OnUnitDeployed =>
+                op is RuleOperation.RepositionModels || IsTokenOrExecutable(op),
 
             // StartOfRoundExtraActionStage applies token ops, runs executables, and folds the
             // token-clear rolls (#376: one decisive roll per token type via TokenClearRolls).
@@ -543,6 +556,29 @@ public static class RuleFireLint
                 break;
             case Condition.TokenPresent token when positive:
                 SeedTokens(world.Bearer, token.TType, token.MinCount);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Puts the world into a state the EFFECT can act on, the mirror of
+    /// <see cref="SatisfyCondition"/>. Needed for the token-scaled family (#412 Scourge's
+    /// TokenScaledExtraMeleeWoundCount, and TokenScaledRollModifier before it): their condition can
+    /// pass while the effect still produces nothing, because what they read is the bearer's token
+    /// count, not the condition. Lint would then call a correctly-authored rule a no-op.
+    /// </summary>
+    private static void SatisfyEffect(Effect effect, LintWorld world)
+    {
+        switch (effect)
+        {
+            case Effect.TokenScaledExtraMeleeWoundCount scaled:
+                SeedTokens(world.Bearer, scaled.TType, Math.Max(1, scaled.PerMarkers));
+                break;
+            case Effect.TokenScaledRollModifier scaled:
+                SeedTokens(world.Bearer, scaled.TType, Math.Max(1, scaled.PerMarkers));
+                break;
+            case Effect.TokenScaledReduceArmorPenetration scaled:
+                SeedTokens(world.Bearer, scaled.TType, Math.Max(1, scaled.PerMarkers));
                 break;
         }
     }

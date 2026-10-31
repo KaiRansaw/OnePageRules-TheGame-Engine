@@ -1001,6 +1001,19 @@ public abstract record RuleOperation
     }
 
     /// <summary>
+    /// #412 Pierce: every FAVOURABLE Defense modifier on the target is discarded for this attack -
+    /// cover, Shielded, Sturdy and the rest - while the attacker's own AP survives untouched.
+    /// A plain flag, not a sink, because it does not accumulate: one source is as total as ten.
+    /// </summary>
+    public sealed record IgnorePositiveDefenseModifiers : RuleOperation
+    {
+        public override string Describe()
+        {
+            return "ignored the target's positive Defense modifiers";
+        }
+    }
+
+    /// <summary>
     /// The attack ignores intervening terrain for line of sight — the target may be fired at as if in
     /// line of sight. A marker read by the ranged-target enumeration and the occlusion stage (so a
     /// terrain-blocked target stays shootable) and surfaced per-weapon to the movement + targeting

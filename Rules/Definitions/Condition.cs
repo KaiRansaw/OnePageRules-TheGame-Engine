@@ -42,6 +42,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(AttackedFromOverInches), "attackedFromOverInches")]
 [JsonDerivedType(typeof(StatGreaterOrEqualTo), "statGreaterOrEqualTo")]
 [JsonDerivedType(typeof(TargetMajorityHasTough), "targetMajorityHasTough")]
+[JsonDerivedType(typeof(TargetAboveHalfStrength), "targetAboveHalfStrength")]
 [JsonDerivedType(typeof(TokenPresent), "tokenPresent")]
 [JsonDerivedType(typeof(TargetTokenPresent), "targetTokenPresent")]
 [JsonDerivedType(typeof(StatLessOrEqualTo), "statLessOrEqualTo")]
@@ -351,6 +352,18 @@ public abstract record Condition
     {
         protected override bool EvaluateCore(IHasTarget context) =>
             MajorityToughAtLeast(context.Target, MinToughValue);
+    }
+
+    /// <summary>
+    /// #412 Decimate: the target still has "more than half of their total size or Tough value (for
+    /// single-model units)" - i.e. it is NOT yet at half strength. Reads the same
+    /// <c>GetIsAtHalfStrength</c> the morale rules use, so "half" means one thing engine-wide; the
+    /// single-model Tough case is already folded into that helper.
+    /// </summary>
+    public sealed record TargetAboveHalfStrength : CapabilityCondition<IHasTarget>
+    {
+        protected override bool EvaluateCore(IHasTarget context) =>
+            context.Target != null && !context.Target.GetIsAtHalfStrength();
     }
 
     /// <summary>
