@@ -86,13 +86,21 @@ namespace FDG.Stages
             IUnit caster = context.ActivatingUnit.GetValue();
             PlayerID player = context.ActivatingPlayer();
 
-            // #234 — mirror of ChooseActionStage.GetCanCast's HasAttacked gate: Caster(X) is "at any point
-            // before attacking" (GF v3.5.1). ChooseActionStage won't offer Cast once the unit has attacked,
-            // but this stage is reachable directly, so the rule is enforced here too rather than trusted
-            // to the menu.
+            // #234 — mirror of ChooseActionStage.GetCanCast's HasAttacked gate. ChooseActionStage won't offer
+            // Cast once the unit has attacked, but this stage is reachable directly, so the rule is enforced
+            // here too rather than trusted to the menu.
             if (context.HasAttacked)
             {
                 GameContext.Log($"{caster.Name} has already attacked and can no longer cast this activation.");
+                await OnFinished.Activate(context);
+                return;
+            }
+
+            // #419 — the same mirror for the once-per-activation window: Caster(X) is "ONCE PER ACTIVATION,
+            // before attacking" in every current book, so a caster that cast and then moved is done casting.
+            if (context.CastingWindowClosed)
+            {
+                GameContext.Log($"{caster.Name} has already had its casting window this activation.");
                 await OnFinished.Activate(context);
                 return;
             }

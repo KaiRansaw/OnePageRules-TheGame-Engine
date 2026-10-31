@@ -822,12 +822,21 @@ namespace FDG.Stages
         {
             IUnit unit = context.ActivatingUnit.GetValue();
 
-            // #234 — Caster(X) is "at any point before attacking" (GF v3.5.1), so shooting or melee closes
-            // the casting window for the rest of the activation. HasAttacked covers both (ShootStage and
-            // MeleeStage are its only setters). Moving does not close it — casting brackets the move.
+            // #234 — shooting or melee closes the casting window for the rest of the activation. HasAttacked
+            // covers both (ShootStage and MeleeStage are its only setters).
             if (context.HasAttacked)
             {
                 reasonIfCant = "Has already attacked.";
+                return false;
+            }
+
+            // #419 — Caster(X) was "at any point before attacking" (GF 3.5.1 / Quest 2.0.1) and is now "ONCE
+            // PER ACTIVATION, before attacking" in every current book (GF, AoF and AoFS 3.6.0, both Quest
+            // systems 2.1.0). Several spells may be tried inside the one window; moving out of it ends it.
+            // See IUnitActionContext.CastingWindowClosed for exactly what closes it and why.
+            if (context.CastingWindowClosed)
+            {
+                reasonIfCant = "Casting is once per activation, and this unit's window has closed.";
                 return false;
             }
 

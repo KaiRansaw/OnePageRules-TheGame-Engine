@@ -290,6 +290,175 @@ namespace FDG.Tests
                 "'one try per spell' is scoped to the activation, not the game.");
         }
 
+        // ---------------------------------------------------------------------------------------------
+        // #419 - the casting WINDOW. Caster(X) was "at any point before attacking" (GF 3.5.1 / Quest 2.0.1)
+        // and every current book - GF, AoF and AoFS 3.6.0, both Quest systems 2.1.0 - now reads "ONCE PER
+        // ACTIVATION, before attacking, spend as many tokens as the spell's value to try casting one or more
+        // spells (only one try per spell)". So cast-move-cast, which #234 deliberately allowed, is out; the
+        // several spells inside one window stay in. These pin both halves and the two ways out.
+        // ---------------------------------------------------------------------------------------------
+
+        [Test]
+        public async Task ChooseAction_CastThenMove_DoesNotOfferCastAgain()
+        {
+            var requester = new RecordingActionRequester("Pass");
+            var ctx = new TriggeredMoveTestContext(_store, requester);
+            // Two spells, so "every spell has been tried" cannot be what closes the menu - the window is.
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[]
+                {
+                    Spell("Zap", threshold: 1, ETargetAffinity.Friend),
+                    Spell("Haste", threshold: 1, ETargetAffinity.Friend),
+                }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            unitCtx.RegisterSpellAttempt("Zap");                                        // used the window
+            unitCtx.RegisterMoveFinished(3f, GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES); // and left it
+
+            var stage = new ChooseActionStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.ToReconcileEndOfActivation.Bind("Pass");
+            await stage.Enter(unitCtx);
+
+            Assert.That(unitCtx.CastingWindowClosed, Is.True);
+            Assert.That(requester.OfferedOptions, Does.Not.Contain("Cast"),
+                "casting is once per activation - moving after a cast ends it, untried spells or not.");
+        }
+
+        [Test]
+        public async Task ChooseAction_CastThenCast_StaysInsideTheOneWindow()
+        {
+            var requester = new RecordingActionRequester("Pass");
+            var ctx = new TriggeredMoveTestContext(_store, requester);
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[]
+                {
+                    Spell("Zap", threshold: 1, ETargetAffinity.Friend),
+                    Spell("Haste", threshold: 1, ETargetAffinity.Friend),
+                }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            unitCtx.RegisterSpellAttempt("Zap");   // one spell down, nothing else has happened
+
+            var stage = new ChooseActionStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.ToReconcileEndOfActivation.Bind("Pass");
+            await stage.Enter(unitCtx);
+
+            Assert.That(unitCtx.CastingWindowClosed, Is.False,
+                "casting does not close its own window - the rule allows 'one or more spells' inside it.");
+            Assert.That(requester.OfferedOptions, Contains.Item("Cast"));
+        }
+
+        [Test]
+        public void MoveBeforeAnyCast_LeavesTheWindowOpen()
+        {
+            // The window is "before attacking", not "before moving", so advance-then-cast is legal and must
+            // not be caught by the cast-move-cast gate. ChooseAction_AfterMoving_StillOffersCast pins the
+            // menu; this pins the flag the menu now reads.
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 3,
+                new[] { Spell("Zap", threshold: 1, ETargetAffinity.Friend) }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            unitCtx.RegisterMoveFinished(3f, GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES);
+
+            Assert.That(unitCtx.CastingWindowClosed, Is.False);
+        }
+
+        [Test]
+        public void QuestExtraAction_DoesNotReopenTheCastingWindow()
+        {
+            // Star Quest's extra action clears HasMoved/HasAttacked so the hero can act again - but it buys
+            // an ACTION, not an activation, and Caster(X) is once per ACTIVATION. Before #419 the HasAttacked
+            // gate was the only thing stopping a late cast, so clearing it handed the hero a second window.
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[] { Spell("Zap", threshold: 1, ETargetAffinity.Friend) }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            unitCtx.RegisterAttackedFinished();
+            Assert.That(unitCtx.CastingWindowClosed, Is.True, "attacking closes the window outright.");
+
+            unitCtx.BeginQuestExtraAction();
+
+            Assert.That(unitCtx.HasAttacked, Is.False, "the extra action does reopen the attack slot...");
+            Assert.That(unitCtx.CastingWindowClosed, Is.True, "...but not the casting window.");
+        }
+
+        [Test]
+        public void NewActivation_ReopensTheCastingWindow()
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[] { Spell("Zap", threshold: 1, ETargetAffinity.Friend) }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            unitCtx.RegisterAttackedFinished();
+            unitCtx.Reset(caster);   // the caster's next activation
+
+            Assert.That(unitCtx.CastingWindowClosed, Is.False,
+                "the limit is per activation, so the next one starts with a fresh window.");
+        }
+
+        [Test]
+        public async Task CastSpellStage_AfterCastingThenMoving_SpendsNothingAndReturns()
+        {
+            // The stage enforces the window itself, like it already does for HasAttacked: it is reachable
+            // directly, so the rule cannot live only in the menu.
+            // Self-buff spells on purpose, so nothing in this test can die. The obvious setup - two damage
+            // spells - makes the test pass with the gate REMOVED: a Foe spell kills the lone test enemy and
+            // the second cast is refused for want of a target, and a Friend-affinity damage spell targets
+            // the caster and kills IT. Both looked like the window working. Neither was.
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[]
+                {
+                    SelfBuffSpell("Bless", threshold: 2, grantedRule: "Furious"),
+                    SelfBuffSpell("Haste", threshold: 2, grantedRule: "Fast"),
+                }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+
+            await stage.Enter(unitCtx);
+            int afterFirstCast = caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens);
+            Assert.That(afterFirstCast, Is.EqualTo(4), "the first cast spends its threshold (6 - 2)");
+
+            unitCtx.RegisterMoveFinished(3f, GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES);
+            await stage.Enter(unitCtx);
+
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(afterFirstCast),
+                "with the window closed the stage spends nothing, even on a spell it has not tried.");
+        }
+
+        [Test]
+        public async Task CastSpellStage_TwoDifferentSpellsInOneWindow_BothCast()
+        {
+            // The control for the test above, and the "one or more spells" half of the rule in the stage: the
+            // only difference between the two is the move, so this is what makes that one's assertion mean
+            // something.
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[]
+                {
+                    SelfBuffSpell("Bless", threshold: 2, grantedRule: "Furious"),
+                    SelfBuffSpell("Haste", threshold: 2, grantedRule: "Fast"),
+                }, new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+
+            await stage.Enter(unitCtx);
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(4));
+
+            await stage.Enter(unitCtx);
+
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2),
+                "a second, different spell in the same window is legal and spends its own threshold.");
+            Assert.That(unitCtx.CastingWindowClosed, Is.False);
+        }
+
         // #234 — CastSpellStage is reachable directly, so it enforces the same gate rather than trusting the
         // menu: entering it after attacking spends nothing and loops straight back.
         [Test]

@@ -85,6 +85,32 @@ namespace FDG.Stages
         public void RegisterSpellAttempt(string spellName);
 
         /// <summary>
+        /// #419: whether this activation's single casting window has closed.
+        ///
+        /// <para>
+        /// Caster(X) used to be "<b>at any point</b> before attacking" (GF 3.5.1, Quest 2.0.1), which let a
+        /// caster cast, move, and cast a different spell - the casting window was effectively the whole
+        /// activation up to the first attack. Every current book - GF, AoF and AoFS 3.6.0, and both Quest
+        /// systems at 2.1.0 - words it "<b>Once per activation</b>, before attacking, spend as many tokens as
+        /// the spell's value to try casting one or more spells (only one try per spell)". So there is now one
+        /// window per activation, several spells may be tried inside it, and leaving it is final.
+        /// </para>
+        /// <para>
+        /// What closes it: <b>moving after a spell has been attempted</b> (the cast-move-cast pattern the new
+        /// wording outlaws) and <b>attacking</b>, always. Attacking closes it even though
+        /// <see cref="HasAttacked"/> already blocks casting, because Star Quest's extra action clears that
+        /// flag (<see cref="BeginQuestExtraAction"/>) and an extra action is not a new activation - a hero
+        /// must not be able to attack, buy an action, and open a second casting window with it.
+        /// </para>
+        /// <para>
+        /// What does NOT close it: moving BEFORE any cast (the window is "before attacking", not "before
+        /// moving", so advance-then-cast is legal), and consecutive casts with nothing in between - that is
+        /// the one window being used for the "one or more spells" the rule allows.
+        /// </para>
+        /// </summary>
+        public bool CastingWindowClosed { get; }
+
+        /// <summary>
         /// #248: true once ANYTHING irreversible has happened this activation beyond HasMoved/HasAttacked —
         /// an activation-start rule applied (token ops, reposition, ThisActivation grant), spell tokens were
         /// spent, a custom action resolved, a teleport landed. Gates the "back out to unit selection" offer:
@@ -163,11 +189,19 @@ namespace FDG.Stages
             HasMoved = true;
             MoveDistance = distance;
             MoveShootAllowance = advanceAllowanceInches;
+
+            // #419 - a move only closes the casting window if the caster has already used it. Moving first
+            // and casting afterwards is still legal ("once per activation, BEFORE ATTACKING"); it is
+            // cast-move-cast that the 3.6.0 / 2.1.0 wording outlaws.
+            if (_attemptedSpells.Count > 0) CastingWindowClosed = true;
         }
 
         public void RegisterAttackedFinished()
         {
             HasAttacked = true;
+
+            // #419 - final, and deliberately not reopened by Star Quest's extra action below.
+            CastingWindowClosed = true;
         }
 
         // #249 — spells tried this activation, by name. Cleared each Reset, like every other per-activation flag.
@@ -176,6 +210,8 @@ namespace FDG.Stages
         public bool HasAttemptedSpell(string spellName) => _attemptedSpells.Contains(spellName);
 
         public void RegisterSpellAttempt(string spellName) => _attemptedSpells.Add(spellName);
+
+        public bool CastingWindowClosed { get; private set; }
 
         public bool IrreversibleActionTaken { get; private set; }
 
@@ -197,6 +233,9 @@ namespace FDG.Stages
             MoveDistance = 0f;
             MoveShootAllowance = 0f;
             HasAttacked = false;
+
+            // #419: CastingWindowClosed and _attemptedSpells are deliberately NOT cleared. An extra action
+            // buys another action, not another activation, and Caster(X) is "once per activation".
         }
 
         public void ClearStartedActivationShaken() => StartedActivationShaken = false;
@@ -216,6 +255,7 @@ namespace FDG.Stages
             IrreversibleActionTaken = false;
             PendingCustomAction = null;
             _attemptedSpells.Clear();
+            CastingWindowClosed = false;
             StartedActivationShaken = activatingUnit.GetValue().Tokens.HasToken(TokenType.Shaken);
             SnapshotDistancesToEnemies(activatingUnit);
         }
