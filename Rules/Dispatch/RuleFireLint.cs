@@ -335,6 +335,9 @@ public static class RuleFireLint
             EHookID.Shooting_OnHitRollComplete =>
                 op is RuleOperation.ApplyRollModifier { Roll: ERollKind.Save }
                     or RuleOperation.InsertExtraHits
+                    // #412: Parry queues its hit-cancelling pool here; RollToHitStage throws it once
+                    // the final hit count is known.
+                    or RuleOperation.IgnoreHitsOnRoll
                     or RuleOperation.MultiplyHits
                     or RuleOperation.ApplyPerHitSaveModifier
                     or RuleOperation.ReduceArmorPenetration

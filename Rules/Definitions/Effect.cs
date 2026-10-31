@@ -59,6 +59,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(MultiplyHits), "multiplyHits")]
 [JsonDerivedType(typeof(ChargeImpactHits), "chargeImpactHits")]
 [JsonDerivedType(typeof(ReduceImpactDicePerModel), "reduceImpactDicePerModel")]
+[JsonDerivedType(typeof(IgnoreHitsOnRoll), "ignoreHitsOnRoll")]
 [JsonDerivedType(typeof(ExtraMeleeWoundCount), "extraMeleeWoundCount")]
 [JsonDerivedType(typeof(StrikeFirst), "strikeFirst")]
 [JsonDerivedType(typeof(StrikeLast), "strikeLast")]
@@ -1005,6 +1006,34 @@ public abstract record Effect
     /// "Counter model" is one carrying a weapon with this rule (#027 weapon scope); the unit-attached
     /// fallback counts every living model, preserving the pre-weapon-scope behavior.
     /// </summary>
+    /// <summary>
+    /// #412: Parry(X) - the defender rolls <see cref="DicePerModel"/> dice for each living model
+    /// carrying the rule, and every roll of <see cref="SuccessThreshold"/> or more cancels one hit.
+    /// <para>
+    /// The per-model scaling is folded here, exactly as <see cref="ReduceImpactDicePerModel"/> and
+    /// Ravage's <see cref="DealAutoWounds"/> fold theirs: a weapon-scoped attachment counts models
+    /// carrying a weapon with the rule, and a unit-attached one counts every living model. The CAP -
+    /// "up to as many dice as hits taken" - is not applied here, because the hit count is not known
+    /// until the stage has finished injecting and multiplying; the stage applies it.
+    /// </para>
+    /// </summary>
+    public sealed record IgnoreHitsOnRoll(ValueSource DicePerModel, int SuccessThreshold = 6) : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            int carriers = ruleInvocation.Weapon == null || ruleInvocation.Definition == null
+                ? ruleInvocation.Bearer.Models.Count(m => m.GetIsAlive())
+                : ruleInvocation.Bearer.Models.Count(m => m.GetIsAlive()
+                    && m.Weapons.Any(w => w.RuleDefinitions.Any(r => r.Definition == ruleInvocation.Definition)));
+
+            int perModel = DicePerModel.Resolve(ruleInvocation);
+            if (carriers > 0 && perModel > 0)
+            {
+                operations.Add(new RuleOperation.IgnoreHitsOnRoll(carriers * perModel, SuccessThreshold));
+            }
+        }
+    }
+
     public sealed record ReduceImpactDicePerModel : Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)

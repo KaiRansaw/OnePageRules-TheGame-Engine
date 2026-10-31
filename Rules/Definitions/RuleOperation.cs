@@ -154,6 +154,20 @@ public abstract record RuleOperation
     /// float because that match count is fractional under the probabilistic
     /// roller (e.g. n dice yield n/6 natural 6s).
     /// </summary>
+    /// <summary>
+    /// #412: adds <see cref="Dice"/> dice to the defender's hit-cancelling pool, each removing one hit
+    /// on <see cref="SuccessThreshold"/> or more. Resolution of <see cref="Effect.IgnoreHitsOnRoll"/>
+    /// (Parry); <c>RollToHitStage</c> throws the pool after extra-hit injection and Blast multiplication,
+    /// capped at the hits actually taken, and removes the successes.
+    /// </summary>
+    public sealed record IgnoreHitsOnRoll(float Dice, int SuccessThreshold) : SinkOperation<IHitIgnoreSink>
+    {
+        public override void ApplyTo(IHitIgnoreSink sink) => sink.AddIgnoreDice(Dice, SuccessThreshold);
+
+        public override string Describe() =>
+            $"rolled {Dice} dice to ignore hits on {SuccessThreshold}+";
+    }
+
     public sealed record InsertExtraHits(float Count) : SinkOperation<IHitInjectionSink>
     {
         public override void ApplyTo(IHitInjectionSink sink)

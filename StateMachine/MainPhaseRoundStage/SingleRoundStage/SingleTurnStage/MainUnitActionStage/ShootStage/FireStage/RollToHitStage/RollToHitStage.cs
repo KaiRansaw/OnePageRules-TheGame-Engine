@@ -188,6 +188,41 @@ namespace FDG.Stages
                 }
             }
 
+            // #412 Parry: the defender cancels hits that have already landed. Resolved HERE, after
+            // injection and the Blast multiplier, because the book caps the pool at "as many dice as
+            // hits taken" and that total is only final once every hit-adding rule has had its say.
+            //
+            // Which hits go: the book says the defender picks, and the defender always picks the ones
+            // that would hurt most, so the groups are cancelled worst-first (most negative SaveModifier
+            // = highest AP). Automatic for the same reason Counter's "may" is (#409) - declining, or
+            // picking worse, can only hurt the player doing the picking, so a prompt would buy nothing.
+            HitIgnoreSink hitIgnore = new HitIgnoreSink();
+            hitIgnore.ApplyFrom(operations);
+            if (hitIgnore.TotalDice > 0f)
+            {
+                float hitsTaken = TotalHits(results);
+                int diceToRoll = (int)Math.Floor(Math.Min(hitIgnore.TotalDice, hitsTaken));
+                if (diceToRoll > 0)
+                {
+                    IDiceResults parryRolls = GameContext.DiceRoller.Roll(diceToRoll);
+                    float cancelled = Math.Min(parryRolls.AtOrAbove(hitIgnore.SuccessThreshold), hitsTaken);
+
+                    await GameContext.Presenter.Present(
+                        DiceRolledBeat.From(parryRolls, hitIgnore.SuccessThreshold,
+                            GameContext.Settings.RandomnessType, "Parry",
+                            RollTags.Count(cancelled, "hit ignored"),
+                            category: ERollBeatCategory.Defense,
+                            context: $"{defender.Name} parries {attacker.Name}"));
+
+                    if (cancelled > 0f)
+                    {
+                        RemoveHitsWorstFirst(results, cancelled, rollToHitResults);
+                        GameContext.Log($"{defender.Name} parried {cancelled} of {hitsTaken} hit(s) " +
+                            $"({diceToRoll} dice at {hitIgnore.SuccessThreshold}+).");
+                    }
+                }
+            }
+
             // Whole-attack save-modifier rules fold their net modifier here and carry it to the save stage
             // via RollToHitResults.SaveModifier — Thrust's charge AP, the defender's Shielded +1. Rending
             // and Crack no longer ride this scalar: their AP is per-hit (split into a face group above), so
@@ -320,6 +355,37 @@ namespace FDG.Stages
         // AP — so they sit at the top face as automatic successes. The #032 per-hit AP split
         // (Rending/Crack) runs only over the ROLLED successes, never these synthetic groups, so injected
         // hits stay base-AP even though they sit at face 6 — exactly as they must.
+        /// <summary>
+        /// #412: removes <paramref name="toRemove"/> hits from <paramref name="results"/>, taking them
+        /// from the groups that hurt the defender most first - the most negative SaveModifier is the
+        /// highest AP, so that is what a defender choosing which hits to ignore would cancel.
+        /// A partially drained group is rebuilt as a synthetic histogram of its remaining count, the
+        /// same shape the injection and Blast paths already add; an emptied one is dropped.
+        /// </summary>
+        private static void RemoveHitsWorstFirst(RollToHitResults results, float toRemove,
+            IDiceResults template)
+        {
+            List<int> order = Enumerable.Range(0, results.SuccessfulHitList.Count)
+                .OrderBy(i => results.SuccessfulHitList[i].SaveModifier)
+                .ToList();
+
+            foreach (int index in order)
+            {
+                if (toRemove <= 0f) break;
+
+                SuccessfulHitInfo group = results.SuccessfulHitList[index];
+                float take = Math.Min(group.HitCount, toRemove);
+                if (take <= 0f) continue;
+
+                toRemove -= take;
+                float left = group.HitCount - take;
+                results.SuccessfulHitList[index] = new SuccessfulHitInfo(
+                    SyntheticHits(left, template), group.SaveModifier, group.Source);
+            }
+
+            results.SuccessfulHitList.RemoveAll(group => group.HitCount <= 0f);
+        }
+
         private static IDiceResults SyntheticHits(float count, IDiceResults template)
         {
             int faceCount = template.SideMax - template.SideMin + 1;
