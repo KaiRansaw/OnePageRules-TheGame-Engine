@@ -15,19 +15,44 @@ namespace FDG.Ai.StarQuest
     public sealed record QuestAiPlan(EQuestAiMove Kind, IUnit? Target, Position? Goal, float Range, string Why);
 
     /// <summary>
-    /// GF: Star Quest AI activations (Core Rules v2.0.1):
+    /// GF: Star Quest AI activations (Core Rules v2.1.0):
     /// <list type="number">
-    /// <item>Are any enemies in line of sight? Yes: step 2. No: step 3.</item>
-    /// <item>If you move, will any enemy be in range to shoot or charge? Yes: Advance to get in range and shoot
-    /// the closest, or Charge the closest if that deals more damage than shooting. No: Rush to the closest.</item>
+    /// <item>Are any enemies in line of sight <b>or within 12" but not in line of sight</b>? Yes: step 2.
+    /// No: step 3.</item>
+    /// <item>If you move, will any enemy be in range to shoot or charge? Yes: Advance to get in range and
+    /// shoot the closest, <b>or Hold and shoot if in range</b>, else Charge the closest if that deals more
+    /// damage than shooting. No: Rush to the closest.</item>
     /// <item>Within 3" of the AI Goal (the objective marker closest to the unit)? Yes: skip the activation.
     /// No: Rush to the nearest AI Goal.</item>
     /// </list>
     /// Heroes on the AI's side (a bot-run party) keep the normal solo bot.
+    /// <para>
+    /// #412 brought this to 2.1.0 from 2.0.1, and both additions change how the enemy feels:
+    /// </para>
+    /// <para>
+    /// <b>Step 1's "or within 12" but not in line of sight"</b> means a unit with a wall between it and
+    /// the party no longer wanders off to its objective - it hunts. Under 2.0.1 breaking line of sight
+    /// made the whole enemy force lose interest, which is the single biggest reason Star Quest played as
+    /// hide-and-seek. Note what it implies at step 2: an enemy it cannot SEE cannot be shot, but it can
+    /// still be charged, so the usual answer for an unseen enemy within 12" is to come round the corner
+    /// after it.
+    /// </para>
+    /// <para>
+    /// <b>Step 2's "or Hold and shoot if in range"</b> is the subtler one. Before, a unit already in range
+    /// still Advanced, which moved it closer for no gain and - because Advance is a move - gave the party
+    /// a unit standing in the open. Holding keeps it where it is, in whatever cover it was in.
+    /// </para>
     /// </summary>
     public static class StarQuestAiBrain
     {
         public const float GoalRadiusInches = 3f;
+
+        /// <summary>
+        /// How close an enemy it cannot see still counts as worth engaging - step 1's "or within 12" but
+        /// not in line of sight" (GFSQ Core Rules v2.1.0). New in 2.1.0; under v2.0.1 line of sight was
+        /// the only trigger.
+        /// </summary>
+        public const float UnseenEngagementInches = 12f;
 
         public static IUnit? FindUnit(ITableState table, UnitID id) => table.Units.Objects.FirstOrDefault(u => u.ID.Equals(id));
 
@@ -75,17 +100,28 @@ namespace FDG.Ai.StarQuest
             List<IUnit> enemies = Enemies(table, me, unit);
             List<IUnit> visible = enemies.Where(e => Sees(unit, e, terrain)).OrderBy(e => Distance(unit, e)).ToList();
 
+            // #412, step 1 on the 2.1.0 wording: "any enemies in line of sight OR WITHIN 12" BUT NOT IN
+            // LINE OF SIGHT". Under 2.0.1 this was line of sight alone, so breaking it made the whole
+            // enemy force lose interest and walk off to its objective - which is why Star Quest played as
+            // hide-and-seek. An enemy it cannot see still cannot be SHOT (the shoot target below is
+            // picked from `visible`, and that is deliberate), but it can be charged or rushed at, so the
+            // usual answer for an unseen hero within 12" is to come round the corner after it.
+            List<IUnit> engaged = enemies
+                .Where(e => Sees(unit, e, terrain) || Distance(unit, e) <= UnseenEngagementInches)
+                .OrderBy(e => Distance(unit, e))
+                .ToList();
+
             // Phantasm Grenade: enemies treat the marker as a hero - a visible one closer than any hero draws them in.
             QuestProgress? quest = table.Progress.Quest;
             var phantasms = QuestTreasure.MarkerSpots(quest, "phantasm")
                 .Where(p => unit.Models.Where(m => m.GetIsAlive()).Any(m => LineOfSightUtilities.HasLineOfSight(m.Position, p, terrain)))
                 .OrderBy(p => DistanceToPoint(unit, p)).ToList();
-            if (phantasms.Count > 0 && (visible.Count == 0 || DistanceToPoint(unit, phantasms[0]) < Distance(unit, visible[0])))
+            if (phantasms.Count > 0 && (engaged.Count == 0 || DistanceToPoint(unit, phantasms[0]) < Distance(unit, engaged[0])))
                 return new(EQuestAiMove.RushToGoal, null, phantasms[0], 0f, "drawn to a phantasm");
 
-            if (visible.Count > 0)
+            if (engaged.Count > 0)
             {
-                IUnit closest = visible[0];
+                IUnit closest = engaged[0];
                 float d = Distance(unit, closest);
                 float range = MaxRange(unit);
                 float advance = GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES;

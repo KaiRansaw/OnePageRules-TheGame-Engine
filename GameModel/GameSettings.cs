@@ -271,15 +271,32 @@ namespace FDG
         /// system (GF Horde takes GF armies, GFF Horde takes GFF armies), so the army source is a
         /// property of the system alone.</para>
         ///
-        /// <para>The Quest systems take their parent's armies: heroes come from the Hero Builder, and
-        /// the ENEMY force is a Grimdark Future / Age of Fantasy army per the Quest rules. Open
-        /// question in WorkItems/406 - confirm against GFSQ Core Rules v2.0.1 whether Star Quest
-        /// publishes its own enemy book.</para>
+        /// <para>
+        /// A Quest system's own side is not an army at all - heroes come from the Hero Builder - so what
+        /// this answers for one is where its ENEMY force comes from. #406 left that as an open question
+        /// ("confirm whether Star Quest publishes its own enemy book") and defaulted Star Quest to
+        /// Grimdark Future's.
+        /// </para>
+        /// <para>
+        /// #412 answers it: <b>it does, and the points are on a different scale.</b> Army Forge serves 54
+        /// official Star Quest enemy books, and Alien Hives' Grunt Veteran is 40pts in Grimdark Future
+        /// against 100pts there. Every Star Quest wave and mission priced off the Grimdark Future book
+        /// was therefore buying roughly two and a half times the enemy its points were meant to pay for -
+        /// which is not an approximation, it is the wrong data, and it is what made Star Quest stop being
+        /// its own game. So Star Quest takes Star Quest armies.
+        /// </para>
+        /// <para>
+        /// AoF: Quest still falls through to Age of Fantasy, and that is a known gap rather than a
+        /// finding: its own enemy books exist at Army Forge (id 8, 48 of them) and are simply not
+        /// imported yet. The system is not selectable in the lobby either, so nothing plays on the wrong
+        /// data today - but the moment it becomes selectable this line has to move with it.
+        /// </para>
         /// </summary>
         public static ArmyBuilding.EAllowedGameSystems ArmySource(EGameSystem system) => system switch
         {
             EGameSystem.GFFirefight => ArmyBuilding.EAllowedGameSystems.GFFirefight,
             EGameSystem.AoFSkirmish => ArmyBuilding.EAllowedGameSystems.AoFSkirmish,
+            EGameSystem.GFStarQuest => ArmyBuilding.EAllowedGameSystems.GFStarQuest,
             EGameSystem.AgeOfFantasy or EGameSystem.AoFQuest
                 => ArmyBuilding.EAllowedGameSystems.AgeOfFantasy,
             _ => ArmyBuilding.EAllowedGameSystems.GrimdarkFuture,

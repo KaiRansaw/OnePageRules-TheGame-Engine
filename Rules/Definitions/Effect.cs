@@ -24,6 +24,7 @@ namespace FDG.Rules.Definitions;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(StatModifier), "statModifier")]
 [JsonDerivedType(typeof(RollModifier), "rollModifier")]
+[JsonDerivedType(typeof(RatedRollModifier), "ratedRollModifier")]
 [JsonDerivedType(typeof(Reroll), "reroll")]
 [JsonDerivedType(typeof(PassFailedMoraleTest), "passFailedMoraleTest")]
 [JsonDerivedType(typeof(AddExtraHit), "addExtraHit")]
@@ -162,6 +163,25 @@ public abstract record Effect
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.ApplyRollModifier(RollKind, Delta));
+        }
+    }
+
+    /// <summary>
+    /// <see cref="RollModifier"/> whose delta comes from the rule's own rating rather than from a
+    /// literal - "this model gets +X to Defense rolls" (#412, Star Quest's Defense(X) item).
+    /// <para>
+    /// A separate effect rather than widening <see cref="RollModifier"/>, which 76 call sites author
+    /// with a literal and which does not need a ValueSource. Reach for this one only when the book
+    /// writes an X; a rule with a fixed number belongs on RollModifier, where the number is visible in
+    /// the definition instead of hiding behind an argument index.
+    /// </para>
+    /// </summary>
+    public sealed record RatedRollModifier(ERollKind RollKind, ValueSource Delta) : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            int delta = Delta.Resolve(ruleInvocation);
+            if (delta != 0) operations.Add(new RuleOperation.ApplyRollModifier(RollKind, delta));
         }
     }
 

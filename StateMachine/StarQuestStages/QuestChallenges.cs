@@ -12,8 +12,70 @@ namespace FDG.Stages
     /// <summary>GF: Star Quest optional challenges (Horde Mode v2.0.0 / Beginner's Guide v2.0.1).</summary>
     public static class QuestChallenges
     {
-        /// <summary>Villain: AI units within 12" of a Villain that isn't Shaken may use its Quality for
-        /// morale tests if it's better than their own.</summary>
+        /// <summary>
+        /// How far a Villain's Quality reaches: 6" in GFSQ Core Rules v2.1.0, down from 12" in v2.0.1
+        /// (#412).
+        /// <para>
+        /// Quoted verbatim from the 2.1.0 core book so this is settled in the file rather than from
+        /// memory: "Villain: AI units within 6" use the Villain's Qua for Morale Tests if it's better
+        /// than their own, as long as the Villain isn't Shaken." The 2.0.1 book read "within 12" may
+        /// take morale tests using the Villain's Qua" - so 2.1.0 both halved the radius and made it
+        /// mandatory.
+        /// </para>
+        /// <para>
+        /// This line was twice edited back to 12f during the session that wrote it, once with a
+        /// "SABOTAGE" marker and once bare, while the comment above it still said 6". Flagged here
+        /// because 12f is not a harmless default: it leaves the engine playing 2.0.1's radius under
+        /// 2.1.0's documentation, and nothing in play can show which radius produced a morale test.
+        /// <c>VillainAuraTests.TheAuraIsSixInches_NotTwelve</c> and
+        /// <c>AGruntAtNineInches_TestsOnItsOwn</c> fail if it drifts again.
+        /// </para>
+        /// </summary>
+        public const float VillainAuraInches = 6f;
+
+        /// <summary>
+        /// The rule names that make a unit a Villain. "Villain" is what the core book calls it; "Hero"
+        /// is what the army books actually carry (#412).
+        /// <para>
+        /// This is not a convenience alias - it is how OPR ships the data, and it is why the whole
+        /// Villain mechanic was dead code until now. Every Star Quest enemy book defines a rule whose
+        /// NAME is "Hero" and whose DESCRIPTION is Villain's, verbatim: "AI units within 6" use the
+        /// Villain's Qua for Morale Tests if it's better than their own, as long as the Villain isn't
+        /// Shaken." (Checked against the live Army Forge data for Alien Hives, Orc Marauders, Human
+        /// Defense Force and Robot Legions on 2026-10-31; Alien Hives puts it on 4 of its 41 units -
+        /// Grunt Veteran, Snatcher Lord, Prime Warrior and Hive Lord.) No book anywhere carries a rule
+        /// literally named "Villain", so matching that name alone - which is what the engine did - meant
+        /// an enemy boss never lent its nerve to anything, in any game, ever.
+        /// </para>
+        /// <para>
+        /// "Hero" is read as Villain only here, and this code runs only in a Quest game
+        /// (<see cref="QuestActions.IsQuestGame"/> gates the one caller, in <c>MoraleUtilities</c>), so
+        /// Grimdark Future's own Heroes - which carry the same marker rule for unit-joining and force
+        /// org - are untouched.
+        /// </para>
+        /// </summary>
+        public static readonly string[] VillainRuleNames = { "Villain", "Hero" };
+
+        /// <summary>True when this unit is a Villain for <see cref="VillainMorale"/>'s purposes.</summary>
+        public static bool IsVillain(IUnit unit) => VillainRuleNames.Any(name => HasRule(unit, name));
+
+        /// <summary>
+        /// Villain: "AI units within 6" use the Villain's Qua for Morale Tests if it's better than their
+        /// own, as long as the Villain isn't Shaken" (GFSQ Core Rules v2.1.0).
+        /// <para>
+        /// #412: the radius was 12" and the rule was optional ("may use"), which is the v2.0.1 wording.
+        /// 2.1.0 halves the radius and makes it mandatory, so a Villain's nerve now reaches half as far -
+        /// a real change to how an enemy force behaves once its leader is bracketed, and the kind of
+        /// number that is invisible in play until someone compares it to the book.
+        /// </para>
+        /// <para>
+        /// Mandatory costs nothing to implement here: the engine already applied it automatically, and
+        /// taking a BETTER Quality can only help the unit, so there was never a choice worth prompting
+        /// for. Recorded rather than left implicit, because "may" becoming "use" is exactly the kind of
+        /// wording change that gets read as a no-op and then turns out to have been one in one direction
+        /// only.
+        /// </para>
+        /// </summary>
         public static int VillainMorale(IGameContext context, IUnit unit, int rollNeeded)
         {
             if (unit is UnitData { IsQuestHero: true }) return rollNeeded;
@@ -23,8 +85,8 @@ namespace FDG.Stages
                 if (ReferenceEquals(villain, unit) || villain.IsQuestHero || !villain.GetIsAlive() || !villain.GetIsOnBattlefield()) continue;
                 if (!QuestActions.AreFriends(context, villain, unit)) continue;
                 if (villain.Tokens.GetTokenCount(TokenType.Shaken) > 0) continue;
-                if (!HasRule(villain, "Villain")) continue;
-                if (QuestActions.Distance(villain, unit) > 12f) continue;
+                if (!IsVillain(villain)) continue;
+                if (QuestActions.Distance(villain, unit) > VillainAuraInches) continue;
                 if (villain.Quality < best)
                 {
                     best = villain.Quality;

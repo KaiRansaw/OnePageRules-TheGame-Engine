@@ -20,6 +20,26 @@ namespace FDG.ArmyBuilding
         public const string GFFirefight = "grimdark-future-firefight";
         public const string AoFSkirmish = "age-of-fantasy-skirmish";
 
+        /// <summary>
+        /// #412: GF: Star Quest's ARMY BOOKS - the enemy and bot side of a Star Quest table.
+        /// <para>
+        /// Star Quest is TWO datasets at Army Forge, and conflating them is the trap. This slug is the
+        /// one that holds army books (Army Forge id 10, the "-ai" dataset): the opposition a Star Quest
+        /// mission or Horde wave is built from. The player's own side is not an army at all - it is a
+        /// party of individually built heroes, which live in <c>FdgRaylib/Assets/StarQuest/</c> and come
+        /// from a different Army Forge id (9) with different stats for the same unit. Alien Hives' Grunt
+        /// Veteran is 55pts Q6 D6 as a playable hero and 100pts Q5 D5 as an enemy, across rosters of 8
+        /// units and 41.
+        /// </para>
+        /// <para>
+        /// And it is NOT Grimdark Future at a different scale either, which is what the game served
+        /// before these books existed: that same Grunt Veteran is 40pts in Grimdark Future against
+        /// 100pts here, so a Star Quest wave priced off GF's book buys two and a half times the enemy
+        /// it should.
+        /// </para>
+        /// </summary>
+        public const string GFStarQuest = "grimdark-future-star-quest";
+
         /// <summary>The slug a null/empty system field means: Grimdark Future.</summary>
         public static string Normalize(string? slug) =>
             string.IsNullOrWhiteSpace(slug) ? GrimdarkFuture : slug.Trim();
@@ -37,6 +57,7 @@ namespace FDG.ArmyBuilding
             AgeOfFantasy => "Age of Fantasy",
             GFFirefight => "GF: Firefight",
             AoFSkirmish => "AoF: Skirmish",
+            GFStarQuest => "GF: Star Quest",
             var other => other,
         };
 
@@ -50,6 +71,7 @@ namespace FDG.ArmyBuilding
             EAllowedGameSystems.AgeOfFantasy => SameSystem(slug, AgeOfFantasy),
             EAllowedGameSystems.GFFirefight => SameSystem(slug, GFFirefight),
             EAllowedGameSystems.AoFSkirmish => SameSystem(slug, AoFSkirmish),
+            EAllowedGameSystems.GFStarQuest => SameSystem(slug, GFStarQuest),
             _ => true,
         };
 
@@ -60,6 +82,7 @@ namespace FDG.ArmyBuilding
             EAllowedGameSystems.AgeOfFantasy => "Age of Fantasy",
             EAllowedGameSystems.GFFirefight => "GF: Firefight",
             EAllowedGameSystems.AoFSkirmish => "AoF: Skirmish",
+            EAllowedGameSystems.GFStarQuest => "GF: Star Quest",
             _ => "All",
         };
     }
@@ -92,5 +115,10 @@ namespace FDG.ArmyBuilding
 
         /// <summary>AoF: Skirmish only (#406). Its own book, as above.</summary>
         AoFSkirmish = 4,
+
+        /// <summary>GF: Star Quest only (#412) - its enemy/bot army books. See
+        /// <see cref="GameSystems.GFStarQuest"/> for why these are neither the hero roster nor
+        /// Grimdark Future.</summary>
+        GFStarQuest = 5,
     }
 }

@@ -65,7 +65,8 @@ namespace FDG.Stages
             // The v3.5.1 Firefight talent Motivated auto-passed the first morale test of the match. In
             // Campaign Rules v3.6.0 Motivated is a plain +1 to Morale Test rolls, which is an ordinary
             // rule definition, so there is no special case here any more. See WorkItems/410.
-            // Star Quest: AI units within 12" of a Villain may test on the Villain's Quality if it's better.
+            // Star Quest: AI units within 6" of a Villain test on the Villain's Quality if it's better
+            // (GFSQ Core Rules v2.1.0; it was 12" and optional in v2.0.1).
             if (QuestActions.IsQuestGame(gameContext))
                 baseRollNeeded = QuestChallenges.VillainMorale(gameContext, testingUnit, baseRollNeeded);
             // A Shaken unit always fails its morale tests (GF v3.5.1) — no die is rolled. This is what
