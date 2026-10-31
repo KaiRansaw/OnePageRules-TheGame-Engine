@@ -109,8 +109,14 @@ namespace FDG.Tests
         private static async Task<IReadOnlyList<LobbyChatMessage>> WaitForBotGreetings(
             LobbyViewModel_Host hostVm, int expected)
         {
+            // 20s, not 5. This is wall-clock, and each bot's greeting is on its own timer, so eight of
+            // them racing the rest of a 3,800-test suite on a 2-core box intermittently saw 7 of 8 and
+            // failed the whole run - caught three times in a row of five while working on #414, and
+            // nothing to do with what was being changed. A generous ceiling costs nothing on a healthy
+            // run (the loop exits as soon as the greetings arrive) and only delays a run that was going
+            // to fail anyway. A flaky suite is worse than a slow one: it trains everyone to re-run.
             Stopwatch timeout = Stopwatch.StartNew();
-            while (timeout.ElapsedMilliseconds < 5000)
+            while (timeout.ElapsedMilliseconds < 20000)
             {
                 IReadOnlyList<LobbyChatMessage> found = BotGreetingsIn(hostVm);
                 if (found.Count >= expected)

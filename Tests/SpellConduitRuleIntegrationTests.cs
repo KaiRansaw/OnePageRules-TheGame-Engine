@@ -452,7 +452,7 @@ namespace FDG.Tests
                     TargetLabels.AddRange(targetPick.ValidOptions.Select(o => o.Name));
                     return Task.FromResult((TReply)(object)targetPick.ValidOptions[0].Option);
                 case CastAssistRequest:
-                    return Task.FromResult((TReply)(object)0);
+                    return Task.FromResult((TReply)(object)CastAssistReply.None);
                 default:
                     throw new System.InvalidOperationException("Unexpected request: " + request.GetType());
             }

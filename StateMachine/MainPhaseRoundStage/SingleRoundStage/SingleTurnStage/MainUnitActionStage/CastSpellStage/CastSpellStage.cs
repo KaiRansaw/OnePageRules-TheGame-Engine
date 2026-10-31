@@ -122,10 +122,14 @@ namespace FDG.Stages
                 return;
             }
 
-            // 1. Pick a spell + a #244 self-boost count (or cancel back to Choose Action). The boost is only
+            // 1. Pick a spell + a #244 self-boost (or cancel back to Choose Action). The boost is only
             //    committed at step 3, with the cast cost, so cancelling target selection spends nothing.
-            (RuntimeSpell? chosen, int boost) = await PickSpell(context.ActivatingUnit, player, offer, tokens,
-                origins);
+            //    #414 - the boost now has two currencies: spell tokens, and (Star Quest Heroes, v2.1.0)
+            //    Power. Both are +1 per point; they are kept apart all the way through so the roll
+            //    breakdown and the log can say which was actually spent.
+            (RuntimeSpell? chosen, int boostTokens, int boostPower) = await PickSpell(context.ActivatingUnit,
+                player, offer, tokens, origins);
+            int boost = boostTokens + boostPower;
             if (chosen == null)
             {
                 await OnFinished.Activate(context);
@@ -178,7 +182,11 @@ namespace FDG.Stages
             if (targets.Any(t => !ITeamExtensions.AreAllied(GameContext.TableState.Teams.Objects, caster.PlayerID, t.GetValue().PlayerID)))
                 QuestFlags.TargetedAnEnemy(GameContext, caster);
             IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
-                GameContext.RuleEvaluator, caster, chosen.Threshold + boost);
+                GameContext.RuleEvaluator, caster, chosen.Threshold + boostTokens);
+            // #414 - the Power half of the boost, spent at the same moment and on the same terms (win or
+            // lose). Through CastPower so the Diseased condition still bites on Power spent this way.
+            await CastPower.Spend(GameContext, context.ActivatingUnit.GetValue(), boostPower,
+                $"boosting the cast of {chosen.Name}");
             if (loans.Count > 0)
             {
                 // Borrowing is worth surfacing: the tokens left someone else's pool, and that player
@@ -191,9 +199,14 @@ namespace FDG.Stages
             }
             if (boost > 0)
             {
+                // Name the currency: a hero who has just spent Power on a cast needs to see that it was
+                // Power and not tokens, because that is the budget revive and extra actions come out of.
+                string paidWith = boostPower == 0 ? ""
+                    : boostTokens == 0 ? $" - {boostPower} power"
+                    : $" - {boostTokens} token{(boostTokens == 1 ? "" : "s")} + {boostPower} power";
                 await GameContext.Announce(
-                    $"{caster.Name} boosts their own cast of {chosen.Name} (+{boost}).", AssistBannerColor,
-                    EBannerTier.Toast);
+                    $"{caster.Name} boosts their own cast of {chosen.Name} (+{boost}{paidWith}).",
+                    AssistBannerColor, EBannerTier.Toast);
             }
 
             if (!castOrigin.IsSelf)
@@ -273,10 +286,13 @@ namespace FDG.Stages
             // the base 4+ was shifted. Assisters' own contributions were announced as they spent. The result
             // rides an on-screen text beat: blue on success, red on failure. ASCII only (the log font has no
             // em-dash glyph, #151).
-            string breakdown = BuildRollBreakdown(boost, assist, granted, castOrigin.RollBonus);
-            string tokensSpent = boost > 0
-                ? $"spent {chosen.Threshold + boost} tokens ({chosen.Threshold} cost + {boost} boost)"
+            string breakdown = BuildRollBreakdown(boost, assist, granted, castOrigin.RollBonus, boostPower);
+            // #414 - the old line called the whole spend "tokens", which is now wrong whenever a hero paid
+            // part of the boost with Power. Each currency is counted as itself.
+            string tokensSpent = boostTokens > 0
+                ? $"spent {chosen.Threshold + boostTokens} tokens ({chosen.Threshold} cost + {boostTokens} boost)"
                 : $"spent {chosen.Threshold} token{(chosen.Threshold == 1 ? "" : "s")}";
+            if (boostPower > 0) tokensSpent += $" and {boostPower} power";
             string rollDesc = $"rolled {DecisiveFace(castRoll)}, needed {threshold}+{breakdown}; {tokensSpent}";
 
             if (!success)
@@ -542,9 +558,11 @@ namespace FDG.Stages
             return offer;
         }
 
-        // #244 — one request returns both the spell and the caster's own boost spend. The reply's boost is
-        // clamped to what remains after the spell's cost; an out-of-range or non-castable index cancels.
-        private async Task<(RuntimeSpell? spell, int boost)> PickSpell(DataBinding<UnitData> casterBinding,
+        // #244 — one request returns both the spell and the caster's own boost spend. The token boost is
+        // clamped to what remains after the spell's cost, and the #414 Power boost to the hero's Power; an
+        // out-of-range or non-castable index cancels.
+        private async Task<(RuntimeSpell? spell, int boostTokens, int boostPower)> PickSpell(
+            DataBinding<UnitData> casterBinding,
             PlayerID player, IReadOnlyList<SpellOffer> offer, int tokens,
             IReadOnlyList<SpellRelay.CastOrigin> origins)
         {
@@ -559,10 +577,14 @@ namespace FDG.Stages
             // Caster spends everything, and if two of them can reach one accumulator it counts that pool
             // twice. Both errors point the same way (the picker grays out boost slightly early) and the
             // alternative is solving an allocation the enemy hasn't made yet.
+            // #414 - an enemy Hero caster's Power counts here too, since v2.1.0 lets it be spent on the
+            // same -1 per point. Leaving it out would gray out the player's boost early in exactly the
+            // situation where boosting matters most: a hero duel.
             int hinderTokens = FindEligibleAssisters(casterBinding, player)
                 .Where(entry => !entry.friendly)
                 .Sum(entry => SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator,
-                    entry.unit.GetValue()));
+                        entry.unit.GetValue())
+                    + CastPower.Available(entry.unit.GetValue()));
 
             // #197 P23 — tell the picker a relay is in range so the player knows the bonus is on the table
             // before choosing. Which targets actually get it is stated per row in the target list, where
@@ -573,7 +595,8 @@ namespace FDG.Stages
                 .ToList();
 
             ChooseSpellRequest request = new ChooseSpellRequest(player, casterBinding, tokens,
-                CAST_SUCCESS_THRESHOLD, hinderTokens, options, relays);
+                CAST_SUCCESS_THRESHOLD, hinderTokens, options, relays,
+                CastPower.Available(casterBinding.GetValue()));
 
             ChooseSpellReply reply = await GameContext.PlayerRequester
                 .RequestDecision<ChooseSpellRequest, ChooseSpellReply>(request);
@@ -581,24 +604,31 @@ namespace FDG.Stages
             if (reply == null || reply.SpellIndex < 0 || reply.SpellIndex >= offer.Count
                 || !offer[reply.SpellIndex].Castable)
             {
-                return (null, 0);
+                return (null, 0, 0);
             }
 
             RuntimeSpell spell = offer[reply.SpellIndex].Spell;
-            int boost = System.Math.Clamp(reply.BoostTokens, 0, tokens - spell.Threshold);
-            return (spell, boost);
+            int boostTokens = System.Math.Clamp(reply.BoostTokens, 0, tokens - spell.Threshold);
+            int boostPower = CastPower.Clamp(casterBinding.GetValue(), reply.BoostPower);
+            return (spell, boostTokens, boostPower);
         }
 
         // "(base 4+, relay +1, self +1, assists -2, granted -1)" — only the parts that apply; empty when the
         // roll is unmodified. "granted" is the #197 P6 token delta (Casting Debuff / Casting Buff); "relay"
         // is the #197 P23 Spell Conduit bonus, listed first because it is the one the player did not ask
         // for by name.
-        private static string BuildRollBreakdown(int boost, int assist, int granted, int relay)
+        private static string BuildRollBreakdown(int boost, int assist, int granted, int relay,
+            int boostPower = 0)
         {
             if (boost == 0 && assist == 0 && granted == 0 && relay == 0) return "";
             List<string> parts = new List<string> { $"base {CAST_SUCCESS_THRESHOLD}+" };
             if (relay != 0) parts.Add($"relay +{relay}");
-            if (boost != 0) parts.Add($"self +{boost}");
+            // #414 - Power is listed as its own part rather than folded into "self", so a hero can read
+            // back what the cast actually cost it. Tokens and Power are both +1, but only one of them is
+            // also the revive budget.
+            int boostFromTokens = boost - boostPower;
+            if (boostFromTokens != 0) parts.Add($"self +{boostFromTokens}");
+            if (boostPower != 0) parts.Add($"power +{boostPower}");
             if (assist != 0) parts.Add($"assists {(assist > 0 ? "+" : "")}{assist}");
             if (granted != 0) parts.Add($"granted {(granted > 0 ? "+" : "")}{granted}");
             return $" ({string.Join(", ", parts)})";
@@ -714,14 +744,22 @@ namespace FDG.Stages
                 // assister this round may have drained the accumulator they share.
                 int available = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator,
                     assister);
-                if (available <= 0) continue;
+                // #414 - a Star Quest Hero may pay with Power instead (v2.1.0), so an empty token pool is
+                // no longer the end of the matter. Only a caster with neither is skipped.
+                int availablePower = CastPower.Available(unitBinding.GetValue());
+                if (available <= 0 && availablePower <= 0) continue;
 
-                int spent = await AskAssistCount(unitBinding, casterBinding, friendly, available, spellName,
-                    spellDescription);
+                CastAssistReply reply = await AskAssistCount(unitBinding, casterBinding, friendly, available,
+                    availablePower, spellName, spellDescription);
+                int spentTokens = reply.Tokens;
+                int spentPower = reply.Power;
+                int spent = spentTokens + spentPower;
                 if (spent <= 0) continue;
 
                 IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
-                    GameContext.RuleEvaluator, assister, spent);
+                    GameContext.RuleEvaluator, assister, spentTokens);
+                await CastPower.Spend(GameContext, unitBinding.GetValue(), spentPower,
+                    friendly ? $"helping cast {spellName}" : $"countering {spellName}");
                 net += friendly ? spent : -spent;
                 // Star Quest Pact of Wisdom: the hero's counter-spells give the enemy an additional -1.
                 if (!friendly && QuestFlags.Has(GameContext, assister, QuestFlags.Wisdom)) net -= 1;
@@ -752,9 +790,12 @@ namespace FDG.Stages
                 // highlight). Only fires when a Caster actually spends (declines skip via the guard above).
                 // Toast because this loop runs once per nearby Caster: a table with four of them would
                 // otherwise stack four full pauses before the cast roll.
+                string assistPaidWith = spentPower == 0 ? ""
+                    : spentTokens == 0 ? $", {spentPower} power"
+                    : $", {spentTokens} token{(spentTokens == 1 ? "" : "s")} + {spentPower} power";
                 await GameContext.Announce(
                     $"{assister.Name} {(friendly ? "assists" : "hinders")} {casterName}'s cast of {spellName} " +
-                    $"({(friendly ? "+" : "-")}{spent}).",
+                    $"({(friendly ? "+" : "-")}{spent}{assistPaidWith}).",
                     friendly ? AssistBannerColor : HinderBannerColor, EBannerTier.Toast);
             }
             return new CastAssistResult(net, boostTokens, hinderTokens, boostSources, hinderSources, hinderers);
@@ -784,7 +825,10 @@ namespace FDG.Stages
                 UnitData unit = unitBinding.GetValue();
                 if (!unit.GetIsAlive() || !unit.GetIsOnBattlefield()) continue;
                 if (!SpellTargeting.IsCaster(GameContext, unit)) continue;
-                if (SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit) <= 0) continue;
+                // #414 - "at least one spell token" was the old bar. A Star Quest Hero with Power and no
+                // tokens can counter-spell under v2.1.0, so holding either is enough to be asked.
+                if (SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit) <= 0
+                    && CastPower.Available(unit) <= 0) continue;
 
                 float distance = UnitCompareUtilities.MinDistanceBetweenUnits(
                     castingUnit, unit, out _, out _, includeVertical: true);
@@ -801,21 +845,26 @@ namespace FDG.Stages
             return friends;
         }
 
-        // Ask one Caster's controller how many tokens to spend, via a CastAssistRequest that carries both
-        // units so the GUI can highlight the assister and draw a line to the caster (blue friendly / orange
-        // enemy) and show the token count. The reply is clamped to what the assister actually holds. CLI and
-        // AI resolvers default to spending nothing.
-        private async Task<int> AskAssistCount(DataBinding<UnitData> assistingUnit, DataBinding<UnitData> castingUnit,
-            bool friendly, int available, string spellName, string spellDescription)
+        // Ask one Caster's controller how much to spend, via a CastAssistRequest that carries both units so
+        // the GUI can highlight the assister and draw a line to the caster (blue friendly / orange enemy)
+        // and show what it has to spend. Each half of the reply is clamped to what the assister actually
+        // holds - separately, so a resolver cannot pay tokens it hasn't got out of the hero's Power, or
+        // overspend Power into exhaustion. CLI and AI resolvers default to spending nothing.
+        private async Task<CastAssistReply> AskAssistCount(DataBinding<UnitData> assistingUnit,
+            DataBinding<UnitData> castingUnit, bool friendly, int available, int availablePower,
+            string spellName, string spellDescription)
         {
             CastAssistRequest request = new CastAssistRequest(
                 assistingUnit.GetValue().PlayerID, assistingUnit, castingUnit, friendly, available, spellName,
-                spellDescription);
+                spellDescription, availablePower);
 
-            int spent = await GameContext.PlayerRequester
-                .RequestDecision<CastAssistRequest, int>(request);
+            CastAssistReply reply = await GameContext.PlayerRequester
+                .RequestDecision<CastAssistRequest, CastAssistReply>(request);
+            if (reply == null) return CastAssistReply.None;
 
-            return System.Math.Clamp(spent, 0, available);
+            return new CastAssistReply(
+                System.Math.Clamp(reply.Tokens, 0, available),
+                CastPower.Clamp(assistingUnit.GetValue(), reply.Power));
         }
 
         /// <summary>

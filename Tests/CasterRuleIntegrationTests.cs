@@ -1812,7 +1812,8 @@ namespace FDG.Tests
                 case CastAssistRequest assist:
                     AssistPromptCount++;
                     int spend = _perAssister?.Invoke(assist) ?? _tokensPerAssister;
-                    return Task.FromResult((TReply)(object)System.Math.Min(spend, assist.AvailableTokens));
+                    return Task.FromResult((TReply)(object)new CastAssistReply(
+                        System.Math.Min(spend, assist.AvailableTokens)));
                 case ChooseSpellRequest spellPick:
                     CapturedSpellPick = spellPick;
                     return Task.FromResult((TReply)(object)CannedSpellPick.FirstCastable(spellPick, _boostTokens));

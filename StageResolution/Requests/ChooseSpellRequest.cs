@@ -46,6 +46,16 @@ namespace FDG.StageResolution.Requests
         /// <c>AvailableTokens - Cost</c> of the chosen spell.</summary>
         public int AvailableTokens { get; }
 
+        /// <summary>
+        /// #414 - the Power a Star Quest Hero may ALSO put into this roll (+1 per Power, GFSQ v2.1.0), zero
+        /// for every other caster. Kept separate from <see cref="AvailableTokens"/> rather than summed into
+        /// one spendable number on purpose: the two are not interchangeable. Tokens refresh every round and
+        /// are what a second spell this activation would be paid with, while Power is the hero's whole
+        /// mission budget that revive, extra actions and failed tests all compete for. A picker that spent
+        /// one on the player's behalf would quietly cost them the other.
+        /// </summary>
+        public int AvailablePower { get; }
+
         /// <summary>The unmodified cast success threshold (roll this or higher succeeds; base 4).</summary>
         public int BaseThreshold { get; }
 
@@ -74,7 +84,7 @@ namespace FDG.StageResolution.Requests
         [JsonConstructor]
         public ChooseSpellRequest(PlayerID targetPlayerID, TaskID taskID, DataBinding<UnitData> castingUnit,
             int availableTokens, int baseThreshold, int hinderTokensInRange, IReadOnlyList<SpellOption> spells,
-            IReadOnlyList<RelayOption>? relaysInRange = null)
+            IReadOnlyList<RelayOption>? relaysInRange = null, int availablePower = 0)
         {
             TargetPlayerID = targetPlayerID;
             TaskID = taskID;
@@ -84,14 +94,15 @@ namespace FDG.StageResolution.Requests
             HinderTokensInRange = hinderTokensInRange;
             Spells = spells;
             RelaysInRange = relaysInRange ?? Array.Empty<RelayOption>();
+            AvailablePower = availablePower;
             TaskName = "Choosing a Spell";
         }
 
         public ChooseSpellRequest(PlayerID targetPlayerID, DataBinding<UnitData> castingUnit,
             int availableTokens, int baseThreshold, int hinderTokensInRange, IReadOnlyList<SpellOption> spells,
-            IReadOnlyList<RelayOption>? relaysInRange = null)
+            IReadOnlyList<RelayOption>? relaysInRange = null, int availablePower = 0)
             : this(targetPlayerID, new TaskID(Guid.NewGuid()), castingUnit, availableTokens, baseThreshold,
-                   hinderTokensInRange, spells, relaysInRange)
+                   hinderTokensInRange, spells, relaysInRange, availablePower)
         {
         }
 
@@ -100,12 +111,21 @@ namespace FDG.StageResolution.Requests
 
     /// <summary>
     /// Reply to <see cref="ChooseSpellRequest"/>: which spell (index into the request's
-    /// <see cref="ChooseSpellRequest.Spells"/>; negative = cancel the cast, nothing spent) and how many
+    /// <see cref="ChooseSpellRequest.Spells"/>; negative = cancel the cast, nothing spent), how many
     /// extra tokens the caster spends boosting the roll (+1 each; the stage clamps to what remains after
-    /// the spell's cost).
+    /// the spell's cost), and - #414, Star Quest Heroes only - how much Power it spends on top (+1 each,
+    /// clamped to the hero's Power; see <see cref="FDG.Stages.CastPower"/>).
+    /// <para>
+    /// <paramref name="BoostPower"/> defaults to zero so every existing construction site, resolver and
+    /// saved reply keeps its old meaning: tokens only.
+    /// </para>
     /// </summary>
-    public record ChooseSpellReply(int SpellIndex, int BoostTokens)
+    public record ChooseSpellReply(int SpellIndex, int BoostTokens, int BoostPower = 0)
     {
-        public static ChooseSpellReply Cancel => new ChooseSpellReply(-1, 0);
+        public static ChooseSpellReply Cancel => new ChooseSpellReply(-1, 0, 0);
+
+        /// <summary>Total the roll is shifted by - what the player bought, however they paid for it.</summary>
+        [JsonIgnore]
+        public int TotalBoost => BoostTokens + BoostPower;
     }
 }

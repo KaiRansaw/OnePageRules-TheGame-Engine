@@ -139,14 +139,16 @@ namespace FDG.Tests
             BuildArmies(DamageSpell("Zap", threshold: 2, hits: 6, ap: 1));
             var resolver = new TacticianCastAssistResolver(_tableState, _evaluator);
 
-            int spent = resolver.Resolve(new CastAssistRequest(_us, helper, caster,
+            CastAssistReply spent = resolver.Resolve(new CastAssistRequest(_us, helper, caster,
                 isFriendly: true, availableTokens: 3, spellName: "Zap")).Result;
-            int declined = resolver.Resolve(new CastAssistRequest(_us, helper, caster,
+            CastAssistReply declined = resolver.Resolve(new CastAssistRequest(_us, helper, caster,
                 isFriendly: true, availableTokens: 3, spellName: "NoSuchSpell")).Result;
 
-            Assert.That(spent, Is.GreaterThan(0), "a 1/6 shift on a valuable cast is worth a token");
-            Assert.That(spent, Is.LessThanOrEqualTo(TacticianWeights.CastAssistMaxTokens));
-            Assert.That(declined, Is.Zero);
+            Assert.That(spent.Tokens, Is.GreaterThan(0), "a 1/6 shift on a valuable cast is worth a token");
+            Assert.That(spent.Tokens, Is.LessThanOrEqualTo(TacticianWeights.CastAssistMaxTokens));
+            // #414: the Tactician plays an army, which has no Power - it prices tokens only.
+            Assert.That(spent.Power, Is.Zero);
+            Assert.That(declined.Total, Is.Zero);
         }
 
         // --- fixtures ---
