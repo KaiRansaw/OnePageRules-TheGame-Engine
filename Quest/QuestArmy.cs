@@ -11,7 +11,25 @@ namespace FDG.Quest
     /// </summary>
     public static class QuestArmy
     {
+        /// <summary>Star Quest's party faction name, kept as the default so every party file saved
+        /// before #418 still reads back the same.</summary>
         public const string PartyFaction = "Star Quest Party";
+
+        /// <summary>AoF: Quest's party faction name (#418).</summary>
+        public const string AoFPartyFaction = "AoF Quest Party";
+
+        /// <summary>The party faction name for a Quest system.</summary>
+        public static string PartyFactionFor(EGameSystem system) =>
+            system == EGameSystem.AoFQuest ? AoFPartyFaction : PartyFaction;
+
+        /// <summary>
+        /// The army-book system a Quest system's heroes read their faction rules and spells from:
+        /// its OWN enemy books. #418 - both Quest systems have them now (Star Quest 54, AoF: Quest 46),
+        /// and a hero resolving its rules against another system's edition is the same class of fault
+        /// as pricing it off another system's book.
+        /// </summary>
+        public static string BookSystemFor(EGameSystem system) =>
+            system == EGameSystem.AoFQuest ? GameSystems.AoFQuest : GameSystems.GFStarQuest;
 
         /// <summary>
         /// The army book a Star Quest hero's rules and spells are read from, out of the whole bundled
@@ -27,22 +45,26 @@ namespace FDG.Quest
         /// definition at all, and the hero's own stats come from the hero dataset either way.
         /// </para>
         /// </summary>
-        public static BookFile? BookForHeroFaction(IEnumerable<BookFile> library, string? factionName)
+        public static BookFile? BookForHeroFaction(IEnumerable<BookFile> library, string? factionName,
+            EGameSystem system = EGameSystem.GFStarQuest)
         {
             List<BookFile> matches = library.Where(b => b.MatchesFactionName(factionName)).ToList();
-            return matches.FirstOrDefault(b => b.GameSystem == GameSystems.GFStarQuest)
+            string preferred = BookSystemFor(system);
+            return matches.FirstOrDefault(b => GameSystems.SameSystem(b.GameSystem, preferred))
                 ?? matches.FirstOrDefault();
         }
 
         /// <param name="bookForFaction">The army book of a faction (for the faction's special rule
         /// definitions and spells), or null when there is none. Callers hand this in because the library
         /// lives on the client side; <see cref="BookForHeroFaction"/> is the lookup they should use.</param>
-        public static BuiltArmyFile Build(IReadOnlyList<QuestHero> heroes, Func<string, BookFile?> bookForFaction)
+        public static BuiltArmyFile Build(IReadOnlyList<QuestHero> heroes,
+            Func<string, BookFile?> bookForFaction,
+            EGameSystem system = EGameSystem.GFStarQuest)
         {
             var army = new BuiltArmyFile
             {
                 Name = "Party: " + string.Join(", ", heroes.Select(h => h.Name)),
-                Faction = PartyFaction,
+                Faction = PartyFactionFor(system),
                 // #412/#414: a Star Quest party is a STAR QUEST army, and the launch gate enforces that.
                 // This said GrimdarkFuture, which was harmless only while Star Quest was played on
                 // Grimdark Future's books. Now that GFStarQuest is its own army source, a party stamped
@@ -50,7 +72,10 @@ namespace FDG.Quest
                 // takes GF: Star Quest armies only" - so the LAUNCH button was disabled by the party
                 // itself and no Star Quest game could be started from the GUI at all. Pinned by
                 // QuestArmyGameSystemTests.
-                GameSystem = GameSystems.GFStarQuest,
+                // #418: and an AoF: Quest party is an AoF: QUEST army, for the same reason - stamping
+                // one GFStarQuest would fail an AoF: Quest lobby's filter exactly the way a
+                // grimdark-future stamp failed Star Quest's.
+                GameSystem = BookSystemFor(system),
                 PointsLimit = heroes.Sum(h => h.Points),
             };
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
