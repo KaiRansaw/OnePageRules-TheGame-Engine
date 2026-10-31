@@ -54,6 +54,42 @@ namespace FDG.Stages
         /// the scalar entry point above: the faces feed the on-6 rules, the defender participates, and the
         /// per-AP split partitions the same dice.
         /// </summary>
+        /// <summary>
+        /// Hits that are ALREADY final on the attacker's side, needing only the receiving unit's own
+        /// defensive fold - its Shielded, its Fortified - and no hit-adding rules at all.
+        ///
+        /// <para>
+        /// #414, for Blast's spread onto units that were never the target. Those hits have already been
+        /// multiplied and split, so running the ordinary fold over them would be wrong twice: Blast would
+        /// multiply a second time, and because a synthetic hit count is carried as dice sitting at the top
+        /// face, Rending and Crack would promote AP on <b>every single spilled hit</b>. So the hits are
+        /// handed over as one base-AP group and the rule pass is used only for what the defender
+        /// contributes.
+        /// </para>
+        /// </summary>
+        public static Result ResolveAlreadyFinalHits(IGameContext gameContext, IUnit attacker, IUnit target,
+            float hits, Weapon weapon)
+        {
+            IDiceResults carrier = SyntheticHits(hits);
+            float distance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, target, out _, out _,
+                includeVertical: false);
+
+            IReadOnlyList<RuleOperation> ops = gameContext.RuleEvaluator.EvaluateAll(
+                new HitRollCompleteContext(attacker, target, carrier, distance, IsMelee: false,
+                    IsCharging: false, IsSpell: false),
+                RuleParticipant.Actor(attacker, weapon),
+                RuleParticipant.Subject(target, models: HeroStatRules.LivingModels(target)));
+
+            RollModifierSink saveModifiers = new RollModifierSink();
+            saveModifiers.ApplyFrom(ops);
+            int apReduction = ops.OfType<RuleOperation.ReduceArmorPenetration>().Sum(op => op.Amount);
+
+            return new Result(
+                new List<SuccessfulHitInfo> { new SuccessfulHitInfo(carrier) },
+                saveModifiers.Net(ERollKind.Save),
+                apReduction);
+        }
+
         public static Result ResolveRolled(IGameContext gameContext, IUnit attacker, IUnit target,
             IDiceResults rolled, Weapon weapon, bool isSpell)
         {

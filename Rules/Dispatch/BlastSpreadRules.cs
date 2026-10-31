@@ -40,28 +40,15 @@ namespace FDG.Rules.Dispatch
     /// </summary>
     public static class BlastSpreadRules
     {
-        // ─────────────────────────────────────────────────────────────────────────────────────────────
-        // NOT WIRED INTO THE SHOOTING PIPELINE YET. Blast still behaves as the full-scale games' version
-        // in every system; this is the decided distribution, tested on its own, waiting for the stage
-        // that delivers it. Recorded here and in WorkItems/414 rather than left to be discovered.
-        //
-        // What the remaining slice needs, and why it was not rushed:
-        //
-        //   * A looping resolver inside FireStage, following ResolveSpellDamageStage's shape exactly (a
-        //     ParentStage that pops one share per pass, builds a fresh CombatMetadata, and runs
-        //     DetermineSaveRollsNeeded -> RollToSave -> AssignWounds -> ApplyWounds), plus a loop-decision
-        //     sibling like DetermineMoreSpellTargetsStage. FireStage's children are StageBase<ICombatMetadata>
-        //     and a ParentStage is one, so it nests cleanly.
-        //   * The spilled hits must NOT go through SyntheticHitResolution, which is the obvious choice and
-        //     the wrong one: that runs the whole hit-complete fold, so Blast would multiply a second time.
-        //     They are already-multiplied hits that need the weapon's AP and the RECEIVING unit's own
-        //     defensive rules - its Shielded, its Fortified, its Parry - and not the attacker's hit-adding
-        //     rules again.
-        //   * Each receiving unit needs its own cover check seeded (Blast ignores Cover, so zero) and its
-        //     own morale consequence, since a bystander taken to half strength tests like any other.
-        //
-        // Three ways to get a half-built version subtly wrong, which is why the arithmetic landed first.
-        // ─────────────────────────────────────────────────────────────────────────────────────────────
+        // Delivered by RollToHitStage (which keeps the target's share and queues the rest) and
+        // ResolveBlastSpillStage (which resolves one receiver per pass: its saves, its wounds, its
+        // morale). Three things that version has to get right, each a way a hand-rolled one would not:
+        // the spilled hits go through SyntheticHitResolution.ResolveAlreadyFinalHits rather than the
+        // ordinary fold, which would multiply Blast a second time AND - because a synthetic hit count
+        // rides as dice at the top face - promote Rending/Crack AP on every spilled hit; each receiver
+        // gets a zero cover seed, which is Blast's own "Ignores Cover" rather than a shortcut; and the
+        // target's share can be LOWER than the hits that landed, so the stage removes hits as well as
+        // adding them (a Blast(1) weapon multiplies nothing and still shares its hits out).
 
         /// <summary>"all enemy units within 3" of any model from the target".</summary>
         public const float SpreadRangeInches = 3f;

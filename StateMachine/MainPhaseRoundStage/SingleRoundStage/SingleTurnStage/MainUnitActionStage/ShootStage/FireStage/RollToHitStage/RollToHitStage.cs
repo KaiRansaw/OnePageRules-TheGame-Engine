@@ -199,7 +199,70 @@ namespace FDG.Stages
             // save dice the defender owed).
             HitMultiplierSink hitMultiplier = new HitMultiplierSink();
             hitMultiplier.ApplyFrom(operations);
-            if (hitMultiplier.NetMultiplier > 1)
+
+            // #414: in GF: Firefight, AoF: Skirmish and GF: Star Quest, Blast does not stop at the target.
+            // "Hits must be split evenly between the target and all enemy units within 3" of any model
+            // from the target." BlastSpreadRules decides the whole distribution (including which cap
+            // applies - see its remarks, that reading was a real fork); this branch keeps the target's
+            // share and queues the rest for ResolveBlastSpillStage.
+            //
+            // The target's share can be LOWER than the hits that landed - a Blast(1) weapon multiplies
+            // nothing and still shares its hits out - so this both adds and removes, where the full-scale
+            // branch below only ever adds.
+            bool blastSpreads = hitMultiplier.NetMultiplier >= 1
+                && operations.OfType<RuleOperation.MultiplyHits>().Any()
+                && Rules.Dispatch.CoreRulesProfile.For(GameContext).BlastSplitsBetweenNearbyUnits;
+
+            if (blastSpreads)
+            {
+                float hitsBefore = TotalHits(results);
+                List<IUnit> nearby = Rules.Dispatch.BlastSpreadRules.UnitsInSpreadRange(
+                    GameContext.TableState, attacker, defender);
+                Rules.Dispatch.BlastSpreadRules.Spread spread = Rules.Dispatch.BlastSpreadRules.Distribute(
+                    defender, nearby, hitsBefore, hitMultiplier.NetMultiplier);
+
+                string spreadName = named.FirstOrDefault(n => n.Op is RuleOperation.MultiplyHits).RuleName;
+                if (string.IsNullOrEmpty(spreadName)) spreadName = "Blast";
+
+                float targetShare = spread.Target.Hits;
+                if (targetShare > hitsBefore)
+                {
+                    results.SuccessfulHitList.Add(new SuccessfulHitInfo(
+                        SyntheticHits(targetShare - hitsBefore, rollToHitResults), 0,
+                        new HitGroupSource(EHitSourceKind.BlastMultiplier, spreadName,
+                            spread.EffectiveMultiplier)));
+                }
+                else if (targetShare < hitsBefore)
+                {
+                    // The hits that leave carry the heaviest AP with them, because that is the one
+                    // removal path this stage has (Parry's) and a second one would be a second thing to
+                    // keep correct. The books leave the choice open ("players pick how"), so an
+                    // arbitrary-but-consistent rule is within them.
+                    RemoveHitsWorstFirst(results, hitsBefore - targetShare, rollToHitResults);
+                }
+
+                if (spread.Spills)
+                {
+                    var shares = new List<(DataBinding<UnitData> Unit, float Hits)>();
+                    foreach (Rules.Dispatch.BlastSpreadRules.Share share in spread.Others)
+                    {
+                        if (TryGetBinding(share.Unit, out DataBinding<UnitData> binding))
+                        {
+                            shares.Add((binding, share.Hits));
+                        }
+                    }
+
+                    if (shares.Count > 0)
+                    {
+                        metaData.AddResult(new BlastSpillResults(metaData.AttackingUnit, metaData.WeaponType, shares));
+                    }
+                }
+
+                GameContext.Log($"{spreadName} x{spread.EffectiveMultiplier}: {hitsBefore} hit(s) -> "
+                    + $"{spread.TotalHits} across {spread.Others.Count + 1} unit(s); {defender.Name} takes "
+                    + $"{targetShare}.");
+            }
+            else if (hitMultiplier.NetMultiplier > 1)
             {
                 float currentHits = TotalHits(results);
                 int targetModelCount = CountLivingModels(defender);
@@ -450,6 +513,33 @@ namespace FDG.Stages
             }
 
             results.SuccessfulHitList.RemoveAll(group => group.HitCount <= 0f);
+        }
+
+        /// <summary>
+        /// The <see cref="DataBinding{T}"/> for a unit found on the table, by walking the armies.
+        /// <para>
+        /// #414. The stages work in bindings and <see cref="BlastSpreadRules"/> works in
+        /// <see cref="IUnit"/>, because it is pure geometry and has no business knowing about the store.
+        /// Matched on the unit ID rather than by reference, the same way HordeShop resolves a unit, and a
+        /// unit in no army is skipped rather than guessed at - that is a data fault, not a blast target.
+        /// </para>
+        /// </summary>
+        private bool TryGetBinding(IUnit unit, out DataBinding<UnitData> binding)
+        {
+            foreach (ArmyData army in GameContext.GameDataStore.GetAllValues<ArmyData>())
+            {
+                foreach (DataBinding<UnitData> candidate in army.UnitBindings)
+                {
+                    if (candidate.GetValue().ID.ID == unit.ID.ID)
+                    {
+                        binding = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            binding = default!;
+            return false;
         }
 
         private static IDiceResults SyntheticHits(float count, IDiceResults template)

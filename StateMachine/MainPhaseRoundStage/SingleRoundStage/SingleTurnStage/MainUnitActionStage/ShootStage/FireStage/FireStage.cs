@@ -42,6 +42,13 @@ namespace FDG.Stages
                 // Transport spillout (#035 slice E) is no longer a stage here — ApplyWoundsStage's
                 // UnitDestructionNotifier call runs it for every destruction path (#169).
                 .AddChild(new ApplyWoundsStage<ICombatMetadata>(GameContext, this), out var applyWounds)
+                // #414: Blast in GF: Firefight, AoF: Skirmish and GF: Star Quest splits its hits between
+                // the target and every enemy unit within 3". The target's share went through the chain
+                // above; these two drain the rest, one receiver per pass, each with its own saves and
+                // wounds. Costs nothing in the other systems - with no spill queued on the metadata the
+                // loop stage exits straight to finished.
+                .AddChild(new ResolveBlastSpillStage(GameContext, this), out var resolveBlastSpill)
+                .AddChild(new DetermineMoreBlastSpillStage(GameContext, this), out var determineMoreSpill)
                 .AddSibling(nameof(OnFinishedFiring), OnFinishedFiring, out string finishedFiringName)
                 .Build();
 
@@ -58,7 +65,16 @@ namespace FDG.Stages
                 .BindNextStage(rollToSave)
                 .BindNextStage(assignWounds)
                 .BindNextStage(applyWounds)
-                .BindToEvent(finishedFiringName);
+                // The target's wounds are in; now ask whether the blast spread anywhere. Resolve one
+                // receiver, ask again, and so on until the queue is empty - the same loop shape
+                // CastSpellStage uses to walk a multi-target spell. BindToEvent by name rather than
+                // BindNextStage, because the loop-decision stage is a plain StageBase and not a
+                // CombatStage (it rolls nothing and has no result of its own).
+                .BindToEvent(determineMoreSpill.Name);
+
+            determineMoreSpill.ResolveNextUnit.Bind(resolveBlastSpill);
+            determineMoreSpill.ToFinished.Bind(finishedFiringName);
+            resolveBlastSpill.OnFinished.Bind(determineMoreSpill);
 
             return dictionary;
         }
