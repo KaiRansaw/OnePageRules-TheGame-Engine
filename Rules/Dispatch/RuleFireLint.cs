@@ -721,6 +721,9 @@ public static class RuleFireLint
                         yield return new HitRollCompleteContext(attacker, world.AfflictedOther,
                             OneOfEachFace(), distance, isMelee, isCharging, IsSpell: false,
                             ChargeOriginDistanceInches: chargeOrigin);
+                        yield return new HitRollCompleteContext(attacker, world.HeavyArmorOther,
+                            OneOfEachFace(), distance, isMelee, isCharging, IsSpell: false,
+                            ChargeOriginDistanceInches: chargeOrigin);
                     }
                 }
                 break;
@@ -751,7 +754,8 @@ public static class RuleFireLint
                 // armour or toughness.
                 if (seat == ERuleSeat.Actor)
                 {
-                    foreach (UnitData special in new[] { world.ToughOther, world.WeakArmorOther, world.AfflictedOther })
+                    foreach (UnitData special in new[] { world.ToughOther, world.WeakArmorOther,
+                                                        world.AfflictedOther, world.HeavyArmorOther })
                     foreach (bool isMelee in new[] { false, true })
                     {
                         yield return new SaveRollCompleteContext(attacker, special, OneOfEachFace(),
@@ -830,6 +834,11 @@ public static class RuleFireLint
         /// clean opponent can prove it fireable. </summary>
         public UnitData AfflictedOther { get; private init; } = null!;
 
+        /// <summary> #412: an opposing unit with Defense 2+, for statLessOrEqualTo conditions. OPR 3.6.0
+        /// gates anti-armour rules on heavy armour too (Puncture: "Defense 2+ to Defense 3+"), and a
+        /// LOWER Defense number is BETTER armour, so that direction needs its own opponent. </summary>
+        public UnitData HeavyArmorOther { get; private init; } = null!;
+
         /// <summary> #412: an opposing unit with Defense 6+, for statGreaterOrEqualTo conditions keyed on
         /// the TARGET's armour. The ordinary <see cref="Other"/> is Defense 4, so a rule gated on
         /// "most models have Defense 5+ to Defense 6+" (Fragment and the rest of the 3.6.0 anti-armour
@@ -876,6 +885,8 @@ public static class RuleFireLint
                 WeakArmorOther = BuildUnit(store, "Lint weak-armor opponent", carriedWeapon: null,
                     defense: 6),
                 AfflictedOther = afflictedOther,
+                HeavyArmorOther = BuildUnit(store, "Lint heavy-armor opponent", carriedWeapon: null,
+                    defense: 2),
                 Weapon = weapon,
             };
         }

@@ -44,6 +44,9 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(TargetMajorityHasTough), "targetMajorityHasTough")]
 [JsonDerivedType(typeof(TokenPresent), "tokenPresent")]
 [JsonDerivedType(typeof(TargetTokenPresent), "targetTokenPresent")]
+[JsonDerivedType(typeof(StatLessOrEqualTo), "statLessOrEqualTo")]
+[JsonDerivedType(typeof(TargetMostModelsWithinInchesOfTerrain), "targetMostModelsWithinInchesOfTerrain")]
+[JsonDerivedType(typeof(BeyondHalfWeaponRange), "beyondHalfWeaponRange")]
 [JsonDerivedType(typeof(And), "and")]
 [JsonDerivedType(typeof(Or), "or")]
 [JsonDerivedType(typeof(Not), "not")]
@@ -381,6 +384,76 @@ public abstract record Condition
     {
         protected override bool EvaluateCore(IHasTarget context) =>
             context.Target.Tokens.GetTokenCount(TType) >= MinCount;
+    }
+
+    /// <summary>
+    /// #412: true if the TARGET's value for the given stat is at most the threshold - the mirror of
+    /// <see cref="StatGreaterOrEqualTo"/>, which only answers the "or worse" direction.
+    /// <para>
+    /// OPR 3.6.0 gates rules on armour from BOTH ends: Fragment fires against "most models have
+    /// Defense 5+ to Defense 6+" (weak armour, a >= test) and Puncture against "Defense 2+ to
+    /// Defense 3+" (heavy armour, a &lt;= test). Note the inversion - a LOWER Defense number is
+    /// BETTER armour - so an anti-armour rule reads as a less-than-or-equal.
+    /// </para>
+    /// </summary>
+    public sealed record StatLessOrEqualTo(EStatKind Stat, int StatValue) : CapabilityCondition<IHasTarget>
+    {
+        protected override bool EvaluateCore(IHasTarget context) => Stat switch
+        {
+            EStatKind.Quality => context.Target.Quality <= StatValue,
+            EStatKind.Defense => context.Target.Defense <= StatValue,
+            _ => MajorityToughAtMost(context.Target, StatValue),
+        };
+
+        private static bool MajorityToughAtMost(IUnit target, int maxTough)
+        {
+            int alive = 0, within = 0;
+            foreach (IModel model in target.Models)
+            {
+                if (!model.GetIsAlive()) continue;
+                alive++;
+                if (model.TotalWounds <= maxTough) within++;
+            }
+            return alive > 0 && within * 2 > alive;
+        }
+    }
+
+    /// <summary>
+    /// #412: true if most of the TARGET's models are within <see cref="DistanceInches"/> of terrain -
+    /// the mirror of <see cref="MostModelsWithinInchesOfTerrain"/>, which reads the firing unit.
+    /// Demolish ("when attacking units with most models within 1in of terrain, this weapon gets AP(+1)")
+    /// is an attacker-side rule asking about where its victim is standing, so the bearer-relative form
+    /// answers the wrong question.
+    /// </summary>
+    public sealed record TargetMostModelsWithinInchesOfTerrain(float DistanceInches) : Condition
+    {
+        public override IReadOnlyCollection<Type> RequiredCapabilities =>
+            [typeof(IHasTarget), typeof(IHasTerrain)];
+
+        public override bool Evaluate(RuleInvocation invocation) =>
+            invocation.Hook is IHasTarget target && invocation.Hook is IHasTerrain terrain
+            && TerrainProximityQueries.MostModelsWithinInches(
+                target.Target, terrain.Terrain, DistanceInches);
+    }
+
+    /// <summary>
+    /// #412: true when the target is further away than half the firing weapon's range - OPR 3.6.0's
+    /// "when attacking units over half of this weapon's range away" (Smash, Pierce). Distinct from
+    /// <see cref="AttackedFromOverInches"/>, which takes a fixed distance: this threshold is a property
+    /// of the weapon doing the shooting, so the same rule means 12in on a 24in gun and 6in on a 12in one.
+    /// A rule attached at unit scope, or a melee weapon with no range, has no half-range to clear and
+    /// answers false rather than firing everywhere.
+    /// </summary>
+    public sealed record BeyondHalfWeaponRange : Condition
+    {
+        public override IReadOnlyCollection<Type> RequiredCapabilities => [typeof(IHasDistance)];
+
+        public override bool Evaluate(RuleInvocation invocation)
+        {
+            if (invocation.Weapon is not { RangeInches: > 0f } weapon) return false;
+            return invocation.Hook is IHasDistance distance
+                && distance.DistanceInches > weapon.RangeInches / 2f;
+        }
     }
 
     /// <summary>
