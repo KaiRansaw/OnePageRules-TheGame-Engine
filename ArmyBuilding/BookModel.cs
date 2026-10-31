@@ -53,6 +53,36 @@ namespace FDG.ArmyBuilding
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? DefaultMeleeEffectSet { get; set; }
 
+        /// <summary>
+        /// #412: names this book used to go by, newest-first. OPR renames factions between ruleset
+        /// versions (3.6.0 turned "Wormhole Daemons of Change" into "Daemons of Change"), and a book's
+        /// name is the only key an already-saved army, an Army Forge share link, or a retrofit pass has
+        /// to find it by. Keeping the old names here lets <see cref="MatchesFactionName"/> answer to
+        /// both, so adopting OPR's current name never orphans an army saved under the old one.
+        /// Never written when empty; never used for display.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public List<string>? PreviousNames { get; set; }
+
+        /// <summary>
+        /// #412: does this book answer to <paramref name="factionName"/>? True for the current
+        /// <see cref="Name"/> or <see cref="Faction"/>, and for any entry in <see cref="PreviousNames"/>.
+        /// Case-insensitive. Callers matching a saved army or a share link to a bundled book should use
+        /// this rather than comparing <see cref="Name"/> directly.
+        /// </summary>
+        public bool MatchesFactionName(string? factionName)
+        {
+            if (string.IsNullOrWhiteSpace(factionName)) return false;
+            if (string.Equals(Name, factionName, System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Faction, factionName, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (PreviousNames is null) return false;
+            foreach (string previous in PreviousNames)
+                if (string.Equals(previous, factionName, System.StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+
         public List<RosterUnit> Units { get; set; } = new();
 
         /// <summary>Rule definitions the roster's units/upgrades reference. Copied onto a compiled army so

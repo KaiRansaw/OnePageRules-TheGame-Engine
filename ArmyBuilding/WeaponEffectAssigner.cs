@@ -233,6 +233,9 @@ namespace FDG.ArmyBuilding
             ["Saurian Starhost"]             = (Sets.GaussParticle, Sets.ClawRend),
             ["Soul-Snatcher Cults"]          = (Sets.BallisticSlug, Sets.CrudeMelee),
             ["Titan Lords"]                  = (Sets.FusionMelta, Sets.TitanImpact),
+            // #412: new in OPR 3.6.0. Same raider silhouette as Dark Elf Raiders (splinter shot, blades
+            // and claws), so it takes the same pair rather than falling through to the global default.
+            ["Voidspace Stalkers"]           = (Sets.BioOrganic, Sets.ClawRend),
             ["Titan Lords Change Disciples"] = (Sets.FusionMelta, Sets.TitanImpact),
             ["Titan Lords Lust Disciples"]   = (Sets.FusionMelta, Sets.TitanImpact),
             ["Titan Lords Plague Disciples"] = (Sets.FusionMelta, Sets.TitanImpact),
@@ -305,6 +308,18 @@ namespace FDG.ArmyBuilding
             return table.TryGetValue(faction ?? string.Empty, out var d) ? (d.Ranged, d.Melee) : (null, null);
         }
 
+        /// <summary>#412: the other names a book answers to, newest first - its own Name when that
+        /// differs from Faction, then every entry in <see cref="BookFile.PreviousNames"/>.</summary>
+        private static IEnumerable<string> Aliases(BookFile book)
+        {
+            if (!string.IsNullOrWhiteSpace(book.Name)
+                && !string.Equals(book.Name, book.Faction, StringComparison.OrdinalIgnoreCase))
+                yield return book.Name;
+            if (book.PreviousNames is null) yield break;
+            foreach (string previous in book.PreviousNames)
+                if (!string.IsNullOrWhiteSpace(previous)) yield return previous;
+        }
+
         private static bool IsAof(string? gameSystem) =>
             string.Equals(GameSystems.Normalize(gameSystem), GameSystems.AgeOfFantasy, StringComparison.OrdinalIgnoreCase);
 
@@ -344,7 +359,17 @@ namespace FDG.ArmyBuilding
         /// so a keyword-table improvement reaches every future army without re-patching 47 books.</summary>
         public static bool ApplyToBook(BookFile book)
         {
+            // #412: the table is keyed by the faction name as it stood when the survey was done, so a
+            // book OPR has since renamed ("Wormhole Daemons of Change" -> "Daemons of Change") would
+            // silently fall through to the global default and lose its effect sets on a rebuild. Try
+            // the current name first, then every name the book has previously answered to.
             (string? ranged, string? melee) = FactionDefaults(book.Faction, book.GameSystem);
+            if (ranged == null && melee == null)
+                foreach (string alias in Aliases(book))
+                {
+                    (ranged, melee) = FactionDefaults(alias, book.GameSystem);
+                    if (ranged != null || melee != null) break;
+                }
             bool changed = false;
             if (book.DefaultRangedEffectSet == null && ranged != null) { book.DefaultRangedEffectSet = ranged; changed = true; }
             if (book.DefaultMeleeEffectSet == null && melee != null) { book.DefaultMeleeEffectSet = melee; changed = true; }
