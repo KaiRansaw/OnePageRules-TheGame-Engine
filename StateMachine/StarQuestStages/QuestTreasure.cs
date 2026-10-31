@@ -169,21 +169,41 @@ namespace FDG.Stages
 
         // ── Revealing ────────────────────────────────────────────────────────────────────────────────────
 
-        public static string TreasureName(int roll) => roll switch
-        {
-            <= 2 => "Hazard",
-            3 => "Injector Pouch",
-            4 => "Grenade Bag",
-            5 => "Kit Box",
-            6 => "Credits Stash",
-            _ => "Treasure Trove",
-        };
+        /// <summary>This system's name for a canonical item (#418).</summary>
+        private static string Skin(EGameSystem system, string canonical) =>
+            QuestItemSkin.Name(system, canonical);
 
+        /// <summary>
+        /// The Hidden Treasure table entry for a roll, in the vocabulary of the system being played
+        /// (#418): Star Quest's Injector Pouch is AoF: Quest's Elixir Pouch, and its Credits Stash is a
+        /// Gold Stash. Same table, same rolls - see <see cref="QuestItemSkin"/>.
+        /// </summary>
+        public static string TreasureName(int roll, EGameSystem system = EGameSystem.GFStarQuest) =>
+            QuestItemSkin.Name(system, roll switch
+            {
+                <= 2 => "Hazard",
+                3 => "Injector Pouch",
+                4 => "Grenade Bag",
+                5 => "Kit Box",
+                6 => "Credits Stash",
+                _ => "Treasure Trove",
+            });
+
+        /// <summary>The Treasure Trove's "any two Items or Gold of your choice from the above", in
+        /// canonical (Star Quest) names. #418: skinned per system when offered and when granted, so an
+        /// AoF: Quest hero picks from Elixirs, Bombs and Potions.</summary>
         private static readonly string[] TroveChoices =
         {
             "Courage Injector", "Frenzy Injector", "Power Injector", "Noise Grenade", "Grease Grenade",
             "Stun Grenade", "Curing Kit", "Teleport Kit", "Med Kit", "15c",
         };
+
+        /// <summary>This game's names for the trove choices.</summary>
+        private static string[] TroveChoicesFor(EGameSystem system) =>
+            TroveChoices.Select(c => QuestItems.Credits(c) is { } money
+                    ? QuestItemSkin.Money(system, money)
+                    : QuestItemSkin.Name(system, c))
+                .ToArray();
 
         /// <summary>
         /// Uses a token: a treasure marker is picked up; a search token is revealed (roll on the Hidden Treasure
@@ -204,21 +224,21 @@ namespace FDG.Stages
             int result = roll;
             if (maxShift > 0)
             {
-                var options = new Dictionary<string, int> { [$"Keep {roll}: {TreasureName(roll)}"] = roll };
+                var options = new Dictionary<string, int> { [$"Keep {roll}: {TreasureName(roll, context.Settings.GameSystem)}"] = roll };
                 for (int shift = -maxShift; shift <= maxShift; shift++)
                 {
                     int r = roll + shift;
                     if (shift == 0 || r < 1 || r > 7) continue;
-                    options[$"{(shift > 0 ? "+" : "")}{shift} = {r}: {TreasureName(r)}"] = r;
+                    options[$"{(shift > 0 ? "+" : "")}{shift} = {r}: {TreasureName(r, context.Settings.GameSystem)}"] = r;
                 }
                 var request = new StringSelectionRequest(hero.PlayerID,
-                    $"{token.Label}: rolled {roll} ({TreasureName(roll)}). Change the roll?", options.Keys.ToList(),
+                    $"{token.Label}: rolled {roll} ({TreasureName(roll, context.Settings.GameSystem)}). Change the roll?", options.Keys.ToList(),
                     Array.Empty<StringSelectionRequest.InvalidOption>(), displayName: $"{hero.Name}: search roll");
                 string pick = await context.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
                 if (options.TryGetValue(pick, out int chosen)) result = chosen;
             }
             context.Log($"{hero.Name} reveals {token.Label}: rolled {roll}" + (result != roll ? $", changed to {result}" : "")
-                + $" - {TreasureName(result)}.");
+                + $" - {TreasureName(result, context.Settings.GameSystem)}.");
 
             if (result <= 2)
             {
@@ -233,12 +253,13 @@ namespace FDG.Stages
                 return;
             }
 
+            EGameSystem skin = context.Settings.GameSystem;
             List<string> contents = result switch
             {
-                3 => new() { HordePlacement.RollD6(context) switch { <= 3 => "Courage Injector", <= 5 => "Frenzy Injector", _ => "Power Injector" } },
-                4 => new() { HordePlacement.RollD6(context) switch { <= 3 => "Noise Grenade", <= 5 => "Grease Grenade", _ => "Stun Grenade" } },
-                5 => new() { HordePlacement.RollD6(context) switch { <= 3 => "Curing Kit", <= 5 => "Teleport Kit", _ => "Med Kit" } },
-                6 => new() { HordePlacement.RollD6(context) switch { <= 3 => "5c", <= 5 => "10c", _ => "15c" } },
+                3 => new() { Skin(skin, HordePlacement.RollD6(context) switch { <= 3 => "Courage Injector", <= 5 => "Frenzy Injector", _ => "Power Injector" }) },
+                4 => new() { Skin(skin, HordePlacement.RollD6(context) switch { <= 3 => "Noise Grenade", <= 5 => "Grease Grenade", _ => "Stun Grenade" }) },
+                5 => new() { Skin(skin, HordePlacement.RollD6(context) switch { <= 3 => "Curing Kit", <= 5 => "Teleport Kit", _ => "Med Kit" }) },
+                6 => new() { QuestItemSkin.Money(skin, HordePlacement.RollD6(context) switch { <= 3 => 5, <= 5 => 10, _ => 15 }) },
                 _ => await ChooseTrove(context, hero),
             };
             // Kai, QA 3.14/3.15: when the hero is close enough to take it there and then, the
@@ -283,12 +304,13 @@ namespace FDG.Stages
                 if (roll <= 2) { quest.Tokens.Remove(t); continue; }
                 int sub = HordePlacement.RollD6(context);
                 t.IsTreasure = true;
+                EGameSystem skin = context.Settings.GameSystem;
                 t.Contents = roll switch
                 {
-                    3 => new() { sub <= 3 ? "Courage Injector" : sub <= 5 ? "Frenzy Injector" : "Power Injector" },
-                    4 => new() { sub <= 3 ? "Noise Grenade" : sub <= 5 ? "Grease Grenade" : "Stun Grenade" },
-                    5 => new() { sub <= 3 ? "Curing Kit" : sub <= 5 ? "Teleport Kit" : "Med Kit" },
-                    _ => new() { sub <= 3 ? "5c" : sub <= 5 ? "10c" : "15c" },
+                    3 => new() { Skin(skin, sub <= 3 ? "Courage Injector" : sub <= 5 ? "Frenzy Injector" : "Power Injector") },
+                    4 => new() { Skin(skin, sub <= 3 ? "Noise Grenade" : sub <= 5 ? "Grease Grenade" : "Stun Grenade") },
+                    5 => new() { Skin(skin, sub <= 3 ? "Curing Kit" : sub <= 5 ? "Teleport Kit" : "Med Kit") },
+                    _ => new() { QuestItemSkin.Money(skin, sub <= 3 ? 5 : sub <= 5 ? 10 : 15) },
                 };
             }
             GameProgressUtilities.SetQuestProgress(context.GameDataStore, quest);
@@ -300,11 +322,16 @@ namespace FDG.Stages
             for (int i = 0; i < 2; i++)
             {
                 var request = new StringSelectionRequest(hero.PlayerID, $"Treasure Trove: pick {(i == 0 ? "the first" : "the second")} item or credits",
-                    TroveChoices.ToList(), Array.Empty<StringSelectionRequest.InvalidOption>(),
-                    optionDescriptions: TroveChoices.ToDictionary(c => c, c => QuestItems.Find(c)?.Description ?? "15 credits."),
+                    TroveChoicesFor(context.Settings.GameSystem).ToList(),
+                    Array.Empty<StringSelectionRequest.InvalidOption>(),
+                    optionDescriptions: TroveChoicesFor(context.Settings.GameSystem).ToDictionary(
+                        c => c,
+                        c => QuestItems.Find(c)?.Description
+                            ?? $"15 {QuestItemSkin.CurrencyWord(context.Settings.GameSystem)}."),
                     displayName: $"{hero.Name}: Treasure Trove");
                 string pick = await context.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
-                picks.Add(TroveChoices.Contains(pick) ? pick : TroveChoices[0]);
+                string[] offered = TroveChoicesFor(context.Settings.GameSystem);
+                picks.Add(offered.Contains(pick) ? pick : offered[0]);
             }
             return picks;
         }

@@ -63,43 +63,30 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void MeleeReach_IsFlatThreeInches_ExceptInAoFQuest()
+        public void MeleeReach_IsFlatThreeInches_InEverySystem()
         {
-            // This test used to assert reach is NOT per-system, because when Q5 wrote it every book in
-            // play said the same thing: GF, GFF and GFSQ v3.6.0/2.1.0 all state one 3" distance with no
-            // vertical clause, and the 2"/4" split was dead 3.5.1 wording.
+            // Q5 wrote this as "reach is NOT per-system", because every book in play said the same
+            // thing. #418 briefly made it per-system: AoF: Quest's v2.0.1 book keeps the old 2"/4"
+            // split, and that was the only AoF: Quest book available. Its v2.1.0 book arrived the same
+            // day with "All models that are within 3" of an enemy model ... may attack it", so the flat
+            // 3" is universal again and this test is back to its original claim.
             //
-            // #418 brought a book back that still uses it. AoF: Quest is on the 2.0.1 generation -
-            // "Models within 2" horizontally and 4" vertically of enemies must strike with all melee
-            // weapons" - so the split is a live rule again for exactly one system. The claim this test
-            // defends is therefore unchanged in spirit: reach is the flat 3" everywhere, and a system
-            // switch here is a regression UNLESS the system's own book keeps the split.
+            // What #418 left behind on purpose: the value is a FIELD set by ConfigureTable rather than a
+            // const, so a future book that reinstates a split has somewhere to put it. A const is a
+            // decision that something can never be per-game, and this rule has already changed twice.
             //
             // The finally is not decoration. ConfigureTable writes GLOBAL statics (table size,
             // coherency, the friendly-overlap flag), so a fixture that leaves it set to the last value
-            // in the enum hands every later fixture a 48"x48" Quest table. Writing this test without
-            // the restore broke an unrelated reinforcement test two files away, which is the exact trap
-            // the "a global decides some rules" note in the to-do list is about.
+            // in the enum hands every later fixture a 48"x48" Quest table.
             try
             {
                 foreach (EGameSystem system in System.Enum.GetValues<EGameSystem>())
                 {
                     GameWideConstants.ConfigureTable(system);
-
-                    if (system == EGameSystem.AoFQuest)
-                    {
-                        // AoFQ Core Rules v2.0.1, Melee.
-                        Assert.That(GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL, Is.EqualTo(2f),
-                            "AoF: Quest's own book still says 2\" horizontally");
-                        Assert.That(GameWideConstants.MELEE_RANGE_INCHES_VERTICAL, Is.EqualTo(4f),
-                            "AoF: Quest's own book still says 4\" vertically");
-                        continue;
-                    }
-
                     Assert.That(GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL, Is.EqualTo(3f),
-                        $"{system} must use the same 3\" reach as every other 3.6.0/2.1.0 system.");
+                        $"{system} must use the same 3\" reach as every other system.");
                     Assert.That(GameWideConstants.MELEE_RANGE_INCHES_VERTICAL, Is.EqualTo(3f),
-                        $"{system} must use the same 3\" reach as every other 3.6.0/2.1.0 system.");
+                        $"{system} must use the same 3\" reach as every other system.");
                 }
             }
             finally

@@ -60,10 +60,17 @@ namespace FDG.Tests
             // revive, AoF: Quest's 2.0.1 book charges 2 - so the labels are built from the profile and
             // asserted for BOTH systems. The claim is unchanged and now twice as strong: a player can
             // never be shown a price the spend will not take.
-            Assert.That(QuestRulesProfile.StarQuest.ExtraActionOption, Is.EqualTo("Extra Action (3 power)"));
-            Assert.That(QuestRulesProfile.StarQuest.ExtraSkillOption, Is.EqualTo("Extra Skill (3 power)"));
-            Assert.That(QuestRulesProfile.AoFQuest.ExtraActionOption, Is.EqualTo("Extra Action (2 power)"));
-            Assert.That(QuestRulesProfile.AoFQuest.ExtraSkillOption, Is.EqualTo("Extra Skill (2 power)"));
+            // Both Quest systems are on 2.1.0 books, so both prices read 3. They were briefly 2 for AoF:
+            // Quest, built from its 2.0.1 book before its 2.1.0 ones arrived - which is exactly why the
+            // label is DERIVED from the profile rather than typed: the number moved and nothing had to
+            // be hunted down.
+            foreach (EGameSystem system in new[] { EGameSystem.GFStarQuest, EGameSystem.AoFQuest })
+            {
+                QuestRulesProfile p = QuestRulesProfile.For(system);
+                Assert.That(p.ExtraActionOption, Is.EqualTo("Extra Action (3 power)"), $"{system}");
+                Assert.That(p.ExtraSkillOption, Is.EqualTo("Extra Skill (3 power)"), $"{system}");
+                Assert.That(p.ReviveName, Is.EqualTo("Revive a hero (3 power)"), $"{system}");
+            }
 
             // And the catalog's own labels still agree with Star Quest's profile, since the constants in
             // QuestActions are documented as that system's values.
@@ -76,8 +83,6 @@ namespace FDG.Tests
             // game exists, so a priced name there could only ever be one system's. The price moved to
             // the description, which is built per game - see TheReviveDescription_QuotesThisGamesCost.
             Assert.That(QuestSkill.ReviveName, Is.EqualTo("Revive a hero"));
-            Assert.That(QuestRulesProfile.StarQuest.ReviveName, Is.EqualTo("Revive a hero (3 power)"));
-            Assert.That(QuestRulesProfile.AoFQuest.ReviveName, Is.EqualTo("Revive a hero (2 power)"));
         }
 
         // The revive skill's description is what the Actions panel shows under the button, so it has to
@@ -97,7 +102,7 @@ namespace FDG.Tests
             foreach ((EGameSystem system, string expected) in new[]
                      {
                          (EGameSystem.GFStarQuest, "3 power"),
-                         (EGameSystem.AoFQuest, "2 power"),
+                         (EGameSystem.AoFQuest, "3 power"),
                      })
             {
                 string shown = revive.DescriptionIn(ContextFor(system));

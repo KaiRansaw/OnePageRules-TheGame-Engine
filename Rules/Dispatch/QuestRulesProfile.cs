@@ -34,7 +34,6 @@ namespace FDG.Rules.Dispatch
         int IgnoreShakenPower,
         int FailedSkillPower,
         bool FailedSkillPaymentIsOptional,
-        bool FailedCastMayBeBought,
         float MeleeReachHorizontalInches,
         float MeleeReachVerticalInches,
         float ScoutForwardInches,
@@ -42,73 +41,75 @@ namespace FDG.Rules.Dispatch
         bool VillainAuraIsMandatory)
     {
         /// <summary>
-        /// GF: Star Quest, GFSQ Core Rules v2.1.0 - what #414 rebased the engine onto.
+        /// Both Quest systems, on their <b>2.1.0</b> core books (GFSQ v2.1.0 and AoFQ v2.1.0). Quoted:
         /// <list type="bullet">
-        /// <item>An extra action, an extra skill and reviving each cost <b>3</b> power (2.0.1 said 2).</item>
-        /// <item>A failed hero-skill test <b>may</b> be paid off for 1 power, and the skill <b>fails</b>
-        /// if you decline - so a hero skill can fail at all, which it could not under 2.0.1.</item>
-        /// <item>A failed cast is <b>final</b>: 2.1.0 deleted 2.0.1's "spend X*2 power to count it as
-        /// cast", and the engine never implemented it (pinned by QuestCastPowerTests).</item>
-        /// <item>Melee reach is a flat <b>3"</b>, and Scout deploys within <b>9"</b>.</item>
-        /// <item>The Villain aura is <b>6"</b> and <b>mandatory</b> (2.0.1: 12" and "may use").</item>
+        /// <item>"Heroes may use any one action plus one Skill action, in any order, and may also choose
+        /// to spend <b>3 Power</b> to use any one additional action."</item>
+        /// <item>"Heroes within 3" of an Unconscious Hero may use a skill action and spend <b>3 Power</b>
+        /// to revive it."</item>
+        /// <item>"When using Hero skills, take a test of that skill's stat. If passed the Hero may
+        /// resolve its effect, and if failed you <b>may</b> spend 1 Power to count as having passed it
+        /// instead." - optional, so a hero skill can fail.</item>
+        /// <item>Caster(X) spends tokens/Power <b>before rolling</b> and says nothing about buying a
+        /// failed cast back: a failed cast is final.</item>
+        /// <item>"All models that are within <b>3"</b> of an enemy model from the target unit
+        /// (horizontally or vertically), may attack it."</item>
+        /// <item>"Scout: This model may be deployed anywhere fully within <b>9"</b> of its deployment
+        /// zone."</item>
+        /// <item>"Villain: AI units within <b>6"</b> <b>use</b> the Villain's Qua for Morale Tests if
+        /// it's better than their own" - mandatory.</item>
         /// </list>
         /// </summary>
-        public static readonly QuestRulesProfile StarQuest = new(
-            Book: "GFSQ Core Rules v2.1.0",
+        public static readonly QuestRulesProfile Quest = new(
+            Book: "GFSQ Core Rules v2.1.0 / AoFQ Core Rules v2.1.0",
             ExtraActionPower: 3,
             RevivePower: 3,
             PassStatTestPower: 2,
             IgnoreShakenPower: 2,
             FailedSkillPower: 1,
             FailedSkillPaymentIsOptional: true,
-            FailedCastMayBeBought: false,
             MeleeReachHorizontalInches: 3f,
             MeleeReachVerticalInches: 3f,
             ScoutForwardInches: 9f,
             VillainAuraInches: 6f,
             VillainAuraIsMandatory: true);
 
+        /// <summary>The 2.1.0 Quest rules, under its old name. Both systems share them.</summary>
+        public static readonly QuestRulesProfile StarQuest = Quest;
+
         /// <summary>
-        /// AoF: Quest, AoFQ Core Rules v2.0.1 - quoted from the book, which is the 2.0.1 generation:
-        /// <list type="bullet">
-        /// <item>"Heroes ... may spend <b>2 power</b> to take any one additional action"; "Heroes within
-        /// 3" may use a skill action and spend <b>2 power</b> to revive the hero".</item>
-        /// <item>"When using hero skills, take a test of that skill's stat. If passed the effect is
-        /// resolved, and <b>if failed you must first spend 1 power and then the effect is
-        /// resolved</b>" - so the payment is forced and the skill always works. This is the behaviour
-        /// Q3 removed for Star Quest, and for AoF: Quest it is still the rule.</item>
-        /// <item>"Whenever a hero fails to cast a spell, it <b>may spend X*2 power to count as having
-        /// cast it</b> instead" - the retroactive rescue 2.1.0 deleted.</item>
-        /// <item>"Models within <b>2" horizontally and 4" vertically</b> of enemies must strike".</item>
-        /// <item>"Scout: This model may be deployed anywhere fully within <b>12"</b> of its deployment
-        /// zone."</item>
-        /// <item>"Villain: AI units within <b>12"</b> <b>may</b> take morale tests using the Villain's
-        /// Qua".</item>
-        /// </list>
+        /// AoF: Quest's profile - the same object as <see cref="Quest"/>, kept as a name because the two
+        /// systems are allowed to diverge again and the seam should be obvious when they do.
+        ///
         /// <para>
-        /// The vertical half of melee reach is currently moot either way - nothing in the engine ever
-        /// puts a model at a height (elevation is parked until the Godot port, Kai's call 2026-10-31) -
-        /// but it is recorded at the book's value so that it is right the day elevation lands.
+        /// <b>They did diverge, for about an hour, and it is worth recording why.</b> #418 was built
+        /// against <c>AoFQ - Core Rules v2.0.1.pdf</c>, which was the only AoF: Quest book available,
+        /// and 2.0.1 disagrees with Star Quest's 2.1.0 on six things: an extra action and a revive cost
+        /// <b>2</b> power, a failed hero-skill test <b>must</b> be paid for and the skill resolves
+        /// anyway, a failed cast <b>may be bought back for X*2 power</b>, melee reach is <b>2"
+        /// horizontal / 4" vertical</b>, Scout reaches <b>12"</b>, and the Villain aura is <b>12" and
+        /// optional</b>. All six were implemented, tested and shipped that way.
+        /// </para>
+        /// <para>
+        /// Then Kai added <c>AoFQ - Beginners Guide v2.1.0</c> and <c>AoFQ - Campaign Builder v2.1.0</c>,
+        /// and AoF: Quest turns out to be on 2.1.0 as well - matching Star Quest on every one of those
+        /// six. So the split was correct about the book it had and wrong about the game, and it
+        /// collapsed into this one profile. The lesson for the next reader: <b>a per-system difference is
+        /// only real while both systems' CURRENT books say so</b>, and OPR brings its systems up to a
+        /// new generation one book at a time. The 2.0.1 numbers are in <c>WorkItems/418</c> if a
+        /// narrative campaign ever pins a party to the older book.
         /// </para>
         /// </summary>
-        public static readonly QuestRulesProfile AoFQuest = new(
-            Book: "AoFQ Core Rules v2.0.1",
-            ExtraActionPower: 2,
-            RevivePower: 2,
-            PassStatTestPower: 2,
-            IgnoreShakenPower: 2,
-            FailedSkillPower: 1,
-            FailedSkillPaymentIsOptional: false,
-            FailedCastMayBeBought: true,
-            MeleeReachHorizontalInches: 2f,
-            MeleeReachVerticalInches: 4f,
-            ScoutForwardInches: 12f,
-            VillainAuraInches: 12f,
-            VillainAuraIsMandatory: false);
+        public static readonly QuestRulesProfile AoFQuest = Quest;
 
         /// <summary>The profile for a game system. A non-Quest system reads as Star Quest's, because
         /// nothing outside a Quest game asks - callers gate on <see cref="GameSystemInfo.IsQuest"/> or
         /// <see cref="GameSystemInfo.IsQuestMode"/>.</summary>
+        /// <para>
+        /// There is one profile today. The switch stays because the seam is the point: if OPR moves one
+        /// Quest system to a new generation and not the other - which is exactly what happened between
+        /// 2.0.1 and 2.1.0 - this is where the difference goes, and nothing else has to change.
+        /// </para>
         public static QuestRulesProfile For(EGameSystem system) => system switch
         {
             EGameSystem.AoFQuest => AoFQuest,

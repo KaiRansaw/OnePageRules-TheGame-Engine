@@ -1,3 +1,4 @@
+using System;
 namespace FDG.Quest
 {
     /// <summary>One shop item (a consumable): its shop tier (0 = always for sale; 1/2/3 unlock at levels 2/5/9),
@@ -69,10 +70,26 @@ namespace FDG.Quest
             new("Teleport Kit", 3, 10, "Use with skill action, then remove. The hero may be placed anywhere within 6\"."),
         };
 
-        public static QuestItemInfo? Find(string name) => All.FirstOrDefault(i => i.Name == name);
+        /// <summary>
+        /// The rules for an item a hero is holding. #418: the name may be either Quest system's - an
+        /// AoF: Quest hero finds a "Health Potion" where a Star Quest one finds a "Med Kit", and they
+        /// are the same object - so the lookup resolves the skin first (see
+        /// <see cref="QuestItemSkin"/>). One definition, two vocabularies.
+        /// </summary>
+        public static QuestItemInfo? Find(string name)
+        {
+            string canonical = QuestItemSkin.Canonical(name);
+            return All.FirstOrDefault(i => i.Name == canonical);
+        }
 
-        /// <summary>"10c" -> 10; null when the text isn't a credits amount.</summary>
+        /// <summary>"10c" -> 10, and "10g" too: #418 - AoF: Quest counts gold where Star Quest counts
+        /// credits, and a treasure's contents are a plain string. Null when the text is not money.</summary>
         public static int? Credits(string contents) =>
-            contents.EndsWith("c") && int.TryParse(contents[..^1], out int c) ? c : null;
+            !string.IsNullOrEmpty(contents)
+            && (contents.EndsWith("c", StringComparison.OrdinalIgnoreCase)
+                || contents.EndsWith("g", StringComparison.OrdinalIgnoreCase))
+            && int.TryParse(contents[..^1], out int c)
+                ? c
+                : null;
     }
 }

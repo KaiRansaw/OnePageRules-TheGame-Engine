@@ -507,10 +507,29 @@ namespace FDG.Stages
                     case 22: await QuestActions.SpendPower(context, hero, d3, "Alien Shriek"); break;
                     case 24: if (Binding(context, hero) is { } hb) MoraleUtilities.ApplyShaken(hb); break;
                     case 45: QuestActions.RestorePower(hero, d3); break;
-                    case 61: await QuestTreasure.Give(context, hero, new[] { "Power Injector" }); break;
-                    case 63: await QuestTreasure.Give(context, hero, new[] { "Stun Grenade" }); break;
-                    case 64: await QuestTreasure.Give(context, hero, new[] { "15c" }); break;
-                    case 65: await QuestTreasure.Give(context, hero, new[] { "Med Kit" }); break;
+                    case 61:
+                        await QuestTreasure.Give(context, hero, new[]
+                        {
+                            FDG.Quest.QuestItemSkin.Name(context.Settings.GameSystem, "Power Injector"),
+                        });
+                        break;
+                    case 63:
+                        await QuestTreasure.Give(context, hero, new[]
+                        {
+                            FDG.Quest.QuestItemSkin.Name(context.Settings.GameSystem, "Stun Grenade"),
+                        });
+                        break;
+                    // #418: AoF: Quest's event table hands out 15 GOLD and a Health Potion where Star
+                    // Quest's hands out 15 credits and a Med Kit - the same event, reskinned, so the
+                    // grant goes through the skin rather than naming one system's words.
+                    case 64:
+                        await QuestTreasure.Give(context, hero,
+                            new[] { FDG.Quest.QuestItemSkin.Money(context.Settings.GameSystem, 15) });
+                        break;
+                    case 65:
+                        await QuestTreasure.Give(context, hero,
+                            new[] { FDG.Quest.QuestItemSkin.Name(context.Settings.GameSystem, "Med Kit") });
+                        break;
                     case 66: await QuestLevelling.GiveXp(context, hero, d3); break;
                 }
             switch (n)

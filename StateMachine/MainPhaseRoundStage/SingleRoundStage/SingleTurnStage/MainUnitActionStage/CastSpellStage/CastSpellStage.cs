@@ -295,42 +295,12 @@ namespace FDG.Stages
             if (boostPower > 0) tokensSpent += $" and {boostPower} power";
             string rollDesc = $"rolled {DecisiveFace(castRoll)}, needed {threshold}+{breakdown}; {tokensSpent}";
 
-            // #418 - AoF: Quest is on the 2.0.1 wording, which lets a hero buy a failed cast back:
-            // "Whenever a hero fails to cast a spell, it may spend X*2 power to count as having cast it
-            // instead, where X is the spell's casting value." Star Quest's 2.1.0 DELETED that sentence
-            // (it pays power into the roll beforehand instead, #414/Q4), so this offer exists for one
-            // system only and QuestCastPowerTests pins its absence in the other.
-            //
-            // Deliberately offered AFTER the roll's own presentation above, so the player sees the die
-            // and what it needed before deciding - and only to a hero, since an AI caster has no power
-            // to spend (CastPower.Available returns 0 for anything else).
-            if (!success && QuestRulesProfile.For(GameContext).FailedCastMayBeBought)
-            {
-                UnitData casterUnit = context.ActivatingUnit.GetValue();
-                int rescueCost = chosen.Threshold * 2;
-                if (rescueCost > 0 && CastPower.Available(casterUnit) > 0)
-                {
-                    bool buy = await GameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(
-                        new YesNoRequest(player,
-                            $"{caster.Name} failed to cast {chosen.Name}. Spend {rescueCost} power to "
-                            + $"count it as cast? ({casterUnit.QuestPower} power left)",
-                            // Default no when the hero cannot pay in full: overspending power costs a
-                            // wound per missing point, and a prompt nobody answers must not injure a
-                            // hero over a spell it never chose to rescue (the Q3 reasoning).
-                            defaultAnswer: casterUnit.QuestPower >= rescueCost,
-                            displayName: $"{caster.Name}: buy the cast?"));
-                    if (buy)
-                    {
-                        await QuestActions.SpendPower(GameContext, casterUnit, rescueCost,
-                            $"to force {chosen.Name} through");
-                        success = true;
-                        await GameContext.Announce(
-                            $"{caster.Name} forces {chosen.Name} through for {rescueCost} power.",
-                            CastSuccessColor);
-                    }
-                }
-            }
-
+            // #418: AoF: Quest's 2.0.1 book let a hero buy a failed cast back for X*2 power, and that
+            // was briefly implemented here. Its 2.1.0 book does not - like GFSQ 2.1.0, it spends power
+            // into the roll beforehand instead (#414/Q4) - so BOTH Quest systems make a failed cast
+            // final and the offer had no system left to fire in. Removed rather than left behind a flag
+            // nobody sets: an unreachable rule is the thing this codebase keeps getting bitten by.
+            // QuestCastPowerTests pins the absence; WorkItems/418 has the 2.0.1 wording.
             if (!success)
             {
                 await GameContext.Announce($"{caster.Name} failed to cast {chosen.Name}: {rollDesc}.", CastFailColor);

@@ -146,37 +146,37 @@ namespace FDG.Tests
 
             return unit;
         }
-        // ── #418: AoF: Quest reads the same rule at a different distance ────────────────────────────
+        // ── #418: AoF: Quest reads the same rule at the same distance ───────────────────────────────
+        //
+        // Built first against AoFQ Core Rules v2.0.1, which says "anywhere fully within 12" of its
+        // deployment zone" - so these tests asserted a 3" difference between the two Quest systems.
+        // AoFQ v2.1.0 arrived the same day and says 9", matching Star Quest. The seam stayed (the
+        // distance comes from QuestRulesProfile) because OPR versions its systems one book at a time;
+        // the numbers agree today.
 
         [Test]
-        public void InAoFQuest_AScoutWidensByTwelveInches_NotNine()
+        public void InAoFQuest_AScoutWidensByNineInches_TheSameAsStarQuest()
         {
-            // "Scout: This model may be deployed anywhere fully within 12" of its deployment zone."
-            //   - AoFQ Core Rules v2.0.1, Special Rules Reference
-            //
-            // Same procedure as Star Quest (a plain redeploy, which is what CoreRulesProfile decides),
-            // three inches further (which is what QuestRulesProfile decides). Serving Star Quest's 9"
-            // here would quietly shrink an AoF: Quest Scout's whole advantage.
             IUnit scout = MakeUnit("Ndoli Outrider", withScout: true);
 
             float[] widened = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.AoFQuest), scout, WaveRadii);
 
-            Assert.That(widened, Is.EqualTo(new[] { 18f, 21f, 24f, 27f }).AsCollection);
-            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(12f),
-                "AoFQ 2.0.1 says 12\", where GFSQ 2.1.0 says 9\"");
+            Assert.That(widened, Is.EqualTo(new[] { 15f, 18f, 21f, 24f }).AsCollection);
+            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(9f),
+                "AoFQ 2.1.0: \"anywhere fully within 9\" of its deployment zone\"");
         }
 
         [Test]
-        public void TheTwoQuestSystems_WidenByDifferentAmounts()
+        public void TheTwoQuestSystems_WidenByTheSameAmount()
         {
-            // The discriminating pair. If this ever reads equal, one system is being played by the
-            // other's book - the fault #417 and #418 both exist to prevent.
+            // The discriminating pair, kept pointing the other way: if these ever disagree it should be
+            // because a BOOK disagrees, not because one system picked up the other's number.
             IUnit scout = MakeUnit("Scout", withScout: true);
 
             float[] sq = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.GFStarQuest), scout, WaveRadii);
             float[] aof = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.AoFQuest), scout, WaveRadii);
 
-            Assert.That(aof[0] - sq[0], Is.EqualTo(3f), "12\" against 9\"");
+            Assert.That(aof, Is.EqualTo(sq).AsCollection, "both books say 9\" at 2.1.0");
         }
 
     }

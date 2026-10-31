@@ -89,10 +89,13 @@ namespace FDG.Tests
             Assert.That(GameSystemInfo.IsAvailable(EGameSystem.AoFQuest), Is.True,
                 "AoF: Quest has its own books (#417), its own hero roster and its own rules profile (#418)");
 
-            // And the thing that must never happen again: selectable on another system's numbers.
-            Assert.That(QuestRulesProfile.For(EGameSystem.AoFQuest),
-                Is.Not.SameAs(QuestRulesProfile.For(EGameSystem.GFStarQuest)),
-                "a selectable Quest system needs its own rules profile, or it plays the other's book");
+            // And the thing that must never happen again: selectable on numbers nobody checked. There
+            // IS a Quest rules profile and the system resolves to one - today both Quest systems share
+            // it, because both are on 2.1.0 core books (#418 first built them apart against AoF: Quest's
+            // older 2.0.1 book, then its 2.1.0 books arrived and the two agreed).
+            Assert.That(QuestRulesProfile.For(EGameSystem.AoFQuest), Is.Not.Null);
+            Assert.That(QuestRulesProfile.For(EGameSystem.AoFQuest).Book, Does.Contain("AoFQ"),
+                "the profile has to name the book it was read from, or nobody can check it");
         }
 
         [Test]

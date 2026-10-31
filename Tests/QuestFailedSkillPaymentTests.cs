@@ -177,105 +177,93 @@ namespace FDG.Tests
             Assert.That(requester.YesNoPrompts, Is.Empty);
             Assert.That(hero.QuestPower, Is.EqualTo(3));
         }
-        // ── #418: AoF: Quest is on the 2.0.1 wording ────────────────────────────────────────────────
+        // ── #418: the two Quest systems are on the SAME book generation ─────────────────────────────
         //
-        // "When using hero skills, take a test of that skill's stat. If passed the effect is resolved,
-        // and if failed you must first spend 1 power and then the effect is resolved."
-        //   - AoFQ Core Rules v2.0.1, Skill actions
+        // This block used to assert the opposite, and the story is worth keeping because it is a trap
+        // anyone reading two OPR books will fall into.
         //
-        // So in AoF: Quest there is no choice to offer and a hero skill CANNOT fail. That is the
-        // behaviour Q3 removed for Star Quest when it moved to 2.1.0, and the pair of readings is
-        // exactly why QuestRulesProfile exists: the engine was about to serve 2.1.0's rules to a game
-        // whose own book describes 2.0.1's.
+        // #418 was built against AoFQ Core Rules **v2.0.1**, the only AoF: Quest book available at the
+        // time, which says: "if failed you must first spend 1 power and then the effect is resolved" -
+        // forced payment, and a hero skill that cannot fail. That was implemented, tested and shipped,
+        // with a discriminating pair proving the two systems disagreed.
+        //
+        // Then the **v2.1.0** books arrived (Beginners Guide + Campaign Builder) and AoF: Quest reads
+        // "if failed you may spend 1 Power to count as having passed it instead" - the same optional
+        // payment as Star Quest, along with the same 3-power extra action, the same flat 3" melee reach,
+        // the same 9" Scout and the same 6" mandatory Villain aura. OPR had simply brought AoF: Quest up
+        // a generation one book at a time.
+        //
+        // So the tests now assert AGREEMENT, and the claim they defend is the useful one: **a hero skill
+        // is optional-and-can-fail in every Quest system, and the two systems read one profile until a
+        // book says otherwise.**
 
-        [Test]
-        public async Task InAoFQuest_AFailedTest_PaysWithoutAsking_AndTheSkillStillResolves()
+        [TestCase(EGameSystem.GFStarQuest)]
+        [TestCase(EGameSystem.AoFQuest)]
+        public async Task InEveryQuestSystem_AFailedTest_OffersThePayment(EGameSystem system)
         {
             (TestGameContext context, UnitData hero, ScriptedRequester requester) =
-                Table(die: 1, payWhenAsked: false, system: EGameSystem.AoFQuest);
+                Table(die: 1, payWhenAsked: true, system: system);
 
             await TheProbe().Use(context, hero);
 
-            Assert.That(requester.YesNoPrompts, Is.Empty,
-                "2.0.1 forces the payment, so there is nothing to ask - a prompt here would be Star "
-                + "Quest's rule leaking into an AoF: Quest game");
-            Assert.That(hero.QuestPower, Is.EqualTo(2), "the forced payment is 1 power");
-            Assert.That(hero.Tokens.HasToken(TokenType.Shaken), Is.False,
-                "and then the effect is resolved - the skill works either way under 2.0.1");
+            Assert.That(requester.YesNoPrompts.Count, Is.EqualTo(1),
+                $"{system}: 2.1.0 makes the payment optional, so it has to be offered");
+            Assert.That(hero.QuestPower, Is.EqualTo(2), "paying costs 1 power");
+            Assert.That(hero.Tokens.HasToken(TokenType.Shaken), Is.False, "and the skill then resolves");
         }
 
-        [Test]
-        public async Task InAoFQuest_APassedTest_StillCostsNothing()
+        [TestCase(EGameSystem.GFStarQuest)]
+        [TestCase(EGameSystem.AoFQuest)]
+        public async Task InEveryQuestSystem_DecliningMakesTheSkillFail(EGameSystem system)
         {
+            // The half that only exists from 2.1.0 onwards: under 2.0.1 no hero skill could ever fail.
             (TestGameContext context, UnitData hero, ScriptedRequester requester) =
-                Table(die: 6, payWhenAsked: false, system: EGameSystem.AoFQuest);
+                Table(die: 1, payWhenAsked: false, system: system);
 
             await TheProbe().Use(context, hero);
 
-            Assert.That(hero.QuestPower, Is.EqualTo(3), "the power is the price of FAILING the test");
-            Assert.That(hero.Tokens.HasToken(TokenType.Shaken), Is.False);
-            Assert.That(requester.YesNoPrompts, Is.Empty);
+            Assert.That(requester.YesNoPrompts.Count, Is.EqualTo(1));
+            Assert.That(hero.QuestPower, Is.EqualTo(3), $"{system}: declining costs nothing");
+            Assert.That(hero.Tokens.HasToken(TokenType.Shaken), Is.True,
+                $"{system}: a declined skill FAILS, so the Shaken token it would have removed stays");
         }
 
         [Test]
-        public async Task TheTwoSystemsDisagree_WhichIsTheWholePoint()
+        public void TheTwoQuestSystems_ReadOneProfile_UntilABookSaysOtherwise()
         {
-            // The discriminating pair, side by side: same roll, same hero, different book. Declining is
-            // only possible in one of them, and only in one of them can the skill fail.
-            (TestGameContext sqContext, UnitData sqHero, ScriptedRequester sqRequester) =
-                Table(die: 1, payWhenAsked: false, system: EGameSystem.GFStarQuest);
-            await TheProbe().Use(sqContext, sqHero);
-
-            (TestGameContext aofContext, UnitData aofHero, ScriptedRequester aofRequester) =
-                Table(die: 1, payWhenAsked: false, system: EGameSystem.AoFQuest);
-            await TheProbe().Use(aofContext, aofHero);
-
-            Assert.That(sqRequester.YesNoPrompts.Count, Is.EqualTo(1), "Star Quest asks");
-            Assert.That(aofRequester.YesNoPrompts, Is.Empty, "AoF: Quest does not");
-
-            Assert.That(sqHero.QuestPower, Is.EqualTo(3), "declining in Star Quest costs nothing");
-            Assert.That(aofHero.QuestPower, Is.EqualTo(2), "AoF: Quest took the power regardless");
-
-            Assert.That(sqHero.Tokens.HasToken(TokenType.Shaken), Is.True,
-                "a declined Star Quest skill FAILS, so the Shaken token it would have removed stays");
-            Assert.That(aofHero.Tokens.HasToken(TokenType.Shaken), Is.False,
-                "an AoF: Quest skill resolves");
+            // The seam is still there (QuestRulesProfile.For switches on the system) and that matters:
+            // OPR moved one Quest system to 2.1.0 before the other, so the next generation can split
+            // them again. What must not happen is a system quietly playing the OTHER one's numbers -
+            // which is what every per-system profile in this codebase exists to prevent.
+            Assert.That(QuestRulesProfile.For(EGameSystem.AoFQuest),
+                Is.SameAs(QuestRulesProfile.For(EGameSystem.GFStarQuest)),
+                "both Quest systems are on 2.1.0 core books as of 2026-10-31");
         }
 
         [Test]
         public void TheProfilesNumbers_AreTheirBooks()
         {
-            // Read straight from the two core books, so a reader can check them without a PDF.
-            Assert.That(QuestRulesProfile.StarQuest.ExtraActionPower, Is.EqualTo(3));
-            Assert.That(QuestRulesProfile.StarQuest.RevivePower, Is.EqualTo(3));
-            Assert.That(QuestRulesProfile.StarQuest.FailedSkillPaymentIsOptional, Is.True);
-            Assert.That(QuestRulesProfile.StarQuest.FailedCastMayBeBought, Is.False);
-            Assert.That(QuestRulesProfile.StarQuest.ScoutForwardInches, Is.EqualTo(9f));
-            Assert.That(QuestRulesProfile.StarQuest.VillainAuraInches, Is.EqualTo(6f));
-            Assert.That(QuestRulesProfile.StarQuest.VillainAuraIsMandatory, Is.True);
-            Assert.That(QuestRulesProfile.StarQuest.MeleeReachHorizontalInches, Is.EqualTo(3f));
+            // Read straight from the 2.1.0 core books, so a reader can check them without a PDF. Both
+            // systems; the AoFQ quotes are in QuestRulesProfile.
+            foreach (EGameSystem system in new[] { EGameSystem.GFStarQuest, EGameSystem.AoFQuest })
+            {
+                QuestRulesProfile p = QuestRulesProfile.For(system);
+                Assert.That(p.ExtraActionPower, Is.EqualTo(3), $"{system}: 3 power for an extra action");
+                Assert.That(p.RevivePower, Is.EqualTo(3), $"{system}: 3 power to revive");
+                Assert.That(p.PassStatTestPower, Is.EqualTo(2), $"{system}");
+                Assert.That(p.IgnoreShakenPower, Is.EqualTo(2), $"{system}");
+                Assert.That(p.FailedSkillPower, Is.EqualTo(1), $"{system}");
+                Assert.That(p.FailedSkillPaymentIsOptional, Is.True, $"{system}: optional from 2.1.0");
+                Assert.That(p.ScoutForwardInches, Is.EqualTo(9f), $"{system}: 9\" from 2.1.0");
+                Assert.That(p.VillainAuraInches, Is.EqualTo(6f), $"{system}: 6\" from 2.1.0");
+                Assert.That(p.VillainAuraIsMandatory, Is.True, $"{system}: \"use\", not \"may use\"");
+                Assert.That(p.MeleeReachHorizontalInches, Is.EqualTo(3f), $"{system}: flat 3\"");
+                Assert.That(p.MeleeReachVerticalInches, Is.EqualTo(3f), $"{system}: no vertical clause");
+            }
 
-            Assert.That(QuestRulesProfile.AoFQuest.ExtraActionPower, Is.EqualTo(2));
-            Assert.That(QuestRulesProfile.AoFQuest.RevivePower, Is.EqualTo(2));
-            Assert.That(QuestRulesProfile.AoFQuest.FailedSkillPaymentIsOptional, Is.False);
-            Assert.That(QuestRulesProfile.AoFQuest.FailedCastMayBeBought, Is.True);
-            Assert.That(QuestRulesProfile.AoFQuest.ScoutForwardInches, Is.EqualTo(12f));
-            Assert.That(QuestRulesProfile.AoFQuest.VillainAuraInches, Is.EqualTo(12f));
-            Assert.That(QuestRulesProfile.AoFQuest.VillainAuraIsMandatory, Is.False);
-            Assert.That(QuestRulesProfile.AoFQuest.MeleeReachHorizontalInches, Is.EqualTo(2f));
-            Assert.That(QuestRulesProfile.AoFQuest.MeleeReachVerticalInches, Is.EqualTo(4f));
-
-            // Both costs that the two books agree on, so a future edit cannot drift one of them.
-            Assert.That(QuestRulesProfile.AoFQuest.PassStatTestPower,
-                Is.EqualTo(QuestRulesProfile.StarQuest.PassStatTestPower));
-            Assert.That(QuestRulesProfile.AoFQuest.IgnoreShakenPower,
-                Is.EqualTo(QuestRulesProfile.StarQuest.IgnoreShakenPower));
-            Assert.That(QuestRulesProfile.AoFQuest.FailedSkillPower,
-                Is.EqualTo(QuestRulesProfile.StarQuest.FailedSkillPower));
-
-            // And a non-Quest system never reaches a Quest number, but reads Star Quest's if it asks.
+            // And a non-Quest system never reaches a Quest number, but reads the Quest profile if it asks.
             Assert.That(QuestRulesProfile.For(EGameSystem.GrimdarkFuture),
-                Is.SameAs(QuestRulesProfile.StarQuest));
+                Is.SameAs(QuestRulesProfile.Quest));
         }
 
     }
