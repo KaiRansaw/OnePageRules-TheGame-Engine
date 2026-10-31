@@ -38,6 +38,25 @@ namespace FDG
 
         public float WoundsDealt { get;}
 
+        /// <summary>
+        /// #414: wounds this model still has, floored at 0. The player-facing counterpart to
+        /// <see cref="WoundsDealt"/>, and the reason it exists is that OPR fills ONE model at a time
+        /// (Tough(X): <i>"You must continue to put wounds on the Tough model with most wounds in the unit
+        /// until it is killed"</i>), so "how much is left in the body currently taking hits" is a number the
+        /// player needs and the unit-level aggregate cannot express.
+        ///
+        /// <para>Floored deliberately. Overkill is routine - a Deadly clump or a big volley can drive
+        /// <see cref="WoundsDealt"/> past <see cref="TotalWounds"/> - and a negative here would read as a
+        /// bug on screen and, worse, would subtract from a sibling model in any sum. Callers that need the
+        /// raw signed residue (there are none on the display path) should subtract for themselves.</para>
+        ///
+        /// <para>Note this is NOT the same number as <c>ModelData.RemainingWoundsBinding</c>, which is the
+        /// stored source of truth: this is <c>TotalWounds - WoundsDealt</c>, the binding's own double-rounded
+        /// round-trip, and the two can differ by an ULP (#199). That is immaterial for a display, but it is
+        /// why the engine's capacity arithmetic keeps using the binding rather than this.</para>
+        /// </summary>
+        public float RemainingWounds => System.MathF.Max(0f, TotalWounds - WoundsDealt);
+
         public Position Position { get; }
 
         /// <summary>
