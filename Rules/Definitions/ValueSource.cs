@@ -23,9 +23,21 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(Literal), "literal")]
 [JsonDerivedType(typeof(Arg), "arg")]
 [JsonDerivedType(typeof(RuleCarrierCount), "ruleCarrierCount")]
+[JsonDerivedType(typeof(Negate), "negate")]
 public abstract record ValueSource
 {
     public abstract int Resolve(RuleInvocation invocation);
+
+    /// <summary>
+    /// #412: the arithmetic negation of <see cref="Inner"/>. Needed because some sinks are shared
+    /// between a positive and a negative contributor: the charge impact pool takes Impact(X) as
+    /// +X dice and Brace(X) as -X, and both fold into the same total so the stage rolls the net.
+    /// Without this, a rule could only subtract a fixed literal, never its own argument.
+    /// </summary>
+    public sealed record Negate(ValueSource Inner) : ValueSource
+    {
+        public override int Resolve(RuleInvocation invocation) => -Inner.Resolve(invocation);
+    }
 
     /// <summary> A fixed value authored directly on the effect. </summary>
     public sealed record Literal(int Value) : ValueSource
