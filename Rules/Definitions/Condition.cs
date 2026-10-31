@@ -43,6 +43,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(StatGreaterOrEqualTo), "statGreaterOrEqualTo")]
 [JsonDerivedType(typeof(TargetMajorityHasTough), "targetMajorityHasTough")]
 [JsonDerivedType(typeof(TokenPresent), "tokenPresent")]
+[JsonDerivedType(typeof(TargetTokenPresent), "targetTokenPresent")]
 [JsonDerivedType(typeof(And), "and")]
 [JsonDerivedType(typeof(Or), "or")]
 [JsonDerivedType(typeof(Not), "not")]
@@ -361,6 +362,25 @@ public abstract record Condition
         {
             return invocation.Bearer.Tokens.GetTokenCount(TType) >= MinCount;
         }
+    }
+
+    /// <summary>
+    /// #412: true if the TARGET's token container holds at least <see cref="MinCount"/> tokens of
+    /// <see cref="TType"/>. The mirror of <see cref="TokenPresent"/>, which reads the bearer.
+    /// <para>
+    /// OPR 3.6.0 added a family of attacker-side weapon rules gated on the victim's state - Purge and
+    /// Reap both key on "attacking units that are Shaken or Fatigued". Those must fire from the
+    /// <see cref="ERuleSeat.Actor"/> seat, because the rule lives on the ATTACKER's weapon; reaching for
+    /// the Subject seat to get at the defender's tokens instead would mean the defender had to be
+    /// carrying the attacker's weapon, so the rule would never fire in play even though it passes the
+    /// fire-lint (which puts the bearer in the defender chair for Subject entries).
+    /// </para>
+    /// </summary>
+    public sealed record TargetTokenPresent(TokenType TType, int MinCount = 1)
+        : CapabilityCondition<IHasTarget>
+    {
+        protected override bool EvaluateCore(IHasTarget context) =>
+            context.Target.Tokens.GetTokenCount(TType) >= MinCount;
     }
 
     /// <summary>

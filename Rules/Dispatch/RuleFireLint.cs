@@ -713,6 +713,14 @@ public static class RuleFireLint
                         yield return new HitRollCompleteContext(attacker, world.ToughOther, OneOfEachFace(),
                             distance, isMelee, isCharging, IsSpell: false,
                             ChargeOriginDistanceInches: chargeOrigin);
+                        // #412: the same axes against a weak-armour and an already-afflicted defender,
+                        // for the statGreaterOrEqualTo and targetTokenPresent families.
+                        yield return new HitRollCompleteContext(attacker, world.WeakArmorOther,
+                            OneOfEachFace(), distance, isMelee, isCharging, IsSpell: false,
+                            ChargeOriginDistanceInches: chargeOrigin);
+                        yield return new HitRollCompleteContext(attacker, world.AfflictedOther,
+                            OneOfEachFace(), distance, isMelee, isCharging, IsSpell: false,
+                            ChargeOriginDistanceInches: chargeOrigin);
                     }
                 }
                 break;
@@ -743,7 +751,7 @@ public static class RuleFireLint
                 // armour or toughness.
                 if (seat == ERuleSeat.Actor)
                 {
-                    foreach (UnitData special in new[] { world.ToughOther, world.WeakArmorOther })
+                    foreach (UnitData special in new[] { world.ToughOther, world.WeakArmorOther, world.AfflictedOther })
                     foreach (bool isMelee in new[] { false, true })
                     {
                         yield return new SaveRollCompleteContext(attacker, special, OneOfEachFace(),
@@ -816,6 +824,12 @@ public static class RuleFireLint
         /// conditions (#377) — 9 satisfies every gate the corpus uses (3 and 9). </summary>
         public UnitData ToughOther { get; private init; } = null!;
 
+        /// <summary> #412: an opposing unit carrying both a Shaken and a Fatigued token, for
+        /// targetTokenPresent conditions. The 3.6.0 "against Shaken or Fatigued units" family (Purge,
+        /// Reap) fires from the Actor seat and reads the DEFENDER's tokens, so no variant built from a
+        /// clean opponent can prove it fireable. </summary>
+        public UnitData AfflictedOther { get; private init; } = null!;
+
         /// <summary> #412: an opposing unit with Defense 6+, for statGreaterOrEqualTo conditions keyed on
         /// the TARGET's armour. The ordinary <see cref="Other"/> is Defense 4, so a rule gated on
         /// "most models have Defense 5+ to Defense 6+" (Fragment and the rest of the 3.6.0 anti-armour
@@ -848,6 +862,12 @@ public static class RuleFireLint
                 model.SetMaxWounds(9);
             }
 
+            // #412: a defender already Shaken AND Fatigued, so both arms of the "against Shaken or
+            // Fatigued units" family find a context where their condition holds.
+            UnitData afflictedOther = BuildUnit(store, "Lint afflicted opponent", carriedWeapon: null);
+            afflictedOther.Tokens.AddToken(new Token(TokenType.Shaken, 1, new TokenClearTrigger.ManualOnly()));
+            afflictedOther.Tokens.AddToken(new Token(TokenType.Fatigued, 1, new TokenClearTrigger.ManualOnly()));
+
             return new LintWorld
             {
                 Bearer = bearer,
@@ -855,6 +875,7 @@ public static class RuleFireLint
                 ToughOther = toughOther,
                 WeakArmorOther = BuildUnit(store, "Lint weak-armor opponent", carriedWeapon: null,
                     defense: 6),
+                AfflictedOther = afflictedOther,
                 Weapon = weapon,
             };
         }
