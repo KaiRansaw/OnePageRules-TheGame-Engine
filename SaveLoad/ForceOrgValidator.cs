@@ -75,6 +75,19 @@ namespace FDG.SaveLoad
                     + $"at {army.PointsLimit} pts).");
             }
 
+            // Unique cap - NEW IN #414: "this model may only be taken once per army" (3.6.0's Unique
+            // Hero, carried by every named character). This was enforced NOWHERE, and the copy cap above
+            // does not catch it: 1+X copies works out to 3 or more at ordinary army sizes, so two of the
+            // same named character sat comfortably inside it. Grouped by name the same way, so a pre-#409
+            // "X (Combined)" entry still groups with plain "X".
+            foreach (IGrouping<string, UnitFileEntry> group in army.Units
+                .Where(u => !string.IsNullOrWhiteSpace(u.Name) && IsUnique(u))
+                .GroupBy(u => BaseUnitName(u.Name), StringComparer.Ordinal)
+                .Where(g => g.Count() > 1))
+            {
+                warnings.Add($"\"{group.Key}\" may only be taken once per army: {group.Count()} taken.");
+            }
+
             // Single-unit ceiling — "no single unit may be worth over 35% of total points". Measured
             // against the army's LIMIT rather than what it has actually spent, so a half-built list is
             // judged against the game it is being built for and the warning doesn't flicker as units are
@@ -168,12 +181,37 @@ namespace FDG.SaveLoad
         /// definition of "is this army-file unit a Hero", shared with the Army Builder UI.</summary>
         public static bool IsHero(UnitFileEntry unit) => unit.SpecialRules.Any(EntryIsHero);
 
+        // #414: "Hero" OR "Unique Hero" - 3.6.0's named characters carry the latter INSTEAD of the former,
+        // so a name test against "Hero" alone answered no for every named character in every book.
         private static bool EntryIsHero(SpecialRuleEntry entry) => entry switch
         {
-            SpecialRuleEntry_Core core => string.Equals(core.Name, "Hero", StringComparison.Ordinal),
-            SpecialRuleEntry_CoreNumeric num => string.Equals(num.Name, "Hero", StringComparison.Ordinal),
+            SpecialRuleEntry_Core core => Rules.Dispatch.CoreRuleCatalog.IsHeroRuleName(core.Name),
+            SpecialRuleEntry_CoreNumeric num => Rules.Dispatch.CoreRuleCatalog.IsHeroRuleName(num.Name),
             SpecialRuleEntry_Alias alias => EntryIsHero(alias.AliasedRule),
             _ => false,
         };
+
+        /// <summary>
+        /// True if this unit may only be taken once per army - 3.5's "Unique" or 3.6's "Unique Hero".
+        /// <para>
+        /// #414. The authoritative check is <see cref="ArmyBuilding.ListValidator"/>, which raises a
+        /// blocking Error while a list is being built against its book. This one covers a different
+        /// input: an already-compiled <c>.fdgarmy</c> loaded in the lobby or the Army Builder, which
+        /// never passes through ListValidator because it no longer has a book or its picks. Hence a
+        /// warning here and an Error there - the same rule, judged on what the caller can still change.
+        /// </para>
+        /// </summary>
+        public static bool IsUnique(UnitFileEntry unit) => unit.SpecialRules.Any(EntryIsUnique);
+
+        private static bool EntryIsUnique(SpecialRuleEntry entry) => entry switch
+        {
+            SpecialRuleEntry_Core core => IsUniqueName(core.Name),
+            SpecialRuleEntry_CoreNumeric num => IsUniqueName(num.Name),
+            SpecialRuleEntry_Alias alias => EntryIsUnique(alias.AliasedRule),
+            _ => false,
+        };
+
+        private static bool IsUniqueName(string? name) =>
+            Rules.Dispatch.CoreRuleCatalog.IsUniqueRuleName(name);
     }
 }

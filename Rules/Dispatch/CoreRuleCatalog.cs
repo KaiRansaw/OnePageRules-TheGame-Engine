@@ -1496,6 +1496,65 @@ public static class CoreRuleCatalog
         Valence: EValence.Positive,
         Description: "A leader that joins a friendly unit; the unit takes morale at the hero's Quality, and the hero is wounded last.");
 
+    /// <summary>
+    /// Every rule name that makes a unit a Hero. The single list, because four separate places used to
+    /// ask the question by name and all four asked it of <c>"Hero"</c> alone.
+    /// <para>
+    /// #414. OPR 3.6.0 defines <b>Unique Hero</b> as <i>"Counts as having Hero, and this model may only be
+    /// taken once per army"</i>, and 147 units in the bundled corpus carry it - every named character, 30
+    /// of them in Star Quest - with <b>none</b> of them also carrying plain "Hero". The in-game half
+    /// already worked, because the supplement definition grants "Hero" at
+    /// <see cref="EHookID.Lifecycle_OnUnitCreated"/>; but the force-org Hero cap, the
+    /// <see cref="HeroJoinResolver"/> join, base-size estimation and the campaign's hero detection all run
+    /// against the army FILE, before any unit exists and so before any grant has happened. There they
+    /// read the name, and the name was wrong for all 147.
+    /// </para>
+    /// <para>
+    /// A name list rather than a rule-grant because of that ordering: a grant is a token on a live unit
+    /// and these callers have no unit. A future book that spells it a third way is added here once.
+    /// </para>
+    /// </summary>
+    public static readonly string[] HeroRuleNames = { "Hero", UniqueHeroRuleName };
+
+    /// <summary>True if <paramref name="ruleName"/> is one of <see cref="HeroRuleNames"/>.</summary>
+    public static bool IsHeroRuleName(string? ruleName) =>
+        ruleName != null && HeroRuleNames.Contains(ruleName, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Unique Hero (#414), the marker on a named character: <i>"Counts as having Hero, and this model may
+    /// only be taken once per army."</i>
+    /// <para>
+    /// A NAME here and nothing more, deliberately. Unlike <see cref="Hero"/> this rule has a real
+    /// definition, and it lives in the rule supplement because it needs a hook: an addRule grant of
+    /// "Hero" at <see cref="EHookID.Lifecycle_OnUnitCreated"/>. Adding a hookless copy to
+    /// <see cref="All"/> would shadow that and silently delete the grant, which is the whole in-game half
+    /// of the rule. So the catalog carries the spelling for the army-building checks that work on names -
+    /// <see cref="SaveLoad.ForceOrgValidator"/>'s once-per-army cap - and leaves the behaviour where it is.
+    /// </para>
+    /// </summary>
+    public const string UniqueHeroRuleName = "Unique Hero";
+
+    /// <summary>
+    /// Every rule name that means "this unit may only be taken once per army".
+    /// <para>
+    /// #414, and the sharpest version of the renamed-rule problem in the project so far. OPR 3.5 called
+    /// this <b>Unique</b>; 3.6 folded it into <b>Unique Hero</b>. Measured across the 242 bundled books:
+    /// <b>213 references to "Unique Hero" and zero to "Unique"</b>. <see cref="ArmyBuilding.ListValidator"/>
+    /// has always raised a blocking Error for a second copy of a Unique unit - and it matched "Unique"
+    /// alone, so for the entire 3.6 corpus that Error could not fire. The limit was enforced in code,
+    /// covered by tests, and dead in practice.
+    /// </para>
+    /// <para>
+    /// "Unique" stays in the list: a book imported before the rename, or an army saved from one, still
+    /// spells it that way, and dropping it would break those the way keeping it alone broke these.
+    /// </para>
+    /// </summary>
+    public static readonly string[] UniqueRuleNames = { "Unique", UniqueHeroRuleName };
+
+    /// <summary>True if <paramref name="ruleName"/> is one of <see cref="UniqueRuleNames"/>.</summary>
+    public static bool IsUniqueRuleName(string? ruleName) =>
+        ruleName != null && UniqueRuleNames.Contains(ruleName, StringComparer.Ordinal);
+
     // Spell-token economy (round-start grant -> StartOfRoundExtraActionStage) ------
 
     /// <summary>

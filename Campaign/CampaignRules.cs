@@ -374,8 +374,12 @@ namespace FDG.Campaign
 
         public static void Save(UnitFileEntry unit, StrikeUnit sheet) => unit.StrikeUnitJson = sheet.ToJson();
 
+        // #414: "Hero" or 3.6.0's "Unique Hero", which the book defines as counting as having Hero. A
+        // named character in a campaign army used to be read as an ordinary unit, so it got none of the
+        // campaign's hero handling. ForceOrgValidator.IsHero is the same question for force org.
         public static bool IsHero(UnitFileEntry unit) =>
-            unit.SpecialRules.Any(r => r is SpecialRuleEntry_Core { Name: "Hero" });
+            unit.SpecialRules.Any(r => r is SpecialRuleEntry_Core core
+                                       && Rules.Dispatch.CoreRuleCatalog.IsHeroRuleName(core.Name));
 
         /// <summary>Points the campaign army is worth right now (every unit's current cost).</summary>
         public static int ArmyValue(ArmyListFile army) => army.TotalPoints;

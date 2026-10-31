@@ -54,7 +54,11 @@ namespace FDG.ArmyBuilding
                 // Unique — "This unit may only be taken once per army." An absolute list-building rule
                 // (unlike the size-dependent force-org copy caps below, which stay Warnings), so each
                 // copy beyond the first is an Error.
-                if (HasRule(roster.Rules, "Unique")
+                // #414: and under BOTH spellings. 3.5 called it "Unique", 3.6 folded it into "Unique
+                // Hero", and the whole 3.6 corpus uses the new name - 213 references against zero - so
+                // this Error could not fire for any bundled book. Dead enforcement reads exactly like
+                // working enforcement from the outside.
+                if (Rules.Dispatch.CoreRuleCatalog.UniqueRuleNames.Any(n => HasRule(roster.Rules, n))
                     && list.Units.Take(i).Any(prev => prev.RosterUnitId == bu.RosterUnitId))
                     issues.Add(new ListIssue(
                         $"{roster.Name}: Unique - the army may only include one copy.",

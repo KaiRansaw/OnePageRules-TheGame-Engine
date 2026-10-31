@@ -53,7 +53,9 @@ namespace FDG.ArmyBuilding
         /// </summary>
         public static BaseFileEntry Estimate(IEnumerable<SpecialRuleEntry> rules, out string describe)
         {
-            bool isHero = HasRule(rules, "Hero");
+            // #414: a named character carries "Unique Hero" instead of "Hero", so sizing on "Hero" alone
+            // gave all 147 of them infantry bases instead of a Hero's 40/50/60mm round.
+            bool isHero = Rules.Dispatch.CoreRuleCatalog.HeroRuleNames.Any(name => HasRule(rules, name));
             int tough = ToughValue(rules);
 
             if (isHero)

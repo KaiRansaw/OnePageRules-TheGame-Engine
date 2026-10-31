@@ -31,7 +31,13 @@ namespace FDG.Stages
         public static void OnUnitDestroyed(IUnit dead, IUnit killer)
         {
             if (killer is not UnitData data || StrikeUnit.FromJson(data.StrikeUnitJson) is not { } sheet) return;
-            if (Has(dead, "Hero")) sheet.HeroKills++; else sheet.Kills++;
+            // #414: killing a named character is a Hero kill. It carries "Unique Hero" instead of "Hero",
+            // so this scored it as an ordinary kill - 1 XP rather than 2. (In a live game the supplement's
+            // addRule grant has usually landed by now and Has would find "Hero" anyway; checking both
+            // names means the tally does not depend on that having fired.)
+            if (Rules.Dispatch.CoreRuleCatalog.HeroRuleNames.Any(name => Has(dead, name)))
+                sheet.HeroKills++;
+            else sheet.Kills++;
             data.StrikeUnitJson = sheet.ToJson();
         }
     }

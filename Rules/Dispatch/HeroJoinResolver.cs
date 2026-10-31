@@ -57,7 +57,7 @@ public static class HeroJoinResolver
         {
             // Only entries that are Heroes AND name a join target are candidates; a Hero with no
             // JoinsUnitId deploys on its own with no diagnostic.
-            if (!HasRule(hero, CoreRuleCatalog.Hero) || string.IsNullOrEmpty(entry.JoinsUnitId))
+            if (!IsHero(hero) || string.IsNullOrEmpty(entry.JoinsUnitId))
             {
                 continue;
             }
@@ -93,7 +93,7 @@ public static class HeroJoinResolver
                 continue;
             }
 
-            if (HasRule(host, CoreRuleCatalog.Hero) || host.HasHero)
+            if (IsHero(host) || host.HasHero)
             {
                 warn?.Invoke($"Hero join: '{hero.Name}' cannot join '{host.Name}', which already contains a Hero; it will deploy on its own.");
                 continue;
@@ -122,7 +122,10 @@ public static class HeroJoinResolver
             // sole survivor (matching the last-model-Defense philosophy). Before #183 these silently vanished.
             foreach (ResolvedRule rule in hero.RuleDefinitions)
             {
-                if (rule.Definition == CoreRuleCatalog.Hero)
+                // #414: both spellings of the marker stay behind. Copying "Unique Hero" onto the
+                // host's model would re-grant Hero to a unit that already has one.
+                if (CoreRuleCatalog.IsHeroRuleName(rule.Definition.Name)
+                    || CoreRuleCatalog.IsHeroRuleName(rule.RequestedName))
                 {
                     continue;
                 }
@@ -136,8 +139,21 @@ public static class HeroJoinResolver
         return built.Where(pair => !merged.Contains(pair.Unit)).Select(pair => pair.Unit).ToList();
     }
 
-    private static bool HasRule(UnitData unit, Rules.Definitions.SpecialRuleDefinition definition) =>
-        unit.RuleDefinitions.Any(rule => rule.Definition == definition);
+    /// <summary>
+    /// True if this unit is a Hero for join purposes - "Hero" or 3.6.0's "Unique Hero", which the book
+    /// defines as counting as having Hero.
+    /// <para>
+    /// #414. Matched by NAME rather than by definition identity, because a named character's book resolves
+    /// "Unique Hero" against the supplement rather than against <see cref="CoreRuleCatalog.UniqueHero"/>,
+    /// so a reference comparison would miss it. The supplement's own addRule grant arrives at
+    /// Lifecycle_OnUnitCreated, which has fired by the time a unit exists - but relying on that would
+    /// make the join depend on hook ordering for one spelling and not the other, so the name test covers
+    /// both and does not care.
+    /// </para>
+    /// </summary>
+    private static bool IsHero(UnitData unit) =>
+        unit.RuleDefinitions.Any(rule => CoreRuleCatalog.IsHeroRuleName(rule.Definition.Name)
+                                         || CoreRuleCatalog.IsHeroRuleName(rule.RequestedName));
 
     private static bool TryGetToughValue(UnitData unit, out int value)
     {
