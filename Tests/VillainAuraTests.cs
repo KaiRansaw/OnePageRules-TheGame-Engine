@@ -123,6 +123,21 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void AUniqueHero_IsAVillainToo()
+        {
+            // The half that catches the bosses with names. 3.6.0's "Unique Hero" is defined as "Counts
+            // as having Hero, and this model may only be taken once per army", and every one of its 147
+            // carriers in the bundled corpus has it INSTEAD of plain "Hero" - so without this, the named
+            // enemy characters (30 of them in Star Quest) would still lend nothing.
+            MakeVillain(ruleName: "Unique Hero");
+            UnitData grunt = MakeGrunt(Away(5f));
+
+            Assert.That(QuestChallenges.VillainMorale(_context, grunt, OwnQuality),
+                Is.EqualTo(VillainQuality),
+                "a named enemy character carries \"Unique Hero\", which counts as having Hero");
+        }
+
+        [Test]
         public void AnOrdinaryGrunt_IsNotAVillain()
         {
             // The negative half of the alias: widening the name match must not make every unit a Villain.

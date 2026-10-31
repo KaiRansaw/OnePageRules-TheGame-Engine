@@ -53,8 +53,23 @@ namespace FDG.Stages
         /// Grimdark Future's own Heroes - which carry the same marker rule for unit-joining and force
         /// org - are untouched.
         /// </para>
+        /// <para>
+        /// <b>"Unique Hero" is in the list for the same reason, and it is the half that catches the
+        /// bosses with names.</b> 3.6.0 defines it as "Counts as having Hero, and this model may only be
+        /// taken once per army", and across the whole bundled corpus all 147 of its carriers have it
+        /// INSTEAD of plain "Hero", never alongside - 30 of them in Star Quest, which is every named
+        /// enemy character (High Elf Fleets' Trasara Ioncrinius, the Jackals' three, and so on). Without
+        /// this entry the fix above would light up the generic bosses and still leave every named
+        /// villain in the game lending nothing.
+        /// </para>
+        /// <para>
+        /// That "counts as having Hero" clause is wider than this file: it should also reach force org,
+        /// the Hero unit-join and base-size estimation, none of which know the name yet. Tracked in
+        /// WorkItems/414 as its own slice rather than fixed here, because those are army-building paths
+        /// with their own fixtures - this list is only about who is a Villain.
+        /// </para>
         /// </summary>
-        public static readonly string[] VillainRuleNames = { "Villain", "Hero" };
+        public static readonly string[] VillainRuleNames = { "Villain", "Hero", "Unique Hero" };
 
         /// <summary>True when this unit is a Villain for <see cref="VillainMorale"/>'s purposes.</summary>
         public static bool IsVillain(IUnit unit) => VillainRuleNames.Any(name => HasRule(unit, name));
