@@ -68,6 +68,17 @@ namespace FDG.Stages
             IReadOnlyList<DataBinding<ModelData>>? models = null, float[]? radii = null)
         {
             radii ??= CrowdedRadiiInches;
+            // #414: Star Quest's Scout is just "may be deployed anywhere fully within 9" of its
+            // deployment zone", and a Star Quest unit reaches the table here rather than through normal
+            // deployment - so this is the site where that 9" has to land. No effect in any other system.
+            float[] baseRadii = radii;
+            radii = Rules.Dispatch.ScoutDeploymentRules.WidenForScout(gameContext, unit, radii);
+            if (!ReferenceEquals(radii, baseRadii))
+            {
+                gameContext.Log($"  {unit.Name} has Scout, so it may deploy within {radii[0]:0}\" "
+                    + $"instead of {baseRadii[0]:0}\".");
+            }
+
             List<DataBinding<ModelData>> toPlace = (models ?? unit.ModelBindings).ToList();
             List<PlacedObjectEntry<ModelData>> placements = new List<PlacedObjectEntry<ModelData>>();
             float used = radii[0];

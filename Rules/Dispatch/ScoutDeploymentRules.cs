@@ -81,6 +81,42 @@ namespace FDG.Rules.Dispatch
         /// in deployment stage code with no <see cref="RuleEvaluator"/> in scope, and name matching (rather
         /// than reference equality) means an army book's own embedded "Scout" is recognised too.
         /// </summary>
+        /// <summary>
+        /// Widens a set of placement radii by <see cref="ForwardRangeInches"/> for a Scout unit in a system
+        /// whose Scout is a plain wider deployment, or returns <paramref name="radii"/> unchanged.
+        ///
+        /// <para>
+        /// #414. GFSQ Core Rules v2.1.0 says the whole of Scout in one line: <i>"May be deployed anywhere
+        /// fully within 9" of its deployment zone."</i> No set-aside, no deploying last, no alternating
+        /// placement, no staying 9" from enemies - four clauses the other four books have and Star Quest
+        /// does not. What is left is simply "this unit's deployment area is 9" bigger".
+        /// </para>
+        /// <para>
+        /// Which makes it <b>dead in Star Quest today</b>. The rule's one hook defers the unit to the Scout
+        /// pass, and a Star Quest enemy never goes through normal deployment at all - it waits in the
+        /// collection and arrives with a wave, placed within 6" of a table corner. 158 units across the
+        /// Star Quest books carry Scout, plus 10 player heroes, and for all of them it did nothing: the
+        /// hook fired, the deferred pass never ran for a reserved unit, and the wave placed it like
+        /// anything else. Applying the widening at the PLACEMENT site rather than the deployment site is
+        /// what reaches a wave arrival, which is where a Star Quest unit is actually put on the table.
+        /// </para>
+        /// <para>
+        /// The wave corner IS the unit's deployment zone in Horde (<i>"Waves are deployed within 6" of a
+        /// random table corner"</i>), so "within 9" of its deployment zone" is that corner's radius plus
+        /// 9". The crowding escalation above it still applies; every step widens together, so a Scout in a
+        /// packed corner keeps its advantage over its non-Scout neighbours.
+        /// </para>
+        /// </summary>
+        public static float[] WidenForScout(IGameContext gameContext, IUnit unit, float[] radii)
+        {
+            if (!CoreRulesProfile.For(gameContext).ScoutIsSimpleRedeploy) return radii;
+            if (!HasScout(unit)) return radii;
+
+            var widened = new float[radii.Length];
+            for (int i = 0; i < radii.Length; i++) widened[i] = radii[i] + ForwardRangeInches;
+            return widened;
+        }
+
         public static bool HasScout(IUnit unit) =>
             unit.RuleDefinitions.Any(rule =>
                 string.Equals(rule.Definition.Name, "Scout", StringComparison.OrdinalIgnoreCase)
