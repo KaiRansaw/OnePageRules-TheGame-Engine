@@ -796,6 +796,14 @@ public static class CoreRuleCatalog
     /// <see cref="RuleOperation.ExtraMeleeWoundCount"/> (X from the rule's argument); DetermineMeleeWinnerStage
     /// folds each side's total into its wounds-dealt before the winner comparison, so the loser — and thus
     /// which unit must test morale — can flip.
+    /// <para>
+    /// #414: <b>what the count feeds differs per system, and this definition does not.</b> GFSQ 2.1.0
+    /// words it "+X wounds when checking IF THEY MUST TAKE A MORALE TEST (must deal at least one wound)"
+    /// because Star Quest has no Melee Results step for "who won" to mean anything. Both readings want
+    /// the same number from the same hook, so the divergence lives entirely in the consumer -
+    /// DetermineMeleeWinnerStage routes on <see cref="CoreRulesProfile.MeleeResultsDecideMorale"/> - and
+    /// no system needs a Fear definition of its own.
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition Fear { get; } = new SpecialRuleDefinition("Fear",
         new[]

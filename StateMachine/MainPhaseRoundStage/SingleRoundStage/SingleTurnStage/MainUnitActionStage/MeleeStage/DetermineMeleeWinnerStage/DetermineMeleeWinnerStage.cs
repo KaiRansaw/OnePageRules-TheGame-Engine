@@ -40,6 +40,36 @@ namespace FDG.Stages
                 GameContext.Log($"{attacker.Name} counts as +{attackerBonus} wounds in melee (Fear).");
             if (defenderBonus > 0f)
                 GameContext.Log($"{defender.Name} counts as +{defenderBonus} wounds in melee (Fear).");
+            // #414: Star Quest has no Melee Results step. Its Morale section has one trigger only - "at
+            // the end of an activation where wounds leave a unit with half or less of its total size or
+            // Tou value" - and no "compare wounds, the loser tests". The engine was running Grimdark
+            // Future's who-won rule in every Star Quest melee, which is a rule Star Quest does not have,
+            // and it is also why GFSQ 2.1.0 words Fear(X) as "+X wounds when checking IF THEY MUST TAKE A
+            // MORALE TEST (must deal at least one wound)" where every other book says "when checking who
+            // won": in Star Quest there is nothing called who-won for it to attach to.
+            //
+            // So in Star Quest both units take the ordinary half-strength test instead, and each one's
+            // check counts its OPPONENT's Fear - Fear reads "enemies count as having taken +X wounds", so
+            // the bearer's rating inflates what the enemy is treated as having suffered. The "must deal at
+            // least one wound" clause needs no code: WoundsLeftUnitAtHalfStrength already returns false
+            // for a unit that took no real wounds, whatever the counted extras.
+            //
+            // The activating unit tests first. The book does not order them, and this is its activation.
+            if (!CoreRulesProfile.For(GameContext).MeleeResultsDecideMorale)
+            {
+                await MoraleUtilities.ResolveWoundDrivenMorale(GameContext, context.AttackingUnit,
+                    context.AttackerRemainingWoundsAtStart, extraWoundsCounted: defenderBonus);
+                await MoraleUtilities.ResolveWoundDrivenMorale(GameContext, context.DefendingUnit,
+                    context.DefenderRemainingWoundsAtStart, extraWoundsCounted: attackerBonus);
+
+                // No winner is recorded: nothing downstream of this stage reads one on this path, and a
+                // Tie result would be a lie about a comparison the rules never make.
+                context.AddResult(new DetermineMeleeWinnerResults(
+                    DetermineMeleeWinnerResults.EMeleeWinnerResult.Tie));
+                await OnDoesntNeedRollToDecide.Activate(context);
+                return;
+            }
+
             attackerWoundsDealt += attackerBonus;
             defenderWoundsDealt += defenderBonus;
 
