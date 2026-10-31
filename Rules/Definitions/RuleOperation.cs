@@ -160,6 +160,19 @@ public abstract record RuleOperation
     /// (Parry); <c>RollToHitStage</c> throws the pool after extra-hit injection and Blast multiplication,
     /// capped at the hits actually taken, and removes the successes.
     /// </summary>
+    /// <summary>
+    /// Hands the attacker <paramref name="Dice"/> extra ATTACK dice, to be thrown at the volley's own
+    /// hit threshold - not extra hits. See <see cref="IExtraAttackRollSink"/> for why the two are
+    /// deliberately separate paths.
+    /// </summary>
+    public sealed record InsertExtraAttackRolls(float Dice) : SinkOperation<IExtraAttackRollSink>
+    {
+        public override void ApplyTo(IExtraAttackRollSink sink) => sink.AddAttackDice(Dice);
+
+        public override string Describe() =>
+            $"rolled {RollTags.Count(Dice, "extra attack")}";
+    }
+
     public sealed record IgnoreHitsOnRoll(float Dice, int SuccessThreshold) : SinkOperation<IHitIgnoreSink>
     {
         public override void ApplyTo(IHitIgnoreSink sink) => sink.AddIgnoreDice(Dice, SuccessThreshold);

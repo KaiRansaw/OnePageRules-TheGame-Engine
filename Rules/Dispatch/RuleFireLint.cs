@@ -338,6 +338,9 @@ public static class RuleFireLint
                     // #412: Parry queues its hit-cancelling pool here; RollToHitStage throws it once
                     // the final hit count is known.
                     or RuleOperation.IgnoreHitsOnRoll
+                    // #412: Psychotic / Crazed queue extra attack DICE here; RollToHitStage throws them
+                    // at the volley's own hit threshold and appends only the successes.
+                    or RuleOperation.InsertExtraAttackRolls
                     or RuleOperation.MultiplyHits
                     or RuleOperation.ApplyPerHitSaveModifier
                     or RuleOperation.ReduceArmorPenetration

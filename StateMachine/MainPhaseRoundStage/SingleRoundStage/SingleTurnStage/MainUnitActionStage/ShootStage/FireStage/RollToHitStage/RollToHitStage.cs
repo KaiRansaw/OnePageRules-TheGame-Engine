@@ -150,6 +150,43 @@ namespace FDG.Stages
                     new HitGroupSource(EHitSourceKind.ExtraHits, ExtraHitRuleNames(named), hitInjection.TotalExtraHits)));
             }
 
+            // #412 extra-ATTACK rules (Psychotic / Crazed): an unmodified 6 buys another attack DIE,
+            // not a hit. Thrown here, at the volley's own already-clamped hit threshold, and only the
+            // successes are appended - which is why this cannot share the injection sink above (see
+            // IExtraAttackRollSink). Thrown ONCE, outside the rule pass, so the book's "does not apply
+            // to newly generated attacks" holds by construction: a 6 on an extra die buys nothing.
+            //
+            // Placed BEFORE the Blast multiplier so a Blast weapon fans out the extra attacks' hits
+            // too, matching how it already fans out Furious's injected hits.
+            ExtraAttackRollSink extraAttacks = new ExtraAttackRollSink();
+            extraAttacks.ApplyFrom(operations);
+            if (extraAttacks.TotalAttackDice > 0f)
+            {
+                int diceToRoll = (int)Math.Floor(extraAttacks.TotalAttackDice);
+                if (diceToRoll > 0)
+                {
+                    IDiceResults extraRolls = GameContext.DiceRoller.Roll(diceToRoll);
+                    float extraLanded = extraRolls.AtOrAbove(hitRollNeeded);
+
+                    await GameContext.Presenter.Present(
+                        DiceRolledBeat.From(extraRolls, hitRollNeeded,
+                            GameContext.Settings.RandomnessType, ExtraAttackRuleNames(named),
+                            RollTags.Count(extraLanded, "extra hit"),
+                            category: ERollBeatCategory.Offense,
+                            context: $"{attacker.Name} presses the attack on {defender.Name}"));
+
+                    if (extraLanded > 0f)
+                    {
+                        results.SuccessfulHitList.Add(new SuccessfulHitInfo(
+                            extraRolls.SubsetAtOrAbove(hitRollNeeded), 0,
+                            new HitGroupSource(EHitSourceKind.ExtraHits,
+                                ExtraAttackRuleNames(named), extraLanded)));
+                    }
+                    GameContext.Log($"{attacker.Name} rolled {diceToRoll} extra attack(s) " +
+                        $"at {hitRollNeeded}+ -> {extraLanded} extra hit(s).");
+                }
+            }
+
             // #042 hit-multiplier rules (Blast) fire at the same hook but resolve "after other rules":
             // multiply the POST-injection hit total. Folded after the injection above so Blast multiplies
             // whatever hits landed (including Surge's).
@@ -328,6 +365,22 @@ namespace FDG.Stages
                 if (!names.Contains(name)) names.Add(name);
             }
             return names.Count > 0 ? string.Join(", ", names) : "extra hits";
+        }
+
+        /// <summary>
+        /// #412: the same naming courtesy <see cref="ExtraHitRuleNames"/> does, for the rolled
+        /// extra-attack group, so the save presentation says "+2 (Psychotic)" rather than a bare total.
+        /// </summary>
+        private static string ExtraAttackRuleNames(IReadOnlyList<(RuleOperation Op, string RuleName)> named)
+        {
+            var names = new List<string>();
+            foreach ((RuleOperation op, string ruleName) in named)
+            {
+                if (op is not RuleOperation.InsertExtraAttackRolls extra || extra.Dice <= 0f) continue;
+                string name = string.IsNullOrEmpty(ruleName) ? "extra attacks" : ruleName;
+                if (!names.Contains(name)) names.Add(name);
+            }
+            return names.Count > 0 ? string.Join(", ", names) : "extra attacks";
         }
 
         private static float TotalHits(RollToHitResults results)

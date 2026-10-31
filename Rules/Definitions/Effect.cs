@@ -30,6 +30,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(AddExtraHitIfAnyHit), "addExtraHitIfAnyHit")]
 [JsonDerivedType(typeof(AddExtraWound), "addExtraWound")]
 [JsonDerivedType(typeof(AddBonusAttack), "addBonusAttack")]
+[JsonDerivedType(typeof(AddExtraAttackRoll), "addExtraAttackRoll")]
 [JsonDerivedType(typeof(SelfWoundOnUnmodifiedRoll), "selfWoundOnUnmodifiedRoll")]
 [JsonDerivedType(typeof(MovementBonus), "movementBonus")]
 [JsonDerivedType(typeof(IgnoreRule), "ignoreRule")]
@@ -219,6 +220,25 @@ public abstract record Effect
         protected override void ApplyCore(IHasUnmodifiedHitRolls context, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.InsertExtraHits(context.UnmodifiedHitRolls.At(OnRollValue) * Count));
+        }
+    }
+
+    /// <summary>
+    /// "For each unmodified result of <paramref name="OnRollValue"/> to hit, roll
+    /// <paramref name="Count"/> extra attack(s) with that weapon" (Psychotic, Crazed).
+    /// <para>
+    /// The sibling of <see cref="AddExtraHit"/>, and not interchangeable with it: this one yields
+    /// DICE, which still have to beat the volley's hit threshold, where AddExtraHit yields landed
+    /// hits. Same trigger-counting, different currency.
+    /// </para>
+    /// </summary>
+    public sealed record AddExtraAttackRoll(int OnRollValue, int Count = 1)
+        : CapabilityEffect<IHasUnmodifiedHitRolls>
+    {
+        protected override void ApplyCore(IHasUnmodifiedHitRolls context, List<RuleOperation> operations)
+        {
+            float dice = context.UnmodifiedHitRolls.At(OnRollValue) * Count;
+            if (dice > 0f) operations.Add(new RuleOperation.InsertExtraAttackRolls(dice));
         }
     }
 
