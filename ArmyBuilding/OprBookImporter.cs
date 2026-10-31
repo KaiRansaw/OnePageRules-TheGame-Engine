@@ -199,7 +199,7 @@ namespace FDG.ArmyBuilding
         /// <summary>Parses the JSON and ASCII-folds every string value (leaves, not property names — those
         /// are ASCII schema keys), then re-serializes. The serializer re-escapes any quote the fold
         /// introduced, so the document stays well-formed.</summary>
-        internal static string AsciiFoldJsonValues(string json, Action<string>? warn = null)
+        public static string AsciiFoldJsonValues(string json, Action<string>? warn = null)
         {
             if (json.All(c => c <= 127)) return json;
 
@@ -239,7 +239,7 @@ namespace FDG.ArmyBuilding
         /// their diacritics via NFD decomposition (i-macron -> i). Anything still non-ASCII after both passes
         /// is kept as-is and reported through <paramref name="warn"/> — never silently mangled.
         /// </summary>
-        internal static string AsciiFold(string text, Action<string>? warn = null)
+        public static string AsciiFold(string text, Action<string>? warn = null)
         {
             if (text.All(c => c <= 127)) return text;
 
