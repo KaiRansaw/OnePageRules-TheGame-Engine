@@ -27,7 +27,42 @@ namespace FDG.Ai.Resolvers
         }
 
         public Task<string> Resolve(ChooseActionRequest request) =>
-            Task.FromResult(ChooseAction(request.ValidOptions));
+            Task.FromResult(ChooseAction(request.ValidOptions, request.ActivatingUnitID));
+
+        // #414: one Star Quest Skill action per activation, tracked here.
+        //
+        // A hero gets "any one action PLUS one Skill action", so the Skill is free - taking it costs the
+        // hero nothing, and ChooseAction reopens with Charge/Move/Shoot still on it. The AI never took one,
+        // which is why an automated Star Quest MISSION could never finish: working an objective marker and
+        // revealing a search token are both Skill actions, so the party would walk to the markers and stand
+        // there. A 5-wave run scored 0 XP.
+        //
+        // The latch is not optional. When no skill is usable, QuestActions does NOT increment the
+        // activation's skill counter (there was nothing to spend), so the menu reopens still offering
+        // Skill - and an AI that prefers Skill unconditionally would pick it forever, until the
+        // ~1.5M-decision watchdog faults. So: at most one attempt per activation. Reset when a different
+        // unit activates, and when Rest is on the menu, which ChooseActionStage offers only to a hero that
+        // has not yet moved, attacked or acted - the one "this activation is fresh" signal the request
+        // carries.
+        private UnitID? _skillLatchUnit;
+        private bool _skillTriedThisActivation;
+
+        private bool ShouldTryQuestSkill(IReadOnlyList<string> options, UnitID activating)
+        {
+            if (!options.Contains(QuestActions.SkillOption)) return false;
+
+            bool freshActivation = options.Contains(QuestActions.RestOption);
+            if (_skillLatchUnit == null || !_skillLatchUnit.Value.Equals(activating) || freshActivation)
+            {
+                _skillLatchUnit = activating;
+                _skillTriedThisActivation = false;
+            }
+
+            if (_skillTriedThisActivation) return false;
+
+            _skillTriedThisActivation = true;
+            return true;
+        }
 
         public Task<string> Resolve(StringSelectionRequest request)
         {
@@ -67,7 +102,7 @@ namespace FDG.Ai.Resolvers
         // unit rushed and now "must engage", leaving only Cast or a forced action -- faults
         // ChooseActionStage ("Request option was Pass, but that wasn't an option"). ValidOptions is
         // guaranteed non-empty (ChooseActionStage auto-passes when it's empty without sending a request).
-        private string ChooseAction(IReadOnlyList<string> options)
+        private string ChooseAction(IReadOnlyList<string> options, UnitID activating)
         {
             // #358: our own path resolver just declined this unit's main move (no legal path -
             // a wedged unit). The engine's Back affordance reopened this menu; picking the
@@ -82,6 +117,14 @@ namespace FDG.Ai.Resolvers
             // ranked branch by themselves.
             if (options.Contains(CoreRuleCatalog.DisembarkRuleName) && ShouldDisembark())
                 return CoreRuleCatalog.DisembarkRuleName;
+
+            // #414: a Star Quest hero's Skill action is free - it does not consume the hero's action, and
+            // this menu reopens with Charge/Move/Shoot still on it - so it is ranked first and costs the
+            // AI nothing. Without it an automated mission can never complete an objective, because
+            // working a marker and revealing a search token are both Skill actions. See ShouldTryQuestSkill
+            // for why it may only be tried once per activation.
+            if (ShouldTryQuestSkill(options, activating))
+                return QuestActions.SkillOption;
 
             if (!movementDeclined && options.Contains(ChooseActionStage.CHARGE_CHOICE_NAME))
                 return ChooseActionStage.CHARGE_CHOICE_NAME;
