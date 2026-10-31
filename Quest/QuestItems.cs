@@ -10,6 +10,28 @@ namespace FDG.Quest
 
     public static class QuestItems
     {
+        /// <summary>
+        /// Items this engine can't play, and why - the counterpart of
+        /// <c>QuestAdvancedSkills.NotPossible</c>, shown in place of the generic "isn't in the game yet"
+        /// line when a hero has one in its pack.
+        /// <para>
+        /// #414. These two are buyable, carriable and listed in the shop, and using them does nothing.
+        /// Skills have had a ledger like this since the skill work; items had none, so a player could
+        /// spend 25 credits on a Pheromone Grenade and never be told it was inert. Both depend on
+        /// mechanics that genuinely are not in the engine, so the honest answer is to say so at the point
+        /// of use rather than to fake an effect.
+        /// </para>
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string> NotPossible = new Dictionary<string, string>
+        {
+            // Same reason as the Leap skill: nothing in this engine ever rolls to jump.
+            ["Agility Injector"] = "There are no jumping rolls in this game, so this has no effect.",
+            // The AI's hero-targeting reads the hero list, not a per-unit "treat as hero" flag. The
+            // Phantasm Grenade works because it places a MARKER the AI already understands; marking a
+            // living enemy unit as a hero has no equivalent.
+            ["Pheromone Grenade"] = "Enemies can't be made to look like heroes to each other in this game.",
+        };
+
         public static readonly IReadOnlyList<QuestItemInfo> All = new List<QuestItemInfo>
         {
             new("Courage Injector", 0, 5, "Use with skill action, then remove. The hero automatically passes all morale tests until the end of the round."),

@@ -116,7 +116,11 @@ namespace FDG.Tests
         {
             var c = QuestCampaign.Create("Test", new[] { "a.fdghero", "b.fdghero" }, new Random(3));
             Assert.That(c.Chapters.Count, Is.InRange(3, 5));
-            Assert.That(c.Chapters.All(ch => ch.Missions is >= 1 and <= 3));
+            // #414: Campaign Builder v2.1.0 is "chapters having D3+1 missions", so 2-4. This asserted
+            // 1-3 (the v2.0.1 Beginner's Guide's D3) and so held the old roll in place - a test that
+            // pins a number from a superseded book is worse than no test, because it reads as proof.
+            Assert.That(c.Chapters.All(ch => ch.Missions is >= 2 and <= 4),
+                "D3+1 missions per chapter - the book has no 1-mission chapter");
             Assert.That(c.CanStart(1), Is.True);
             c.StartChapter(1, 2);
             Assert.That(c.CanStart(0), Is.False, "a started chapter must be finished first.");

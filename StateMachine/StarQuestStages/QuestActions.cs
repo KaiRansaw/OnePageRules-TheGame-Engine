@@ -387,8 +387,13 @@ namespace FDG.Stages
                 QuestSkill? skill = QuestSkill.Find(name);
                 if (skill == null)
                 {
+                    // #414: an item the engine can't play now says WHY, the way a skill always has. The
+                    // generic line below is the fallback for one that simply isn't wired up yet - a
+                    // different thing from one that cannot work at all.
                     unusable.Add((name, name.StartsWith(QuestTreasure.ItemPrefix)
-                        ? "This item isn't in the game yet - it stays in your pack."
+                        ? QuestItems.NotPossible.TryGetValue(name[QuestTreasure.ItemPrefix.Length..],
+                            out string? whyItem) ? whyItem
+                          : "This item isn't in the game yet - it stays in your pack."
                         : QuestAdvancedSkills.NotPossible.TryGetValue(name, out string? why0) ? why0
                         : "Not in the game yet - use it by hand if you like."));
                     continue;

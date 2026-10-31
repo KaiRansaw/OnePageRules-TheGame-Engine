@@ -13,15 +13,44 @@ namespace FDG.Quest
     {
         public const string PartyFaction = "Star Quest Party";
 
-        /// <param name="bookForFaction">The Grimdark Future army book of a faction (for the faction's special
-        /// rule definitions and spells), or null when there is none.</param>
+        /// <summary>
+        /// The army book a Star Quest hero's rules and spells are read from, out of the whole bundled
+        /// library: the faction's <b>Star Quest</b> edition where there is one, and only then any other
+        /// system's.
+        /// <para>
+        /// #414. Both party builders used to take <c>FirstOrDefault(MatchesFactionName)</c>, and with 242
+        /// books across five systems in the library that is whichever edition the scan happened to reach
+        /// first - in practice Grimdark Future's. The same named rule can be worded differently per
+        /// system, so a Star Quest hero was resolving its rules against the wrong book, which is the same
+        /// class of fault as pricing it off the wrong book. Falling back to another system is still right
+        /// when Star Quest has no edition of that faction: a definition from the parent system beats no
+        /// definition at all, and the hero's own stats come from the hero dataset either way.
+        /// </para>
+        /// </summary>
+        public static BookFile? BookForHeroFaction(IEnumerable<BookFile> library, string? factionName)
+        {
+            List<BookFile> matches = library.Where(b => b.MatchesFactionName(factionName)).ToList();
+            return matches.FirstOrDefault(b => b.GameSystem == GameSystems.GFStarQuest)
+                ?? matches.FirstOrDefault();
+        }
+
+        /// <param name="bookForFaction">The army book of a faction (for the faction's special rule
+        /// definitions and spells), or null when there is none. Callers hand this in because the library
+        /// lives on the client side; <see cref="BookForHeroFaction"/> is the lookup they should use.</param>
         public static BuiltArmyFile Build(IReadOnlyList<QuestHero> heroes, Func<string, BookFile?> bookForFaction)
         {
             var army = new BuiltArmyFile
             {
                 Name = "Party: " + string.Join(", ", heroes.Select(h => h.Name)),
                 Faction = PartyFaction,
-                GameSystem = GameSystems.GrimdarkFuture,
+                // #412/#414: a Star Quest party is a STAR QUEST army, and the launch gate enforces that.
+                // This said GrimdarkFuture, which was harmless only while Star Quest was played on
+                // Grimdark Future's books. Now that GFStarQuest is its own army source, a party stamped
+                // grimdark-future fails its own lobby's filter - "Grimdark Future army, but this lobby
+                // takes GF: Star Quest armies only" - so the LAUNCH button was disabled by the party
+                // itself and no Star Quest game could be started from the GUI at all. Pinned by
+                // QuestArmyGameSystemTests.
+                GameSystem = GameSystems.GFStarQuest,
                 PointsLimit = heroes.Sum(h => h.Points),
             };
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

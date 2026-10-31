@@ -46,13 +46,21 @@ namespace FDG.Quest
             try { return JsonSerializer.Deserialize<QuestCampaign>(json); } catch (JsonException) { return null; }
         }
 
-        /// <summary>A new campaign: D3+2 chapters, each of D3 missions.</summary>
+        /// <summary>
+        /// A new campaign: D3+2 chapters, each of D3+1 missions.
+        /// <para>
+        /// #414. The missions roll was D3, which is the Beginner's Guide v2.0.1 wording. Campaign Builder
+        /// v2.1.0: <i>"Each campaign is made up to D3+2 chapters, with chapters having D3+1 missions."</i>
+        /// So a campaign was up to a third shorter than the book's, and a 1-mission chapter - which the
+        /// book no longer allows at all - was the commonest single outcome.
+        /// </para>
+        /// </summary>
         public static QuestCampaign Create(string name, IEnumerable<string> heroFiles, Random rng)
         {
             int D3() => rng.Next(1, 4);
             var c = new QuestCampaign { Name = name, HeroFiles = heroFiles.ToList() };
             int chapters = D3() + 2;
-            for (int i = 0; i < chapters; i++) c.Chapters.Add(new CampaignChapter { Number = i + 1, Missions = D3() });
+            for (int i = 0; i < chapters; i++) c.Chapters.Add(new CampaignChapter { Number = i + 1, Missions = D3() + 1 });
             c.History.Add($"Campaign started: {chapters} chapters, {c.Chapters.Sum(x => x.Missions)} missions.");
             return c;
         }
