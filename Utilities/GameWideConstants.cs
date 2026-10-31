@@ -34,10 +34,18 @@ namespace FDG
         /// down, so a model on a 4" ledge can no longer fight what is below it.
         /// </para>
         /// </summary>
-        public const float MELEE_RANGE_INCHES_HORIZONTAL = MELEE_RANGE_INCHES;
+        /// <para>
+        /// #418 made this a field set per game rather than a compile-time constant, because <b>AoF:
+        /// Quest still wants the split</b>: its book is the 2.0.1 generation and reads "Models within
+        /// <b>2" horizontally and 4" vertically</b> of enemies must strike". Every other system - and
+        /// Star Quest on 2.1.0 - is the flat 3" above, which is still the default here, so a caller
+        /// that never calls <see cref="ConfigureTable"/> behaves exactly as it did.
+        /// </para>
+        public static float MELEE_RANGE_INCHES_HORIZONTAL = MELEE_RANGE_INCHES;
 
-        /// <summary>The same 3": 3.6.0 states one melee distance and no vertical exception.</summary>
-        public const float MELEE_RANGE_INCHES_VERTICAL = MELEE_RANGE_INCHES;
+        /// <summary>The same 3" for 3.6.0 and GFSQ 2.1.0, which state one melee distance and no
+        /// vertical exception; 4" under AoFQ 2.0.1. Set by <see cref="ConfigureTable"/>.</summary>
+        public static float MELEE_RANGE_INCHES_VERTICAL = MELEE_RANGE_INCHES;
 
         /// <summary>Melee reach, OPR 3.6.0 / GFSQ 2.1.0: a flat 3" in every direction.</summary>
         public const float MELEE_RANGE_INCHES = 3;
@@ -110,6 +118,20 @@ namespace FDG
             FDG.StateMachine.HordeRules.Configure(system);
             MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = GameSystemInfo.IsSkirmish(system)
                 ? SKIRMISH_COHERENCY_INCHES : STANDARD_COHERENCY_INCHES;
+            // #418: melee reach is a flat 3" everywhere except AoF: Quest, whose 2.0.1 book keeps the
+            // old 2" horizontal / 4" vertical split. A non-Quest system reads the flat value.
+            if (GameSystemInfo.IsQuest(system))
+            {
+                FDG.Rules.Dispatch.QuestRulesProfile quest =
+                    FDG.Rules.Dispatch.QuestRulesProfile.For(system);
+                MELEE_RANGE_INCHES_HORIZONTAL = quest.MeleeReachHorizontalInches;
+                MELEE_RANGE_INCHES_VERTICAL = quest.MeleeReachVerticalInches;
+            }
+            else
+            {
+                MELEE_RANGE_INCHES_HORIZONTAL = MELEE_RANGE_INCHES;
+                MELEE_RANGE_INCHES_VERTICAL = MELEE_RANGE_INCHES;
+            }
             // A new game starts: no Star Quest smoke left over from an earlier one.
             FDG.Stages.QuestTreasure.SmokeSpots = Array.Empty<Position>();
         }

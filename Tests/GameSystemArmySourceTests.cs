@@ -1,4 +1,5 @@
 using FDG.ArmyBuilding;
+using FDG.Rules.Dispatch;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -66,7 +67,7 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void AoFQuest_TakesItsOwnBooks_AndIsStillNotSelectable()
+        public void AoFQuest_TakesItsOwnBooks_AndIsNowSelectable()
         {
             // #417 closed the half of this that was dangerous: AoF: Quest's own enemy books are imported
             // (Army Forge id 8, 46 books) and ArmySource points at them, so the data is right. What is
@@ -79,9 +80,19 @@ namespace FDG.Tests
                 Is.EqualTo(EAllowedGameSystems.AoFQuest),
                 "AoF: Quest's enemy side must come from its own books, not Age of Fantasy's - the Quest "
                 + "scale is about 3x (Beastmen's Hakemba is 40pts in AoF and 110pts here)");
-            Assert.That(GameSystemInfo.IsAvailable(EGameSystem.AoFQuest), Is.False,
-                "AoF: Quest cannot be picked until its hero roster (Army Forge id 7) is imported and the "
-                + "Hero Builder can build an AoF party - the enemy books alone are half a game");
+            // #418 cleared the two things this used to wait on, and they were different in kind: the
+            // hero roster (Army Forge id 7, 161 profiles, with its own classes and a Hero Builder that
+            // can edit them) and an AoF: Quest RULES PROFILE, because its book is the 2.0.1 generation
+            // where Star Quest is on 2.1.0. Both halves are in, so the gate opens - and the assertion
+            // flips rather than being deleted, because "is it selectable" is exactly the question a
+            // future reader will have.
+            Assert.That(GameSystemInfo.IsAvailable(EGameSystem.AoFQuest), Is.True,
+                "AoF: Quest has its own books (#417), its own hero roster and its own rules profile (#418)");
+
+            // And the thing that must never happen again: selectable on another system's numbers.
+            Assert.That(QuestRulesProfile.For(EGameSystem.AoFQuest),
+                Is.Not.SameAs(QuestRulesProfile.For(EGameSystem.GFStarQuest)),
+                "a selectable Quest system needs its own rules profile, or it plays the other's book");
         }
 
         [Test]
@@ -134,7 +145,7 @@ namespace FDG.Tests
                     Assert.That(system, Is.EqualTo(EGameSystem.GrimdarkFuture),
                         $"{system} falls through to Grimdark Future's armies. If that is deliberate "
                         + "(its own books are not imported yet) say so in ArmySource and add it to "
-                        + nameof(AoFQuest_TakesItsOwnBooks_AndIsStillNotSelectable)
+                        + nameof(AoFQuest_TakesItsOwnBooks_AndIsNowSelectable)
                         + "; otherwise it is being played on the wrong points.");
                 }
             }

@@ -1,4 +1,7 @@
+using FDG.Data;
+using FDG.Rules.Dispatch;
 using FDG.Stages;
+using FDG.Utilities;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -53,22 +56,65 @@ namespace FDG.Tests
         [Test]
         public void TheOnScreenLabels_QuoteTheRealCost()
         {
-            Assert.That(QuestActions.ExtraActionOption, Is.EqualTo("Extra Action (3 power)"));
-            Assert.That(QuestActions.ExtraSkillOption, Is.EqualTo("Extra Skill (3 power)"));
-            Assert.That(QuestSkill.ReviveName, Is.EqualTo("Revive a hero (3 power)"));
+            // #418 made the prices per system - Star Quest charges 3 power for an extra action and a
+            // revive, AoF: Quest's 2.0.1 book charges 2 - so the labels are built from the profile and
+            // asserted for BOTH systems. The claim is unchanged and now twice as strong: a player can
+            // never be shown a price the spend will not take.
+            Assert.That(QuestRulesProfile.StarQuest.ExtraActionOption, Is.EqualTo("Extra Action (3 power)"));
+            Assert.That(QuestRulesProfile.StarQuest.ExtraSkillOption, Is.EqualTo("Extra Skill (3 power)"));
+            Assert.That(QuestRulesProfile.AoFQuest.ExtraActionOption, Is.EqualTo("Extra Action (2 power)"));
+            Assert.That(QuestRulesProfile.AoFQuest.ExtraSkillOption, Is.EqualTo("Extra Skill (2 power)"));
+
+            // And the catalog's own labels still agree with Star Quest's profile, since the constants in
+            // QuestActions are documented as that system's values.
+            Assert.That(QuestActions.ExtraActionOption,
+                Is.EqualTo(QuestRulesProfile.StarQuest.ExtraActionOption));
+            Assert.That(QuestActions.ExtraSkillOption,
+                Is.EqualTo(QuestRulesProfile.StarQuest.ExtraSkillOption));
+
+            // The revive SKILL's name carries no price any more: it lives in a catalog built before any
+            // game exists, so a priced name there could only ever be one system's. The price moved to
+            // the description, which is built per game - see TheReviveDescription_QuotesThisGamesCost.
+            Assert.That(QuestSkill.ReviveName, Is.EqualTo("Revive a hero"));
+            Assert.That(QuestRulesProfile.StarQuest.ReviveName, Is.EqualTo("Revive a hero (3 power)"));
+            Assert.That(QuestRulesProfile.AoFQuest.ReviveName, Is.EqualTo("Revive a hero (2 power)"));
         }
 
         // The revive skill's description is what the Actions panel shows under the button, so it has to
         // agree with the button.
         [Test]
-        public void TheReviveDescription_AgreesWithItsLabel()
+        public void TheReviveDescription_QuotesThisGamesCost()
         {
             QuestSkill? revive = QuestSkill.Find(QuestSkill.ReviveName);
 
             Assert.That(revive, Is.Not.Null, "the skill is looked up by name, so a renamed constant must "
                 + "still resolve - this is the test that catches a half-finished rename.");
-            Assert.That(revive!.Description, Does.Contain("3 power"));
-            Assert.That(revive.Description, Does.Not.Contain("2 power"));
+
+            // The stored text is a template; nothing shows it raw.
+            Assert.That(revive!.Description, Does.Contain("{power}"),
+                "the price is filled in per game by DescriptionIn");
+
+            foreach ((EGameSystem system, string expected) in new[]
+                     {
+                         (EGameSystem.GFStarQuest, "3 power"),
+                         (EGameSystem.AoFQuest, "2 power"),
+                     })
+            {
+                string shown = revive.DescriptionIn(ContextFor(system));
+                Assert.That(shown, Does.Contain(expected), $"{system}: the Actions panel would show the "
+                    + "wrong price under the button");
+                Assert.That(shown, Does.Not.Contain("{power}"));
+            }
+        }
+
+        /// <summary>A context whose only job is to carry a game system, for the per-system prices.</summary>
+        private static TestGameContext ContextFor(EGameSystem system)
+        {
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameSystem = system;
+            settings.GameMode = EGameMode.StarQuestHorde;
+            return new TestGameContext(GameDataStore.GameDataStoreBuilder.GetDefault(),
+                new FixedDiceRoller(4), settings: settings);
         }
     }
 }

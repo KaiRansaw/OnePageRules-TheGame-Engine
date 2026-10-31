@@ -101,7 +101,9 @@ namespace FDG.Stages
                 if (!QuestActions.AreFriends(context, villain, unit)) continue;
                 if (villain.Tokens.GetTokenCount(TokenType.Shaken) > 0) continue;
                 if (!IsVillain(villain)) continue;
-                if (QuestActions.Distance(villain, unit) > VillainAuraInches) continue;
+                // #418: 6" in Star Quest's 2.1.0 book, 12" in AoF: Quest's 2.0.1 one.
+                if (QuestActions.Distance(villain, unit)
+                    > FDG.Rules.Dispatch.QuestRulesProfile.For(context).VillainAuraInches) continue;
                 if (villain.Quality < best)
                 {
                     best = villain.Quality;

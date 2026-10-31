@@ -112,8 +112,12 @@ namespace FDG.Rules.Dispatch
             if (!CoreRulesProfile.For(gameContext).ScoutIsSimpleRedeploy) return radii;
             if (!HasScout(unit)) return radii;
 
+            // #418: the DISTANCE is per Quest system - Star Quest's book says 9", AoF: Quest's 2.0.1
+            // book says 12". The procedure (a plain redeploy with no set-aside and no enemy standoff)
+            // is what CoreRulesProfile decided above; this is how far it reaches.
+            float forward = QuestRulesProfile.For(gameContext).ScoutForwardInches;
             var widened = new float[radii.Length];
-            for (int i = 0; i < radii.Length; i++) widened[i] = radii[i] + ForwardRangeInches;
+            for (int i = 0; i < radii.Length; i++) widened[i] = radii[i] + forward;
             return widened;
         }
 

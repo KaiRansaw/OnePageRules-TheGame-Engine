@@ -305,8 +305,22 @@ namespace FDG
 
         /// <summary>Whether the lobby may pick it yet. The others are listed so the line-up is visible, but
         /// stay greyed out until their rules are in.</summary>
+        /// <summary>
+        /// Whether the lobby may pick it yet. The others are listed so the line-up is visible, but stay
+        /// greyed out until their rules are in.
+        /// <para>
+        /// #418 added AoF: Quest, and the bar it had to clear is worth recording: its own enemy books
+        /// (#417), its own 161-hero roster, its own faction/class data, a party stamped as its own
+        /// system, and - the part that actually took the work - its own rules profile, because its book
+        /// is the <b>2.0.1</b> generation where Star Quest is on 2.1.0 and they disagree about power
+        /// costs, failed hero skills, failed casts, melee reach, Scout and the Villain aura. Until that
+        /// existed, making this line say yes would have played AoF: Quest by another system's rules,
+        /// which is the one thing CLAUDE.md says never to do.
+        /// </para>
+        /// </summary>
         public static bool IsAvailable(EGameSystem system) => system is
-            EGameSystem.GrimdarkFuture or EGameSystem.AgeOfFantasy or EGameSystem.GFFirefight or EGameSystem.GFStarQuest;
+            EGameSystem.GrimdarkFuture or EGameSystem.AgeOfFantasy or EGameSystem.GFFirefight
+            or EGameSystem.GFStarQuest or EGameSystem.AoFQuest;
 
         /// <summary>The Game Modes this game offers.</summary>
         public static EGameMode[] Modes(EGameSystem system) => system switch

@@ -20,28 +20,43 @@ namespace FDG.Stages
     /// </summary>
     public static class QuestActions
     {
-        // -- Power costs, from the v2.1.0 POWER REFERENCE ------------------------------------------------
+        // -- Power costs ---------------------------------------------------------------------------------
         // Named rather than written as literals at each site because the cost appears BOTH in the rule and
         // in the player-facing label, and under v2.0.1 those were separate 2s in five files. #414.
+        //
+        // #418: and now per SYSTEM, because the two Quest books are a generation apart - Star Quest's
+        // 2.1.0 charges 3 power for an extra action and a revive where AoF: Quest's 2.0.1 charges 2.
+        // The numbers live in QuestRulesProfile; these members are the Star Quest values, kept for the
+        // places that have no game context to ask (a catalog built at class-load time) and as the
+        // documented default. ANY SITE THAT HAS A CONTEXT SHOULD ASK THE PROFILE.
 
-        /// <summary>"Heroes may spend 3 Power to use any one additional action." **Was 2 in v2.0.1.**</summary>
+        /// <summary>Star Quest: "Heroes may spend 3 Power to use any one additional action."
+        /// AoF: Quest charges 2 - see <see cref="Rules.Dispatch.QuestRulesProfile"/>.</summary>
         public const int ExtraActionPower = 3;
 
-        /// <summary>"Heroes may spend 3 Power to revive other Unconscious Heroes." **Was 2 in v2.0.1.**</summary>
+        /// <summary>Star Quest: "Heroes may spend 3 Power to revive other Unconscious Heroes."
+        /// AoF: Quest charges 2.</summary>
         public const int RevivePower = 3;
 
-        /// <summary>"Heroes may spend 2 Power to count failed Str/Dex/Wil tests as passed." Unchanged.</summary>
+        /// <summary>"Heroes may spend 2 Power to count failed Str/Dex/Wil tests as passed." The same in
+        /// both books.</summary>
         public const int PassStatTestPower = 2;
 
-        /// <summary>"Heroes may spend 2 Power to ignore being Shaken from failed Morale Tests." Unchanged.</summary>
+        /// <summary>"Heroes may spend 2 Power to ignore being Shaken from failed Morale Tests." The same
+        /// in both books.</summary>
         public const int IgnoreShakenPower = 2;
 
         /// <summary>
         /// "Heroes using Hero Skill actions may spend 1 Power if they fail their stat test to count it as
-        /// passed." Unchanged at 1 - but v2.1.0 made the payment OPTIONAL, where v2.0.1 forced it and
-        /// resolved the skill either way. That half is still to do (#414).
+        /// passed." One power in both books - but 2.1.0 made the payment OPTIONAL and the skill FAIL if
+        /// declined, where 2.0.1 forces it and resolves the skill either way. #418 implements both; which
+        /// one applies is <c>QuestRulesProfile.FailedSkillPaymentIsOptional</c>.
         /// </summary>
         public const int FailedSkillPower = 1;
+
+        /// <summary>The Quest rules this game is played by (#418).</summary>
+        public static Rules.Dispatch.QuestRulesProfile Profile(IGameContext context) =>
+            Rules.Dispatch.QuestRulesProfile.For(context);
 
         public const string RestOption = "Rest";
         public const string SkillOption = "Skill";
@@ -182,10 +197,11 @@ namespace FDG.Stages
             if (!offerPower) return false;
 
             bool spend = await context.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(hero.PlayerID,
-                $"{hero.Name} failed the {StatName(statType)} test. Spend {PassStatTestPower} power to pass it anyway? ({hero.QuestPower} power left)",
+                $"{hero.Name} failed the {StatName(statType)} test. Spend {Profile(context).PassStatTestPower} power to pass it anyway? ({hero.QuestPower} power left)",
                 defaultAnswer: hero.QuestPower >= 2, displayName: $"{hero.Name}: spend power?"));
             if (!spend) return false;
-            await SpendPower(context, hero, PassStatTestPower, $"to pass the {StatName(statType)} test");
+            await SpendPower(context, hero, Profile(context).PassStatTestPower,
+                $"to pass the {StatName(statType)} test");
             return true;
         }
 
@@ -213,18 +229,31 @@ namespace FDG.Stages
             if (statType is < 0 or > 2) return true;
             if (await StatTest(context, hero, statType, skill, offerPower: false)) return true;
 
+            Rules.Dispatch.QuestRulesProfile profile = Profile(context);
+            int cost = profile.FailedSkillPower;
+
+            // #418: AoF: Quest is on the 2.0.1 wording - "if failed you must first spend 1 power and
+            // then the effect is resolved" - so there is nothing to ask and the skill cannot fail. Star
+            // Quest's 2.1.0 reversed that (#414, Q3): the payment is optional and declining it means the
+            // skill does nothing, which is what lets a hero skill fail at all.
+            if (!profile.FailedSkillPaymentIsOptional)
+            {
+                await SpendPower(context, hero, cost, $"failed {skill} test");
+                return true;
+            }
+
             bool spend = await context.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
                 hero.PlayerID,
-                $"{hero.Name} failed the {skill} test. Spend {FailedSkillPower} power to count it as passed? "
+                $"{hero.Name} failed the {skill} test. Spend {cost} power to count it as passed? "
                 + $"({hero.QuestPower} power left)",
-                defaultAnswer: hero.QuestPower >= FailedSkillPower,
+                defaultAnswer: hero.QuestPower >= cost,
                 displayName: $"{hero.Name}: spend power?"));
             if (!spend)
             {
                 await Toast(context, $"{hero.Name}: {skill} fails.");
                 return false;
             }
-            await SpendPower(context, hero, FailedSkillPower, $"failed {skill} test");
+            await SpendPower(context, hero, cost, $"failed {skill} test");
             return true;
         }
 
@@ -501,7 +530,11 @@ namespace FDG.Stages
     {
         public const string PushName = "Push";
         public const string ScurryName = "Scurry";
-        public static readonly string ReviveName = $"Revive a hero ({QuestActions.RevivePower} power)";
+        /// <summary>#418 - the price left this label when AoF: Quest arrived charging 2 power where
+        /// Star Quest charges 3. The skill catalog is built at class-load time with no game to ask, so a
+        /// priced name here could only ever be one system's. The cost is on the description line
+        /// instead, which IS built per game, and the spend itself reads the profile.</summary>
+        public static readonly string ReviveName = "Revive a hero";
         public const string DiscoverName = "Discover";
 
         public string Name { get; }
@@ -518,6 +551,19 @@ namespace FDG.Stages
             Name = name; Stat = stat; Description = description; _unavailable = unavailable; _resolve = resolve;
             Common = common; Feat = feat;
         }
+
+        /// <summary>
+        /// #418 - the skill's description for the game being played. A catalog entry is built at
+        /// class-load time, so a price written into its text could only ever be one Quest system's;
+        /// revive costs 3 power in Star Quest and 2 in AoF: Quest. Entries whose text mentions a cost
+        /// write <c>{power}</c> and this fills it in, so the number a player reads is the number the
+        /// spend will take.
+        /// </summary>
+        public string DescriptionIn(IGameContext context) =>
+            Description.Contains("{power}", StringComparison.Ordinal)
+                ? Description.Replace("{power}",
+                    FDG.Rules.Dispatch.QuestRulesProfile.For(context).RevivePower.ToString())
+                : Description;
 
         public string? Unavailable(IGameContext context, UnitData hero) => _unavailable(context, hero);
 
@@ -642,7 +688,8 @@ namespace FDG.Stages
                     await QuestActions.Toast(c, $"{h.Name} scurries up to {d}\".");
                     await new GameOperationServices(c).MoveUnit(h, d, isOptional: true, controller: h.PlayerID);
                 }, common: true),
-            new(ReviveName, -1, $"Heroes within 3\" of an unconscious hero may spend {QuestActions.RevivePower} power to revive it; it restores 3 wounds.",
+            new(ReviveName, -1, "Heroes within 3\" of an unconscious hero may spend {power} power to "
+                + "revive it; it restores 3 wounds.",
                 (c, h) => QuestActions.UnconsciousHeroes(c, h, 3f).Count > 0 ? null : "No unconscious hero within 3\".",
                 async (c, h) =>
                 {
@@ -653,7 +700,8 @@ namespace FDG.Stages
                         displayName: "Choosing a hero to revive");
                     string pick = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
                     UnitData target = down.FirstOrDefault(d => d.Name == pick) ?? down[0];
-                    await QuestActions.SpendPower(c, h, QuestActions.RevivePower, $"to revive {target.Name}");
+                    await QuestActions.SpendPower(c, h, QuestActions.Profile(c).RevivePower,
+                        $"to revive {target.Name}");
                     QuestActions.Revive(target);
                     await c.Announce($"{h.Name} revives {target.Name}!", new TextColor(120, 230, 140, 255), EBannerTier.Notice);
                 }, common: true),
@@ -982,11 +1030,13 @@ namespace FDG.Stages
                 return;
             }
 
-            if (action == QuestActions.ExtraActionOption || action == QuestActions.ExtraSkillOption)
+            Rules.Dispatch.QuestRulesProfile rules = QuestActions.Profile(GameContext);
+            if (action == rules.ExtraActionOption || action == rules.ExtraSkillOption)
             {
-                await QuestActions.SpendPower(GameContext, hero, QuestActions.ExtraActionPower, "extra action");
+                await QuestActions.SpendPower(GameContext, hero,
+                    QuestActions.Profile(GameContext).ExtraActionPower, "extra action");
                 context.QuestExtraUsed = true;
-                if (action == QuestActions.ExtraActionOption) context.BeginQuestExtraAction();
+                if (action == rules.ExtraActionOption) context.BeginQuestExtraAction();
                 else context.QuestSkillsUsed--;
                 if (!hero.GetIsAlive()) { await ToEndActivation.Activate(context); return; }
                 await OnFinished.Activate(context);
@@ -1013,7 +1063,8 @@ namespace FDG.Stages
                 usable.Select(s => s.Name).ToList(),
                 unusable.Select(u => new StringSelectionRequest.InvalidOption(u.Name, u.Why)).ToList(),
                 optionDescriptions: usable.ToDictionary(s => s.Name,
-                    s => (s.Stat >= 0 ? $"({QuestActions.StatName(s.Stat)} test) " : "") + s.Description),
+                    s => (s.Stat >= 0 ? $"({QuestActions.StatName(s.Stat)} test) " : "")
+                        + s.DescriptionIn(GameContext)),
                 allowCancel: true, displayName: $"{hero.Name}: Skill");
             string? choice = usable.Count == 0 ? null
                 : await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);

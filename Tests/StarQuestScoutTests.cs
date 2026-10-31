@@ -45,11 +45,12 @@ namespace FDG.Tests
         // ── The profile ─────────────────────────────────────────────────────────────────────────────
 
         [TestCase(EGameSystem.GFStarQuest, true)]
+        [TestCase(EGameSystem.AoFQuest, true)]
         [TestCase(EGameSystem.GrimdarkFuture, false)]
         [TestCase(EGameSystem.AgeOfFantasy, false)]
         [TestCase(EGameSystem.GFFirefight, false)]
         [TestCase(EGameSystem.AoFSkirmish, false)]
-        public void OnlyStarQuest_HasTheSimpleScout(EGameSystem system, bool simple)
+        public void OnlyTheQuestSystems_HaveTheSimpleScout(EGameSystem system, bool simple)
         {
             Assert.That(CoreRulesProfile.For(system).ScoutIsSimpleRedeploy, Is.EqualTo(simple));
         }
@@ -145,5 +146,38 @@ namespace FDG.Tests
 
             return unit;
         }
+        // ── #418: AoF: Quest reads the same rule at a different distance ────────────────────────────
+
+        [Test]
+        public void InAoFQuest_AScoutWidensByTwelveInches_NotNine()
+        {
+            // "Scout: This model may be deployed anywhere fully within 12" of its deployment zone."
+            //   - AoFQ Core Rules v2.0.1, Special Rules Reference
+            //
+            // Same procedure as Star Quest (a plain redeploy, which is what CoreRulesProfile decides),
+            // three inches further (which is what QuestRulesProfile decides). Serving Star Quest's 9"
+            // here would quietly shrink an AoF: Quest Scout's whole advantage.
+            IUnit scout = MakeUnit("Ndoli Outrider", withScout: true);
+
+            float[] widened = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.AoFQuest), scout, WaveRadii);
+
+            Assert.That(widened, Is.EqualTo(new[] { 18f, 21f, 24f, 27f }).AsCollection);
+            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(12f),
+                "AoFQ 2.0.1 says 12\", where GFSQ 2.1.0 says 9\"");
+        }
+
+        [Test]
+        public void TheTwoQuestSystems_WidenByDifferentAmounts()
+        {
+            // The discriminating pair. If this ever reads equal, one system is being played by the
+            // other's book - the fault #417 and #418 both exist to prevent.
+            IUnit scout = MakeUnit("Scout", withScout: true);
+
+            float[] sq = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.GFStarQuest), scout, WaveRadii);
+            float[] aof = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.AoFQuest), scout, WaveRadii);
+
+            Assert.That(aof[0] - sq[0], Is.EqualTo(3f), "12\" against 9\"");
+        }
+
     }
 }

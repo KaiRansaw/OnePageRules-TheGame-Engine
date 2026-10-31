@@ -80,14 +80,26 @@ namespace FDG.Rules.Dispatch
             ScoutIsSimpleRedeploy: true);
 
         /// <summary>
-        /// The profile for a game system. AoF: Quest has no profile of its own yet and takes the
-        /// full-scale one, which is a known gap rather than a judgement - its books are not imported and
-        /// the lobby cannot pick it (pinned by <c>GameSystemArmySourceTests</c>). When it becomes
-        /// playable it will almost certainly want Star Quest's, since the two Quest games share a shape.
+        /// #418 - AoF: Quest reads the same three ways, checked line by line against <b>AoFQ Core Rules
+        /// v2.0.1</b> rather than assumed from the shape of the game:
+        /// <list type="bullet">
+        /// <item><i>"Blast(X): ... Hits must be split evenly between all enemy units within 3" of any
+        /// model from the target"</i> - the same spread clause #414 built, and worded more explicitly
+        /// than Star Quest's.</item>
+        /// <item><i>"Scout: This model may be deployed anywhere fully within 12" of its deployment
+        /// zone"</i> - a plain redeploy, no set-aside and no standoff. <b>12" where Star Quest says
+        /// 9"</b>, which is why the distance lives in <see cref="QuestRulesProfile"/> and only the
+        /// PROCEDURE lives here.</item>
+        /// <item>Its Morale section has only the half-strength trigger, and its Fear(X) reads <i>"when
+        /// checking if the target must take morale test in melee"</i> - so there is no melee-results
+        /// comparison for Fear to attach to, exactly as in Star Quest.</item>
+        /// </list>
+        /// It therefore shares Star Quest's profile; the two systems' numbers differ, their special-rule
+        /// READINGS do not.
         /// </summary>
         public static CoreRulesProfile For(EGameSystem system) => system switch
         {
-            EGameSystem.GFStarQuest => StarQuest,
+            EGameSystem.GFStarQuest or EGameSystem.AoFQuest => StarQuest,
             EGameSystem.GFFirefight or EGameSystem.AoFSkirmish => Skirmish,
             _ => FullScale,
         };

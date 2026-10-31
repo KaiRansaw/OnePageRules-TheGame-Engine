@@ -63,11 +63,17 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void MeleeReach_IsNotPerGameSystem()
+        public void MeleeReach_IsFlatThreeInches_ExceptInAoFQuest()
         {
-            // Worth pinning: the first cut of this change made reach per-system on the assumption that
-            // the flat 3" was a Star Quest 2.1.0 special. It is not - GF and GFF v3.6.0 say the same
-            // thing - so a reader who finds a system switch here has found a regression, not a feature.
+            // This test used to assert reach is NOT per-system, because when Q5 wrote it every book in
+            // play said the same thing: GF, GFF and GFSQ v3.6.0/2.1.0 all state one 3" distance with no
+            // vertical clause, and the 2"/4" split was dead 3.5.1 wording.
+            //
+            // #418 brought a book back that still uses it. AoF: Quest is on the 2.0.1 generation -
+            // "Models within 2" horizontally and 4" vertically of enemies must strike with all melee
+            // weapons" - so the split is a live rule again for exactly one system. The claim this test
+            // defends is therefore unchanged in spirit: reach is the flat 3" everywhere, and a system
+            // switch here is a regression UNLESS the system's own book keeps the split.
             //
             // The finally is not decoration. ConfigureTable writes GLOBAL statics (table size,
             // coherency, the friendly-overlap flag), so a fixture that leaves it set to the last value
@@ -79,10 +85,21 @@ namespace FDG.Tests
                 foreach (EGameSystem system in System.Enum.GetValues<EGameSystem>())
                 {
                     GameWideConstants.ConfigureTable(system);
+
+                    if (system == EGameSystem.AoFQuest)
+                    {
+                        // AoFQ Core Rules v2.0.1, Melee.
+                        Assert.That(GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL, Is.EqualTo(2f),
+                            "AoF: Quest's own book still says 2\" horizontally");
+                        Assert.That(GameWideConstants.MELEE_RANGE_INCHES_VERTICAL, Is.EqualTo(4f),
+                            "AoF: Quest's own book still says 4\" vertically");
+                        continue;
+                    }
+
                     Assert.That(GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL, Is.EqualTo(3f),
-                        $"{system} must use the same 3\" reach as every other system.");
+                        $"{system} must use the same 3\" reach as every other 3.6.0/2.1.0 system.");
                     Assert.That(GameWideConstants.MELEE_RANGE_INCHES_VERTICAL, Is.EqualTo(3f),
-                        $"{system} must use the same 3\" reach as every other system.");
+                        $"{system} must use the same 3\" reach as every other 3.6.0/2.1.0 system.");
                 }
             }
             finally

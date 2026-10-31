@@ -541,6 +541,11 @@ namespace FDG.Stages
                 }
 
                 int maxPower = QuestActions.Sheet(questHero)?.Power ?? questHero.QuestPower;
+                // #418: the prices on these buttons are this Quest system's, not Star Quest's by
+                // definition - AoF: Quest charges 2 power for an extra action where Star Quest charges 3,
+                // and the label and the spend have to read the same number or the button lies.
+                FDG.Rules.Dispatch.QuestRulesProfile questRules =
+                    FDG.Rules.Dispatch.QuestRulesProfile.For(GameContext);
                 bool fresh = !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
                     && context.QuestSkillsUsed == 0;
                 if (QuestActions.AvailableFeat(GameContext, questHero) is { } feat)
@@ -556,9 +561,13 @@ namespace FDG.Stages
                 if (!context.QuestExtraUsed)
                 {
                     if (context.HasMoved || context.HasAttacked)
-                        AddQuest(QuestActions.ExtraActionOption, $"Spend {QuestActions.ExtraActionPower} power to take another action this activation ({questHero.QuestPower} power).");
+                        AddQuest(questRules.ExtraActionOption,
+                            $"Spend {questRules.ExtraActionPower} power to take another action this "
+                            + $"activation ({questHero.QuestPower} power).");
                     if (context.QuestSkillsUsed >= 1)
-                        AddQuest(QuestActions.ExtraSkillOption, $"Spend {QuestActions.ExtraActionPower} power to use another skill ({questHero.QuestPower} power).");
+                        AddQuest(questRules.ExtraSkillOption,
+                            $"Spend {questRules.ExtraActionPower} power to use another skill "
+                            + $"({questHero.QuestPower} power).");
                 }
             }
 
