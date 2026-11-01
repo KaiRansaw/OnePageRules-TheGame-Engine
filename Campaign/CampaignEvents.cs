@@ -3,7 +3,8 @@ namespace FDG.Campaign
     /// <summary>What a campaign random event does, in a shape the game can act on.</summary>
     public enum ECampaignEventKind
     {
-        /// <summary>One random unit takes <see cref="CampaignEvent.Amount"/> wounds (D3 when <see cref="CampaignEvent.IsD3"/>).</summary>
+        /// <summary>One random unit takes <see cref="CampaignEvent.Amount"/> wounds, times
+        /// <see cref="CampaignEvent.D3Dice"/> D3 when it rolls.</summary>
         Wounds,
         /// <summary>One random unit takes that many hits.</summary>
         Hits,
@@ -66,8 +67,17 @@ namespace FDG.Campaign
     /// <param name="Text">The book's wording, for the Battle Report and the Mission window.</param>
     /// <param name="Kind">What it does.</param>
     /// <param name="Scope">Who or what it reaches.</param>
-    /// <param name="Amount">The size of the effect; with <see cref="IsD3"/>, the multiplier of a D3.</param>
-    /// <param name="IsD3">The amount is rolled: D3, or 2D3 when <paramref name="Amount"/> is 2.</param>
+    /// <param name="Amount">
+    /// The size of one unit of the effect: wounds, hits, XP, VP, or points. Multiplied by the dice total
+    /// when <paramref name="D3Dice"/> rolls, so "D3 x 25pts" is <c>Amount: 25, D3Dice: 1</c>.
+    /// </param>
+    /// <param name="D3Dice">
+    /// How many D3 are rolled and SUMMED, or 0 for a flat amount. A dice count, not a multiplier:
+    /// "2D3 hits" is two dice summed (2-6, mean 4), a different distribution from 2 x D3 (2/4/6). The
+    /// table was authored with one field doing both jobs, documented as "the multiplier of a D3", which
+    /// read as 2 x D3 and would have rolled the wrong spread for Explosive Trap and Solar Flare. Split
+    /// in #432 so the two cannot be confused again.
+    /// </param>
     /// <param name="Roll">For <see cref="ECampaignEventKind.RollModifier"/>, which roll it changes.</param>
     public readonly record struct CampaignEvent(
         int Code,
@@ -76,7 +86,7 @@ namespace FDG.Campaign
         ECampaignEventKind Kind,
         ECampaignEventScope Scope,
         int Amount = 0,
-        bool IsD3 = false,
+        int D3Dice = 0,
         ECampaignEventRoll Roll = ECampaignEventRoll.Hit);
 
     /// <summary>
@@ -102,9 +112,9 @@ namespace FDG.Campaign
         public static readonly IReadOnlyList<CampaignEvent> All = new CampaignEvent[]
         {
             new(11, "Falling Debris", "One random unit takes D3 wounds.",
-                ECampaignEventKind.Wounds, ECampaignEventScope.RandomUnit, Amount: 1, IsD3: true),
+                ECampaignEventKind.Wounds, ECampaignEventScope.RandomUnit, Amount: 1, D3Dice: 1),
             new(12, "Explosive Trap", "One random unit takes 2D3 hits.",
-                ECampaignEventKind.Hits, ECampaignEventScope.RandomUnit, Amount: 2, IsD3: true),
+                ECampaignEventKind.Hits, ECampaignEventScope.RandomUnit, Amount: 1, D3Dice: 2),
             new(13, "Venomous Moss", "The area within 3\" of one random objective marker counts as Dangerous terrain until the end of the round.",
                 ECampaignEventKind.DangerousArea, ECampaignEventScope.NearRandomObjective),
             new(14, "Razor Vines", "The area within 3\" of one random objective marker counts as Difficult terrain until the end of the round.",
@@ -128,9 +138,9 @@ namespace FDG.Campaign
                 ECampaignEventKind.MovementChange, ECampaignEventScope.RandomUnit, Amount: -1),
 
             new(31, "Sinkhole", "One random unit that is within 3\" of any objective marker takes D3 wounds.",
-                ECampaignEventKind.Wounds, ECampaignEventScope.RandomUnitNearAnyObjective, Amount: 1, IsD3: true),
+                ECampaignEventKind.Wounds, ECampaignEventScope.RandomUnitNearAnyObjective, Amount: 1, D3Dice: 1),
             new(32, "Solar Flare", "One random unit that is within 3\" of any objective marker takes 2D3 hits.",
-                ECampaignEventKind.Hits, ECampaignEventScope.RandomUnitNearAnyObjective, Amount: 2, IsD3: true),
+                ECampaignEventKind.Hits, ECampaignEventScope.RandomUnitNearAnyObjective, Amount: 1, D3Dice: 2),
             new(33, "Crumbling Earth", "One random captured objective marker becomes neutral again.",
                 ECampaignEventKind.ObjectiveNeutral, ECampaignEventScope.NearRandomObjective),
             new(34, "Spotter Drone", "One random non-captured objective marker becomes captured by one random player.",
@@ -173,11 +183,11 @@ namespace FDG.Campaign
             new(63, "Grenade Bag", "One random player gets 1 VP.",
                 ECampaignEventKind.GainVp, ECampaignEventScope.RandomPlayer, Amount: 1),
             new(64, "Treasure Holopad", "One random army gets D3 * 25pts.",
-                ECampaignEventKind.GainPoints, ECampaignEventScope.RandomArmy, Amount: 25, IsD3: true),
+                ECampaignEventKind.GainPoints, ECampaignEventScope.RandomArmy, Amount: 25, D3Dice: 1),
             new(65, "Kit Box", "One random unit gets D3 XP.",
-                ECampaignEventKind.GainXp, ECampaignEventScope.RandomUnit, Amount: 1, IsD3: true),
+                ECampaignEventKind.GainXp, ECampaignEventScope.RandomUnit, Amount: 1, D3Dice: 1),
             new(66, "Godly Blessing", "One random player gets D3 VP.",
-                ECampaignEventKind.GainVp, ECampaignEventScope.RandomPlayer, Amount: 1, IsD3: true),
+                ECampaignEventKind.GainVp, ECampaignEventScope.RandomPlayer, Amount: 1, D3Dice: 1),
         };
 
         /// <summary>

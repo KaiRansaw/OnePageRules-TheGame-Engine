@@ -114,6 +114,16 @@ namespace FDG.Stages
             }
             new TokenClearService().ClearForHook(EHookID.Round_OnRoundEnd, containers);
 
+            // #432: and the terrain a campaign random event laid down for this round - a wood or a
+            // minefield the event conjured. It is real terrain, so nothing else would ever take it away,
+            // and an event that said "until the end of the round" and then left a hazard on the table
+            // for the rest of the game would be worse than one that did nothing. Cleared here, with the
+            // round's tokens, for the same reason: after the objective check has read the table.
+            int cleared = CampaignEventRunner.ClearTemporaryTerrain(GameContext);
+            if (cleared > 0)
+                GameContext.Log($"The ground left by this round's random event{(cleared > 1 ? "s" : "")} "
+                    + "returns to normal.");
+
             // Horde Mode (OPR v3.6.0) runs twelve rounds; the standard game runs NUMBER_OF_ROUNDS.
             int roundLimit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings.GameMode);
 

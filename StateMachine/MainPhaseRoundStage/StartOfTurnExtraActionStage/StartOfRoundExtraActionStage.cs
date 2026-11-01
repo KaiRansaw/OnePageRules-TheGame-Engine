@@ -41,7 +41,34 @@ namespace FDG.Stages
                 await RedeployOffTableAircraft();
             }
 
+            // #432: a campaign mission rolls for a random event at the beginning of every round - every
+            // player rolls one die, and a 5+ fires one. No-op in an ordinary game (the runner's own
+            // campaign-army check), and after the reserves so an ambusher that just arrived can be
+            // picked by an event, which is what "one random unit" means once it is on the table.
+            await RollCampaignEvents();
+
             await OnFinished.Activate(context);
+        }
+
+        /// <summary>
+        /// #432 - the campaign random event table, rolled at the top of the round and announced. Each
+        /// line the runner produces is announced in turn: the event's own name and the book's wording
+        /// first, then what it actually did to whom, because an event the player cannot connect to a
+        /// change on the table is indistinguishable from one that did nothing.
+        /// </summary>
+        /// <summary>
+        /// #432: the campaign books' random event, at the start of every round. After reserves, so an
+        /// event that wounds or Shakens a unit can reach one that has only just arrived - the book puts
+        /// the roll at the beginning of the round with no exception for newcomers. The runner returns its
+        /// lines rather than logging them itself, so a test can read what happened with no presentation
+        /// layer; announcing is this stage's job. Returns immediately in a non-campaign game.
+        /// </summary>
+        private async Task RollCampaignEvents()
+        {
+            foreach (string line in await CampaignEventRunner.RollForRound(GameContext))
+            {
+                await GameContext.Announce(line, new TextColor(230, 180, 255, 255));
+            }
         }
 
         /// <summary>

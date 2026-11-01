@@ -106,6 +106,9 @@ namespace FDG.Campaign
                                              bool won, CampaignNumbers n, Func<int> d6)
         {
             var log = new List<string>();
+            // #432: campaign random events hand out XP, treasury and VP during a game, carried out of it
+            // on the units' own sheets. Totalled as the results are read and banked once, below.
+            int eventPoints = 0, eventVp = 0;
 
             // No Permadeath: a unit recovering from a killing blow has now missed a mission. Counted
             // down BEFORE this match's casualties are resolved, so a unit knocked out today starts its
@@ -132,7 +135,14 @@ namespace FDG.Campaign
                 // spell count or first-blood stamp into the next one.
                 sheet.SpellsCast = 0;
                 sheet.DrewFirstBlood = false;
-                int xp = 0;
+                // #432: what a campaign random event handed out during the game, carried out of it on
+                // this sheet. The XP is THIS unit's ("one random unit gets 1 XP"), so it joins the unit's
+                // own total below; treasury and VP belong to the army and are banked once, after the
+                // loop. Cleared either way, like the kills.
+                int xp = sheet.EventXp;
+                eventPoints += sheet.EventPoints;
+                eventVp += sheet.EventVp;
+                sheet.EventXp = sheet.EventPoints = sheet.EventVp = 0;
 
                 if (result.Casualty)
                 {
@@ -167,6 +177,18 @@ namespace FDG.Campaign
                 info.BankedPoints += n.LosePoints;
                 log.Add($"Lost the mission: +{n.LosePoints} pts.");
             }
+            // #432: and whatever the random events handed the army, banked once.
+            if (eventPoints > 0)
+            {
+                info.BankedPoints += eventPoints;
+                log.Add($"Random events during the mission: +{eventPoints} pts.");
+            }
+            if (eventVp > 0)
+            {
+                info.Vp += eventVp;
+                log.Add($"Random events during the mission: +{eventVp} VP.");
+            }
+
             info.History.Add($"Match {info.Matches}: {(won ? "won" : "lost")} - " + string.Join(" ", log));
             return log;
         }

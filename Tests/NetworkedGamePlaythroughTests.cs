@@ -43,10 +43,25 @@ namespace FDG.Tests
         private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(20);
 
         /// <summary>
-        /// How long the game itself gets. A 2-unit-a-side game on loopback finishes in a second or two;
-        /// this is a hang detector, not a performance budget.
+        /// How long the game itself gets. <b>A hang detector, not a performance budget</b> - and the
+        /// number matters more than that wording suggests, so here is the measurement behind it.
+        ///
+        /// <para>
+        /// These games are almost entirely <i>waiting</i>: 2m12s of wall clock for the two tests against
+        /// 8s of CPU, because every decision for a remote seat is a real socket round trip. Measured on a
+        /// quiet box that is about 66s each. At 180s the detector sat barely 3x over the real runtime,
+        /// and under the parallel load of the full suite the three-player test duly blew through it and
+        /// failed - a false red on a correct game (2026-11-01, during #432). Raised to 240s, with
+        /// <c>CancelAfter</c> moved out to 420s so the join phase cannot push a slow-but-healthy run into
+        /// NUnit's own cancellation instead of this assertion's clearer message.
+        /// </para>
+        ///
+        /// <para>
+        /// If this ever fires again, the thing to check is whether the box was busy, not whether the game
+        /// is broken: a quiet, CPU-idle run of this fixture is what a correct networked test looks like.
+        /// </para>
         /// </summary>
-        private static readonly TimeSpan GameTimeout = TimeSpan.FromSeconds(180);
+        private static readonly TimeSpan GameTimeout = TimeSpan.FromSeconds(240);
 
         private readonly List<IDisposable> _disposables = new();
         private readonly List<FDGHost> _hosts = new();
@@ -65,7 +80,7 @@ namespace FDG.Tests
         }
 
         [Test]
-        [CancelAfter(300_000)]
+        [CancelAfter(420_000)]
         public async Task HostAndClient_PlayAWholeGame_ToAResult()
         {
             int port = FreeLoopbackPort();
@@ -127,7 +142,7 @@ namespace FDG.Tests
         /// that says whether 3-4 players needs building or merely needs a lobby that offers it.
         /// </summary>
         [Test]
-        [CancelAfter(300_000)]
+        [CancelAfter(420_000)]
         public async Task HostAndTwoClients_PlayAWholeGame_ToAResult()
         {
             int port = FreeLoopbackPort();

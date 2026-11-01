@@ -109,6 +109,20 @@ namespace FDG.Campaign
         /// </para>
         /// </summary>
         public bool DrewFirstBlood { get; set; }
+
+        /// <summary>
+        /// #432 - rewards a campaign random event handed this unit or its army during the game in
+        /// progress, waiting for the after-game write-back to fold them into the campaign file.
+        /// <para>
+        /// Treasury and VP belong to the ARMY, which is not on the table at all, so the reward rides one
+        /// of its units' sheets to get out of the game - the same route the Hexer count and the
+        /// first-blood stamp take, and for the same reason: the sheet is the only piece of campaign state
+        /// an in-game effect can reach. Cleared with <see cref="Kills"/> when the result is written back.
+        /// </para>
+        /// </summary>
+        public int EventXp { get; set; }
+        public int EventPoints { get; set; }
+        public int EventVp { get; set; }
         /// <summary>The strike team file this unit belongs to (set when the team is saved).</summary>
         public string? TeamFile { get; set; }
         /// <summary>

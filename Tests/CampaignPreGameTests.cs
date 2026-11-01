@@ -164,22 +164,48 @@ namespace FDG.Tests
             Assert.That(CampaignEvents.TriggerRoll, Is.EqualTo(5), "one die at the start of each round, 5+ fires");
         }
 
+        /// <summary>
+        /// #432 split the dice count from the multiplier, because one field doing both jobs could not
+        /// tell "2D3 hits" (two dice summed: 2-6, mean 4) from "2 x D3" (2/4/6) - and the doc comment
+        /// said multiplier, so the engine would have rolled the wrong spread for the two hit events.
+        /// </summary>
         [Test]
         public void TheRewardEventsCarryTheirAmounts()
         {
             CampaignEvent stash = CampaignEvents.ByCode(61);
             Assert.That(stash.Kind, Is.EqualTo(ECampaignEventKind.GainPoints));
             Assert.That(stash.Amount, Is.EqualTo(25));
-            Assert.That(stash.IsD3, Is.False);
+            Assert.That(stash.D3Dice, Is.Zero, "a flat 25pts");
 
             CampaignEvent holopad = CampaignEvents.ByCode(64);
             Assert.That(holopad.Amount, Is.EqualTo(25));
-            Assert.That(holopad.IsD3, Is.True, "D3 * 25pts");
+            Assert.That(holopad.D3Dice, Is.EqualTo(1), "D3 x 25pts is one die, times 25");
 
             CampaignEvent trap = CampaignEvents.ByCode(12);
             Assert.That(trap.Kind, Is.EqualTo(ECampaignEventKind.Hits));
-            Assert.That(trap.Amount, Is.EqualTo(2));
-            Assert.That(trap.IsD3, Is.True, "2D3 hits");
+            Assert.That(trap.Amount, Is.EqualTo(1));
+            Assert.That(trap.D3Dice, Is.EqualTo(2), "2D3 hits is two dice summed, not two times a D3");
+        }
+
+        /// <summary>
+        /// The arithmetic the split exists for. 2D3 must be able to produce an odd total; 2 x D3 never
+        /// can, which is the tell that the old shape was wrong.
+        /// </summary>
+        [Test]
+        public void RollAmount_SumsTheDiceThenMultiplies()
+        {
+            // D3 wounds: one die. A 5 reads as 3.
+            Assert.That(CampaignEventTargeting.RollAmount(CampaignEvents.ByCode(11), Dice(5)), Is.EqualTo(3));
+
+            // 2D3 hits: two dice SUMMED. A 1 (reads 1) then a 5 (reads 3) is 4 - an even total here, but
+            // a 1 then a 3 (reads 2) is 3, which 2 x D3 could never produce.
+            Assert.That(CampaignEventTargeting.RollAmount(CampaignEvents.ByCode(12), Dice(1, 3)), Is.EqualTo(3));
+
+            // D3 x 25pts: one die, times 25.
+            Assert.That(CampaignEventTargeting.RollAmount(CampaignEvents.ByCode(64), Dice(5)), Is.EqualTo(75));
+
+            // A flat amount rolls nothing at all.
+            Assert.That(CampaignEventTargeting.RollAmount(CampaignEvents.ByCode(61), Dice(1)), Is.EqualTo(25));
         }
     }
 }
