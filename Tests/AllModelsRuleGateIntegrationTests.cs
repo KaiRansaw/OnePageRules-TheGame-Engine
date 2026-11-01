@@ -124,18 +124,24 @@ namespace FDG.Tests
                 "a granted-only Stealth applies to a hero-joined unit: the grant covers every living model.");
         }
 
-        // #183 slice 1 — the gate governs every unit-targeted Subject-seat effect class, in BOTH directions:
-        // a homogeneous unit fires the rule, and a unit whose joined hero LACKS the rule loses it entirely
-        // (the host-side / audit-Bug-24 fix — previously only the 3 special-cased rules checked all-models).
-        // One case per effect class: hit-mod (Evasive), wound-ignore (Protected), save-mod (Shielded),
-        // range-mod (Ranged Shrouding), charge-mod (Melee Shrouding), strike-first (Counter-Attack). Each
-        // asserts on op production, which is non-empty iff the rule's gated entry fired.
+        // #183 slice 1 - the gate governs every unit-targeted Subject-seat effect class. One case per
+        // effect class: hit-mod (Evasive), wound-ignore (Protected), save-mod (Shielded), range-mod
+        // (Ranged Shrouding), charge-mod (Melee Shrouding), strike-first (Counter-Attack). Each asserts on
+        // op production, which is non-empty iff the rule's gated entry fired.
+        //
+        // #420 changed WHICH gate five of the six carry. Their 3.6.0 text reads "units where MOST models
+        // have this rule"; #183 had built them on every-model, and #409's majority sweep converted only
+        // Stealth, Regeneration, Fearless and Artillery. So the "a joined Hero switches the whole rule
+        // off" assertion these tests used to make was pinning a bug - one model in six could cancel a
+        // majority's defence. They now assert the majority reading, with a minority case to keep the gate
+        // from simply being deleted. Counter-Attack keeps the every-model gate: no OPR book publishes a
+        // "most models" wording for it, so #183's reading stands there.
 
         [Test]
         public void Evasive_HitModifier_GateGovernsHostAndHero()
         {
             UnitData attacker = MakeUnit(1);
-            AssertGate(CoreRuleCatalog.Evasive,
+            AssertMajorityGate(CoreRuleCatalog.Evasive,
                 d => new HitRollModifierContext(attacker, d, DistanceInches: 5f));
         }
 
@@ -143,7 +149,7 @@ namespace FDG.Tests
         public void Protected_WoundIgnore_GateGovernsHostAndHero()
         {
             UnitData attacker = MakeUnit(1);
-            AssertGate(CoreRuleCatalog.Protected,
+            AssertMajorityGate(CoreRuleCatalog.Protected,
                 d => new SaveRollCompleteContext(attacker, d, TestDice.Faces(1), IsMelee: false));
         }
 
@@ -151,7 +157,7 @@ namespace FDG.Tests
         public void Shielded_SaveModifier_GateGovernsHostAndHero()
         {
             UnitData attacker = MakeUnit(1);
-            AssertGate(CoreRuleCatalog.Shielded,
+            AssertMajorityGate(CoreRuleCatalog.Shielded,
                 d => new HitRollCompleteContext(attacker, d, TestDice.Faces(1), IsSpell: false));
         }
 
@@ -159,14 +165,14 @@ namespace FDG.Tests
         public void RangedShrouding_RangeModifier_GateGovernsHostAndHero()
         {
             UnitData attacker = MakeUnit(1);
-            AssertGate(CoreRuleCatalog.RangedShrouding, _ => new RangeModifierContext(attacker));
+            AssertMajorityGate(CoreRuleCatalog.RangedShrouding, _ => new RangeModifierContext(attacker));
         }
 
         [Test]
         public void MeleeShrouding_ChargeModifier_GateGovernsHostAndHero()
         {
             UnitData charger = MakeUnit(1);
-            AssertGate(CoreRuleCatalog.MeleeShrouding,
+            AssertMajorityGate(CoreRuleCatalog.MeleeShrouding,
                 d => new ChargeDeclaredContext(charger, d, BaseDistanceInches: 12f));
         }
 
@@ -179,9 +185,8 @@ namespace FDG.Tests
 
         // --- harness ---
 
-        // Asserts the #183 all-models gate governs a Subject-seat rule both ways: a homogeneous unit fires
-        // it (all native models have it), and a unit whose joined hero lacks it fires nothing (the gate
-        // fails over the hero). buildContext maps the tested defender to its firing context.
+        // #183's every-model gate, which Counter-Attack still carries: a homogeneous unit fires it, and a
+        // unit whose joined hero lacks the rule fires nothing.
         private void AssertGate(SpecialRuleDefinition rule, System.Func<UnitData, IHookContext> buildContext)
         {
             UnitData homogeneous = MakeUnit(5);
@@ -192,6 +197,32 @@ namespace FDG.Tests
             UnitData heroLacks = MakeUnitWithHero(rule, heroHasRule: false);
             Assert.That(ProducesSubjectOps(heroLacks, buildContext(heroLacks)), Is.False,
                 $"a joined hero without {rule.Name} breaks the gate, so the whole unit loses it.");
+        }
+
+        // #420's majority gate, for the five whose book text says "units where most models have this
+        // rule". Three cases, because two of them alone would not pin it: every-model and majority
+        // together would pass with the gate deleted entirely, and the minority case is what proves the
+        // gate still exists.
+        private void AssertMajorityGate(SpecialRuleDefinition rule,
+            System.Func<UnitData, IHookContext> buildContext)
+        {
+            UnitData homogeneous = MakeUnit(5);
+            homogeneous.AttachRuleDefinition(new ResolvedRule(rule.Name, rule));
+            Assert.That(ProducesSubjectOps(homogeneous, buildContext(homogeneous)), Is.True,
+                $"a homogeneous {rule.Name} unit fires it.");
+
+            // 3 host models carry it, a joined hero does not: 3 of 4, still a majority. This is the case
+            // that changed - the every-model gate switched the rule off for the whole unit here, which is
+            // the "one Hero cancels the squad's defence" bug.
+            UnitData heroLacks = MakeUnitWithHero(rule, heroHasRule: false);
+            Assert.That(ProducesSubjectOps(heroLacks, buildContext(heroLacks)), Is.True,
+                $"3 of 4 models have {rule.Name}, so the majority still carries it and it fires - a joined "
+                + "Hero without the rule no longer cancels it for everyone.");
+
+            // 1 of 4 carries it: the hero alone. Not a majority, so nothing fires.
+            UnitData onlyHero = MakeUnitWithHero(rule, heroHasRule: true, hostHasRule: false);
+            Assert.That(ProducesSubjectOps(onlyHero, buildContext(onlyHero)), Is.False,
+                $"only the joined hero has {rule.Name} - 1 of 4 is not most, so it must not fire.");
         }
 
         private bool ProducesSubjectOps(UnitData defender, IHookContext context) =>

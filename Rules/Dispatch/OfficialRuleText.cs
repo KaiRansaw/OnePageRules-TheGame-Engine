@@ -15,10 +15,22 @@ namespace FDG.Rules.Dispatch
     /// text on 2026-10-31, <b>2 of the 38 that could be checked matched; 36 did not</b>, and the misses
     /// were not stylistic. Ambush lost "players alternate in placing"; Blast lost "ignores Cover";
     /// Caster lost the 6-token cap; Aircraft's summary invented a "-12&quot; range, -1 to hit" clause the
-    /// book does not have. <b>Fanatic's summary described an entirely different rule</b> - a 9"
-    /// redeploy, where 3.6.0's Fanatic is "the Hero and its unit get AP(+1) in melee when charging" -
-    /// which is how the implementation came to be wrong too. A summary that drifts is indistinguishable,
-    /// from the outside, from a rule that is built wrong.
+    /// book does not have. A summary that drifts is indistinguishable, from the outside, from a rule that
+    /// is built wrong - and two of the first three checked turned out to be both, Impact and Ravage having
+    /// each lost "unless this unit is Fatigued" from the code as well as from the text.
+    /// </para>
+    /// <para>
+    /// <b>A warning for whoever reads this next, because this very comment got it wrong once.</b> An
+    /// earlier draft asserted here that Fanatic was "built as an entirely different rule". It is not, and
+    /// an audit later cited this comment back as evidence that it was. <b>Fanatic is two rules sharing a
+    /// name:</b> the army book rule - "after this model is deployed, it may be placed anywhere fully
+    /// within 9&quot; of its position, over 9&quot; away from non-Vanguard enemy units", verified against
+    /// the Soul Snatcher Cults book at Army Forge game systems 2, 3 and 9 - and the campaign Hero trait,
+    /// "the Hero and its unit get AP(+1) in melee when charging". The engine implements the book rule,
+    /// which is the one a unit on the table actually carries, and is right to; it is only missing the
+    /// enemy standoff. Five other names collide the same way: Agile, Berserker, Crazed, Destroyer and
+    /// Runner. <b>Diff the text, then read the code, then report.</b> A wrong description is a reason to
+    /// go and look, never a finding on its own.
     /// </para>
     /// <para>
     /// Owner's instruction, 2026-10-31: "<i>I want everything to be 1:1 in wording as the official book.

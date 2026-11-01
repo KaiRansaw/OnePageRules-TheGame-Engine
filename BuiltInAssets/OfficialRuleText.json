@@ -6,22 +6,26 @@
   "stats": {
    "grimdark-future": {
     "rules": 446,
-    "fromCommon": 75,
+    "fromCommon": 39,
     "books": 49,
     "booksListed": 49,
     "conflicts": [
-     "AP",
+     "AP"
+    ],
+    "traitsShadowedByARule": [
      "Agile",
      "Fanatic"
     ]
    },
    "grimdark-future-firefight": {
     "rules": 445,
-    "fromCommon": 75,
+    "fromCommon": 39,
     "books": 56,
     "booksListed": 56,
     "conflicts": [
-     "AP",
+     "AP"
+    ],
+    "traitsShadowedByARule": [
      "Agile",
      "Berserker",
      "Fanatic",
@@ -30,22 +34,26 @@
    },
    "age-of-fantasy": {
     "rules": 422,
-    "fromCommon": 75,
+    "fromCommon": 39,
     "books": 41,
     "booksListed": 41,
     "conflicts": [
-     "AP",
+     "AP"
+    ],
+    "traitsShadowedByARule": [
      "Agile",
      "Destroyer"
     ]
    },
    "age-of-fantasy-skirmish": {
     "rules": 424,
-    "fromCommon": 75,
+    "fromCommon": 39,
     "books": 48,
     "booksListed": 48,
     "conflicts": [
-     "AP",
+     "AP"
+    ],
+    "traitsShadowedByARule": [
      "Agile",
      "Crazed",
      "Destroyer",
@@ -60,6 +68,7 @@
     "conflicts": [
      "AP"
     ],
+    "traitsShadowedByARule": [],
     "mergedFrom": "age-of-fantasy-quest-ai",
     "rulesAfterMerge": 431
    },
@@ -71,6 +80,7 @@
     "conflicts": [
      "AP"
     ],
+    "traitsShadowedByARule": [],
     "mergedFrom": "grimdark-future-star-quest-ai",
     "rulesAfterMerge": 448
    }
@@ -78,7 +88,7 @@
  },
  "grimdark-future": {
   "AP": "Targets get -X to Defense rolls when blocking hits.",
-  "Agile": "Moves +1\" on Advance and +2\" on Rush/Charge actions.",
+  "Agile": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Aircraft": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12\" range and -1 to hit rolls.",
   "Ambush": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambush units, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.",
   "Ambush Aura": "This model and its unit get Ambush.",
@@ -238,7 +248,7 @@
   "Explorer": "Once per game, the Hero and its unit ignore the effects of Difficult and Dangerous terrain.",
   "Extended Buff Range": "If this unit is within 24\" of another friendly unit with this rule that has a Hero in it, then that Hero may use special rules that allow it to pick friendly units within 12\" (except for spells) on this unit as if it was in range.",
   "Extra Reach": "This model gets +4\"/+2\" range when shooting/charging.",
-  "Fanatic": "The Hero and its unit get AP(+1) in melee when charging.",
+  "Fanatic": "After this model is deployed, it may be placed anywhere fully within 9\" of its position, over 9\" away from non-Vanguard enemy units.",
   "Fast": "Moves +2\" when using Advance, and +4\" when using Rush/Charge.",
   "Fast Aura": "This model and its unit moves +2\" when using Advance actions and +4\" when using Rush/Charge actions.",
   "Fast Learner": "May pick any other trait from the list.",
@@ -526,7 +536,7 @@
  },
  "grimdark-future-firefight": {
   "AP": "Targets get -X to Defense rolls when blocking hits.",
-  "Agile": "Moves +1\" on Advance and +2\" on Rush/Charge actions.",
+  "Agile": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Aircraft": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12\" range and -1 to hit rolls.",
   "Ambush": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambush units, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.",
   "Ambush Aura": "This model's unit and up to 2 friendly units picked before the start of the game get Ambush. If this model is killed, picked models that are deployed lose the rule.",
@@ -553,7 +563,7 @@
   "Banner": "This model's unit and up to 2 friendly units picked before the start of the game get +1 to Morale Test rolls triggered by shooting/melee. If this model is killed, picked models that are deployed lose the rule.",
   "Battle-Hardened": "If most models in this unit have this rule, they get +1 to Morale Test rolls when shot/charged from over 9\"/6\" away.",
   "Battleborn": "If a unit where most models have this rule is Shaken at the beginning of the round, roll one die. On a 4+, it stops being Shaken.",
-  "Berserker": "Once per game, the Hero may ignore becoming Fatigued.",
+  "Berserker": "When this model shoots/charges enemies over 9\"/6\" away, unmodified result of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
   "Blast": "Ignores Cover, and after resolving other special rules, each hit is multiplied by X. Hits must be split evenly between the target and all enemy units within 3\" of any model from the target (defender picks how), but each unit may only take up to as many hits as models in it",
   "Blinded": "Gets -1 to hit rolls when using move actions and shooting.",
   "Bloodborn": "For each unmodified roll of 6 to hit when attacking, this model may roll +1 attack with that weapon. This rule doesn't apply to newly generated attacks.",
@@ -703,7 +713,7 @@
   "Explorer": "Once per game, the Hero ignores the effects of Difficult and Dangerous terrain.",
   "Extended Buff Range": "If this unit is within 24\" of another friendly unit with this rule that is within 6\" of a friendly Hero, then that Hero may use special rules that allow it to pick friendly units within 12\" (except for spells) on this unit as if it was in range.",
   "Extra Reach": "This model gets +4\"/+2\" range when shooting/charging.",
-  "Fanatic": "The Hero gets AP(+1) in melee when charging.",
+  "Fanatic": "After this model is deployed, it may be placed anywhere fully within 9\" of its position, over 9\" away from non-Vanguard enemy units.",
   "Fast": "Moves +2\" when using Advance, and +4\" when using Rush/Charge.",
   "Fast Aura": "This model's unit and up to 2 friendly units picked before the start of the game moves +2\" when using Advance actions and +4\" when using Rush/Charge actions. If this model is killed, picked models that are deployed lose the rule.",
   "Fast Learner": "May pick any other trait from the list.",
@@ -874,7 +884,7 @@
   "Repel Ambushers": "Enemy units using Ambush must be set up over 12\" away from this model's unit.",
   "Resilient": "Gets +1 to Defense rolls when blocking hits.",
   "Retaliate": "When this model takes wounds in melee, the attacker takes X hits per wound taken.",
-  "Runner": "The Hero moves +2\" on Rush/Charge actions.",
+  "Runner": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Safety Gear": "If most models in this unit have this rule, they get +1 to Defense rolls when shot/charged from over 9\"/6\" away.",
   "Scourge": "For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests.",
   "Scout": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 9\" of their deployment zone, over 9\" away from non-Scout enemy units. Players alternate in placing Scout units, starting with the player that activates next.",
@@ -973,7 +983,7 @@
  },
  "age-of-fantasy": {
   "AP": "Targets get -X to Defense rolls when blocking hits.",
-  "Agile": "Moves +1\" on Advance and +2\" on Rush/Charge actions.",
+  "Agile": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Aircraft": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12\" range and -1 to hit rolls.",
   "Ambush": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambush units, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.",
   "Ambush Aura": "This model and its unit get Ambush.",
@@ -1030,7 +1040,7 @@
   "Defensive Frenzy": "If most models in this unit have this rule, place one token on this unit when it fully destroys an enemy unit, up to a max. of two tokens. For each token this unit gets +1 to Defense rolls until the end of the game.",
   "Delayed Action": "Once per round, if your opponent has more units left to activate than you, then this model's unit may pass its turn instead of activating (may still be activated later).",
   "Demolish": "Ignores Cover, and when attacking units with most models within 1\" of terrain, this weapon gets AP(+1).",
-  "Destroyer": "The Hero and its unit get AP(+1) when using move actions and shooting.",
+  "Destroyer": "When this model shoots/charges enemies over 9\"/6\" away, unmodified results of 1 to block hits from weapons deal 1 extra wound.",
   "Destructive": "When attacking units with more than half of their total size or Tough value (for single-model units), those hits get AP(+1).",
   "Difficult Terrain Debuff": "Once per activation, before attacking, pick one enemy unit within 18\" in line of sight, which counts as being in Difficult terrain once (next time the effect would apply).",
   "Disintegrate": "Ignores Regeneration, and when attacking units where most models have Tough(3) or higher, this weapon gets AP(+2).",
@@ -1397,7 +1407,7 @@
  },
  "age-of-fantasy-skirmish": {
   "AP": "Targets get -X to Defense rolls when blocking hits.",
-  "Agile": "Moves +1\" on Advance and +2\" on Rush/Charge actions.",
+  "Agile": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Aircraft": "May only use Advance actions, moving in a straight line, and adding 30\" to its total move (even if Shaken). Aircraft ignore all units and terrain when moving and stopping, can't seize or contest objectives, can't be charged, and units targeting them get -12\" range and -1 to hit rolls.",
   "Ambush": "May be set aside before deployment. At the start of any round after the first, may be deployed anywhere over 9\" away from enemy units. Players alternate in placing Ambush units, starting with the player that activates next. Units that deploy via Ambush can't seize or contest objectives on the round they deploy.",
   "Ambush Aura": "This model's unit and up to 2 friendly units picked before the start of the game get Ambush. If this model is killed, picked models that are deployed lose the rule.",
@@ -1437,7 +1447,7 @@
   "Counter in Melee": "This model gets Counter on its weapons in melee.",
   "Counter in Melee Aura": "This model's unit and up to 2 friendly units picked before the start of the game get Counter on its weapons in melee. If this model is killed, picked models that are deployed lose the rule.",
   "Counter-Attack": "May strike first when charged, unless this unit is Fatigued.",
-  "Crazed": "Gets +1 to hit rolls in melee when charging.",
+  "Crazed": "For each unmodified roll of 6 to hit when attacking, this model may roll +1 attack with that weapon. This rule doesn't apply to newly generated attacks.",
   "Crippled": "Moves -1\" on Advance and -2\" on Rush/Charge actions.",
   "Crossing Attack": "Once per activation, when this model moves through enemy units, pick one of them and roll X dice. For each 6+ the target takes one wound.",
   "Crossing Strike": "Once per activation, when this model moves through enemy units, pick one of them and attack it with this weapon as if it was shooting. This weapon may only be used in this way.",
@@ -1452,7 +1462,7 @@
   "Defensive Frenzy": "If most models in this unit have this rule, place one token on this unit when it fully destroys an enemy unit, up to a max. of two tokens. For each token this unit gets +1 to Defense rolls until the end of the game.",
   "Delayed Action": "Once per round, if your opponent has more units left to activate than you, then this model's unit may pass its turn instead of activating (may still be activated later).",
   "Demolish": "Ignores Cover, and when attacking units with most models within 1\" of terrain, this weapon gets AP(+1).",
-  "Destroyer": "The Hero gets AP(+1) when using move actions and shooting.",
+  "Destroyer": "When this model shoots/charges enemies over 9\"/6\" away, unmodified results of 1 to block hits from weapons deal 1 extra wound.",
   "Destructive": "When attacking units with more than half of their total size or Tough value (for single-model units), those hits get AP(+1).",
   "Disintegrate": "Ignores Regeneration, and when attacking units where most models have Tough(9) or higher, this weapon gets AP(+2).",
   "Dodge": "If most models in this unit have this rule, as long as they aren't Fatigued, enemy units get -1 to hit rolls in melee against them.",
@@ -1729,7 +1739,7 @@
   "Retreating Strike": "Once per round, when this unit ends its move within 3\" of enemy units after being in melee, pick one of them and roll X dice for each model with this rule in this unit. For each 6+ the target takes one wound.",
   "Royal Legion": "This model gets +4\"/+2\" range when shooting/charging.",
   "Royal Warrior": "For each unmodified roll of 6 to hit when attacking, this model may roll +1 attack with that weapon. This rule doesn't apply to newly generated attacks.",
-  "Runner": "The Hero moves +2\" on Rush/Charge actions.",
+  "Runner": "Moves +1\" when using Advance, and +2\" when using Rush/Charge.",
   "Savage": "When this model shoots/charges enemies over 9\"/6\" away, unmodified result of 6 to hit deal 1 extra hit (only the original hit counts as a 6 for special rules).",
   "Scourge": "For each unmodified result of 1 to block hits, enemies count as having taken 2 extra wounds when checking who won melee, or if shooting wounds would trigger Morale Tests.",
   "Scout": "May be set aside before deployment. After all other units are deployed, may be deployed anywhere fully within 9\" of their deployment zone, over 9\" away from non-Scout enemy units. Players alternate in placing Scout units, starting with the player that activates next.",

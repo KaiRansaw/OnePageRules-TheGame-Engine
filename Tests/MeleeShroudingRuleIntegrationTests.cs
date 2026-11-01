@@ -24,7 +24,7 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void EffectiveChargeDistance_AgainstShroudingDefender_ReducedByThree()
+        public void EffectiveChargeDistance_AgainstShroudingDefender_ReducedByTwo()
         {
             DataBinding<UnitData> charger = MakeUnit();
             DataBinding<UnitData> defender = MakeUnit();
@@ -33,7 +33,9 @@ namespace FDG.Tests
             float effective = MovementRuleQueries.EffectiveChargeDistanceAgainst(
                 charger.GetValue(), defender.GetValue(), baseChargeInches: 12f, _ctx.RuleEvaluator);
 
-            Assert.That(effective, Is.EqualTo(9f), "Melee Shrouding's -3\" reduces the 12\" charge to 9\".");
+            // #420: the book says -2", not -3". The old -3 cost a charger a whole inch it should keep,
+            // which decides charges that just barely reach.
+            Assert.That(effective, Is.EqualTo(10f), "Melee Shrouding's -2\" reduces the 12\" charge to 10\".");
         }
 
         [Test]

@@ -61,8 +61,9 @@ namespace FDG.Tests
 
             Attach(enemy, "Ranged Shrouding", CoreRuleCatalog.RangedShrouding);
 
-            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, _ctx), Is.False,
-                "the defender's -6\" range (6\" effective) no longer reaches the 7\" target.");
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, _ctx), Is.True,
+                "#420: the book's reduction is -4\", not -6\", so a 12\" rifle still reaches 8\" - and the "
+                + "7\" target stays in range. The old -6 refused shots the rule allows.");
         }
 
         [Test]
@@ -82,7 +83,8 @@ namespace FDG.Tests
 
             Attach(defender, "Ranged Shrouding", CoreRuleCatalog.RangedShrouding);
             Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), weapon, defender.GetValue(), ev),
-                Is.EqualTo(12f), "defender's -6 debuff (Subject seat) nets against the +6 buff.");
+                Is.EqualTo(14f), "defender's -4 debuff (Subject seat) nets against the +6 buff (#420: -4, "
+                + "not -6).");
         }
 
         [Test]
@@ -93,13 +95,13 @@ namespace FDG.Tests
             Attach(defender, "Ranged Shrouding", CoreRuleCatalog.RangedShrouding);
             RuleEvaluator ev = _ctx.RuleEvaluator;
 
-            // 9" weapon: 9 - 6 = 3, but the rule floors the result at 6".
+            // 9" weapon: 9 - 4 = 5, but the rule floors the result at 6".
             Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), Rifle(9f), defender.GetValue(), ev),
-                Is.EqualTo(6f), "the -6 reduction is floored at the rule's 6\" minimum.");
+                Is.EqualTo(6f), "the -4 reduction is floored at the rule's 6\" minimum.");
 
-            // 24" weapon: 24 - 6 = 18, comfortably above the floor.
+            // 24" weapon: 24 - 4 = 20, comfortably above the floor. #420 corrected this from -6 (18").
             Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), Rifle(24f), defender.GetValue(), ev),
-                Is.EqualTo(18f), "the floor doesn't apply when the reduced range is already above it.");
+                Is.EqualTo(20f), "the floor doesn't apply when the reduced range is already above it.");
         }
 
         [Test]

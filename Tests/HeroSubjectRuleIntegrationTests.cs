@@ -85,15 +85,33 @@ namespace FDG.Tests
         // Host has Shielded, joined hero lacks it, grunts alive: the unit LOSES the bonus (the host-side /
         // audit-Bug-24 direction, exercised end-to-end through the real stage).
         [Test]
-        public async Task HostShielded_JoinedHeroLacksIt_SuppressedForUnit()
+        public async Task HostShielded_JoinedHeroLacksIt_StillFiresForTheMajority()
         {
+            // #420 flipped this assertion. Shielded's book text is "units where MOST models have this
+            // rule", and #183 had built it on every-model: a single joined Hero cancelled the squad's
+            // +1 Defense. The host here is 3 models to the Hero's 1, so the majority still carries it.
             DataBinding<UnitData> defender = MakeMergedDefender(CoreRuleCatalog.Shielded,
                 heroHasRule: false, hostHasRule: true);
 
             RollToHitResults result = await RunHitStage(defender);
 
+            Assert.That(result.SaveModifier, Is.EqualTo(1),
+                "3 of the 4 living models have Shielded, so the unit keeps its +1 - a joined Hero "
+                + "without the rule no longer switches it off for everyone.");
+        }
+
+        // The other side of the same gate, so the flip above cannot be satisfied by deleting the gate:
+        // when ONLY the joined hero has Shielded, 1 of 4 is not a majority and nothing fires.
+        [Test]
+        public async Task OnlyTheJoinedHeroHasShielded_DoesNotFireForTheUnit()
+        {
+            DataBinding<UnitData> defender = MakeMergedDefender(CoreRuleCatalog.Shielded,
+                heroHasRule: true, hostHasRule: false);
+
+            RollToHitResults result = await RunHitStage(defender);
+
             Assert.That(result.SaveModifier, Is.EqualTo(0),
-                "a joined hero without Shielded breaks it for the whole unit.");
+                "1 of 4 models is not most, so the unit gets nothing.");
         }
 
         // Both host and hero carry Shielded: every living model has it, so it fires - exactly ONCE (per-unit
@@ -131,8 +149,10 @@ namespace FDG.Tests
                 RuleParticipant.Subject(defender, models: HeroStatRules.LivingModels(defender)));
 
             Assert.That(output.DebugLines,
-                Has.Some.Match(".*Evasive.*condition AllModelsHaveThisRule not met.*"),
-                "the hero's relocated Evasive is evaluated and its gate reported - not silently dropped.");
+                Has.Some.Match(".*Evasive.*condition MostModelsHaveThisRule not met.*"),
+                "the hero's relocated Evasive is evaluated and its gate reported - not silently dropped. "
+                + "#420 moved Evasive onto the majority gate, so the trace names that one now; the point "
+                + "of the test is that the suppressed rule is still narrated, whichever gate it is.");
         }
 
         // --- harness (mirrors HeroPerModelRuleIntegrationTests) ---

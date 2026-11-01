@@ -232,7 +232,11 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.AllModelsHaveThisRule(),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.MostModelsHaveThisRule(),
                 new Effect.RollModifier(ERollKind.Hit, Delta: -1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -250,7 +254,11 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                new Condition.And(new Condition.IsMelee(), new Condition.AllModelsHaveThisRule()),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.And(new Condition.IsMelee(), new Condition.MostModelsHaveThisRule()),
                 new Effect.RollModifier(ERollKind.Hit, Delta: -1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -1371,7 +1379,11 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnSaveRollComplete,
-                new Condition.AllModelsHaveThisRule(),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.MostModelsHaveThisRule(),
                 new Effect.IgnoreWoundOnRoll(MinRoll: 6),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -1428,7 +1440,11 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollComplete,
-                new Condition.And(new Condition.IsNotSpell(), new Condition.AllModelsHaveThisRule()),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.And(new Condition.IsNotSpell(), new Condition.MostModelsHaveThisRule()),
                 new Effect.RollModifier(ERollKind.Save, Delta: +1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -1449,7 +1465,11 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnHitRollComplete,
-                new Condition.AllModelsHaveThisRule(),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.MostModelsHaveThisRule(),
                 new Effect.ReduceArmorPenetration(1),
                 ELifetime.ThisAttack,
                 ERuleSeat.Subject),
@@ -2397,8 +2417,14 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Shooting_OnRangeCheck,
-                new Condition.AllModelsHaveThisRule(),
-                new Effect.RangeModifier(Delta: -6, MinResultInches: 6),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.MostModelsHaveThisRule(),
+                // #420: the book says -4", not -6". A 24" weapon shooting into this unit reads 20",
+                // and the engine was refusing every shot between 20" and 18".
+                new Effect.RangeModifier(Delta: -4, MinResultInches: 6),
                 ELifetime.ThisActivation,
                 ERuleSeat.Subject),
         },
@@ -2473,8 +2499,14 @@ public static class CoreRuleCatalog
         new[]
         {
             new HookEntry(EHookID.Movement_OnChargeDeclared,
-                new Condition.AllModelsHaveThisRule(),
-                new Effect.MovementBonus(EActionType.Charge, DistanceInches: -3f, MinResultInches: 6f),
+                // #420: the 3.6.0 text is "units where MOST models have this rule". #409 moved
+                // Stealth, Regeneration, Fearless and Artillery onto the majority gate and stopped
+                // there, so this one kept #093's every-model gate - and one joined Hero without the
+                // rule switched the whole unit's benefit off.
+                new Condition.MostModelsHaveThisRule(),
+                // #420: the book says -2", not -3". A 12" charge into this unit reaches 10", not 9",
+                // so charges that should just connect were failing by an inch.
+                new Effect.MovementBonus(EActionType.Charge, DistanceInches: -2f, MinResultInches: 6f),
                 ELifetime.ThisActivation,
                 ERuleSeat.Subject),
         },

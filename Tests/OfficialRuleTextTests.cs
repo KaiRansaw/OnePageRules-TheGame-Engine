@@ -181,6 +181,40 @@ namespace FDG.Tests
             }
         }
 
+        /// <summary>
+        /// Six names exist in BOTH of OPR's namespaces and mean different rules in each: a campaign
+        /// Hero trait and an army book's unit rule. Grimdark Future's Hero trait <b>Fanatic</b> is "the
+        /// Hero and its unit get AP(+1) in melee when charging"; the Soul Snatcher Cults BOOK rule of
+        /// the same name - which a unit on the table actually carries - is a 9" redeploy.
+        ///
+        /// <para>
+        /// The first cut of the harvest loaded traits before books and let nothing overwrite, so it
+        /// shipped the trait's text for all six. That is not a wording difference, it is the wrong
+        /// rule, and it is the same failure this whole work item exists to remove - just reintroduced
+        /// one layer further out. Books now beat traits, and this pins it.
+        /// </para>
+        /// </summary>
+        [Test]
+        public void WhereATraitAndABookRuleShareAName_TheBookRuleWins()
+        {
+            (string Rule, string System, string BookPhrase, string TraitPhrase)[] collisions =
+            {
+                ("Fanatic", GameSystems.GrimdarkFuture, "placed anywhere fully within", "AP(+1) in melee"),
+                ("Fanatic", GameSystems.GFFirefight, "placed anywhere fully within", "AP(+1) in melee"),
+            };
+
+            foreach ((string rule, string system, string book, string trait) in collisions)
+            {
+                string? text = OfficialRuleText.Text(rule, system);
+                Assert.That(text, Is.Not.Null, $"{rule} missing for {system}");
+                Assert.That(text, Does.Contain(book).IgnoreCase,
+                    $"{rule} in {system} must carry the BOOK rule's text - that is what a unit has.");
+                Assert.That(text, Does.Not.Contain(trait).IgnoreCase,
+                    $"{rule} in {system} is showing the campaign Hero trait's text instead of the book "
+                    + "rule's. Check the trait/book ordering in scripts/harvest-rule-text.py.");
+            }
+        }
+
         /// <summary>A null or unknown definition is an empty string, not a throw, in a draw loop.</summary>
         [Test]
         public void DisplayIsSafeForNull()
