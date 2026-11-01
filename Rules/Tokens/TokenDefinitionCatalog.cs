@@ -194,6 +194,11 @@ public static class TokenDefinitionCatalog
             new(TokenType.POST_COMBAT_MOVE_USED_ID, "Post-combat move used", EValence.Neutral,
                 ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.RoundEnd()),
 
+            // #422: Ravage is "once per round", not once per melee - this is the budget, stamped when the
+            // dice are actually rolled rather than when the hook merely evaluates.
+            new(TokenType.RAVAGED_THIS_ROUND_ID, "Ravage used", EValence.Neutral,
+                ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.RoundEnd()),
+
             // #381: "fought in melee this round", either role - the data-readable gate for
             // "after being in melee" rules (AoF Retreating Strike). Stamped by ApplyFatigueStage.
             new(TokenType.WAS_IN_MELEE_THIS_ROUND_ID, "Was in melee", EValence.Neutral,

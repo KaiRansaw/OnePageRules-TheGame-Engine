@@ -143,6 +143,63 @@ namespace FDG.Tests
                 + "stopped them and not some other part of the setup.");
         }
 
+        // ── The "once per round" clause (#422) ───────────────────────────────────────────────────────
+        //
+        // Ravage opens with "ONCE PER ROUND, when it's this model's turn to strike in melee". The engine
+        // ran ResolveRavageWoundsStage once per SWINGING unit - MeleeStage for the striker, StrikeBackStage
+        // for the striker-back - which is exactly right inside one melee (both combatants Ravage before
+        // their own swings, neither twice) and wrong across a round: a unit that charges on its own
+        // activation and is then charged itself later in the round swings in two melees, and rolled its
+        // full dice in both. A Ravage(6) carrier was worth 12 unsaveable wounds a round instead of 6.
+        //
+        // RavagedThisRound is stamped by the STAGE when dice actually roll, so these two cases are the
+        // pair that matters: the second melee rolls nothing, and the budget is not spent by a melee that
+        // rolled nothing.
+        [Test]
+        public async Task Ravage_SecondMeleeInTheSameRound_RollsNothing()
+        {
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachRavage(attacker, x: 3);
+            DataBinding<UnitData> firstVictim = MakeUnit(modelCount: 5);
+            DataBinding<UnitData> secondVictim = MakeUnit(modelCount: 5);
+
+            await RunStage(ctx, attacker, firstVictim);
+            await RunStage(ctx, attacker, secondVictim);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(firstVictim.RemainingWounds(), Is.EqualTo(2f),
+                    "the first melee of the round rolls its 3 dice as normal.");
+                Assert.That(secondVictim.RemainingWounds(), Is.EqualTo(5f),
+                    "the second melee in the SAME round rolls nothing - once per round is once per round, "
+                    + "not once per melee.");
+            });
+        }
+
+        // The budget must only be spent by a roll that happened. A Fatigued unit is gated out of its first
+        // melee, so if the token were stamped on evaluation rather than on the roll it would also lose the
+        // Ravage it is entitled to once the Fatigue clears - which is why the stamp lives in the stage.
+        [Test]
+        public async Task Ravage_AMeleeThatRolledNothing_DoesNotSpendTheRound()
+        {
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachRavage(attacker, x: 3);
+            attacker.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Fatigued));
+            DataBinding<UnitData> gatedVictim = MakeUnit(modelCount: 5);
+
+            await RunStage(ctx, attacker, gatedVictim);
+            Assert.That(gatedVictim.RemainingWounds(), Is.EqualTo(5f), "Fatigued - nothing rolled.");
+
+            attacker.GetValue().Tokens.RemoveTokens(TokenType.Fatigued);
+            DataBinding<UnitData> laterVictim = MakeUnit(modelCount: 5);
+            await RunStage(ctx, attacker, laterVictim);
+
+            Assert.That(laterVictim.RemainingWounds(), Is.EqualTo(2f),
+                "the round's Ravage was never rolled, so it is still there to roll.");
+        }
+
         // Per-model scaling: X is per model carrying the rule. A unit-scoped Ravage(2) on a 3-model unit
         // rolls 2 x 3 = 6 dice, computed in Effect.DealAutoWounds (carrier count), not per-model evaluation
         // (which dedups once per unit). 6 sixes = 6 wounds.

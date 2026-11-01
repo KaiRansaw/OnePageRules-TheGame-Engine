@@ -4,6 +4,7 @@ using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Dispatch.Contexts;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.Utilities;
 
 namespace FDG.Stages
@@ -85,6 +86,12 @@ namespace FDG.Stages
                     GameContext, dice, group.Key, "Ravage", defender.Name);
                 totalWounds += wounds.TotalRolls;
             }
+
+            // #422: the round's budget is spent HERE, where the dice were actually rolled - not in the
+            // hook's condition. An evaluation that found no living carriers, or a pool of zero dice, must
+            // leave the budget alone, or a unit could lose its Ravage to a melee in which it never rolled.
+            // RoundEnd clear trigger, swept by the round-end token pass like Fatigued.
+            attacker.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.RavagedThisRound));
 
             GameContext.Log($"{attacker.Name}'s Ravage dealt {totalWounds:0.##} unsaveable wound(s) to {defender.Name}.");
 

@@ -202,13 +202,16 @@ public static class TransportUtilities
     /// the END of an entering move, not a teleport: the unit walks up with an ordinary Move and this is the
     /// band in which the Embark action becomes available.
     ///
-    /// Not zero, and deliberately so. True base contact is unreachable in practice — #205 makes friendly
-    /// models end-of-move obstacles, so a mover can never actually touch the hull — and no click-driven
-    /// placement lands on an exact 0.0. 1" is the same forgiving band the cohesion rule uses
-    /// (<c>GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES</c>), which is what "adjacent"
-    /// already means everywhere else in the engine.
+    /// <b>#422: this is the book's own number, not an engine choice.</b> Transport reads "units may
+    /// enter/exit by using any move action, <b>getting within 2" to enter</b>, and staying fully within 6"
+    /// when exiting" — identically in all six systems, which differ only in the Tough caps. It was 1" here,
+    /// reasoned from first principles (true base contact is unreachable since #205 made friendly models
+    /// end-of-move obstacles, so the band had to be non-zero, and 1" matched the cohesion rule's idea of
+    /// "adjacent"). The reasoning was sound and the number was still wrong: a unit that walked up and
+    /// stopped 1.5" from the hull was refused a boarding it is entitled to. The 6" exit band below is from
+    /// the same sentence and was already right.
     /// </summary>
-    public const float EmbarkContactDistanceInches = 1f;
+    public const float EmbarkContactDistanceInches = 2f;
 
     /// <summary>
     /// Whether a proposed model position is within <see cref="MaxTransportRangeInches"/> of the transport —

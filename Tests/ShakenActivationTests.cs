@@ -131,6 +131,108 @@ namespace FDG.Tests
 
         // --- Helpers ---
 
+        // --- #422: Aircraft is the exception to force-idle ---------------------------------------------
+        //
+        // Aircraft reads "may only use Advance actions, moving in a straight line, and adding 30" to its
+        // total move (even if Shaken)". The parenthesis is the rule: a plane that stops flying falls out
+        // of the sky, so Shaken does not ground it. The engine hovered it in place, which cannot happen
+        // on a table.
+
+        [Test]
+        public async Task ShakenAircraft_FliesItsForcedAdvance_InsteadOfIdling()
+        {
+            var unit = MakeUnit(new Position(0, 0));
+            MakeAircraft(unit);
+            MakeShaken(unit);
+
+            (bool reconciled, bool moved) = await RunChooseActionWatchingMovement(NewActivation(unit));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(moved, Is.True, "a Shaken Aircraft is sent to its forced Advance.");
+                Assert.That(reconciled, Is.False, "and must NOT be skipped straight to end-of-activation.");
+                Assert.That(unit.GetValue().Tokens.HasToken(TokenType.Shaken), Is.False,
+                    "it still recovers - flying out the Shaken is what the activation was spent on.");
+            });
+        }
+
+        // The other half, and the one that keeps the fix honest: flying is not an escape from Shaken into
+        // a full activation. The forced move returns to this stage, and on that second pass the unit must
+        // end its activation rather than be offered a shot.
+        [Test]
+        public async Task ShakenAircraft_AfterItsForcedMove_EndsActivationWithoutShooting()
+        {
+            var unit = MakeUnit(new Position(0, 0));
+            MakeAircraft(unit);
+            MakeShaken(unit);
+
+            UnitActionContext unitCtx = NewActivation(unit);
+            unitCtx.RegisterMoveFinished(30f, 30f);   // the forced Advance has happened
+
+            (bool reconciled, bool moved) = await RunChooseActionWatchingMovement(unitCtx);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reconciled, Is.True,
+                    "Shaken still costs the activation - no shooting after the forced move.");
+                Assert.That(moved, Is.False, "and it does not fly twice.");
+            });
+        }
+
+        // A Shaken NON-aircraft is untouched by the exception: it idles, as it always did.
+        [Test]
+        public async Task ShakenGroundUnit_StillIdles()
+        {
+            var unit = MakeUnit(new Position(0, 0));
+            MakeShaken(unit);
+
+            (bool reconciled, bool moved) = await RunChooseActionWatchingMovement(NewActivation(unit));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reconciled, Is.True);
+                Assert.That(moved, Is.False, "only Aircraft may not stay idle.");
+            });
+        }
+
+        // An immobile Shaken Aircraft (nothing left that can move) falls back to idling rather than being
+        // routed into a movement it cannot make.
+        [Test]
+        public async Task ShakenAircraft_Immobile_FallsBackToIdling()
+        {
+            var unit = MakeUnit(new Position(0, 0));
+            MakeAircraft(unit);
+            MakeShaken(unit);
+
+            UnitActionContext unitCtx = NewActivation(unit);
+            unitCtx.RegisterAttackedFinished();   // GetCanMove says no once the unit has attacked
+
+            (bool reconciled, bool moved) = await RunChooseActionWatchingMovement(unitCtx);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reconciled, Is.True);
+                Assert.That(moved, Is.False);
+            });
+        }
+
+        private async Task<(bool Reconciled, bool Moved)> RunChooseActionWatchingMovement(
+            UnitActionContext unitCtx)
+        {
+            var stage = new ChooseActionStage(_ctx, new NoOpLayer<IUnitActionContext>());
+            bool reconciled = false, moved = false;
+            stage.ToReconcileEndOfActivation.Bind("ToReconcileEndOfActivation");
+            stage.ToReconcileEndOfActivation.OnWillActivate += _ => reconciled = true;
+            stage.ToMovement.Bind("ToMovement");
+            stage.ToMovement.OnWillActivate += _ => moved = true;
+            await stage.Enter(unitCtx);
+            return (reconciled, moved);
+        }
+
+        private static void MakeAircraft(DataBinding<UnitData> unit) =>
+            unit.GetValue().AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule(
+                "Aircraft", FDG.Rules.Dispatch.CoreRuleCatalog.Aircraft));
+
         private async Task<bool> RunChooseAction(UnitActionContext unitCtx)
         {
             var stage = new ChooseActionStage(_ctx, new NoOpLayer<IUnitActionContext>());

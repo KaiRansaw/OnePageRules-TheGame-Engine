@@ -13,6 +13,7 @@ public readonly record struct TokenType(string Id)
     public const string MARK_ID = "Mark";
     public const string POST_COMBAT_MOVE_USED_ID = "PostCombatMoveUsed";
     public const string WAS_IN_MELEE_THIS_ROUND_ID = "WasInMeleeThisRound";
+    public const string RAVAGED_THIS_ROUND_ID = "RavagedThisRound";
     public const string DELAYED_ACTION_USED_ID = "DelayedActionUsed";
     public const string OFF_TABLE_FROM_FORCED_MOVE_ID = "OffTableFromForcedMove";
     public const string LIMITED_SPENT_ID = "LimitedSpent";
@@ -270,6 +271,18 @@ public readonly record struct TokenType(string Id)
     /// shared budget across shooting and melee — a unit moves at most once after combat per round.
     /// </summary>
     public static readonly TokenType PostCombatMoveUsed = new(POST_COMBAT_MOVE_USED_ID);
+
+    /// <summary>
+    /// #422: per-round marker that this unit has already rolled its Ravage dice. Ravage reads "<b>Once per
+    /// round</b>, when it's this model's turn to strike in melee, roll X dice before attacking, unless this
+    /// unit is Fatigued" - and the engine's placement, correctly, rolls it once per SWINGING unit rather
+    /// than once per melee (<c>ResolveRavageWoundsStage</c> runs in both <c>MeleeStage</c> and
+    /// <c>StrikeBackStage</c>). Right for one melee, wrong across a round: a unit that charges on its own
+    /// activation and is then charged itself later in the round swings twice, and so rolled its dice twice.
+    /// Same shape and lifecycle as <see cref="PostCombatMoveUsed"/> - set when the dice are actually
+    /// rolled, RoundEnd clear trigger, swept by the round-end pass.
+    /// </summary>
+    public static readonly TokenType RavagedThisRound = new(RAVAGED_THIS_ROUND_ID);
 
     /// <summary>
     /// #381: round-scoped fact that this unit fought in a melee this round, in EITHER role - stamped on

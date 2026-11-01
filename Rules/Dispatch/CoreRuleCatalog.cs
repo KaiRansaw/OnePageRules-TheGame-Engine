@@ -740,14 +740,23 @@ public static class CoreRuleCatalog
         {
             // #420: "unless this unit is Fatigued" - the clause was missing, so a Fatigued unit still
             // rolled its Ravage dice. Fatigue exists now (Q5); Counter's gate is the same shape.
+            //
+            // #422: "Once per round" is the other clause, and it needed the second token. The hook fires
+            // once per SWINGING unit (ResolveRavageWoundsStage runs in MeleeStage and again in
+            // StrikeBackStage), which is right inside one melee and wrong across a round - a unit that
+            // charged on its own activation and is charged itself later in the round swings twice.
+            // RavagedThisRound is stamped by the stage when the dice are actually rolled, not here: a
+            // hook that evaluates and finds no carriers must not spend the round's budget.
             new HookEntry(EHookID.Melee_OnChargeContact,
-                new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued)),
+                new Condition.And(
+                    new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued)),
+                    new Condition.Not(new Condition.TokenPresent(TokenType.RavagedThisRound))),
                 new Effect.DealAutoWounds(new ValueSource.Arg(0), SuccessThreshold: 6),
                 ELifetime.ThisAttack),
         },
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "When attacking in melee, rolls dice that deal automatic unsaveable wounds before swings.");
+        Description: "Once per round, when attacking in melee and not Fatigued, rolls dice that deal automatic unsaveable wounds before swings.");
 
     /// <summary>
     /// Counter, rewritten for OPR 3.6.0 (#409). The 3.5.1 rule was "strikes first with this weapon when

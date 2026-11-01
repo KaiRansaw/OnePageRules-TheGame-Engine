@@ -118,11 +118,39 @@ namespace FDG.Stages
             {
                 IUnit activatingUnit = context.ActivatingUnit.GetValue();
                 activatingUnit.Tokens.RemoveTokens(TokenType.Shaken);
+
+                // #422: Aircraft is the one unit that cannot stay idle. Its rule reads "may only use
+                // Advance actions, moving in a straight line, and adding 30" to its total move (EVEN IF
+                // SHAKEN)" - the parenthesis is the whole point: an aeroplane that stops flying falls out
+                // of the sky, so a Shaken Aircraft still makes its forced move. The engine hovered it in
+                // place instead, which is both wrong and unreachable on a real table.
+                //
+                // It still gets no attack. The forced Advance returns here, and on that second pass
+                // StartedActivationShaken is still set while HasMoved is now true, so this branch ends the
+                // activation before the shoot option is ever offered - which is exactly what Shaken means.
+                // The idle banner is suppressed on that second pass: the unit did not idle, it flew.
+                bool aircraftMustFly = !context.HasMoved
+                    && AircraftRules.IsAircraft(activatingUnit)
+                    && GetCanMove(context, out _);
+                if (aircraftMustFly)
+                {
+                    await GameContext.Announce(
+                        $"{activatingUnit.Name} is Shaken, but an Aircraft cannot hover - it makes its "
+                        + "forced Advance and recovers.",
+                        ShakenRecoveryBannerColor, EBannerTier.Toast);
+                    await ToMovement.Activate(context);
+                    return;
+                }
+
                 // #278: recovery gets a Toast (tier-2) banner, not just a log line — amber, matching the
                 // Shaken banners it bookends. Announce logs the same text, so the log record is kept.
-                await GameContext.Announce(
-                    $"{activatingUnit.Name} is Shaken - stays idle this activation and recovers.",
-                    ShakenRecoveryBannerColor, EBannerTier.Toast);
+                if (!context.HasMoved)
+                {
+                    await GameContext.Announce(
+                        $"{activatingUnit.Name} is Shaken - stays idle this activation and recovers.",
+                        ShakenRecoveryBannerColor, EBannerTier.Toast);
+                }
+
                 await ToReconcileEndOfActivation.Activate(context);
                 return;
             }

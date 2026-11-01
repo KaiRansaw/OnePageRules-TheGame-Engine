@@ -71,6 +71,36 @@ namespace FDG.Tests
                 "but it is well inside the Rush the unit would use to close the gap.");
         }
 
+        // #422: the boarding band is the book's "getting within 2\" to enter", not the 1" the engine had
+        // reasoned its way to. A unit stopped 1.5" from the hull is inside the band and must be offered
+        // the boarding; at 1" it was refused one it is entitled to. Positions are model CENTRES, and both
+        // bases are 0.5" radius, so a 2.5" centre gap is a 1.5" gap between hulls.
+        [Test]
+        public void GetEmbarkableTransports_WithinTwoInches_CanBoard()
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+            DataBinding<UnitData> transport = MakeTransport("Rhino", capacity: 6, x: 12.5f, z: 10f);
+            DataBinding<UnitData> squad = MakeSquad("Grunts", modelCount: 2, x: 10f, z: 10f);
+
+            var eligible = EmbarkStage.GetEmbarkableTransports(ctx, squad.GetValue(), ContactDistance);
+
+            Assert.That(eligible, Has.Count.EqualTo(1),
+                "1.5\" from the hull is inside the book's 2\" boarding band.");
+            Assert.That(eligible[0], Is.EqualTo(transport));
+        }
+
+        // The far edge of the same band, so the fix is a band and not an unbounded widening.
+        [Test]
+        public void GetEmbarkableTransports_BeyondTwoInches_CannotBoard()
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+            MakeTransport("Rhino", capacity: 6, x: 14f, z: 10f);   // 3" of clear air
+            DataBinding<UnitData> squad = MakeSquad("Grunts", modelCount: 2, x: 10f, z: 10f);
+
+            Assert.That(EmbarkStage.GetEmbarkableTransports(ctx, squad.GetValue(), ContactDistance), Is.Empty,
+                "3\" short of the hull is outside the band - the unit still has to walk over first.");
+        }
+
         [Test]
         public void GetEmbarkableTransports_ExcludesOutOfRange()
         {
