@@ -43,9 +43,9 @@ namespace FDG.Tests
         private ITableState Table => _context.TableState;
 
         private DataBinding<UnitData> Unit(PlayerID owner, string name, float x, float z,
-            float rangeInches = 24f)
+            float rangeInches = 24f, int meleeAttacks = 2)
         {
-            var weapons = new List<Weapon> { new Weapon("CCW", 0f, 2, 0) };
+            var weapons = new List<Weapon> { new Weapon("CCW", 0f, meleeAttacks, 0) };
             if (rangeInches > 0f) weapons.Insert(0, new Weapon("Rifle", rangeInches, 2, 0));
             var model = new ModelData(0.5f, weapons, new Position(x, z), _store);
             var bindings = new List<DataBinding<ModelData>>
@@ -79,6 +79,152 @@ namespace FDG.Tests
             ChooseActionStage.SHOOT_CHOICE_NAME,
             ChooseActionStage.PASS_CHOICE_NAME,
         };
+
+        // ── #423 Ambush: "must always be kept in reserve" ────────────────────────────────────────────
+        //
+        // The clause: "AI units with Ambush must always be kept in reserve, and must always deploy at the
+        // start of the second round." The arrival half needed no code - Ambush defers with
+        // MinArrivalRound 2 and AiYesNoResolver answers the arrival prompt with its declared default of
+        // yes - so these cases are about the hold.
+        //
+        // The engine deliberately answered this prompt with "Deploy Normally" before, because the
+        // BASELINE bot's reserve placement drops a unit at the first legal row from a table edge. The
+        // official bot has placed through SoloCoOpPlaceObjectsResolver since #419, which aims at the
+        // closest objective, so following the book no longer strands the unit.
+
+        [Test]
+        public async Task AmbushUnit_IsHeldInReserve()
+        {
+            var resolver = new SoloCoOpStringSelectionResolver(
+                new AiStringSelectionResolver(Table, _ai, null));
+
+            string pick = await resolver.Resolve(HoldOrDeploy("Ambush"));
+
+            Assert.That(pick, Is.EqualTo(ChooseUnitToDeployStage.HoldChoiceFor("Ambush")),
+                "\"must always be kept in reserve\" - the official bot holds every Ambush unit.");
+        }
+
+        // The same prompt serves every rule that defers a deployment, and the book's clause names Ambush
+        // only. Anything else keeps the old answer rather than being guessed at.
+        [Test]
+        public async Task ADifferentDeferringRule_StillDeploysNormally()
+        {
+            var resolver = new SoloCoOpStringSelectionResolver(
+                new AiStringSelectionResolver(Table, _ai, null));
+
+            string pick = await resolver.Resolve(HoldOrDeploy("Hidden Route"));
+
+            Assert.That(pick, Is.EqualTo(ChooseUnitToDeployStage.DEPLOY_NORMALLY_CHOICE),
+                "the clause is about Ambush; another rule's hold option is not silently adopted.");
+        }
+
+        // And the baseline is untouched - plan D1 freezes it, and its own comment explains why it
+        // declines.
+        [Test]
+        public async Task TheBaselineResolver_StillDeploysAnAmbushUnitNormally()
+        {
+            var baseline = new AiStringSelectionResolver(Table, _ai, null);
+
+            string pick = await baseline.Resolve(HoldOrDeploy("Ambush"));
+
+            Assert.That(pick, Is.EqualTo(ChooseUnitToDeployStage.DEPLOY_NORMALLY_CHOICE));
+        }
+
+        private StringSelectionRequest HoldOrDeploy(string ruleName) =>
+            new(_ai, $"Deploy Raiders now, or hold it in {ruleName}?",
+                new List<string>
+                {
+                    ChooseUnitToDeployStage.HoldChoiceFor(ruleName),
+                    ChooseUnitToDeployStage.DEPLOY_NORMALLY_CHOICE,
+                    ChooseUnitToDeployStage.BACK_TO_LIST_CHOICE,
+                },
+                new List<StringSelectionRequest.InvalidOption>());
+
+        // ── #423 Indirect / Relentless: "always use Hold actions and shoot" ──────────────────────────
+        //
+        // "AI units with Indirect weapons that are in range of enemies always use Hold actions and
+        // shoot", and the same sentence for Relentless. It overrides the decision tree, so the board
+        // below is one where the tree does something else: a brawler with a big close-combat weapon and
+        // an enemy six inches away, which the tree charges because melee is its better attack.
+        //
+        // It matters most for Indirect itself: since 3.6.0 that rule only ignores line of sight ON A HOLD
+        // ACTION, so an AI that charged (or walked) and fired threw the rule away entirely.
+
+        [Test]
+        public async Task IndirectWeaponInRange_HoldsAndShoots_InsteadOfCharging()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Mortar Brutes", 24f, 24f, meleeAttacks: 8);
+            GiveWeaponRule(ai, "Rifle", "Indirect");
+            Unit(_player, "Troops", 30f, 24f);   // 6" - inside charge reach AND the 24" weapon
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.SHOOT_CHOICE_NAME),
+                "the Indirect clause outranks the tree: stand still and fire rather than charge.");
+        }
+
+        [Test]
+        public async Task RelentlessUnitInRange_HoldsAndShoots_InsteadOfCharging()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Veterans", 24f, 24f, meleeAttacks: 8);
+            GiveUnitRule(ai, "Relentless");
+            Unit(_player, "Troops", 30f, 24f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.SHOOT_CHOICE_NAME),
+                "Relentless is worded for the unit rather than the weapon, and its clause is the same.");
+        }
+
+        // The control that gives the two above their meaning: the identical board and the identical unit
+        // WITHOUT either rule charges, because melee is its better attack. So the Shoot picks above are
+        // the clause doing the work and not the fixture.
+        [Test]
+        public async Task TheSameBrawlerWithoutTheRule_Charges()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, meleeAttacks: 8);
+            Unit(_player, "Troops", 30f, 24f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.CHARGE_CHOICE_NAME),
+                "no Indirect and no Relentless - the tree charges with eight attacks.");
+        }
+
+        // And the reason the clause is written "that are in range": an Indirect weapon with nothing in
+        // reach has no shot to hold for, so the tree gets the unit back.
+        [Test]
+        public async Task IndirectWeaponOutOfRange_GoesBackToTheDecisionTree()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Mortar Team", 10f, 24f);
+            GiveWeaponRule(ai, "Rifle", "Indirect");
+            Objective(46f, 24f);
+            Unit(_player, "Troops", 90f, 90f);   // far outside the 24" weapon
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.MOVEMENT_CHOICE_NAME),
+                "nothing in range, so the clause does not apply and the objective run stands.");
+        }
+
+        private static void GiveUnitRule(DataBinding<UnitData> unit, string ruleName) =>
+            unit.GetValue().AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule(ruleName,
+                new FDG.Rules.Definitions.SpecialRuleDefinition(ruleName,
+                    Array.Empty<FDG.Rules.Definitions.HookEntry>(),
+                    Array.Empty<FDG.Rules.Definitions.ActivatedAbility>())));
+
+        private static void GiveWeaponRule(DataBinding<UnitData> unit, string weaponName, string ruleName)
+        {
+            foreach (IModel model in unit.GetValue().Models)
+            foreach (IWeapon weapon in model.Weapons)
+            {
+                if (weapon.Name != weaponName) continue;
+                ((Weapon)weapon).AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule(ruleName,
+                    new FDG.Rules.Definitions.SpecialRuleDefinition(ruleName,
+                        Array.Empty<FDG.Rules.Definitions.HookEntry>(),
+                        Array.Empty<FDG.Rules.Definitions.ActivatedAbility>())));
+            }
+        }
 
         // ── The action it picks ───────────────────────────────────────────────────────────────────────
 

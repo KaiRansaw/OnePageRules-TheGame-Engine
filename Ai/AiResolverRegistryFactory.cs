@@ -52,11 +52,18 @@ namespace FDG.Ai
             var evaluator = new Rules.Dispatch.RuleEvaluator(new ProbabilisticDiceRoller());
 
             var stringSelection = new AiStringSelectionResolver(tableState, playerID, declineLatch);
+
+            // #423: the official bot must hold every Ambush unit in reserve ("AI units with Ambush must
+            // always be kept in reserve"), which is one prompt out of the many this resolver answers - so
+            // the book flavour gets a decorator over it rather than a second copy of the rest. The
+            // baseline keeps "deploy normally", which plan D1 freezes.
+            IStageResolver<StageResolution.Requests.StringSelectionRequest, string> stringSelectionForFlavour =
+                book ? new Solo.SoloCoOpStringSelectionResolver(stringSelection) : stringSelection;
             var questMemory = new StarQuest.StarQuestAiMemory();
 
             IStageResolverRegistry registry = new StageResolverRegistry()
                 .RegisterResolver(new AiYesNoResolver())
-                .RegisterResolver<StageResolution.Requests.StringSelectionRequest, string>(stringSelection)
+                .RegisterResolver<StageResolution.Requests.StringSelectionRequest, string>(stringSelectionForFlavour)
                 // #191 B1 step 5a: Choose Action is its own request type; the same instance answers it.
                 // #419: the official bot answers Choose Action from the Solo & Co-Op decision tree. The
                 // baseline keeps the plain ranked menu, which plan D1 freezes.
@@ -77,7 +84,7 @@ namespace FDG.Ai
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestRangedAttackResolver()
                     : book
-                        ? new Solo.SoloCoOpRangedAttackResolver()
+                        ? new Solo.SoloCoOpRangedAttackResolver(tableState)
                         : (IStageResolver<StageResolution.Requests.ChooseRangedAttackRequest,
                             CancellableResult<StageResolution.Requests.ChooseRangedAttackRequest.RangedAttackChoice>>)new AiChooseRangedAttackResolver())
                 .RegisterResolver(new AiChooseMeleeDefenderResolver())

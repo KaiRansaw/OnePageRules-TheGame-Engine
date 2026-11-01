@@ -32,6 +32,16 @@ namespace FDG.Ai.Solo
     public sealed class SoloCoOpRangedAttackResolver
         : IStageResolver<ChooseRangedAttackRequest, CancellableResult<RangedAttackChoice>>
     {
+        private readonly ITableState? _table;
+
+        /// <param name="table">
+        /// #423: needed for the Blast and Deadly clauses, which are the two places the four books
+        /// disagree about shooting - so the pick has to know which book is being played. Optional so the
+        /// parameterless construction in older tests still compiles; without it those two clauses are
+        /// skipped and the general keys decide alone, which is exactly the behaviour before #423.
+        /// </param>
+        public SoloCoOpRangedAttackResolver(ITableState? table = null) => _table = table;
+
         public Task<CancellableResult<RangedAttackChoice>> Resolve(ChooseRangedAttackRequest request)
         {
             // Prefer options where at least one model has LOS and is in range.
@@ -45,8 +55,20 @@ namespace FDG.Ai.Solo
                 throw new InvalidOperationException("AI received a ranged attack request with no options at all.");
 
             IUnit shooter = request.AttackingUnit.GetValue();
+
+            // #423: Blast and Deadly name which KIND of unit to shoot, and the books state them in their
+            // own Special Rules section after the shooting clause - so they decide the band and the
+            // general keys below decide the order inside it. A weapon with neither rule puts everything
+            // in band 0, so nothing changes for the other 95% of shots.
+            SoloCoOpProfile? profile = _table == null
+                ? null
+                : SoloCoOpProfile.For(_table.Progress.GameSystem);
+
             var best = options
-                .OrderBy(o => o.Stats.HasCover ? 1 : 0)
+                .OrderBy(o => profile == null
+                    ? 0
+                    : SoloAiSpecialRuleClauses.TargetBand(profile, o.Weapon, o.Stats.TargetUnit.GetValue()))
+                .ThenBy(o => o.Stats.HasCover ? 1 : 0)
                 .ThenBy(o => SoloAiTargeting.HasActivated(o.Stats.TargetUnit.GetValue()) ? 1 : 0)
                 .ThenBy(o => AiCombatMath.Distance(shooter, o.Stats.TargetUnit.GetValue()))
                 .ThenByDescending(o => o.Stats.modelsThatCanShoot.Count)

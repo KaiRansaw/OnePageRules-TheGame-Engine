@@ -61,6 +61,21 @@ namespace FDG.Ai.Solo
             // off the table for this one pick or we re-decline forever.
             bool movementDeclined = _latch?.Consume() == true;
 
+            // #423: the Special Rules section overrides the decision tree for two rules. "AI units with
+            // Indirect weapons that are in range of enemies ALWAYS use Hold actions and shoot", and the
+            // same sentence for Relentless - no tree, no objective run, stand still and fire. Checked
+            // before the plan is even built, because the plan is what it overrides.
+            //
+            // A Hold action is a non-move, not a non-action, so "Hold and shoot" is simply Shoot without
+            // having moved - the same reading the tree's own Hold step uses below. If the shot is not on
+            // the menu (nothing targetable from here after all), fall through to the tree rather than
+            // passing the activation away.
+            if (SoloAiSpecialRuleClauses.MustHoldAndShoot(_table, _me, unit)
+                && Has(ChooseActionStage.SHOOT_CHOICE_NAME) is { } holdAndShoot)
+            {
+                return Task.FromResult(holdAndShoot);
+            }
+
             SoloAiPlan plan = SoloAiBrain.Plan(_table, _me, unit);
             string? pick = null;
 
