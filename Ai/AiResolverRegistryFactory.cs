@@ -36,6 +36,12 @@ namespace FDG.Ai
             // shift the objective or terrain streams and re-roll every pinned benchmark.
             Random activationRng = playerSeed.HasValue
                 ? GameRandom.Create(playerSeed, salt: 3)! : new Random();
+            // #419: the group-to-section rolls, on their own salt and rolled once per game. Held here
+            // because the engine deploys one unit at a time and the three groups must agree across all of
+            // those separate requests.
+            Random deploymentRng = playerSeed.HasValue
+                ? GameRandom.Create(playerSeed, salt: 4)! : new Random();
+            var deploymentPlan = new Solo.SoloCoOpDeploymentPlan(sides => deploymentRng.Next(sides) + 1);
 
             // #358: one latch per solo set - the path resolver's main-move decline tells the
             // action menu to skip the movement family once, breaking the decline-repick livelock.
@@ -90,7 +96,12 @@ namespace FDG.Ai
                 .RegisterResolver(new AiAircraftAdvanceResolver())
                 .RegisterResolver(new AiConsolidationMoveResolver(tableState, playerID))
                 .RegisterResolver(new AiAssignWoundsResolver())
-                .RegisterResolver(new AiSelectionResolver<UnitData>(evaluator))
+                // #419: the official bot deploys one random unit at a time, with Scout held until last.
+                // The baseline keeps "first option offered", which plan D1 freezes.
+                .RegisterResolver(book
+                    ? new Solo.SoloCoOpDeployOrderResolver(evaluator, deploymentRng)
+                    : (IStageResolver<StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>)
+                    new AiSelectionResolver<UnitData>(evaluator))
                 // #191 A4-1's request split: activation is its own type; solo-rules keeps the same
                 // first-option behavior via the adapter (pinned by the benchmark hashes).
                 // #419: the official bot gets the Solo & Co-Op activation order (D3 for a table section,
@@ -107,7 +118,14 @@ namespace FDG.Ai
                         new AiSelectionResolver<UnitData>()))
                 .RegisterResolver(new AiSelectionResolver<ModelData>())
                 .RegisterResolver(new AiSelectionResolver<RectangularZone>())
-                .RegisterResolver(new AiPlaceObjectsResolver<ModelData>(tableState))
+                // #419: the official bot deploys by the book - each of three groups into its own rolled
+                // table section, aimed at the closest objective and off bad ground. The baseline keeps its
+                // lane fan-out, which plan D1 freezes.
+                .RegisterResolver(book
+                    ? new Solo.SoloCoOpPlaceObjectsResolver<ModelData>(tableState, deploymentPlan)
+                    : (IStageResolver<StageResolution.Requests.PlaceObjectsRequest<ModelData>,
+                        CancellableResult<List<StageResolution.Requests.PlacedObjectEntry<ModelData>>>>)
+                    new AiPlaceObjectsResolver<ModelData>(tableState))
                 // #419: the official bot places markers by the book's squares rule; the baseline keeps the
                 // mirrored-random spread that plan D1 freezes.
                 .RegisterResolver(book
