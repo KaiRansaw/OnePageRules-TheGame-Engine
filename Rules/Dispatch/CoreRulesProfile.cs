@@ -30,7 +30,8 @@ namespace FDG.Rules.Dispatch
         string SystemName,
         bool MeleeResultsDecideMorale,
         bool BlastSplitsBetweenNearbyUnits,
-        bool ScoutIsSimpleRedeploy)
+        bool ScoutIsSimpleRedeploy,
+        bool EveryHeroLendsMoraleQuality)
     {
         /// <summary>
         /// Grimdark Future and Age of Fantasy: the full-scale games. Blast caps on the target unit's
@@ -40,7 +41,11 @@ namespace FDG.Rules.Dispatch
             "Grimdark Future / Age of Fantasy",
             MeleeResultsDecideMorale: true,
             BlastSplitsBetweenNearbyUnits: false,
-            ScoutIsSimpleRedeploy: false);
+            ScoutIsSimpleRedeploy: false,
+            // "The Hero's unit, and units within 6" of friendly Heroes WITH TOUGH(9) OR HIGHER, may use
+            // the Hero's Quality for Morale Tests as long as the Hero isn't Shaken." The threshold is
+            // what makes this a big-monster aura rather than something every Hero projects.
+            EveryHeroLendsMoraleQuality: false);
 
         /// <summary>
         /// GF: Firefight and AoF: Skirmish. Identical to the full-scale games except that <b>Blast splits</b>:
@@ -57,7 +62,13 @@ namespace FDG.Rules.Dispatch
             "GF: Firefight / AoF: Skirmish",
             MeleeResultsDecideMorale: true,
             BlastSplitsBetweenNearbyUnits: true,
-            ScoutIsSimpleRedeploy: false);
+            ScoutIsSimpleRedeploy: false,
+            // #420: these books print the aura with NO Tough threshold and no join clauses at all -
+            // "Units within 6" of friendly Heroes may use the Hero's Quality for Morale Tests as long as
+            // the Hero isn't Shaken." Every Hero projects it. Running Grimdark Future's Tough(9) gate
+            // here withheld the aura from essentially every Hero in a skirmish game, where Tough(9) is a
+            // vehicle-scale number, so a unit beside its own Hero tested on its own Quality all game.
+            EveryHeroLendsMoraleQuality: true);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -77,7 +88,9 @@ namespace FDG.Rules.Dispatch
             "GF: Star Quest",
             MeleeResultsDecideMorale: false,
             BlastSplitsBetweenNearbyUnits: true,
-            ScoutIsSimpleRedeploy: true);
+            ScoutIsSimpleRedeploy: true,
+            // #420: both Quest books print the same threshold-free aura as the skirmish games.
+            EveryHeroLendsMoraleQuality: true);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same three ways, checked line by line against <b>AoFQ Core Rules

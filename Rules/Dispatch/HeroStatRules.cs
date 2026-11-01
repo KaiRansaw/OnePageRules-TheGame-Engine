@@ -69,6 +69,13 @@ public static class HeroStatRules
         int quality = GetMoraleQuality(unit);
         if (tableState == null) return quality;
 
+        // #420: WHICH Heroes project the aura is a per-system question. Grimdark Future and Age of
+        // Fantasy gate it on Tough(9)+ - a vehicle/monster-scale number, so it is a big-monster aura.
+        // Firefight, Skirmish and both Quest systems print the sentence with no threshold at all, so
+        // every Hero projects it there. Running GF's gate in those four withheld the aura from
+        // essentially every Hero they have.
+        bool everyHeroLends = CoreRulesProfile.For(tableState.Progress.GameSystem).EveryHeroLendsMoraleQuality;
+
         foreach (IUnit candidate in tableState.Units.Objects)
         {
             if (ReferenceEquals(candidate, unit)) continue;
@@ -76,7 +83,7 @@ public static class HeroStatRules
             if (candidate.Tokens.HasToken(Foundation.TokenType.Shaken)) continue;
             if (ReserveRules.IsInReserve(candidate)) continue;
             if (!ITeamExtensions.AreAllied(tableState.Teams.Objects, unit.PlayerID, candidate.PlayerID)) continue;
-            if (!IsBigHero(candidate)) continue;
+            if (!LendsMoraleQuality(candidate, everyHeroLends)) continue;
 
             // A better (lower) Quality is the only reason to look further.
             if (candidate.Quality >= quality) continue;
@@ -95,7 +102,11 @@ public static class HeroStatRules
     /// <summary>How far a Tough(9)+ Hero lends its Quality for Morale Tests (OPR 3.6.0).</summary>
     public const float BigHeroMoraleAuraInches = 6f;
 
-    /// <summary>The Tough value at which a Hero starts projecting the 3.6.0 morale aura.</summary>
+    /// <summary>
+    /// The Tough value at which a Hero starts projecting the 3.6.0 morale aura - <b>in Grimdark Future
+    /// and Age of Fantasy only</b>. The other four systems have no threshold; see
+    /// <see cref="CoreRulesProfile.EveryHeroLendsMoraleQuality"/>.
+    /// </summary>
     public const int BigHeroMinTough = 9;
 
     /// <summary>
@@ -103,6 +114,17 @@ public static class HeroStatRules
     /// rule's argument directly, the same argument-only read <c>HeroJoinResolver.TryGetToughValue</c>
     /// makes - the aura is about the Hero's printed Tough, not a mid-game wound total.
     /// </summary>
+    private static bool LendsMoraleQuality(IUnit unit, bool everyHeroLends) =>
+        everyHeroLends ? IsHero(unit) : IsBigHero(unit);
+
+    /// <summary>Carries the Hero rule, whatever its Tough value - the skirmish and Quest reading.</summary>
+    private static bool IsHero(IUnit unit)
+    {
+        foreach (ResolvedRule rule in unit.RuleDefinitions)
+            if (rule.Definition == CoreRuleCatalog.Hero) return true;
+        return false;
+    }
+
     private static bool IsBigHero(IUnit unit)
     {
         bool isHero = false;
