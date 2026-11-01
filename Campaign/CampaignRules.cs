@@ -50,8 +50,13 @@ namespace FDG.Campaign
         /// is left of the treasury kept as spendable points. There is no cap on what carries over - the
         /// treasury IS the mechanic, unlike the 40-point cap the old Firefight implementation used.
         /// </summary>
+        /// <param name="noPermadeath">
+        /// The books' No Permadeath option, fixed when the campaign is created: a unit that would be
+        /// killed survives instead, loses that match's XP and sits out D3 missions.
+        /// </param>
         public static void Start(ArmyListFile army, string armyName, string armyFile, CampaignNumbers n,
-                                 EGameSystem system, ECampaignType type = ECampaignType.Endless)
+                                 EGameSystem system, ECampaignType type = ECampaignType.Endless,
+                                 bool noPermadeath = false, bool isBot = false)
         {
             army.Name = armyName;
             army.StrikeTeam = new StrikeTeamInfo
@@ -60,6 +65,8 @@ namespace FDG.Campaign
                 BankedPoints = Math.Max(0, n.Treasury - army.TotalPoints),
                 GameSystem = system,
                 CampaignType = type,
+                NoPermadeath = noPermadeath,
+                IsBot = isBot,
             };
             // If the army was built in the Army Forge it carries the builder list it was compiled from.
             // Each unit's selections move onto its own sheet, so it can be re-opened between missions to
@@ -99,6 +106,21 @@ namespace FDG.Campaign
                                              bool won, CampaignNumbers n, Func<int> d6)
         {
             var log = new List<string>();
+
+            // No Permadeath: a unit recovering from a killing blow has now missed a mission. Counted
+            // down BEFORE this match's casualties are resolved, so a unit knocked out today starts its
+            // full D3 from today rather than losing a mission of it immediately. A unit sitting out
+            // never appears in results - it was not on the table - so this is the only place it moves.
+            foreach (UnitFileEntry resting in army.Units)
+            {
+                if (Sheet(resting) is not { MissionsOut: > 0 } sheet) continue;
+                sheet.MissionsOut--;
+                log.Add(sheet.MissionsOut == 0
+                    ? $"{resting.Name} has recovered and can fight again."
+                    : $"{resting.Name} is still recovering: {sheet.MissionsOut} more mission(s) out.");
+                Save(resting, sheet);
+            }
+
             foreach (CampaignUnitResult result in results)
             {
                 UnitFileEntry? unit = army.Units.FirstOrDefault(u => Sheet(u)?.Id == result.Id);
@@ -109,7 +131,16 @@ namespace FDG.Campaign
 
                 if (result.Casualty)
                 {
-                    if (!ResolveCasualty(army, unit, sheet, n, d6, log, ref xp)) continue;  // dead, removed
+                    switch (ResolveCasualty(army, unit, sheet, n, d6, log, ref xp))
+                    {
+                        case ECasualtyOutcome.Removed: continue;   // dead, and out of the army
+                        case ECasualtyOutcome.KnockedOut:
+                            // The book's No Permadeath wording: it "loses the XP it earned for that
+                            // match". All of it - the +1 for surviving it never earned, and the XP for
+                            // whatever it killed before it fell.
+                            Save(unit, sheet);
+                            continue;
+                    }
                 }
                 else xp++;  // +1 XP: not a casualty
 
@@ -135,12 +166,26 @@ namespace FDG.Campaign
             return log;
         }
 
+        /// <summary>What a casualty roll did to the unit.</summary>
+        private enum ECasualtyOutcome
+        {
+            /// <summary>It is still in the army and may be taken to the next mission.</summary>
+            Survived,
+            /// <summary>It was killed and is out of the army for good.</summary>
+            Removed,
+            /// <summary>
+            /// It was killed in a No Permadeath campaign: it stays in the army, earns no XP for this
+            /// match, and sits out <see cref="StrikeUnit.MissionsOut"/> missions.
+            /// </summary>
+            KnockedOut,
+        }
+
         /// <summary>
-        /// One casualty roll. Returns false if the unit died and was removed from the army, true if it
-        /// is still there. <paramref name="xp"/> gains 1 for a Natural Talent result.
+        /// One casualty roll. <paramref name="xp"/> gains 1 for a Natural Talent result; the caller
+        /// throws that away if the outcome is <see cref="ECasualtyOutcome.KnockedOut"/>.
         /// </summary>
-        private static bool ResolveCasualty(ArmyListFile army, UnitFileEntry unit, StrikeUnit sheet,
-                                            CampaignNumbers n, Func<int> d6, List<string> log, ref int xp)
+        private static ECasualtyOutcome ResolveCasualty(ArmyListFile army, UnitFileEntry unit, StrikeUnit sheet,
+                                                        CampaignNumbers n, Func<int> d6, List<string> log, ref int xp)
         {
             int roll = d6();
             if (!sheet.IsHero)
@@ -148,16 +193,15 @@ namespace FDG.Campaign
                 switch (roll)
                 {
                     case 1:
-                        log.Add($"{unit.Name} was a casualty and rolled 1: dead, removed from the army.");
-                        army.Units.Remove(unit);
-                        return false;
+                        return Kill(army, unit, sheet, d6, log,
+                            $"{unit.Name} was a casualty and rolled 1: dead");
                     case 6:
                         xp++;
                         log.Add($"{unit.Name} was a casualty and rolled 6: Natural Talent, +1 XP.");
-                        return true;
+                        return ECasualtyOutcome.Survived;
                     default:
                         log.Add($"{unit.Name} was a casualty and rolled {roll}: recovered.");
-                        return true;
+                        return ECasualtyOutcome.Survived;
                 }
             }
 
@@ -166,21 +210,20 @@ namespace FDG.Campaign
                 string injury = RollTrait(d6, CampaignTables.Injuries, sheet.Injuries);
                 if (injury == "Dead")
                 {
-                    log.Add($"{unit.Name} was a casualty: rolled 1, then Dead on the injury roll - removed from the army.");
-                    army.Units.Remove(unit);
-                    return false;
+                    return Kill(army, unit, sheet, d6, log,
+                        $"{unit.Name} was a casualty: rolled 1, then Dead on the injury roll");
                 }
                 if (injury == "Lucky Break")
                 {
                     sheet.Pending.Add(CampaignTables.LuckyBreak);
                     ChangeCost(unit, sheet, -n.HeroInjuryTalentCost);
                     log.Add($"{unit.Name} was a casualty: rolled 1, then Lucky Break - pick any other injury trait on the campaign screen (-{n.HeroInjuryTalentCost} pts).");
-                    return true;
+                    return ECasualtyOutcome.Survived;
                 }
                 GainInjury(unit, sheet, injury);
                 ChangeCost(unit, sheet, -n.HeroInjuryTalentCost);
                 log.Add($"{unit.Name} was a casualty: rolled 1, injury {injury} (-{n.HeroInjuryTalentCost} pts).");
-                return true;
+                return ECasualtyOutcome.Survived;
             }
 
             if (roll == 6)
@@ -191,17 +234,66 @@ namespace FDG.Campaign
                     sheet.Pending.Add(CampaignTables.LearnedLesson);
                     ChangeCost(unit, sheet, n.HeroInjuryTalentCost);
                     log.Add($"{unit.Name} was a casualty: rolled 6, then Learned Lesson - pick any other talent trait on the campaign screen (+{n.HeroInjuryTalentCost} pts).");
-                    return true;
+                    return ECasualtyOutcome.Survived;
                 }
                 GainTalent(unit, sheet, talent, ref xp);
                 ChangeCost(unit, sheet, n.HeroInjuryTalentCost);
                 log.Add($"{unit.Name} was a casualty: rolled 6, talent {talent} (+{n.HeroInjuryTalentCost} pts).");
-                return true;
+                return ECasualtyOutcome.Survived;
             }
 
             log.Add($"{unit.Name} was a casualty and rolled {roll}: recovered.");
-            return true;
+            return ECasualtyOutcome.Survived;
         }
+
+        /// <summary>
+        /// The killing blow, resolved under whichever option the campaign was created with.
+        /// <para>
+        /// Permadeath on (the books' default): the unit leaves the army, with everything it had.
+        /// </para>
+        /// <para>
+        /// <b>No Permadeath</b>: "the unit is not killed, but instead loses all of the XP it earned for
+        /// that match, and must sit out of the next D3 matches". It keeps the levels, traits, injuries
+        /// and talents it already had - only this match's earnings are lost, which the caller does by
+        /// throwing the XP away.
+        /// </para>
+        /// <para>
+        /// <b>Judgement call, recorded in claude/house-rules.md:</b> a Hero reaches this through "Dead"
+        /// on the injury table, and the knock-out REPLACES that result rather than being an injury on
+        /// top of it - so a hero who survives by this option takes no injury trait and loses no points.
+        /// The book replaces the death, and Dead is the death.
+        /// </para>
+        /// </summary>
+        private static ECasualtyOutcome Kill(ArmyListFile army, UnitFileEntry unit, StrikeUnit sheet,
+                                             Func<int> d6, List<string> log, string prefix)
+        {
+            if (army.StrikeTeam?.NoPermadeath != true)
+            {
+                log.Add($"{prefix} - removed from the army.");
+                army.Units.Remove(unit);
+                return ECasualtyOutcome.Removed;
+            }
+
+            sheet.MissionsOut = RollD3(d6);
+            log.Add($"{prefix}, but this campaign has No Permadeath: {unit.Name} survives, loses the XP it "
+                    + $"earned this match and sits out the next {sheet.MissionsOut} mission(s).");
+            return ECasualtyOutcome.KnockedOut;
+        }
+
+        /// <summary>A D3, rolled as half a D6 rounded up - which is how every OPR book rolls one.</summary>
+        private static int RollD3(Func<int> d6) => (Math.Clamp(d6(), 1, 6) + 1) / 2;
+
+        /// <summary>
+        /// Whether this unit may be taken to the next mission. False only while it is recovering under
+        /// the No Permadeath option (<see cref="StrikeUnit.MissionsOut"/>).
+        /// </summary>
+        public static bool CanBringToMission(UnitFileEntry unit) => (Sheet(unit)?.MissionsOut ?? 0) <= 0;
+
+        /// <summary>Why this unit can't come to the next mission, or null.</summary>
+        public static string? CannotBringToMission(UnitFileEntry unit) =>
+            Sheet(unit) is { MissionsOut: > 0 } sheet
+                ? $"Recovering - out for {sheet.MissionsOut} more mission(s)."
+                : null;
 
         /// <summary>Adds XP (capped at 30) and levels the unit up once for every 5 XP crossed.</summary>
         public static List<string> AddXp(UnitFileEntry unit, StrikeUnit sheet, int amount,

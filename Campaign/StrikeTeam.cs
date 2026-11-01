@@ -24,6 +24,13 @@ namespace FDG.Campaign
         public EGameSystem GameSystem { get; set; } = EGameSystem.GrimdarkFuture;
         /// <summary>The campaign's end condition. Only <see cref="ECampaignType.Endless"/> is wired up.</summary>
         public ECampaignType CampaignType { get; set; } = ECampaignType.Endless;
+        /// <summary>
+        /// The books' <b>No Permadeath</b> option, picked when the campaign is created (Kai's call,
+        /// 2026-11-01: "have it be a toggle when creating a campaign"). A unit that would be killed
+        /// instead loses the XP it earned that match and sits out D3 missions - see
+        /// <see cref="StrikeUnit.MissionsOut"/>. Off by default, which is the books' default.
+        /// </summary>
+        public bool NoPermadeath { get; set; }
         /// <summary>True for an army the bot runs, so the campaign screen can spend its treasury for it.</summary>
         public bool IsBot { get; set; }
         /// <summary>
@@ -62,6 +69,13 @@ namespace FDG.Campaign
         /// <summary>Points added to (or taken off) the unit's cost by level ups, injuries and talents.</summary>
         public int CostChange { get; set; }
         public int Games { get; set; }
+        /// <summary>
+        /// Missions this unit must still sit out, under the <see cref="StrikeTeamInfo.NoPermadeath"/>
+        /// option: it was killed, survived anyway, and is recovering. It may not be taken to a mission
+        /// while this is above zero, and it counts down by one each mission the army plays without it.
+        /// Always zero in a campaign where permadeath is on, because there the unit is simply gone.
+        /// </summary>
+        public int MissionsOut { get; set; }
         /// <summary>Counted during a game; cleared when the result is written back.</summary>
         public int Kills { get; set; }
         public int HeroKills { get; set; }
