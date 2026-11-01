@@ -65,6 +65,22 @@ namespace FDG
         public const float STANDARD_COHERENCY_INCHES = 9;
         public const float SKIRMISH_COHERENCY_INCHES = 6;
 
+        /// <summary>
+        /// #437: the Quest systems' AI groups keep a 3" chain, not the full-scale 9" or the skirmish 6".
+        /// Both current books print it: GFSQ Core v2.1.0 <i>"AI Groups: Group members must stay within 1"
+        /// of at least one other member, and within 3" of all other members"</i>, and AoFQ Core v2.1.0
+        /// <i>"All models in AI units must always stay within 1" of at least one other model, and must
+        /// stay within 3" of all other models (or as close as possible), forming an uninterrupted chain
+        /// of models in 1" coherency with each other."</i>
+        /// <para>
+        /// The player's side in Quest is individual Heroes, so this only governs how far an enemy group
+        /// may spread - which is the point of it: a tight pack is what makes one-against-many readable.
+        /// The engine ran the full-scale 9" in both Quest systems until #437, because the coherency
+        /// switch only knew "skirmish or not".
+        /// </para>
+        /// </summary>
+        public const float QUEST_AI_COHERENCY_INCHES = 3;
+
         public const float DIFFICULT_TERRAIN_MOVE_CAP_INCHES = 6f;
 
         /// <summary>
@@ -116,8 +132,12 @@ namespace FDG
             FRIENDLY_UNITS_MAY_OVERLAP = friendlyUnitsMayOverlap;
             (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);
             FDG.StateMachine.HordeRules.Configure(system);
-            MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = GameSystemInfo.IsSkirmish(system)
-                ? SKIRMISH_COHERENCY_INCHES : STANDARD_COHERENCY_INCHES;
+            // #437: three bands now, not two - 3" for the Quest systems' AI groups, 6" for the skirmish
+            // games, 9" for the full-scale ones. Each is its own book's number.
+            MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES =
+                GameSystemInfo.IsQuest(system) ? QUEST_AI_COHERENCY_INCHES
+                : GameSystemInfo.IsSkirmish(system) ? SKIRMISH_COHERENCY_INCHES
+                : STANDARD_COHERENCY_INCHES;
             // Melee reach comes from the Quest profile for a Quest game and from the flat constant
             // otherwise. Both Quest systems now read a flat 3": #418 briefly gave AoF: Quest a 2"
             // horizontal / 4" vertical split on the strength of its v2.0.1 book, and the 2.1.0 books
@@ -155,7 +175,16 @@ namespace FDG
         public const int HORDE_ROUNDS_PER_WAVE = 3;
 
         /// <summary>
-        /// Maximum number of distinct enemy units a single unit may target during one shoot action.
+        /// Maximum number of distinct enemy units a single unit may target during one shoot action, in
+        /// the full-scale and skirmish games.
+        /// <para>
+        /// <b>#437: read this through <see cref="FDG.Rules.Dispatch.CoreRulesProfile.MaxTargetsPerShootAction"/>,
+        /// not directly.</b> The four standard books print "may fire at up to two different targets with
+        /// different weapon types"; both Quest books cap a unit at ONE target. This constant is kept as
+        /// the standard games' value - and as the lobby toggle's "off" position - rather than deleted,
+        /// because the Unlimited Split Fire house rule and the GUI's "already targeting N units" message
+        /// both want a number to name.
+        /// </para>
         /// </summary>
         public const int MAX_TARGETED_UNITS_PER_SHOOT_ACTION = 2;
 

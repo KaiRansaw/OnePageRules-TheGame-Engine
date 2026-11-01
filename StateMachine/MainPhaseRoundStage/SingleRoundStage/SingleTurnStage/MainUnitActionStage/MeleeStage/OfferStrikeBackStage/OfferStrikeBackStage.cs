@@ -1,4 +1,5 @@
 
+using FDG.Presentation.Beats;
 using FDG.StageResolution.Requests;
 using FDG.Utilities;
 using System;
@@ -24,6 +25,23 @@ namespace FDG.Stages
             {
                 GameContext.Log("No in-range defender with a melee weapon; skipping strikeback.");
                 await SkipStrikingBack(context);
+                return;
+            }
+
+            // #437: whether striking back is a CHOICE is a per-system question.
+            //   Full-scale and skirmish books: "Then defenders MAY CHOOSE to strike back, but don't have to."
+            //   GFSQ Core v2.1.0:  "Then defenders MUST strike back"
+            //   AoFQ Core v2.1.0:  "the defending unit MUST strike back"
+            // So in both Quest systems there is no question to ask, and the engine asked it anyway in
+            // every system. Kai's call (2026-11-01) is that the strike-back must still be VISIBLE when it
+            // is forced - a prompt is the wrong way to show it, but silence is worse - so it is announced
+            // instead of offered. Declining was only ever a self-nerf, which is why nobody noticed.
+            if (Rules.Dispatch.CoreRulesProfile.For(GameContext).StrikeBackIsMandatory)
+            {
+                GameContext.Log($"{context.DefendingUnit.Name()} must strike back.");
+                await GameContext.Announce($"{context.DefendingUnit.Name()} strikes back!",
+                    tier: EBannerTier.Toast);
+                await MoveToStrikingBack(context);
                 return;
             }
 

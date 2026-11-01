@@ -34,7 +34,9 @@ namespace FDG.Rules.Dispatch
         bool EveryHeroLendsMoraleQuality,
         int TransportHeroToughCap,
         int TransportNonHeroToughCap,
-        int TransportStandardModelTough)
+        int TransportStandardModelTough,
+        int MaxTargetsPerShootAction,
+        bool StrikeBackIsMandatory)
     {
         /// <summary>
         /// Grimdark Future and Age of Fantasy: the full-scale games. Blast caps on the target unit's
@@ -54,7 +56,11 @@ namespace FDG.Rules.Dispatch
             // above that is the 3-space "large" case.
             TransportHeroToughCap: 6,
             TransportNonHeroToughCap: 3,
-            TransportStandardModelTough: 1);
+            TransportStandardModelTough: 1,
+            // "may fire at up to two different targets with different weapon types."
+            MaxTargetsPerShootAction: 2,
+            // "Then defenders MAY CHOOSE to strike back, but don't have to."
+            StrikeBackIsMandatory: false);
 
         /// <summary>
         /// GF: Firefight and AoF: Skirmish. Identical to the full-scale games except that <b>Blast splits</b>:
@@ -84,7 +90,10 @@ namespace FDG.Rules.Dispatch
             // Grimdark Future's 6/3/1 here, which refused passengers the book allows.
             TransportHeroToughCap: 18,
             TransportNonHeroToughCap: 9,
-            TransportStandardModelTough: 3);
+            TransportStandardModelTough: 3,
+            // Both skirmish books print the full-scale clauses here, word for word.
+            MaxTargetsPerShootAction: 2,
+            StrikeBackIsMandatory: false);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -111,19 +120,31 @@ namespace FDG.Rules.Dispatch
             // with up to Tough(27)." The Quest scale is x9 on Grimdark Future's.
             TransportHeroToughCap: 54,
             TransportNonHeroToughCap: 27,
-            TransportStandardModelTough: 9);
+            TransportStandardModelTough: 9,
+            // #437: ONE target, not two. AoFQ Core v2.1.0 is explicit - "When shooting, a unit must pick
+            // ONE valid target and all models in the unit may shoot at it" - and GFSQ v2.1.0 never grants
+            // the split at all: "Models in range and line of sight may fire all ranged weapons." Both
+            // books, and it fits the mode: Quest is characters against the world, so a hero picks a
+            // target and commits. The engine ran the full-scale cap of 2 in every system until #437.
+            MaxTargetsPerShootAction: 1,
+            // #437: MUST strike back. GFSQ v2.1.0 "Then defenders must strike back"; AoFQ v2.1.0 "the
+            // defending unit must strike back". The full-scale books say "may choose to ... but don't
+            // have to", and the engine offered that choice everywhere.
+            StrikeBackIsMandatory: true);
 
         /// <summary>
-        /// #418 - AoF: Quest reads the same three ways, checked line by line against <b>AoFQ Core Rules
-        /// v2.0.1</b> rather than assumed from the shape of the game:
+        /// #418 - AoF: Quest reads the same ways as Star Quest. Checked line by line, originally against
+        /// AoFQ Core Rules v2.0.1 and <b>re-verified against v2.1.0</b> when that edition arrived
+        /// (2026-11-01); v2.0.1 is now an archived edition and is cited here only as history:
         /// <list type="bullet">
         /// <item><i>"Blast(X): ... Hits must be split evenly between all enemy units within 3" of any
         /// model from the target"</i> - the same spread clause #414 built, and worded more explicitly
         /// than Star Quest's.</item>
-        /// <item><i>"Scout: This model may be deployed anywhere fully within 12" of its deployment
-        /// zone"</i> - a plain redeploy, no set-aside and no standoff. <b>12" where Star Quest says
-        /// 9"</b>, which is why the distance lives in <see cref="QuestRulesProfile"/> and only the
-        /// PROCEDURE lives here.</item>
+        /// <item><i>"Scout: This model may be deployed anywhere fully within 9" of its deployment
+        /// zone"</i> - a plain redeploy, no set-aside and no standoff. <b>v2.1.0 prints 9", the same as
+        /// Star Quest</b> (v2.0.1 printed 12"), while Army Forge serves 12" for both; the distance lives
+        /// in <see cref="QuestRulesProfile"/> under the Army-Forge-wins ruling, and only the PROCEDURE
+        /// lives here.</item>
         /// <item>Its Morale section has only the half-strength trigger, and its Fear(X) reads <i>"when
         /// checking if the target must take morale test in melee"</i> - so there is no melee-results
         /// comparison for Fear to attach to, exactly as in Star Quest.</item>

@@ -261,10 +261,19 @@ namespace FDG.Stages
                         reason = $"It is more than {HordeRules.ShopRangeInches:0}\" from every objective your side seized this wave.";
                 }
 
-                // #409 Reinforcing Units (OPR 3.6.0): same range test as upgrades, plus the unit must be
-                // down to half or less of its total size (or Tough, for a single-model unit).
+                // #409 Reinforcing Units (OPR 3.6.0): the unit must be down to half or less of its total
+                // size (or Tough, for a single-model unit) AND within reach of a seized objective.
+                // #437: that reach is its OWN band - 9" in all four books - not the upgrade/recruit range,
+                // which the skirmish books scale to 6". Re-tested here rather than reusing `reason`.
                 List<ModelData> own = OwnModels(unit);
-                string? reinforceReason = reason;
+                string? reinforceReason = ReinforceRangeReason(unit, objectives) ?? reason switch
+                {
+                    // Keep the non-spatial refusals (in reserve, inside a transport); drop the
+                    // upgrade-range one, which does not apply to reinforcing.
+                    null => null,
+                    string why when why.StartsWith("It is more than", StringComparison.Ordinal) => null,
+                    string why => why,
+                };
                 if (reinforceReason == null && !HordeReinforce.IsAtHalfStrength(
                         own.Count, own.Count(m => m.GetIsAlive()),
                         own.Sum(m => m.TotalWounds), own.Sum(m => m.RemainingWoundsBinding.GetValue())))
@@ -469,5 +478,23 @@ namespace FDG.Stages
         private static int NumberOf(IObjective objective) =>
             objective.HordeNumber
             ?? HordeRules.ObjectiveNumber(objective.Position, HordePlacement.TableWidth, HordePlacement.TableHeight);
+
+        /// <summary>
+        /// #437: the reinforce band is 9" in all four Horde books, even where upgrades and recruiting are
+        /// 6". Returns the refusal text, or null when the unit is close enough to a seized objective.
+        /// Measured from the closest point of a living model's base, like every other distance.
+        /// </summary>
+        private static string? ReinforceRangeReason(UnitData unit, IReadOnlyList<HordeShopObjective> objectives)
+        {
+            bool near = unit.ModelBindings.Select(b => b.GetValue())
+                .Where(m => m.GetIsAlive())
+                .Any(m => objectives.Any(o =>
+                    BaseShapeGeometry.SurfaceDistanceToPoint2D(m.BaseShape, m.Position, m.Facing,
+                        new Position(o.X, o.Z))
+                    <= HordeRules.ReinforceRangeInches));
+            return near ? null
+                : $"It is more than {HordeRules.ReinforceRangeInches:0}\" from every objective your side "
+                  + "seized this wave.";
+        }
     }
 }

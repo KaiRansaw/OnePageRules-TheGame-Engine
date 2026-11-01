@@ -89,6 +89,25 @@ namespace FDG.StateMachine
         public static float ShopRangeInches { get; private set; } = 9f;
 
         /// <summary>
+        /// How close a unit must be to a seized objective to be REINFORCED - which is not the same band as
+        /// buying upgrades or recruiting.
+        /// <para>
+        /// <b>#437: all four Horde Mode v3.6.0 books print 9" for reinforcing</b>, including GFF and AoFS,
+        /// where they scaled buying upgrades and recruiting down to 6" and left this one at 9":
+        /// <i>"Defenders may spend points to reinforce units that are down to half or less of their total
+        /// size or Tough value ... and that are within 9" of a seized objective."</i> Word for word in all
+        /// four. The engine reused <see cref="ShopRangeInches"/> here, so a skirmish Horde refused a
+        /// reinforcement the book allows, between 6" and 9" out.
+        /// </para>
+        /// <para>
+        /// It is probably an OPR slip - they scaled the other two bands - but the rules go in as written
+        /// unless Kai says otherwise, all four books agree, and it errs toward letting the defenders do
+        /// something rather than refusing them, so a literal reading cannot break a mission.
+        /// </para>
+        /// </summary>
+        public static float ReinforceRangeInches => 9f;
+
+        /// <summary>
         /// Sets the Horde Mode sizes for the game type. The skirmish books (GF: Firefight and AoF:
         /// Skirmish Horde Mode v3.6.0) use a 4'x4' table and 6" deployment and shop areas; the full games
         /// (Grimdark Future and Age of Fantasy) use 6'x4' and 9".

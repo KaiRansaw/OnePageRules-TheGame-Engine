@@ -731,8 +731,12 @@ namespace FDG.Stages
             // If the attacker has already engaged the max number of distinct units this shoot action, any further
             // unit that wasn't already among them is unselectable. #384: the Unlimited Split Fire house
             // rule (lobby toggle, default off) lifts the cap entirely.
+            // #437: the cap is PER SYSTEM. Two for the full-scale and skirmish games ("may fire at up to
+            // two different targets with different weapon types"); ONE for both Quest systems, where
+            // AoFQ v2.1.0 says "a unit must pick one valid target" and GFSQ v2.1.0 never grants a split.
+            int maxTargets = Rules.Dispatch.CoreRulesProfile.For(gameContext).MaxTargetsPerShootAction;
             bool atTargetLimit = !gameContext.Settings.UnlimitedSplitFire
-                && attackedDefenderRefs.Count >= GameWideConstants.MAX_TARGETED_UNITS_PER_SHOOT_ACTION;
+                && attackedDefenderRefs.Count >= maxTargets;
 
             //Go through each enemy unit, which will correspond to a WeaponTargetStats.
             foreach (DataBinding<UnitData> enemyUnit in enemyUnits)
@@ -740,7 +744,9 @@ namespace FDG.Stages
                 string? unselectableReason = null;
                 if (atTargetLimit && !attackedDefenderRefs.Contains(enemyUnit.Reference))
                 {
-                    unselectableReason = $"Already targeting {GameWideConstants.MAX_TARGETED_UNITS_PER_SHOOT_ACTION} units this shoot action.";
+                    unselectableReason = maxTargets == 1
+                        ? "This unit has already picked its target for this shoot action."
+                        : $"Already targeting {maxTargets} units this shoot action.";
                 }
                 // Star Quest Infiltrating Step: this hero can't be targeted this round.
                 if (QuestFlags.CannotBeTargeted(gameContext.TableState.Progress.Quest, enemyUnit.GetValue(), attackingUnit.GetValue()))
