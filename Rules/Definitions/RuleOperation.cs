@@ -99,11 +99,19 @@ public abstract record RuleOperation
     /// Adjust the modifier stack of the in-flight roll of <see cref="Roll"/>
     /// kind by <see cref="Delta"/>. Resolution of <see cref="Effect.RollModifier"/>.
     /// </summary>
-    public sealed record ApplyRollModifier(ERollKind Roll, int Delta) : SinkOperation<IRollModifierSink>
+    /// <param name="Source">
+    /// #422: the unit whose rule produced this modifier, when it is known. Unstoppable ignores "all
+    /// negative modifiers which are not from this model's special rules", so the sink has to be able to
+    /// tell the attacker's own penalties from everyone else's. Null where a caller (a test, a synthetic
+    /// op) has no provenance to give, and a null source is treated as foreign - the conservative reading,
+    /// since the attacker's own rules always arrive tagged.
+    /// </param>
+    public sealed record ApplyRollModifier(ERollKind Roll, int Delta, UnitID? Source = null)
+        : SinkOperation<IRollModifierSink>
     {
         public override void ApplyTo(IRollModifierSink sink)
         {
-            sink.Add(Roll, Delta);
+            sink.Add(Roll, Delta, Source);
         }
 
         public override string Describe()
@@ -1011,6 +1019,19 @@ public abstract record RuleOperation
         {
             return "ignored the target's positive Defense modifiers";
         }
+    }
+
+    /// <summary>
+    /// #422 Unstoppable: for this attack, every UNFAVOURABLE hit modifier that did not come from
+    /// <see cref="Bearer"/>'s own rules is discarded - "ignores all negative modifiers which are not from
+    /// this model's special rules". A marker read by <c>DetermineHitRollStage</c>, the only layer holding
+    /// the whole modifier stack; the bearer travels on the operation because the stack is folded before
+    /// anything else knows whose attack it is.
+    /// </summary>
+    public sealed record IgnoreForeignNegativeModifiers(UnitID Bearer) : RuleOperation
+    {
+        public override string Describe() =>
+            "ignored every negative modifier not from this model's own rules";
     }
 
     /// <summary>

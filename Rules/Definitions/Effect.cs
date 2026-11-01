@@ -87,6 +87,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(IgnoreEnemyMovementBlock), "ignoreEnemyMovementBlock")]
 [JsonDerivedType(typeof(IgnoreCover), "ignoreCover")]
 [JsonDerivedType(typeof(IgnorePositiveDefenseModifiers), "ignorePositiveDefenseModifiers")]
+[JsonDerivedType(typeof(IgnoreForeignNegativeModifiers), "ignoreForeignNegativeModifiers")]
 [JsonDerivedType(typeof(IgnoreLineOfSight), "ignoreLineOfSight")]
 [JsonDerivedType(typeof(DeferDeployment), "deferDeployment")]
 [JsonDerivedType(typeof(Disembark), "disembark")]
@@ -162,7 +163,10 @@ public abstract record Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
-            operations.Add(new RuleOperation.ApplyRollModifier(RollKind, Delta));
+            // #422: tagged with the bearer, so Unstoppable can tell this model's own penalties from
+            // everyone else's ("ignores all negative modifiers which are not from this model's special
+            // rules"). Every other reader ignores the tag.
+            operations.Add(new RuleOperation.ApplyRollModifier(RollKind, Delta, ruleInvocation.Bearer.ID));
         }
     }
 
@@ -181,7 +185,11 @@ public abstract record Effect
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
             int delta = Delta.Resolve(ruleInvocation);
-            if (delta != 0) operations.Add(new RuleOperation.ApplyRollModifier(RollKind, delta));
+            if (delta != 0)
+            {
+                operations.Add(new RuleOperation.ApplyRollModifier(RollKind, delta,
+                    ruleInvocation.Bearer.ID));
+            }
         }
     }
 
@@ -1009,7 +1017,8 @@ public abstract record Effect
             int steps = ruleInvocation.Bearer.Tokens.GetTokenCount(TType) / PerMarkers;
             if (steps > 0)
             {
-                operations.Add(new RuleOperation.ApplyRollModifier(RollKind, Delta * steps));
+                operations.Add(new RuleOperation.ApplyRollModifier(RollKind, Delta * steps,
+                    ruleInvocation.Bearer.ID));
             }
         }
     }
@@ -1589,6 +1598,32 @@ public abstract record Effect
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.IgnorePositiveDefenseModifiers());
+        }
+    }
+
+    /// <summary>
+    /// #422 Unstoppable: "ignores all negative modifiers <b>which are not from this model's special
+    /// rules</b>" - the second of the rule's two facets, and the one that was missing. The first
+    /// (ignoring the target's Regeneration) was built; this needed the modifier stack to remember where
+    /// each penalty came from, which <see cref="RuleOperation.ApplyRollModifier.Source"/> now carries.
+    ///
+    /// <para>
+    /// Sibling of <see cref="IgnorePositiveDefenseModifiers"/> in shape - a marker operation the rolling
+    /// stage reads, rather than an effect that mutates the stack - and for the same reason: the decision
+    /// is about the whole stack, which only the stage has in hand.
+    /// </para>
+    /// <para>
+    /// The marker is read at the HIT roll. Unfavourable modifiers to the defender's SAVE are the
+    /// attacker's own AP, which this clause has no business removing, and the defender's save bonuses are
+    /// favourable - so there is nothing for it to do there. The one site is
+    /// <c>DetermineHitRollStage</c>.
+    /// </para>
+    /// </summary>
+    public sealed record IgnoreForeignNegativeModifiers : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            operations.Add(new RuleOperation.IgnoreForeignNegativeModifiers(ruleInvocation.Bearer.ID));
         }
     }
 

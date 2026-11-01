@@ -340,7 +340,12 @@ public static class RuleFireLint
 
             // DetermineHitRollStage: shifts the hit threshold and floors Quality. It never reads a Save delta.
             EHookID.Shooting_OnHitRollModifier =>
-                op is RuleOperation.ApplyRollModifier { Roll: ERollKind.Hit } or RuleOperation.QualityFloor,
+                op is RuleOperation.ApplyRollModifier { Roll: ERollKind.Hit }
+                    or RuleOperation.QualityFloor
+                    // #422 Unstoppable: DetermineHitRollStage folds the stack with every penalty that did
+                    // not come from the attacker's own rules dropped (the Pierce shape, chosen by source
+                    // rather than by sign).
+                    or RuleOperation.IgnoreForeignNegativeModifiers,
 
             // RollToHitStage: per-hit AP split, extra hits, hit multiplier, whole-attack Save delta, and the
             // defender's AP reduction. The hit roll is already made, so a Hit delta here is discarded.

@@ -108,7 +108,23 @@ namespace FDG.Stages
             RollModifierSink rollModifiers = new RollModifierSink();
             rollModifiers.ApplyFrom(operations);
 
-            results.HitRollNeeded -= rollModifiers.Net(ERollKind.Hit);
+            // #422 Unstoppable: "ignores all negative modifiers which are not from this model's special
+            // rules". Same shape as Pierce at the save roll - a marker operation, and a sink read that
+            // drops one part of the stack - except the part dropped is chosen by SOURCE rather than by
+            // sign, so the model keeps its own penalties (the HitPenaltyWhenShooting family) and loses
+            // everything aimed at it from outside: the target's Stealth, the -1 for shooting an Aircraft.
+            RuleOperation.IgnoreForeignNegativeModifiers? ignoresForeignPenalties = operations
+                .OfType<RuleOperation.IgnoreForeignNegativeModifiers>().FirstOrDefault();
+            int hitModifier = ignoresForeignPenalties is { } immunity
+                ? rollModifiers.NetIgnoringForeignNegatives(ERollKind.Hit, immunity.Bearer)
+                : rollModifiers.Net(ERollKind.Hit);
+            results.HitRollNeeded -= hitModifier;
+
+            if (ignoresForeignPenalties != null && hitModifier != rollModifiers.Net(ERollKind.Hit))
+            {
+                GameContext.Log($"{attacker.Name} is Unstoppable - penalties not from its own rules are "
+                    + $"ignored (net {rollModifiers.Net(ERollKind.Hit)} -> {hitModifier}).");
+            }
 
             // #020 Fatigue: a unit that has already charged or struck back this round — or that is Shaken
             // (#089) — hits only on unmodified 6s in melee, ignoring all modifiers. Computed up front so the

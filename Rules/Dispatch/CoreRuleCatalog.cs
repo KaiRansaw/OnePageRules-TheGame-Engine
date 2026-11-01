@@ -924,9 +924,24 @@ public static class CoreRuleCatalog
         Description: "Ignores each wound on a roll of 5+.");
 
     /// <summary>
-    /// Attacker: ignores the target's Regeneration (the suppression facet). The rulebook's second
-    /// facet — "ignores all negative modifiers to this weapon" — needs a modifier-immunity effect
-    /// and lands when that's modelled.
+    /// Unstoppable: "this weapon ignores Regeneration, and ignores all negative modifiers which are not
+    /// from this model's special rules." Identical in all six systems.
+    /// <para>
+    /// The Regeneration half was built; the modifier half said "needs a modifier-immunity effect and
+    /// lands when that's modelled", and #422 modelled it. The obstacle was never the effect - it was that
+    /// <see cref="RollModifierSink"/> kept a net (later a net plus a sign split, for Pierce) and the
+    /// clause asks about a modifier's <b>source</b>, which no tally could answer.
+    /// <see cref="RuleOperation.ApplyRollModifier"/> now carries the unit whose rule produced it, so the
+    /// sink can hand back "the net with every FOREIGN penalty dropped" the way it already hands Pierce
+    /// "the net with every favourable modifier dropped".
+    /// </para>
+    /// <para>
+    /// Read at the hit roll only, and the clause's own wording is why: an unfavourable modifier to the
+    /// defender's save is the attacker's own AP, which this has no business removing. So in practice it
+    /// strips the defender's Stealth, the -1 for shooting at an Aircraft, and anything else aimed at the
+    /// shot from outside - while leaving the model's own penalties (the HitPenaltyWhenShooting family) in
+    /// place, which is what "not from this model's special rules" is there to protect.
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition Unstoppable { get; } = new SpecialRuleDefinition("Unstoppable",
         new[]
@@ -935,11 +950,16 @@ public static class CoreRuleCatalog
                 new Condition.Always(),
                 new Effect.IgnoreRule("Regeneration"),
                 ELifetime.ThisAttack),
+            new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                new Condition.Always(),
+                new Effect.IgnoreForeignNegativeModifiers(),
+                ELifetime.ThisAttack),
         },
         Array.Empty<ActivatedAbility>(),
         ERuleScope.Weapon,
         Valence: EValence.Positive,
-        Description: "This weapon's attacks ignore the target's Regeneration.");
+        Description: "This weapon ignores Regeneration, and ignores all negative modifiers which are not "
+            + "from this model's special rules.");
 
     /// <summary>
     /// Attacker: each hit that rolled an unmodified 6 promotes to AP(4) — modelled as -4 to the

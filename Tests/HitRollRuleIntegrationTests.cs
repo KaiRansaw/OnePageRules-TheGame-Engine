@@ -509,15 +509,117 @@ namespace FDG.Tests
             unit.GetValue().Tokens.AddToken(new Token(TokenType.Mark, 1, new TokenClearTrigger.ManualOnly(),
                 Payload: new TokenPayload.RuleGrant(ruleName, ELifetime.ThisAttack)));
 
+        // ── #422 Unstoppable's modifier half ─────────────────────────────────────────────────────────
+        //
+        // "This weapon ignores Regeneration, and ignores all negative modifiers WHICH ARE NOT FROM THIS
+        // MODEL'S SPECIAL RULES." Only the Regeneration half was built; the second said it "needs a
+        // modifier-immunity effect and lands when that's modelled". The obstacle was that the modifier
+        // stack kept totals - a net, and later Pierce's positive/negative split - and this clause asks
+        // where a penalty CAME FROM, which no total can answer. Modifiers now carry their source.
+
+        [Test]
+        public async Task UnstoppableAttacker_IgnoresTheTargetsStealth()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachStealth(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender,
+                firedWeapon: UnstoppableWeapon());
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4),
+                "Stealth's -1 is not from the attacker's own rules, so Unstoppable ignores it - compare "
+                + "DefenderWithStealth_BeyondNine_RaisesHitThreshold, which is the same shot without it.");
+        }
+
+        // The half of the clause that makes it a clause rather than "ignores all negative modifiers": a
+        // model's OWN penalty stays. Without the source check this would wrongly read 4.
+        [Test]
+        public async Task UnstoppableAttacker_KeepsItsOwnPenalty()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            attacker.GetValue().AttachRuleDefinition(new ResolvedRule("-1 to hit rolls when shooting",
+                CoreRuleCatalog.HitPenaltyWhenShooting));
+
+            DetermineHitRollResults result = await RunStage(attacker, defender,
+                firedWeapon: UnstoppableWeapon());
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
+                "the penalty IS from this model's own special rules, so it is kept.");
+        }
+
+        // Both at once, which is the case that proves the two are separated rather than one of them
+        // winning: the attacker's own -1 survives and the target's -1 is dropped, so the shot ends one
+        // step worse than base rather than two.
+        [Test]
+        public async Task UnstoppableAttacker_KeepsItsOwnPenalty_AndStillIgnoresTheTargets()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            attacker.GetValue().AttachRuleDefinition(new ResolvedRule("-1 to hit rolls when shooting",
+                CoreRuleCatalog.HitPenaltyWhenShooting));
+            AttachStealth(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender,
+                firedWeapon: UnstoppableWeapon());
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
+                "own -1 kept, target's -1 dropped: 4 + 1, not 4 + 2.");
+        }
+
+        // Favourable modifiers are untouched - the clause is about negatives only, and a buff the
+        // attacker has must not be discarded along with the penalties.
+        [Test]
+        public async Task UnstoppableAttacker_KeepsItsBonuses()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachGoodShot(attacker);
+            AttachStealth(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender,
+                firedWeapon: UnstoppableWeapon());
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(3),
+                "Good Shot's +1 survives and Stealth's -1 is dropped, so the two do not cancel as they "
+                + "would without Unstoppable.");
+        }
+
+        // The rule rides the WEAPON, so a unit that carries it on one weapon does not get immunity when
+        // firing another. Same shot as the first case with a plain weapon: the Stealth lands.
+        [Test]
+        public async Task PlainWeapon_SuffersTheTargetsStealth()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachStealth(defender);
+
+            DetermineHitRollResults result = await RunStage(attacker, defender);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(5),
+                "no Unstoppable on the weapon fired - the penalty applies as usual.");
+        }
+
+        private static Weapon UnstoppableWeapon()
+        {
+            var weapon = new Weapon("Unstoppable Gun", rangeInches: 48f, attacks: 1, armorPenetration: 0);
+            weapon.AttachRuleDefinition(new ResolvedRule("Unstoppable", CoreRuleCatalog.Unstoppable));
+            return weapon;
+        }
+
         private async Task<DetermineHitRollResults> RunStage(
             DataBinding<UnitData> attacker, DataBinding<UnitData> defender, bool attackerMoved = false,
-            bool isMelee = false)
+            bool isMelee = false, Weapon? firedWeapon = null)
         {
             var layer = new NoOpLayer<ICombatMetadata>();
             var stage = new DetermineHitRollStage<ICombatMetadata>(_ctx, layer);
             stage.NextStage.Bind("done");
 
-            var weapon = new Weapon("Test", rangeInches: 48f, attacks: 1, armorPenetration: 0);
+            // #422: weapon-scoped rules (Unstoppable) have to ride the weapon the attack is made with,
+            // so a caller can hand one in; everything else keeps the plain test weapon.
+            Weapon weapon = firedWeapon
+                ?? new Weapon("Test", rangeInches: 48f, attacks: 1, armorPenetration: 0);
             var metadata = new CombatMetadata(_ctx, attacker, defender, weapon, weaponCount: 1, attackerMoved, isMelee);
 
             await stage.Enter(metadata);
