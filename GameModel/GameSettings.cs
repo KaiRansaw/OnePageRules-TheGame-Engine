@@ -353,6 +353,32 @@ namespace FDG
         /// </summary>
         public static bool IsAvailable(EGameSystem system) => Array.IndexOf(DisplayOrder, system) >= 0;
 
+        /// <summary>
+        /// The system an Army Forge slug names, or null when it names none this game plays.
+        ///
+        /// <para>
+        /// #421 added it because saving an army needs to put the file in its game's folder, and the army
+        /// carries a SLUG while the folders are keyed by <see cref="EGameSystem"/>. The pairing is
+        /// <see cref="Slug"/> read backwards, derived from it rather than typed out again - two
+        /// hand-written halves of one mapping drift, and this one decides where a list is filed, so the
+        /// drift would show up as an army that vanishes from the picker.
+        /// </para>
+        /// <para>
+        /// Matching is case-insensitive and tolerates a null or blank slug as Grimdark Future, which is
+        /// what <c>GameSystems.Normalize</c> means by an absent field: every army written before the
+        /// field existed is a Grimdark Future army.
+        /// </para>
+        /// </summary>
+        public static EGameSystem? FromSlug(string? slug)
+        {
+            string normalized = ArmyBuilding.GameSystems.Normalize(slug);
+            foreach (EGameSystem system in DisplayOrder)
+                if (string.Equals(Slug(system), normalized, StringComparison.OrdinalIgnoreCase))
+                    return system;
+
+            return null;
+        }
+
         /// <summary>The Game Modes this game offers.</summary>
         public static EGameMode[] Modes(EGameSystem system) => system switch
         {
