@@ -118,8 +118,12 @@ namespace FDG
             FDG.StateMachine.HordeRules.Configure(system);
             MAX_MODEL_DISTANCE_FROM_ALL_OTHER_MODELS_INCHES = GameSystemInfo.IsSkirmish(system)
                 ? SKIRMISH_COHERENCY_INCHES : STANDARD_COHERENCY_INCHES;
-            // #418: melee reach is a flat 3" everywhere except AoF: Quest, whose 2.0.1 book keeps the
-            // old 2" horizontal / 4" vertical split. A non-Quest system reads the flat value.
+            // Melee reach comes from the Quest profile for a Quest game and from the flat constant
+            // otherwise. Both Quest systems now read a flat 3": #418 briefly gave AoF: Quest a 2"
+            // horizontal / 4" vertical split on the strength of its v2.0.1 book, and the 2.1.0 books
+            // then agreed on 3", so the split is gone. The seam is kept because the profile owns several
+            // other Quest numbers. (Comment corrected 2026-11-01: it still described the 2.0.1 split
+            // that the code had already stopped applying, and v2.0.1 is now an archived edition.)
             if (GameSystemInfo.IsQuest(system))
             {
                 FDG.Rules.Dispatch.QuestRulesProfile quest =
