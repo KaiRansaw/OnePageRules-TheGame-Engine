@@ -19,9 +19,16 @@ namespace FDG.Ai
         /// share a sequence and a seeded game replays identically (#193). Null = unseeded, as before.
         /// </param>
         /// <param name="slotID">The player's slot index. Stable across runs and across save/resume, unlike the PlayerID GUID.</param>
+        /// <param name="flavour">
+        /// #419: which rulebook's decisions to carry. <see cref="ESoloFlavour.Baseline"/> (the default) is
+        /// the frozen benchmark baseline every existing caller wants - Gunline, the Tactician's underlay and
+        /// the sandbox all build on it, and plan D1 forbids changing its behaviour.
+        /// </param>
         public static IStageResolverRegistry BuildSoloRules(ITableState tableState, PlayerID playerID,
-            int? seed = null, int slotID = 0, bool starQuest = false)
+            int? seed = null, int slotID = 0, ESoloFlavour flavour = ESoloFlavour.Baseline)
         {
+            bool starQuest = flavour == ESoloFlavour.StarQuest;
+            bool book = flavour == ESoloFlavour.SoloCoOp;
             int? playerSeed = GameRandom.DeriveForSlot(seed, slotID);
             Random? objectiveRng = playerSeed.HasValue ? GameRandom.Create(playerSeed, salt: 1) : null;
             Random? terrainRng = playerSeed.HasValue ? GameRandom.Create(playerSeed, salt: 2) : null;
@@ -54,10 +61,15 @@ namespace FDG.Ai
                     : (IStageResolver<StageResolution.Requests.ChooseSpellRequest, StageResolution.Requests.ChooseSpellReply>)new AiChooseSpellResolver())
                 .RegisterResolver(new AiCastAssistResolver())
                 .RegisterResolver(new AiChooseDeploymentZoneResolver())
+                // #419: the book's shooting priority for the official bot, the frozen ordering for the
+                // baseline. The Quest resolver wraps the book one for bot-run heroes - closest-first is
+                // the right policy for them too, and it is what B16's measured hero runs used.
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestRangedAttackResolver()
-                    : (IStageResolver<StageResolution.Requests.ChooseRangedAttackRequest,
-                        CancellableResult<StageResolution.Requests.ChooseRangedAttackRequest.RangedAttackChoice>>)new AiChooseRangedAttackResolver())
+                    : book
+                        ? new Solo.SoloCoOpRangedAttackResolver()
+                        : (IStageResolver<StageResolution.Requests.ChooseRangedAttackRequest,
+                            CancellableResult<StageResolution.Requests.ChooseRangedAttackRequest.RangedAttackChoice>>)new AiChooseRangedAttackResolver())
                 .RegisterResolver(new AiChooseMeleeDefenderResolver())
                 .RegisterResolver(new DerivedRequestAdapter<StageResolution.Requests.ChooseMeleeDefenderRequest,
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
@@ -73,13 +85,18 @@ namespace FDG.Ai
                 .RegisterResolver(new AiSelectionResolver<UnitData>(evaluator))
                 // #191 A4-1's request split: activation is its own type; solo-rules keeps the same
                 // first-option behavior via the adapter (pinned by the benchmark hashes).
-                // #419: the Solo & Co-Op activation order (D3 for a table section, then a random unit in
-                // it, Shaken last) replaces "take the first option the engine offered", which let a player
-                // read the whole turn in advance.
+                // #419: the official bot gets the Solo & Co-Op activation order (D3 for a table section,
+                // then a random unit in it, Shaken last). The baseline keeps "take the first option the
+                // engine offered" - army build order, which let a player read the whole turn in advance,
+                // but which plan D1 freezes because every benchmark number depends on it.
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestActivationResolver(tableState, playerID)
-                    : (IStageResolver<StageResolution.Requests.ChooseUnitToActivateRequest, Data.DataBinding<UnitData>>)
-                    new Solo.SoloRulesActivationResolver(activationRng))
+                    : book
+                        ? new Solo.SoloRulesActivationResolver(activationRng)
+                        : (IStageResolver<StageResolution.Requests.ChooseUnitToActivateRequest, Data.DataBinding<UnitData>>)
+                        new DerivedRequestAdapter<StageResolution.Requests.ChooseUnitToActivateRequest,
+                        StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>(
+                        new AiSelectionResolver<UnitData>()))
                 .RegisterResolver(new AiSelectionResolver<ModelData>())
                 .RegisterResolver(new AiSelectionResolver<RectangularZone>())
                 .RegisterResolver(new AiPlaceObjectsResolver<ModelData>(tableState))

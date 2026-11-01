@@ -46,7 +46,11 @@ namespace FDG.Ai
                 case EAiProfile.SoloRules:
                     return AiResolverRegistryFactory.BuildSoloRules(tableState, playerID, seed, slotID);
                 case EAiProfile.StarQuest:
-                    return AiResolverRegistryFactory.BuildSoloRules(tableState, playerID, seed, slotID, starQuest: true);
+                    return AiResolverRegistryFactory.BuildSoloRules(tableState, playerID, seed, slotID,
+                        ESoloFlavour.StarQuest);
+                case EAiProfile.SoloCoOp:
+                    return AiResolverRegistryFactory.BuildSoloRules(tableState, playerID, seed, slotID,
+                        ESoloFlavour.SoloCoOp);
                 case EAiProfile.Tactician:
                     IStageResolverRegistry registry = TacticianResolverRegistryFactory.Build(tableState, playerID,
                         new TacticianOptions { Seed = seed, SlotID = slotID, DecisionLog = decisionLog,
