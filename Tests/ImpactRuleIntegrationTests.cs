@@ -2,6 +2,7 @@ using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.Stages;
 using FDG.Utilities;
 using NUnit.Framework;
@@ -36,6 +37,51 @@ namespace FDG.Tests
 
             Assert.That(defender.RemainingWounds(), Is.EqualTo(0f),
                 "Impact(3) deals 3 auto-hits → 3 wounds, wiping out the 2-wound defender before any swing.");
+        }
+
+        // ── The Fatigued clause (#420) ───────────────────────────────────────────────────────────────
+
+        // "When charging, before either unit attacks, roll X dice, UNLESS THIS UNIT IS FATIGUED."
+        //
+        // The gate was deferred when Impact was first written, for a good reason that then expired:
+        // fatigue did not exist in the engine yet, and the rule's doc comment said so ("the 'not
+        // fatigued' gate is deferred (fatigue is absent) - see Appendix C"). Q5 added fatigue and nobody
+        // came back here, so every Impact carrier in the game - every tank, chariot and monster - kept
+        // its full charge dice while Fatigued, for months. The deferral note is exactly the kind of
+        // comment the project's own warning list says not to trust.
+        //
+        // No test had ever charged with a Fatigued unit, which is why a green suite proved nothing.
+        [Test]
+        public async Task ImpactCharger_WhenFatigued_RollsNothing()
+        {
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(2));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachImpact(attacker, x: 3);
+            attacker.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Fatigued));
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 2);
+
+            await RunStage(ctx, attacker, defender);
+
+            Assert.That(defender.RemainingWounds(), Is.EqualTo(2f),
+                "a Fatigued charger rolls no Impact dice - the clause gates the roll entirely, and the "
+                + "same defender is wiped out by the identical unit when it is fresh.");
+        }
+
+        // The control: identical setup minus the token, which is the case the test above is measured
+        // against. The first assertion in this file already covers it, repeated here so the pair reads
+        // together and neither can be deleted without the other looking wrong.
+        [Test]
+        public async Task ImpactCharger_WhenNotFatigued_StillRolls()
+        {
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(2));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachImpact(attacker, x: 3);
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 2);
+
+            await RunStage(ctx, attacker, defender);
+
+            Assert.That(defender.RemainingWounds(), Is.EqualTo(0f),
+                "without the Fatigued token the same Impact(3) charge wipes the 2-wound defender.");
         }
 
         // #197 misc - Heavy Impact ("Impact(X) with hits that have AP(1)"). AllOnFaceDiceRoller(4): each

@@ -259,6 +259,28 @@ namespace FDG
             _ => system.ToString(),
         };
 
+        /// <summary>
+        /// The Army Forge slug for a game system - the same key <see cref="ArmyBuilding.GameSystems"/>
+        /// stamps on a book or army, and what any per-system data keys off.
+        ///
+        /// <para>
+        /// #420 added this because the rule-text lookup needed it and three screens were about to grow
+        /// their own copy of the switch. The two sides of the same fact were already drifting: this enum
+        /// is what a GAME is played as, the slug is what a BOOK was built from, and nothing converted
+        /// between them, so every site that needed both wrote the mapping again.
+        /// </para>
+        /// </summary>
+        public static string Slug(EGameSystem system) => system switch
+        {
+            EGameSystem.GrimdarkFuture => ArmyBuilding.GameSystems.GrimdarkFuture,
+            EGameSystem.AgeOfFantasy => ArmyBuilding.GameSystems.AgeOfFantasy,
+            EGameSystem.GFFirefight => ArmyBuilding.GameSystems.GFFirefight,
+            EGameSystem.AoFSkirmish => ArmyBuilding.GameSystems.AoFSkirmish,
+            EGameSystem.GFStarQuest => ArmyBuilding.GameSystems.GFStarQuest,
+            EGameSystem.AoFQuest => ArmyBuilding.GameSystems.AoFQuest,
+            _ => ArmyBuilding.GameSystems.GrimdarkFuture,
+        };
+
         /// <summary>Whose armies the game is played with: the Grimdark Future games take Grimdark Future
         /// armies, the Age of Fantasy games take Age of Fantasy armies.</summary>
         /// <summary>

@@ -4,6 +4,7 @@ using FDG.Players;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.Stages;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
@@ -95,6 +96,51 @@ namespace FDG.Tests
             Assert.That(defender.RemainingWounds(), Is.EqualTo(5f),
                 "Ravage's 3 wounds reach the regen sink and are ignored on the 5+ roll, so the defender " +
                 "survives untouched - proving auto-wounds skip the save but not Regeneration.");
+        }
+
+        // ── The Fatigued clause (#420) ───────────────────────────────────────────────────────────────
+
+        // "Once per round, when it's this model's turn to strike in melee, roll X dice before attacking,
+        // UNLESS THIS UNIT IS FATIGUED." The clause was absent until #420: the hook condition was
+        // Condition.Always(), so a Fatigued unit rolled its Ravage dice in full. Nothing caught it because
+        // no test in the suite had ever charged with a Fatigued unit - the 78 Impact/Ravage/Fatigue cases
+        // all passed with the gate missing AND with it added.
+        //
+        // This is the same shape as Counter's gate, and the owner found it the way these always get found:
+        // the tooltip's hand-written summary dropped the clause, which was a reason to go and read the
+        // implementation.
+        [Test]
+        public async Task Ravage_FatiguedUnit_RollsNothing()
+        {
+            var requester = new CapturingWoundRequester();
+            var ctx = new WoundTestContext(_store, requester, new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachRavage(attacker, x: 3);
+            attacker.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Fatigued));
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+
+            await RunStage(ctx, attacker, defender);
+
+            Assert.That(defender.RemainingWounds(), Is.EqualTo(5f),
+                "a Fatigued unit rolls no Ravage dice at all - the book's 'unless this unit is Fatigued' "
+                + "is a gate on the roll, not a penalty to it.");
+        }
+
+        // The control that gives the test above its meaning: the SAME unit, same dice, no Fatigued token,
+        // takes the defender down. Without this pair, deleting Ravage entirely would also pass.
+        [Test]
+        public async Task Ravage_NotFatigued_StillRolls()
+        {
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            AttachRavage(attacker, x: 3);
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+
+            await RunStage(ctx, attacker, defender);
+
+            Assert.That(defender.RemainingWounds(), Is.EqualTo(2f),
+                "the identical unit without the token deals its 3 wounds, so the gate above is what "
+                + "stopped them and not some other part of the setup.");
         }
 
         // Per-model scaling: X is per model carrying the rule. A unit-scoped Ravage(2) on a 3-model unit

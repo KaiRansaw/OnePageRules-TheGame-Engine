@@ -699,13 +699,18 @@ public static class CoreRuleCatalog
     /// defender, resolved through save + wound BEFORE the normal melee swings. A passive rule at
     /// <see cref="EHookID.Melee_OnChargeContact"/> that queues <see cref="RuleOperation.ChargeImpactHits"/>;
     /// ResolveImpactHitsStage rolls the dice and runs the hits through the save→wound sub-pipeline.
-    /// The "not fatigued" gate is deferred (fatigue is absent) — see Appendix C.
+    /// The "unless this unit is Fatigued" gate is implemented as of #420 - it had been deferred while
+    /// fatigue did not exist, and was not revisited when Q5 added it.
     /// </summary>
     public static SpecialRuleDefinition Impact { get; } = new SpecialRuleDefinition("Impact",
         new[]
         {
+            // #420: "unless this unit is Fatigued". The gate was deferred when this rule was written
+            // because fatigue did not exist yet (see the Appendix C note that used to sit above); Q5
+            // added it and nothing came back here, so every Impact carrier kept its charge dice while
+            // Fatigued. Counter's gate is the same shape.
             new HookEntry(EHookID.Melee_OnChargeContact,
-                new Condition.Always(),
+                new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued)),
                 new Effect.ChargeImpactHits(new ValueSource.Arg(0)),
                 ELifetime.ThisAttack),
         },
@@ -725,8 +730,10 @@ public static class CoreRuleCatalog
     public static SpecialRuleDefinition Ravage { get; } = new SpecialRuleDefinition("Ravage",
         new[]
         {
+            // #420: "unless this unit is Fatigued" - the clause was missing, so a Fatigued unit still
+            // rolled its Ravage dice. Fatigue exists now (Q5); Counter's gate is the same shape.
             new HookEntry(EHookID.Melee_OnChargeContact,
-                new Condition.Always(),
+                new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued)),
                 new Effect.DealAutoWounds(new ValueSource.Arg(0), SuccessThreshold: 6),
                 ELifetime.ThisAttack),
         },
