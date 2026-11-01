@@ -47,6 +47,11 @@ namespace FDG.Ai
             // action menu to skip the movement family once, breaking the decline-repick livelock.
             var declineLatch = new SoloMoveDeclineLatch();
 
+            // #423: the Caster clause's D3. Its own salt so adding it does not shift the deployment or
+            // activation rolls of a seed that was already played.
+            Random spellRng = playerSeed.HasValue
+                ? GameRandom.Create(playerSeed, salt: 7)! : new Random();
+
             // #191 A5-10: the UnitData selection resolver asks the rule graph which deploy-order
             // options are transports (they go down first, so later cargo can be offered the ride).
             var evaluator = new Rules.Dispatch.RuleEvaluator(new ProbabilisticDiceRoller());
@@ -73,9 +78,14 @@ namespace FDG.Ai
                         ? new Solo.SoloCoOpActionResolver(tableState, playerID, declineLatch, stringSelection)
                         : stringSelection)
                 .RegisterResolver(new AiChooseAbilityEffectResolver())
+                // #423: the official bot picks its spell the book's way - a random spell on D3+X, cycling
+                // until one is castable. The baseline keeps "the first castable spell", which plan D1
+                // freezes. The roll shares the deployment RNG's seed stream so a seeded game replays.
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestSpellResolver(playerSeed)
-                    : (IStageResolver<StageResolution.Requests.ChooseSpellRequest, StageResolution.Requests.ChooseSpellReply>)new AiChooseSpellResolver())
+                    : book
+                        ? new Solo.SoloCoOpSpellResolver(() => spellRng.Next(3) + 1)
+                        : (IStageResolver<StageResolution.Requests.ChooseSpellRequest, StageResolution.Requests.ChooseSpellReply>)new AiChooseSpellResolver())
                 .RegisterResolver(new AiCastAssistResolver())
                 .RegisterResolver(new AiChooseDeploymentZoneResolver())
                 // #419: the book's shooting priority for the official bot, the frozen ordering for the
@@ -106,7 +116,7 @@ namespace FDG.Ai
                 // #419: the official bot deploys one random unit at a time, with Scout held until last.
                 // The baseline keeps "first option offered", which plan D1 freezes.
                 .RegisterResolver(book
-                    ? new Solo.SoloCoOpDeployOrderResolver(evaluator, deploymentRng)
+                    ? new Solo.SoloCoOpDeployOrderResolver(evaluator, deploymentRng, tableState)
                     : (IStageResolver<StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>)
                     new AiSelectionResolver<UnitData>(evaluator))
                 // #191 A4-1's request split: activation is its own type; solo-rules keeps the same
@@ -118,7 +128,7 @@ namespace FDG.Ai
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestActivationResolver(tableState, playerID)
                     : book
-                        ? new Solo.SoloRulesActivationResolver(activationRng)
+                        ? new Solo.SoloRulesActivationResolver(activationRng, tableState)
                         : (IStageResolver<StageResolution.Requests.ChooseUnitToActivateRequest, Data.DataBinding<UnitData>>)
                         new DerivedRequestAdapter<StageResolution.Requests.ChooseUnitToActivateRequest,
                         StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>(

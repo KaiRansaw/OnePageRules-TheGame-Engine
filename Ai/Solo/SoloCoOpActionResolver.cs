@@ -37,6 +37,8 @@ namespace FDG.Ai.Solo
         private int _activationRound = -1;
         private bool _triedMove;
         private bool _triedCharge;
+        private bool _triedCast;
+        private bool _triedDisembark;
 
         public SoloCoOpActionResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch,
             AiStringSelectionResolver fallback)
@@ -61,6 +63,24 @@ namespace FDG.Ai.Solo
             // off the table for this one pick or we re-decline forever.
             bool movementDeclined = _latch?.Consume() == true;
 
+            // #423 Transport: "units inside of them must always disembark on their FIRST ACTIVATION (if
+            // possible)." Unconditional and ranked above everything, because that is what the book says -
+            // the baseline bot instead waits until its ride is within 12" of something worth having
+            // (AiStringSelectionResolver.ShouldDisembark), which is a better tactic and not this
+            // rulebook's instruction.
+            //
+            // It also fixes something larger than the clause: an embarked unit fails GetCanMove
+            // ("Embarked; disembark first") and this resolver never offered Disembark, so cargo the
+            // official bot loaded at deployment rode inside until the transport died.
+            //
+            // DELIBERATELY NOT gated to Grimdark Future, which is the one book that prints the clause.
+            // Age of Fantasy has the Transport RULE with no AI clause for it, and the alternative there
+            // is cargo that never gets out of its transport at all - which is not a reading of the
+            // book's silence, it is a failure to act. The activation-ORDER half of the same clause IS
+            // gated to GF (see SoloRulesActivationResolver), because an order the book does not ask to
+            // change is one the rest of the book already decides.
+            if (TryDisembark(Has) is { } disembark) return Task.FromResult(disembark);
+
             // #423: the Special Rules section overrides the decision tree for two rules. "AI units with
             // Indirect weapons that are in range of enemies ALWAYS use Hold actions and shoot", and the
             // same sentence for Relentless - no tree, no objective run, stand still and fire. Checked
@@ -77,6 +97,23 @@ namespace FDG.Ai.Solo
             }
 
             SoloAiPlan plan = SoloAiBrain.Plan(_table, _me, unit);
+
+            // #423 Caster: "AI units always cast spells AFTER MOVING, selecting a random spell by rolling
+            // D3+X..." - and before #423 this resolver never picked Cast at all, in any branch, so the
+            // official bot's casters never cast a spell in any mode. The random pick itself is
+            // SoloCoOpSpellResolver's; what belongs here is the window.
+            //
+            // "After moving" is read as "once no move is still to come": the unit has already moved, or
+            // cannot, or the tree is holding it in place (a Hold action is a non-move, and a holding
+            // caster that never cast would be the clause read backwards). Cast is preferred over Shoot at
+            // that point because casting is once per activation and attacking closes the window - a bot
+            // that shot first would never cast at all, which is the fault being fixed.
+            bool moveStillToCome = !movementDeclined
+                && plan.Kind != ESoloAiMove.Hold
+                && ((!_triedMove && options.Contains(ChooseActionStage.MOVEMENT_CHOICE_NAME))
+                    || (!_triedCharge && options.Contains(ChooseActionStage.CHARGE_CHOICE_NAME)));
+            if (!moveStillToCome && TryCast(Has) is { } cast) return Task.FromResult(cast);
+
             string? pick = null;
 
             switch (plan.Kind)
@@ -126,6 +163,8 @@ namespace FDG.Ai.Solo
             _activationRound = round;
             _triedMove = false;
             _triedCharge = false;
+            _triedCast = false;
+            _triedDisembark = false;
         }
 
         private string? TryCharge(Func<string, string?> has, bool movementDeclined)
@@ -133,6 +172,32 @@ namespace FDG.Ai.Solo
             if (movementDeclined || _triedCharge) return null;
             string? option = has(ChooseActionStage.CHARGE_CHOICE_NAME);
             if (option != null) _triedCharge = true;
+            return option;
+        }
+
+        /// <summary>
+        /// #423: Disembark, latched like the rest. The placement that follows can be declined (nowhere
+        /// legal within 6" of the hull), which reopens this menu with Disembark still on it - and an AI
+        /// that re-picks an unchanged option spins until the engine's decision watchdog fires.
+        /// </summary>
+        private string? TryDisembark(Func<string, string?> has)
+        {
+            if (_triedDisembark) return null;
+            string? option = has(Rules.Dispatch.CoreRuleCatalog.DisembarkRuleName);
+            if (option != null) _triedDisembark = true;
+            return option;
+        }
+
+        /// <summary>
+        /// #423: Cast, once per activation. Latched for the same reason Move and Charge are - a cast that
+        /// is cancelled (no castable spell after all) reopens this menu with Cast still on it, and an AI
+        /// that re-picks from an unchanged plan spins until the engine's decision watchdog fires.
+        /// </summary>
+        private string? TryCast(Func<string, string?> has)
+        {
+            if (_triedCast) return null;
+            string? option = has(ChooseActionStage.CAST_CHOICE_NAME);
+            if (option != null) _triedCast = true;
             return option;
         }
 

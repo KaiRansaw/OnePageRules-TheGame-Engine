@@ -51,8 +51,18 @@ namespace FDG.Ai.Solo
         /// a random unit from it - and Shaken units only once nothing else is left.
         /// </summary>
         /// <param name="roll">A D3 (1-3) for the section, and a die for the unit within it.</param>
+        /// <param name="holdBack">
+        /// #423: candidates to leave until last, whatever the section roll says - Grimdark Future's
+        /// Transport clause, "AI units with Transport <b>always activate before their cargo on the first
+        /// round</b>". Passed in as a predicate rather than read here because the test needs the table
+        /// state and the round, and this helper deliberately knows about neither; null for every other
+        /// system and every round after the first. Applied with the same shape as the Shaken clause above
+        /// it, including the same safety valve: if holding back would leave nothing to activate, nothing
+        /// is held back.
+        /// </param>
         public static T Pick<T>(IReadOnlyList<T> candidates, Func<T, IUnit> unitOf,
-            float tableWidthInches, float tableHeightInches, Func<int, int> roll)
+            float tableWidthInches, float tableHeightInches, Func<int, int> roll,
+            Func<T, bool>? holdBack = null)
         {
             if (candidates.Count == 0)
                 throw new InvalidOperationException("AI received an activation request with no valid options.");
@@ -63,6 +73,12 @@ namespace FDG.Ai.Solo
                 .Where(c => !unitOf(c).Tokens.HasToken(TokenType.Shaken))
                 .ToList();
             if (eligible.Count == 0) eligible = candidates.ToList();
+
+            if (holdBack != null)
+            {
+                var notHeld = eligible.Where(c => !holdBack(c)).ToList();
+                if (notHeld.Count > 0) eligible = notHeld;
+            }
 
             var bySection = new Dictionary<int, List<T>>();
             foreach (T candidate in eligible)

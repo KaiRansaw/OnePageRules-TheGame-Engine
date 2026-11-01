@@ -3,6 +3,7 @@ using FDG.Ai.Resolvers;
 using FDG.Ai.Solo;
 using FDG.Data;
 using FDG.Players;
+using FDG.Rules.Dispatch;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
@@ -79,6 +80,158 @@ namespace FDG.Tests
             ChooseActionStage.SHOOT_CHOICE_NAME,
             ChooseActionStage.PASS_CHOICE_NAME,
         };
+
+        // ── #423 Transport: "must always disembark on their first activation" ────────────────────────
+        //
+        // Grimdark Future's Transport clause, third sentence. Unconditional, and ranked above everything
+        // else - the baseline bot instead waits until its ride is within 12" of something worth having
+        // (AiStringSelectionResolver.ShouldDisembark), which is a better tactic and not this rulebook's
+        // instruction.
+        //
+        // It also fixes something bigger than the clause: an embarked unit fails GetCanMove ("Embarked;
+        // disembark first") and this resolver never offered Disembark, so cargo the official bot loaded
+        // at deployment rode inside until the transport died.
+
+        [Test]
+        public async Task EmbarkedCargo_DisembarksImmediately()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Grunts", 24f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                CoreRuleCatalog.DisembarkRuleName,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(CoreRuleCatalog.DisembarkRuleName),
+                "\"must always disembark on their first activation\" - no condition attached.");
+        }
+
+        // Above everything, including a shot it could take and an objective it could run at: the clause
+        // says always, and a unit that is still inside cannot do either anyway.
+        [Test]
+        public async Task Disembark_OutranksTheRestOfTheMenu()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Grunts", 24f, 24f);
+            Objective(46f, 24f);
+            Unit(_player, "Troops", 30f, 24f);   // in range, so Shoot is live too
+
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                ChooseActionStage.MOVEMENT_CHOICE_NAME,
+                ChooseActionStage.SHOOT_CHOICE_NAME,
+                CoreRuleCatalog.DisembarkRuleName,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(CoreRuleCatalog.DisembarkRuleName));
+        }
+
+        // Latched, for the reason every family here is latched: the placement after a disembark can be
+        // declined (nowhere legal within 6" of the hull), which reopens this menu with Disembark still on
+        // it, and an AI that re-picks an unchanged option spins until the decision watchdog fires.
+        [Test]
+        public async Task DisembarkIsPickedAtMostOncePerActivation()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Grunts", 24f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            SoloCoOpActionResolver resolver = NewActionResolver();
+            string[] menu = { CoreRuleCatalog.DisembarkRuleName, ChooseActionStage.PASS_CHOICE_NAME };
+
+            string first = await resolver.Resolve(Menu(ai, menu));
+            string second = await resolver.Resolve(Menu(ai, menu));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(first, Is.EqualTo(CoreRuleCatalog.DisembarkRuleName));
+                Assert.That(second, Is.EqualTo(ChooseActionStage.PASS_CHOICE_NAME),
+                    "the second ask ends the activation rather than re-picking Disembark.");
+            });
+        }
+
+        // ── #423 Caster: "always cast spells AFTER MOVING" ───────────────────────────────────────────
+        //
+        // The clause's other half (the random D3+X pick) is in SoloAiCasterClauseTests. What is pinned
+        // here is the window - and the fault behind it, which is bigger than the clause: this resolver
+        // never picked Cast in ANY branch, so the official bot's casters never cast a spell in any mode.
+        //
+        // Cast is preferred over Shoot once the move is done, because casting is once per activation and
+        // attacking closes the window: a bot that shot first would never cast at all.
+
+        [Test]
+        public async Task ACasterThatHasMoved_Casts()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Wizard", 24f, 24f);
+            Unit(_player, "Troops", 36f, 24f);   // in range, so Shoot is on the menu too
+
+            // The menu the engine reopens after a move: Move is gone, Cast and Shoot remain.
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                ChooseActionStage.CAST_CHOICE_NAME,
+                ChooseActionStage.SHOOT_CHOICE_NAME,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.CAST_CHOICE_NAME),
+                "the move is done, so the spell comes before the shot - and before #423 this was Shoot, "
+                + "every time, forever.");
+        }
+
+        // "After moving" means the move comes first. On the opening menu the tree's objective run wins
+        // and the cast waits for the second menu.
+        [Test]
+        public async Task ACasterWithAMoveStillToCome_MovesFirst()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Wizard", 10f, 24f);
+            Objective(46f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu[0], FullMenu[1],
+                ChooseActionStage.CAST_CHOICE_NAME, ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.MOVEMENT_CHOICE_NAME),
+                "the clause is \"after moving\", so a unit with a move still to come takes it first.");
+        }
+
+        // A unit the tree is holding never moves, and a holding caster that never cast would be the
+        // clause read backwards. Hold is a non-move, not a non-action.
+        [Test]
+        public async Task AHoldingCaster_CastsWithoutMoving()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Wizard", 24f, 24f);
+            Objective(24f, 24f);                 // standing on it: step 2 holds position
+            Unit(_player, "Troops", 90f, 90f);   // nothing in range, so no shot to take either
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu[0],
+                ChooseActionStage.CAST_CHOICE_NAME, ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.CAST_CHOICE_NAME),
+                "holding its objective, so there is no move to wait for.");
+        }
+
+        // The latch, which is not optional: a cancelled cast reopens this menu with Cast still on it, and
+        // an AI that re-picks from an unchanged plan spins until the engine's decision watchdog fires -
+        // the bug that cost three wrong guesses on the hero AI.
+        [Test]
+        public async Task CastIsPickedAtMostOncePerActivation()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Wizard", 24f, 24f);
+            Objective(24f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            SoloCoOpActionResolver resolver = NewActionResolver();
+            string[] menu =
+            {
+                ChooseActionStage.CAST_CHOICE_NAME,
+                ChooseActionStage.PASS_CHOICE_NAME,
+            };
+
+            string first = await resolver.Resolve(Menu(ai, menu));
+            string second = await resolver.Resolve(Menu(ai, menu));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(first, Is.EqualTo(ChooseActionStage.CAST_CHOICE_NAME));
+                Assert.That(second, Is.EqualTo(ChooseActionStage.PASS_CHOICE_NAME),
+                    "the second ask ends the activation rather than re-picking Cast.");
+            });
+        }
 
         // ── #423 Ambush: "must always be kept in reserve" ────────────────────────────────────────────
         //
