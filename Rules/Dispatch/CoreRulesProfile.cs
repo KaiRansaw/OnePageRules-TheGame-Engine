@@ -31,7 +31,10 @@ namespace FDG.Rules.Dispatch
         bool MeleeResultsDecideMorale,
         bool BlastSplitsBetweenNearbyUnits,
         bool ScoutIsSimpleRedeploy,
-        bool EveryHeroLendsMoraleQuality)
+        bool EveryHeroLendsMoraleQuality,
+        int TransportHeroToughCap,
+        int TransportNonHeroToughCap,
+        int TransportStandardModelTough)
     {
         /// <summary>
         /// Grimdark Future and Age of Fantasy: the full-scale games. Blast caps on the target unit's
@@ -45,7 +48,13 @@ namespace FDG.Rules.Dispatch
             // "The Hero's unit, and units within 6" of friendly Heroes WITH TOUGH(9) OR HIGHER, may use
             // the Hero's Quality for Morale Tests as long as the Hero isn't Shaken." The threshold is
             // what makes this a big-monster aura rather than something every Hero projects.
-            EveryHeroLendsMoraleQuality: false);
+            EveryHeroLendsMoraleQuality: false,
+            // "up to X friendly models or Heroes with up to Tough(6), and non-Heroes with up to
+            // Tough(3) which occupy 3 spaces each." An ordinary model is Tough(1) here, so anything
+            // above that is the 3-space "large" case.
+            TransportHeroToughCap: 6,
+            TransportNonHeroToughCap: 3,
+            TransportStandardModelTough: 1);
 
         /// <summary>
         /// GF: Firefight and AoF: Skirmish. Identical to the full-scale games except that <b>Blast splits</b>:
@@ -68,7 +77,14 @@ namespace FDG.Rules.Dispatch
             // the Hero isn't Shaken." Every Hero projects it. Running Grimdark Future's Tough(9) gate
             // here withheld the aura from essentially every Hero in a skirmish game, where Tough(9) is a
             // vehicle-scale number, so a unit beside its own Hero tested on its own Quality all game.
-            EveryHeroLendsMoraleQuality: true);
+            EveryHeroLendsMoraleQuality: true,
+            // #420: "up to X friendly models with Tough(3) or Heroes with up to Tough(18), and
+            // non-Heroes with up to Tough(9) which occupy 3 spaces each." The skirmish games put every
+            // ordinary model at Tough(3), so the whole scale is x3 - and the engine was running
+            // Grimdark Future's 6/3/1 here, which refused passengers the book allows.
+            TransportHeroToughCap: 18,
+            TransportNonHeroToughCap: 9,
+            TransportStandardModelTough: 3);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -90,7 +106,12 @@ namespace FDG.Rules.Dispatch
             BlastSplitsBetweenNearbyUnits: true,
             ScoutIsSimpleRedeploy: true,
             // #420: both Quest books print the same threshold-free aura as the skirmish games.
-            EveryHeroLendsMoraleQuality: true);
+            EveryHeroLendsMoraleQuality: true,
+            // "up to X friendly models with Tough(9) or Heroes with up to Tough(54), and non-Heroes
+            // with up to Tough(27)." The Quest scale is x9 on Grimdark Future's.
+            TransportHeroToughCap: 54,
+            TransportNonHeroToughCap: 27,
+            TransportStandardModelTough: 9);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same three ways, checked line by line against <b>AoFQ Core Rules

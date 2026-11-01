@@ -86,7 +86,8 @@ namespace FDG.Stages
                 UnitData unit = binding.GetValue();
                 if (!TransportUtilities.IsTransport(unit, GameContext.RuleEvaluator)) continue;
                 if (!unit.GetIsOnBattlefield()) continue;
-                if (!TransportUtilities.CanUnitEmbark(candidate, unit, allUnits, GameContext.RuleEvaluator, out _)) continue;
+                if (!TransportUtilities.CanUnitEmbark(candidate, unit, allUnits, GameContext.RuleEvaluator,
+                    out _, CoreRulesProfile.For(GameContext))) continue;
 
                 eligible.Add(binding);
             }

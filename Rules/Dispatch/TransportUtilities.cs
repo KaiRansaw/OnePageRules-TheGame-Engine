@@ -29,10 +29,20 @@ public static class TransportUtilities
     /// <summary> Canonical name of the Transport core rule (its <see cref="CoreRuleCatalog.Transport"/> identity). </summary>
     public const string TransportRuleName = "Transport";
 
-    /// <summary> A Hero is transportable only up to this Tough value. </summary>
+    /// <summary>
+    /// A Hero is transportable only up to this Tough value - <b>in Grimdark Future and Age of Fantasy</b>.
+    /// #420: the caps are per system, because the Tough scale is. Firefight and Skirmish print
+    /// Tough(18), both Quest systems Tough(54). Prefer
+    /// <see cref="CoreRulesProfile.TransportHeroToughCap"/>; this constant is the Grimdark Future value
+    /// and the default when no profile is supplied.
+    /// </summary>
     public const int HeroToughCap = 6;
 
-    /// <summary> A non-Hero is transportable only up to this Tough value. </summary>
+    /// <summary>
+    /// A non-Hero is transportable only up to this Tough value, <b>in Grimdark Future and Age of
+    /// Fantasy</b>. Firefight and Skirmish print Tough(9), both Quest systems Tough(27). See
+    /// <see cref="CoreRulesProfile.TransportNonHeroToughCap"/>.
+    /// </summary>
     public const int NonHeroToughCap = 3;
 
     /// <summary> Spaces a multi-wound (Tough ≥ 2) model occupies. </summary>
@@ -67,17 +77,19 @@ public static class TransportUtilities
     /// occupies 1 if Tough ≤ 1, otherwise 3. <paramref name="isHero"/> is the caller's per-model hero
     /// determination; <see cref="GetUnitSpaceCost"/> derives it from the unit via <see cref="IsHeroModel"/>.
     /// </summary>
-    public static int GetModelSpaceCost(IModel model, bool isHero) =>
+    public static int GetModelSpaceCost(IModel model, bool isHero, CoreRulesProfile? profile = null) =>
         isHero ? StandardModelSpaceCost
-               : (model.TotalWounds <= 1f ? StandardModelSpaceCost : LargeModelSpaceCost);
+               : (model.TotalWounds <= (profile ?? CoreRulesProfile.FullScale).TransportStandardModelTough
+                    ? StandardModelSpaceCost
+                    : LargeModelSpaceCost);
 
     /// <summary>
     /// Total spaces a unit occupies — the sum over its living models' space costs, with the unit's hero
     /// (if any) charged the 1-space Hero rate.
     /// </summary>
-    public static int GetUnitSpaceCost(IUnit unit) =>
+    public static int GetUnitSpaceCost(IUnit unit, CoreRulesProfile? profile = null) =>
         unit.Models.Where(model => model.GetIsAlive())
-            .Sum(model => GetModelSpaceCost(model, IsHeroModel(model, unit)));
+            .Sum(model => GetModelSpaceCost(model, IsHeroModel(model, unit), profile));
 
     // --- Ride eligibility ------------------------------------------------------------------------
 
@@ -85,8 +97,11 @@ public static class TransportUtilities
     /// Whether a single model is within the Tough cap to ride: Heroes up to <see cref="HeroToughCap"/>,
     /// non-Heroes up to <see cref="NonHeroToughCap"/>. Models above their cap can't be transported.
     /// </summary>
-    public static bool CanModelRide(IModel model, bool isHero) =>
-        model.TotalWounds <= (isHero ? HeroToughCap : NonHeroToughCap);
+    public static bool CanModelRide(IModel model, bool isHero, CoreRulesProfile? profile = null)
+    {
+        CoreRulesProfile rules = profile ?? CoreRulesProfile.FullScale;
+        return model.TotalWounds <= (isHero ? rules.TransportHeroToughCap : rules.TransportNonHeroToughCap);
+    }
 
     /// <summary>
     /// Full eligibility check for loading <paramref name="candidate"/> into <paramref name="transport"/>:
@@ -96,7 +111,7 @@ public static class TransportUtilities
     /// failure when the result is false; empty on success.
     /// </summary>
     public static bool CanUnitEmbark(IUnit candidate, IUnit transport, IEnumerable<IUnit> allUnits,
-        RuleEvaluator evaluator, out string reason)
+        RuleEvaluator evaluator, out string reason, CoreRulesProfile? profile = null)
     {
         if (!IsTransport(transport, evaluator))
         {
@@ -119,15 +134,15 @@ public static class TransportUtilities
         foreach (IModel model in candidate.Models)
         {
             if (!model.GetIsAlive()) continue;
-            if (!CanModelRide(model, IsHeroModel(model, candidate)))
+            if (!CanModelRide(model, IsHeroModel(model, candidate), profile))
             {
                 reason = $"{candidate.Name} has a model too tough to be transported.";
                 return false;
             }
         }
 
-        int cost = GetUnitSpaceCost(candidate);
-        int remaining = GetRemainingCapacity(transport, allUnits, evaluator);
+        int cost = GetUnitSpaceCost(candidate, profile);
+        int remaining = GetRemainingCapacity(transport, allUnits, evaluator, profile);
         if (cost > remaining)
         {
             reason = $"{candidate.Name} needs {cost} space(s) but only {remaining} remain.";
@@ -152,13 +167,14 @@ public static class TransportUtilities
         allUnits.Where(unit => GetTransportId(unit) is UnitID id && id == transport.ID);
 
     /// <summary> Total spaces consumed by everything currently aboard <paramref name="transport"/>. </summary>
-    public static int GetOccupiedSpaces(IUnit transport, IEnumerable<IUnit> allUnits) =>
-        GetOccupants(transport, allUnits).Sum(GetUnitSpaceCost);
+    public static int GetOccupiedSpaces(IUnit transport, IEnumerable<IUnit> allUnits,
+        CoreRulesProfile? profile = null) =>
+        GetOccupants(transport, allUnits).Sum(occupant => GetUnitSpaceCost(occupant, profile));
 
     /// <summary> Spaces still free on <paramref name="transport"/> = capacity − occupied. </summary>
     public static int GetRemainingCapacity(IUnit transport, IEnumerable<IUnit> allUnits,
-        RuleEvaluator evaluator) =>
-        GetCapacity(transport, evaluator) - GetOccupiedSpaces(transport, allUnits);
+        RuleEvaluator evaluator, CoreRulesProfile? profile = null) =>
+        GetCapacity(transport, evaluator) - GetOccupiedSpaces(transport, allUnits, profile);
 
     // --- State transitions (token writes) --------------------------------------------------------
 
