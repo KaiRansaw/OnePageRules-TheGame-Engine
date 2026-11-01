@@ -241,10 +241,16 @@ namespace FDG.Tests
             Assert.That(result.SaveModifier, Is.EqualTo(0), "the shooting gate fails in melee.");
         }
 
-        // --- #377 Slayer: AP(+2) vs a majority-Tough(3)+ target, when shooting >9" OR charging ---
+        // --- #377 / #422 Slayer: AP(+2) vs a majority-Tough(3)+ target, on a HOLD + shooting or a charge ---
+        //
+        // #422 rewrote the shooting arm. These cases used to read "shooting from over 9 inches", which was
+        // the engine's own misreading of "when using Hold actions and shooting" - so the test that asserted
+        // no AP inside 9" was asserting a bug. The full set of seven cases now lives in
+        // SlayerRuleIntegrationTests; the four kept here are the ones this fixture's harness already had
+        // set up, corrected to the book.
 
         [Test]
-        public async Task Slayer_ShootingBeyondNine_ToughTarget_AppliesSaveModifier()
+        public async Task Slayer_HoldingAndShooting_ToughTarget_AppliesSaveModifier()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             attacker.GetValue().AttachRuleDefinition(new ResolvedRule("Slayer", CoreRuleCatalog.Slayer));
@@ -253,7 +259,7 @@ namespace FDG.Tests
             RollToHitResults result = await RunRollToHit(attacker, tough, isMelee: false, isCharging: false);
 
             Assert.That(result.SaveModifier, Is.EqualTo(-2),
-                "Slayer gives AP(+2) shooting a majority-Tough(3)+ target from beyond 9\".");
+                "an unmoved unit shooting a majority-Tough(3)+ target is the book's Hold action.");
         }
 
         [Test]
@@ -270,7 +276,7 @@ namespace FDG.Tests
         }
 
         [Test]
-        public async Task Slayer_ShootingBeyondNine_SoftTarget_NoSaveModifier()
+        public async Task Slayer_Shooting_SoftTarget_NoSaveModifier()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             attacker.GetValue().AttachRuleDefinition(new ResolvedRule("Slayer", CoreRuleCatalog.Slayer));
@@ -282,17 +288,21 @@ namespace FDG.Tests
                 "1-wound models are not Tough(3)+ - the Tough-majority gate fails.");
         }
 
+        // What the old "within 9 inches" case was really reaching for: a shot that does NOT qualify. The
+        // disqualifier is moving, not range.
         [Test]
-        public async Task Slayer_ShootingWithinNine_NotCharging_ToughTarget_NoSaveModifier()
+        public async Task Slayer_MovedThenShooting_ToughTarget_NoSaveModifier()
         {
             DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
             attacker.GetValue().AttachRuleDefinition(new ResolvedRule("Slayer", CoreRuleCatalog.Slayer));
-            DataBinding<UnitData> tough = MakeToughUnit(DefenderPos);
+            attacker.GetValue().Tokens.AddToken(
+                FDG.Rules.Tokens.TokenDefinitionCatalog.Create(TokenType.MovedThisRound));
+            DataBinding<UnitData> tough = MakeToughUnit(new Position(20, 5));
 
             RollToHitResults result = await RunRollToHit(attacker, tough, isMelee: false, isCharging: false);
 
             Assert.That(result.SaveModifier, Is.EqualTo(0),
-                "within 9\" and not charging, neither Slayer arm applies.");
+                "the unit moved this round, so it is not using a Hold action - no AP at any range.");
         }
 
         private async Task<DetermineHitRollResults> RunHitStage(

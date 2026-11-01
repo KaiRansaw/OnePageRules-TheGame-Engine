@@ -1318,8 +1318,21 @@ public static class CoreRuleCatalog
     public static SpecialRuleDefinition Slayer { get; } = new SpecialRuleDefinition("Slayer",
         new[]
         {
+            // #422: the book's shooting arm is "when using HOLD ACTIONS and shooting", not "when
+            // shooting from over 9 inches away". The old distance gate was wrong in both directions: a
+            // unit that Advanced and then shot a Tough(3)+ target at 20" got AP(+2) it should not have,
+            // and a unit that Held and shot the same target at 5" was denied AP(+2) it should have had.
+            //
+            // "Hold action" is read as "has not moved this round", which is Artillery's idiom for the
+            // same phrase. Not(IsMelee) is needed here where Artillery did not need it: Artillery's
+            // 12" gate cannot pass in base contact, but with the distance gate gone this entry would
+            // otherwise fire on a held unit's STRIKE-BACK, and the book says "and shooting".
             new HookEntry(EHookID.Shooting_OnHitRollComplete,
-                new Condition.And(new Condition.DistanceGreaterThan(9f), new Condition.TargetMajorityHasTough(3)),
+                new Condition.And(
+                    new Condition.And(
+                        new Condition.Not(new Condition.TokenPresent(TokenType.MovedThisRound)),
+                        new Condition.Not(new Condition.IsMelee())),
+                    new Condition.TargetMajorityHasTough(3)),
                 new Effect.RollModifier(ERollKind.Save, Delta: -2),
                 ELifetime.ThisAttack),
             new HookEntry(EHookID.Shooting_OnHitRollComplete,
@@ -1329,7 +1342,7 @@ public static class CoreRuleCatalog
         },
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "When shooting at enemies over 9\" away, or when charging, this unit's weapons get AP(+2) if most models in the target have Tough(3) or higher.");
+        Description: "On a Hold action and shooting, or when charging, this model's weapons get AP(+2) if most models in the target have Tough(3) or higher.");
 
     /// <summary> "+6\" range when shooting": <see cref="IncreasedShootingRange"/>'s effect under the spell phrase (range checks only exist for shooting, so the qualifier is inherent). </summary>
     public static SpecialRuleDefinition RangeBonusWhenShooting { get; } =
