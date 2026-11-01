@@ -81,6 +81,98 @@ namespace FDG.Tests
             ChooseActionStage.PASS_CHOICE_NAME,
         };
 
+        // ── #423 General Special Rules: "always use their special rules as soon as they are activated" ──
+        //
+        // The last of the seven clauses, and the same shape of fault as Caster: the switch over the
+        // decision tree covers Charge, Move, Shoot and Pass, so a rule-named action - Teleport, a Storm of
+        // X, Mend, a campaign skill, any faction rule a book authors as an activated ability - was never
+        // picked by the official bot at all.
+        //
+        // The denylist shape matters and is tested below: the rules come from the army BOOKS, so the bot
+        // has to use an ability the engine has never heard of. Anything that is not one of the engine's
+        // own menu choices is one.
+
+        [Test]
+        public async Task ARuleNamedAction_IsTakenAsSoonAsTheUnitActivates()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Sorcerer Lord", 10f, 24f);
+            Objective(46f, 24f);                 // the tree would run at this
+            Unit(_player, "Troops", 30f, 24f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                ChooseActionStage.MOVEMENT_CHOICE_NAME,
+                "Storm of Change",
+                ChooseActionStage.SHOOT_CHOICE_NAME,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo("Storm of Change"),
+                "\"as soon as they are activated\" - ahead of the move and ahead of the tree.");
+        }
+
+        // A unit with two of them uses both, one per ask, rather than the same one twice.
+        [Test]
+        public async Task EachRuleActionIsTriedOnce_AndAllOfThemAreTried()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Warlock", 10f, 24f);
+            Unit(_player, "Troops", 30f, 24f);
+
+            SoloCoOpActionResolver resolver = NewActionResolver();
+            string[] menu =
+            {
+                "Teleport", "Mend",
+                ChooseActionStage.SHOOT_CHOICE_NAME,
+                ChooseActionStage.PASS_CHOICE_NAME,
+            };
+
+            string first = await resolver.Resolve(Menu(ai, menu));
+            string second = await resolver.Resolve(Menu(ai, menu));
+            string third = await resolver.Resolve(Menu(ai, menu));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(new[] { first, second }, Is.EquivalentTo(new[] { "Teleport", "Mend" }),
+                    "both rules are used, and neither twice.");
+                Assert.That(third, Is.EqualTo(ChooseActionStage.SHOOT_CHOICE_NAME),
+                    "with the rules spent the activation carries on normally.");
+            });
+        }
+
+        // Cast is the clause's one documented exception - its own clause says "always cast spells AFTER
+        // moving" - so it must NOT be swept up as a rule-named action and taken before the move.
+        [Test]
+        public async Task CastIsNotTreatedAsARuleAction()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Wizard", 10f, 24f);
+            Objective(46f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                ChooseActionStage.MOVEMENT_CHOICE_NAME,
+                ChooseActionStage.CAST_CHOICE_NAME,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.MOVEMENT_CHOICE_NAME),
+                "the move still comes first for a caster - Caster's clause overrides the general one.");
+        }
+
+        // Embark is excluded on the owner's own ruling (2026-08-15: "units should very rarely embark into
+        // a transport AFTER deployment"). Without the exclusion the bot would climb straight back into the
+        // hull the Transport clause just told it to leave.
+        [Test]
+        public async Task MidGameEmbark_IsNotTakenAsARuleAction()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Grunts", 10f, 24f);
+            Objective(46f, 24f);
+            Unit(_player, "Troops", 90f, 90f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai,
+                ChooseActionStage.MOVEMENT_CHOICE_NAME,
+                CoreRuleCatalog.EmbarkRuleName,
+                ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.MOVEMENT_CHOICE_NAME));
+        }
+
         // ── #423 Transport: "must always disembark on their first activation" ────────────────────────
         //
         // Grimdark Future's Transport clause, third sentence. Unconditional, and ranked above everything

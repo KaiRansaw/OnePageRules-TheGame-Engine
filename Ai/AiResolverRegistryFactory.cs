@@ -97,7 +97,18 @@ namespace FDG.Ai
                         ? new Solo.SoloCoOpRangedAttackResolver(tableState)
                         : (IStageResolver<StageResolution.Requests.ChooseRangedAttackRequest,
                             CancellableResult<StageResolution.Requests.ChooseRangedAttackRequest.RangedAttackChoice>>)new AiChooseRangedAttackResolver())
-                .RegisterResolver(new AiChooseMeleeDefenderResolver())
+                // #423: every unit-targeting pick an ABILITY raises comes through this request type, and
+                // the General Special Rules clause wants "the closest unit that makes sense" - so the
+                // official bot answers it with distance where the baseline answers it with the
+                // melee-defender heuristic (fewest living models), which plan D1 freezes. The
+                // melee-defender request itself keeps that heuristic in both flavours: it is its own
+                // request type, adapted below, and the book's Melee clause is about which enemy to CHARGE
+                // rather than which to fight once several are in contact.
+                .RegisterResolver(book
+                    ? new Solo.SoloCoOpAbilityTargetResolver(tableState)
+                    : (IStageResolver<StageResolution.Requests.CancellableSelectionRequest<UnitData>,
+                        StageResolution.CancellableResult<Data.DataBinding<UnitData>>>)
+                    new AiChooseMeleeDefenderResolver())
                 .RegisterResolver(new DerivedRequestAdapter<StageResolution.Requests.ChooseMeleeDefenderRequest,
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
                     StageResolution.CancellableResult<Data.DataBinding<UnitData>>>(

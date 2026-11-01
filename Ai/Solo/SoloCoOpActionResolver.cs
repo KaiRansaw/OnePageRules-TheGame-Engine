@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using FDG.Ai.Resolvers;
 using FDG.Players;
 using FDG.StageResolution;
@@ -39,6 +41,7 @@ namespace FDG.Ai.Solo
         private bool _triedCharge;
         private bool _triedCast;
         private bool _triedDisembark;
+        private readonly HashSet<string> _triedRuleActions = new(StringComparer.Ordinal);
 
         public SoloCoOpActionResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch,
             AiStringSelectionResolver fallback)
@@ -80,6 +83,22 @@ namespace FDG.Ai.Solo
             // gated to GF (see SoloRulesActivationResolver), because an order the book does not ask to
             // change is one the rest of the book already decides.
             if (TryDisembark(Has) is { } disembark) return Task.FromResult(disembark);
+
+            // #423 General Special Rules: "AI units must always use their special rules AS SOON AS THEY
+            // ARE ACTIVATED, targeting the closest unit that makes sense." The last of the seven clauses,
+            // and the same shape of fault as Caster: the switch over the decision tree below covers
+            // Charge, Move, Shoot and Pass, so a rule-named action - Teleport, a Storm of X, Mend, a
+            // campaign skill, any faction rule a book authors as an activated ability - was never picked
+            // by the official bot at all.
+            //
+            // "As soon as they are activated" is taken literally: ahead of the move, and ahead of the
+            // tree. Caster is the one documented exception, and it says so in its own clause ("always
+            // cast spells AFTER moving"), which is why Cast is excluded here and handled below.
+            //
+            // Each rule is tried at most once per activation (a cancelled custom action reopens this menu
+            // with the option still on it), and the targeting half is
+            // SoloCoOpAbilityTargetResolver.
+            if (TryRuleAction(options) is { } ruleAction) return Task.FromResult(ruleAction);
 
             // #423: the Special Rules section overrides the decision tree for two rules. "AI units with
             // Indirect weapons that are in range of enemies ALWAYS use Hold actions and shoot", and the
@@ -165,6 +184,7 @@ namespace FDG.Ai.Solo
             _triedCharge = false;
             _triedCast = false;
             _triedDisembark = false;
+            _triedRuleActions.Clear();
         }
 
         private string? TryCharge(Func<string, string?> has, bool movementDeclined)
@@ -174,6 +194,49 @@ namespace FDG.Ai.Solo
             if (option != null) _triedCharge = true;
             return option;
         }
+
+        /// <summary>
+        /// #423: the first offered special-rule action this activation has not tried yet.
+        ///
+        /// <para>
+        /// Everything the action menu can carry is either one of the engine's own choices (Move, Charge,
+        /// Shoot, Cast, Pass), a transport action, a Star Quest hero action, or a rule-named action - and
+        /// the last of those is what this clause is about. So the test is a denylist of the first three
+        /// rather than a list of rules, because the rules come from the army BOOKS: a faction rule
+        /// authored as an activated ability has to be used without the engine ever having heard of it,
+        /// which is the whole point of the rule graph.
+        /// </para>
+        /// <para>
+        /// <b>Embark is excluded, deliberately.</b> "Units should very rarely embark into a transport
+        /// AFTER deployment" is the owner's own ruling (2026-08-15, the half of #335 that survived), and a
+        /// mid-game re-board has no plan behind it - the bot would climb back into the hull it was just
+        /// told to leave. Disembark is excluded because the Transport clause above already handles it,
+        /// first and unconditionally.
+        /// </para>
+        /// </summary>
+        private string? TryRuleAction(IReadOnlyList<string> options)
+        {
+            foreach (string option in options)
+            {
+                if (IsEngineChoice(option)) continue;
+                if (_triedRuleActions.Contains(option)) continue;
+                _triedRuleActions.Add(option);
+                return option;
+            }
+
+            return null;
+        }
+
+        private static bool IsEngineChoice(string option) =>
+            option == ChooseActionStage.MOVEMENT_CHOICE_NAME
+            || option == ChooseActionStage.CHARGE_CHOICE_NAME
+            || option == ChooseActionStage.SHOOT_CHOICE_NAME
+            || option == ChooseActionStage.CAST_CHOICE_NAME        // its own clause: after moving
+            || option == ChooseActionStage.PASS_CHOICE_NAME
+            || option == Rules.Dispatch.CoreRuleCatalog.DisembarkRuleName   // handled above, first
+            || option == Rules.Dispatch.CoreRuleCatalog.EmbarkRuleName      // see remarks
+            || option == QuestActions.SkillOption
+            || option == QuestActions.EndActivationOption;
 
         /// <summary>
         /// #423: Disembark, latched like the rest. The placement that follows can be declined (nowhere
