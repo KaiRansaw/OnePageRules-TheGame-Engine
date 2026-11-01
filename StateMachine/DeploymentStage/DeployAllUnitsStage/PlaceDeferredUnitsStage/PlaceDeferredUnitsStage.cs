@@ -1,3 +1,4 @@
+using System.Linq;
 using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.StageResolution;
@@ -29,9 +30,18 @@ namespace FDG.Stages
             // Only Scout-style (AfterNormalDeployment) units reach the deferred pool. Ambush units are
             // held interactively at selection time (ChooseUnitToDeployStage) and stay off-table until a
             // later round, so they never appear here.
-            foreach (DeferredUnitEntry entry in context.DeferredUnits)
+            // #420: "Players alternate in placing Scout units, starting with the player that activates
+            // next." DeferredUnits is built team -> player -> army -> unit, so walking it straight placed
+            // every Scout one player owned before the other placed any - and with two forward screens a
+            // side, the second player sees the whole enemy screen before committing. Interleaving by
+            // owner is the whole fix; each owner's own units keep their relative order.
+            List<DeferredUnitEntry> inTurnOrder = Rules.Dispatch.AlternatingPlacement.Interleave(
+                context.DeferredUnits.Where(e => e.Defer.Timing == EDeferTiming.AfterNormalDeployment),
+                entry => entry.Unit.GetValue().PlayerID,
+                Rules.Dispatch.AlternatingPlacement.ActivationOrder(context.FirstDeploymentRollOrder));
+
+            foreach (DeferredUnitEntry entry in inTurnOrder)
             {
-                if (entry.Defer.Timing != EDeferTiming.AfterNormalDeployment) continue;
 
                 UnitData unit = entry.Unit.GetValue();
                 RectangularZone forwardZone = BuildForwardZone(context, unit, entry.Defer.PlacementRangeInches);

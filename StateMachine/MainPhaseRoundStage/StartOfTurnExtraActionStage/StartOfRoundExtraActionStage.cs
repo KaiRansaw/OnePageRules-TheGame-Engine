@@ -34,7 +34,7 @@ namespace FDG.Stages
             // round 2, Rapid Ambush "including the first"); Aircraft that flew off the table edge
             // return from round 2. Reinforcement copies land AFTER the ambushers, per their own text
             // ("at the beginning of the next round after Ambushers have been deployed").
-            await BringOnReserves(context.RoundCount);
+            await BringOnReserves(context.RoundCount, context.TeamActivateOrder);
             await PlaceReinforcements();
             if (context.RoundCount >= 2)
             {
@@ -97,52 +97,76 @@ namespace FDG.Stages
         /// its rule's range from enemy units via the normal PlaceObjectsRequest flow. Each unit's own
         /// <c>MinArrivalRound</c> gates when it is first offered (#197 P22 Rapid Ambush).
         /// </summary>
-        private async Task BringOnReserves(int roundCount)
+        /// <param name="activateOrder">
+        /// #420: whose turn it is to place. Ambush says "Players alternate in placing Ambush units,
+        /// starting with the player that activates next", and this pass used to walk army-by-army - so
+        /// one player brought on every Ambusher they owned before the other brought on any. With two a
+        /// side that hands the second player the whole enemy arrival before they commit to a single
+        /// placement, which is precisely what the alternation exists to prevent.
+        /// </param>
+        private async Task BringOnReserves(int roundCount, IReadOnlyList<ITeam>? activateOrder)
         {
             // Star Quest: the enemy pool waits off the table "in reserve"; its Ambush units arrive through
             // the waves' own AI Ambush rule (QuestChallenges.DeployAmbushers), never from here.
             if (QuestActions.IsQuestGame(GameContext)) return;
-            foreach (ArmyData army in GameContext.GameDataStore.GetAllValues<ArmyData>().ToList())
-            {
-                foreach (DataBinding<UnitData> unitBinding in army.UnitBindings.ToList())
+
+            // Flattened first so the alternation can see across armies. Eligibility is re-checked below
+            // for the state that can change WHILE this pass runs - a unit can die to an arriving
+            // enemy's effect before its own turn to arrive comes round.
+            List<DataBinding<UnitData>> arriving = GameContext.GameDataStore.GetAllValues<ArmyData>().ToList()
+                .SelectMany(army => army.UnitBindings.ToList())
+                .Where(binding =>
                 {
-                    UnitData unit = unitBinding.GetValue();
+                    UnitData u = binding.GetValue();
+                    return u.GetIsAlive()
+                        && ReserveRules.IsInReserve(u)
+                        && TryGetLaterRoundDefer(u, out RuleOperation.DeferDeployment d, out _)
+                        && roundCount >= d.MinArrivalRound;
+                })
+                .ToList();
 
-                    if (!unit.GetIsAlive()) continue;
-                    if (!ReserveRules.IsInReserve(unit)) continue;
-                    if (!TryGetLaterRoundDefer(unit, out RuleOperation.DeferDeployment defer,
-                            out string reserveRuleName)) continue;
-                    if (roundCount < defer.MinArrivalRound) continue;
+            arriving = AlternatingPlacement.Interleave(arriving,
+                binding => binding.GetValue().PlayerID,
+                AlternatingPlacement.ActivationOrder(activateOrder ?? Array.Empty<ITeam>()));
 
-                    // A mandatory arrival (Ambush Re-Deployment's return leg) is placed, not offered -
-                    // the owner ruled the unit MUST come back at the next round start. Only the spot is
-                    // the player's to choose.
-                    bool bringOn = defer.MandatoryArrival
-                        || await GameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(
-                            new YesNoRequest(unit.PlayerID, $"Deploy {unit.Name} from Ambush this round?",
-                                defaultAnswer: true,
-                                displayName: $"Deciding Whether to Deploy {unit.Name} from Ambush"));
+            foreach (DataBinding<UnitData> unitBinding in arriving)
+            {
+                UnitData unit = unitBinding.GetValue();
 
-                    if (!bringOn) continue;
+                if (!unit.GetIsAlive()) continue;
+                if (!ReserveRules.IsInReserve(unit)) continue;
+                if (!TryGetLaterRoundDefer(unit, out RuleOperation.DeferDeployment defer,
+                        out string reserveRuleName)) continue;
+                if (roundCount < defer.MinArrivalRound) continue;
 
-                    await PlaceFromReserve(unit, defer.PlacementRangeInches,    // clears the reserve state
-                        displayName: $"Deploying {unit.Name} from Ambush");
-                    // The pending-return marker (if this arrival IS the Ambush Re-Deployment return) is
-                    // spent by arriving; a plain Ambush unit never carries it, so this is a safe no-op.
-                    unit.Tokens.RemoveTokens(TokenType.PendingAmbushArrival);
-                    // A unit that arrives from reserve can't seize or contest objectives the round it
-                    // arrives. Mark it so ReconcileObjectivesStage excludes its models from this round's
-                    // objective check; the RoundEnd clear trigger sweeps the marker after that check.
-                    unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ArrivedFromReserve));
+                // A mandatory arrival (Ambush Re-Deployment's return leg) is placed, not offered -
+                // the owner ruled the unit MUST come back at the next round start. Only the spot is
+                // the player's to choose.
+                bool bringOn = defer.MandatoryArrival
+                    || await GameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(
+                        new YesNoRequest(unit.PlayerID, $"Deploy {unit.Name} from Ambush this round?",
+                            defaultAnswer: true,
+                            displayName: $"Deciding Whether to Deploy {unit.Name} from Ambush"));
 
-                    // #399: the arrival itself, before the banner names it. Emitted here rather than
-                    // inside PlaceFromReserve so it stays scoped to units that came out of NOWHERE -
-                    // the Aircraft return leg shares that helper but flies back on from a table edge,
-                    // which is a different kind of entrance and deliberately keeps its banner alone.
-                    await PresentArrival(unit, reserveRuleName);
+                if (!bringOn) continue;
 
-                    await GameContext.Announce($"{unit.Name} arrives from Ambush!", new TextColor(255, 170, 60, 255));
-                }
+                await PlaceFromReserve(unit, defer.PlacementRangeInches,    // clears the reserve state
+                    displayName: $"Deploying {unit.Name} from Ambush");
+                // The pending-return marker (if this arrival IS the Ambush Re-Deployment return) is
+                // spent by arriving; a plain Ambush unit never carries it, so this is a safe no-op.
+                unit.Tokens.RemoveTokens(TokenType.PendingAmbushArrival);
+                // A unit that arrives from reserve can't seize or contest objectives the round it
+                // arrives. Mark it so ReconcileObjectivesStage excludes its models from this round's
+                // objective check; the RoundEnd clear trigger sweeps the marker after that check.
+                unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ArrivedFromReserve));
+
+                // #399: the arrival itself, before the banner names it. Emitted here rather than
+                // inside PlaceFromReserve so it stays scoped to units that came out of NOWHERE -
+                // the Aircraft return leg shares that helper but flies back on from a table edge,
+                // which is a different kind of entrance and deliberately keeps its banner alone.
+                await PresentArrival(unit, reserveRuleName);
+
+                await GameContext.Announce($"{unit.Name} arrives from Ambush!", new TextColor(255, 170, 60, 255));
             }
         }
 
