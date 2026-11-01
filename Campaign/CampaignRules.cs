@@ -127,6 +127,11 @@ namespace FDG.Campaign
                 if (unit == null || Sheet(unit) is not { } sheet) continue;
                 sheet.Games++;
                 sheet.Kills = sheet.HeroKills = 0;
+                // #430's in-game tallies are per-mission too. Cleared here with the kills so a recovery
+                // save (which serializes the live table, sheets and all) cannot carry one mission's
+                // spell count or first-blood stamp into the next one.
+                sheet.SpellsCast = 0;
+                sheet.DrewFirstBlood = false;
                 int xp = 0;
 
                 if (result.Casualty)

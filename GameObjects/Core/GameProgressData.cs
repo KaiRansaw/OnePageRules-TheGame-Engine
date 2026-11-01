@@ -74,6 +74,26 @@ namespace FDG
         /// by <see cref="GameProgressUtilities.WriteProgress"/> like <see cref="Horde"/>.</summary>
         public QuestProgress? Quest;
 
+        /// <summary>
+        /// #429 - each team's deployment zone, by <see cref="ITeam.TeamNumber"/>, kept for the whole game.
+        /// Null in a pre-#429 save, and in a game whose deployment never chose zones.
+        /// <para>
+        /// The zones used to exist only on the <c>DeploymentContext</c>, which is thrown away the moment
+        /// deployment ends - so from the first round onwards <b>nothing in the game could say where
+        /// anyone had deployed</b>. That is a gap with at least three customers: the campaign's
+        /// Intimidator special objective ("most of your units inside the enemy deployment zone at the end
+        /// of the game"), the Solo AI's three sections, which the book draws along the AI's own
+        /// deployment edge (see <c>WorkItems/424</c>), and any future mission that scores a zone.
+        /// </para>
+        /// <para>
+        /// Stored as plain numbers rather than a <c>DataBinding&lt;RectangularZone&gt;</c> on purpose: the
+        /// zone objects are created for deployment and nothing guarantees their lifetime afterwards,
+        /// while four floats per team survive a save, a reload and a networked catch-up with no
+        /// references to keep valid.
+        /// </para>
+        /// </summary>
+        public Dictionary<int, ZoneRect>? DeploymentZones { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,
@@ -98,6 +118,38 @@ namespace FDG
             Settings = settings;
             ActivatingUnit = activatingUnit;
         }
+    }
+
+    /// <summary>
+    /// #429 - a deployment zone as four numbers, so it outlives the zone objects deployment built it
+    /// from and survives a save, a reload and a networked catch-up without a reference to keep valid.
+    /// Matches <see cref="RectangularZone"/>'s own field order.
+    /// </summary>
+    public sealed class ZoneRect
+    {
+        public float Left { get; set; }
+        public float Right { get; set; }
+        public float Bottom { get; set; }
+        public float Top { get; set; }
+
+        public ZoneRect() { }
+
+        public ZoneRect(float left, float right, float bottom, float top)
+        {
+            Left = left;
+            Right = right;
+            Bottom = bottom;
+            Top = top;
+        }
+
+        public static ZoneRect From(RectangularZone zone) =>
+            new(zone.Left, zone.Right, zone.Bottom, zone.Top);
+
+        /// <summary>Whether a point is inside the zone. Edges count as inside, as they do for deployment.</summary>
+        public bool Contains(Position point) =>
+            point.x >= Left && point.x <= Right && point.z >= Bottom && point.z <= Top;
+
+        public ZoneRect Clone() => new(Left, Right, Bottom, Top);
     }
 
     /// <summary>

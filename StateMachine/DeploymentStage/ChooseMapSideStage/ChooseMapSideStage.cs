@@ -82,6 +82,18 @@ namespace FDG.Stages
 
             context.SetDeploymentZones(choices);
 
+            // #429: and into the store, so they outlive this stage. The DeploymentContext is thrown away
+            // the moment deployment ends, so until now NOTHING in the game could say where anyone had
+            // deployed from the first round onwards - which the campaign's Intimidator objective needs,
+            // and which the Solo AI's three sections (drawn along the AI's own deployment edge) want too.
+            var byTeam = new Dictionary<int, ZoneRect>();
+            foreach ((ITeam team, DataBinding<RectangularZone> zone) in choices)
+            {
+                if (zone is { IsValid: true } binding && binding.GetValue() is { } rect)
+                    byTeam[team.TeamNumber] = ZoneRect.From(rect);
+            }
+            if (byTeam.Count > 0) GameProgressUtilities.SetDeploymentZones(context.GameContext.GameDataStore, byTeam);
+
             await ToRollForFirstDeployment.Activate(context);
         }
 

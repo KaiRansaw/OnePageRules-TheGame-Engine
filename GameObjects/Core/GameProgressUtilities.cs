@@ -44,6 +44,17 @@ namespace FDG
                 progress.Quest = pending.Clone();
             PendingQuest.Remove(store);
 
+            // #429: the same carry-forward for the deployment zones. They are chosen during deployment,
+            // before the main phase creates the first progress record, so they need the pending hop as
+            // well as the carry-forward - otherwise the first snapshot of the game would erase them, and
+            // every test that set them directly would still pass.
+            if (progress.DeploymentZones == null)
+                progress.DeploymentZones = TryGetProgress(store)?.DeploymentZones;
+            if (progress.DeploymentZones == null
+                && PendingZones.TryGetValue(store, out Dictionary<int, ZoneRect>? zones))
+                progress.DeploymentZones = CloneZones(zones);
+            PendingZones.Remove(store);
+
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {
                 store.SetValue(existing, progress);
@@ -71,6 +82,50 @@ namespace FDG
         /// <summary>Star Quest state written during map set-up / deployment, before the main phase creates the
         /// progress record; it moves into the first record written.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, QuestProgress> PendingQuest = new();
+
+        /// <summary>#429 - deployment zones written during deployment, waiting for the first progress record.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, ZoneRect>> PendingZones = new();
+
+        private static Dictionary<int, ZoneRect> CloneZones(Dictionary<int, ZoneRect> zones)
+        {
+            var copy = new Dictionary<int, ZoneRect>(zones.Count);
+            foreach ((int team, ZoneRect rect) in zones) copy[team] = rect.Clone();
+            return copy;
+        }
+
+        /// <summary>
+        /// #429 - records each team's deployment zone, by <see cref="ITeam.TeamNumber"/>. Called once, at
+        /// the end of the stage that chooses them, which is before the main phase has written any progress
+        /// record - so it parks them until <see cref="WriteProgress"/> can fold them in.
+        /// </summary>
+        public static void SetDeploymentZones(IReadWriteableGameDataStore store, Dictionary<int, ZoneRect> zones)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress == null)
+            {
+                PendingZones.Remove(store);
+                PendingZones.Add(store, CloneZones(zones));
+                return;
+            }
+
+            progress.DeploymentZones = CloneZones(zones);
+            WriteProgress(store, progress);
+        }
+
+        /// <summary>
+        /// Every team's deployment zone, or null when this game never recorded them (a pre-#429 save, or a
+        /// game whose deployment chose none). Reads the pending set too, so a stage running inside
+        /// deployment can see what an earlier one chose.
+        /// </summary>
+        public static IReadOnlyDictionary<int, ZoneRect>? DeploymentZones(IReadableGameDataStore store)
+        {
+            if (TryGetProgress(store)?.DeploymentZones is { Count: > 0 } stored) return stored;
+            return PendingZones.TryGetValue(store, out Dictionary<int, ZoneRect>? pending) ? pending : null;
+        }
+
+        /// <summary>One team's deployment zone, or null if it has none recorded.</summary>
+        public static ZoneRect? DeploymentZoneOf(IReadableGameDataStore store, int teamNumber) =>
+            DeploymentZones(store) is { } zones && zones.TryGetValue(teamNumber, out ZoneRect? zone) ? zone : null;
 
         /// <summary>Star Quest: stores the mission's wave state. No-op if no progress record exists yet.</summary>
         public static void SetQuestProgress(IReadWriteableGameDataStore store, QuestProgress quest)

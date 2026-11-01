@@ -322,6 +322,20 @@ namespace FDG.Stages
             }
 
             await GameContext.Announce($"{caster.Name} cast {chosen.Name}: {rollDesc}.", CastSuccessColor);
+            // #430: the campaign's Hexer objective asks for four or more spells SUCCESSFULLY cast by
+            // the end of the game, and a resolved cast leaves no trace - so it is counted here, at the
+            // one point that knows the cast succeeded, on the caster's own campaign sheet.
+            //
+            // On the SHEET rather than on the game's progress record, which is where it first went: the
+            // progress record replicates to every client when written, and paying for a mid-activation
+            // replication on every cast of every ordinary game - to feed an objective only a campaign
+            // can have - is a cost for nothing. A non-campaign unit has no sheet and costs one null check.
+            if (caster is UnitData casterData
+                && FDG.Campaign.StrikeUnit.FromJson(casterData.StrikeUnitJson) is { } casterSheet)
+            {
+                casterSheet.SpellsCast++;
+                casterData.StrikeUnitJson = casterSheet.ToJson();
+            }
             // Star Quest (Tides of Chaos, Enchantment, Pact of Strength): the hero's next successful spell.
             int pactAp = await QuestSpells.OnCastSucceeded(GameContext, caster, targets);
 

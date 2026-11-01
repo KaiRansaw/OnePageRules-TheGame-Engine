@@ -57,7 +57,10 @@ namespace FDG.Stages
             // the standard game. Killer-less deaths (routs, dangerous terrain) earn nothing, as above.
             await FDG.StateMachine.HordeExperience.OnUnitDestroyed(gameContext, dead, killer);
             // GF: Firefight Campaign: count the kill on the killer's strike team sheet (XP after the game).
-            FirefightCampaign.OnUnitDestroyed(dead, killer);
+            // #430: the store too, so the FIRST kill of the game is stamped on the killer's sheet for
+            // the campaign's Annihilator objective - a finished table records that units died, never in
+            // what order.
+            FirefightCampaign.OnUnitDestroyed(dead, killer, gameContext.GameDataStore);
 
             IReadOnlyList<RuleOperation> ops = gameContext.RuleEvaluator.EvaluateAll(
                 new UnitDestroyedContext(DestroyedUnit: dead, KillerUnit: killer),

@@ -27,8 +27,12 @@ namespace FDG.Stages
             || unit.Tokens.GetAllTokens(TokenType.RuleGrant).Select(t => t.Payload)
                 .OfType<TokenPayload.RuleGrant>().Any(g => g.RuleName == rule);
 
-        /// <summary>Counts a kill on the killer's campaign sheet (+1 XP per unit, +2 per Hero, after the game).</summary>
-        public static void OnUnitDestroyed(IUnit dead, IUnit killer)
+        /// <summary>
+        /// Counts a kill on the killer's campaign sheet (+1 XP per unit, +2 per Hero, after the game),
+        /// and - when <paramref name="store"/> is given - stamps the first kill of the game for the
+        /// campaign's Annihilator objective.
+        /// </summary>
+        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null)
         {
             if (killer is not UnitData data || StrikeUnit.FromJson(data.StrikeUnitJson) is not { } sheet) return;
             // #414: killing a named character is a Hero kill. It carries "Unique Hero" instead of "Hero",
@@ -38,7 +42,24 @@ namespace FDG.Stages
             if (Rules.Dispatch.CoreRuleCatalog.HeroRuleNames.Any(name => Has(dead, name)))
                 sheet.HeroKills++;
             else sheet.Kills++;
+
+            // #430 Annihilator: the first kill of the game, stamped on the unit that made it. "First" is
+            // the whole question and a finished table cannot answer it, so it has to be recorded as it
+            // happens. Claimed only if nobody else holds it - one scan of the table's units per kill,
+            // which is nothing beside the attack that just resolved.
+            if (store != null && !sheet.DrewFirstBlood && !AnyoneHasFirstBlood(store))
+                sheet.DrewFirstBlood = true;
+
             data.StrikeUnitJson = sheet.ToJson();
+        }
+
+        /// <summary>Whether any unit on the table already claims the game's first kill.</summary>
+        private static bool AnyoneHasFirstBlood(IReadableGameDataStore store)
+        {
+            if (!store.IsTypeAssigned<UnitData>()) return false;
+            foreach (UnitData unit in store.GetAllValues<UnitData>())
+                if (StrikeUnit.FromJson(unit.StrikeUnitJson) is { DrewFirstBlood: true }) return true;
+            return false;
         }
     }
 }

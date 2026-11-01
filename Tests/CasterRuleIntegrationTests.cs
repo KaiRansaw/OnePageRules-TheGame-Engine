@@ -459,6 +459,69 @@ namespace FDG.Tests
             Assert.That(unitCtx.CastingWindowClosed, Is.False);
         }
 
+        /// <summary>
+        /// #430 - the campaign's Hexer objective ("successfully cast four or more spells by the end of
+        /// the game") is counted here, in the real stage, because a resolved cast leaves no trace on the
+        /// table afterwards.
+        /// <para>
+        /// This test exists because the scoring tests call the recorder themselves and so cannot tell
+        /// whether the game ever reaches it - the #424 trap. Running the actual stage is the only way to
+        /// know the count happens in play, and that it counts SUCCESSES: a failed cast must not.
+        /// </para>
+        /// </summary>
+        [Test]
+        public async Task CastSpellStage_CountsSuccessfulCasts_ForTheCampaignsHexerObjective()
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[]
+                {
+                    SelfBuffSpell("Bless", threshold: 2, grantedRule: "Furious"),
+                    SelfBuffSpell("Haste", threshold: 2, grantedRule: "Fast"),
+                }, new Position(10f, 10f));
+            // A campaign unit: the count is deliberately scoped to one, because the tally rides the
+            // progress record and writing it replicates that record to every client. An ordinary game's
+            // casts must not pay for an objective only a campaign can have - which the control below pins.
+            caster.GetValue().StrikeUnitJson = new Campaign.StrikeUnit { TeamFile = "army.fdgarmy" }.ToJson();
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+
+            await stage.Enter(unitCtx);
+            await stage.Enter(unitCtx);
+
+            Campaign.StrikeUnit? after = Campaign.StrikeUnit.FromJson(caster.GetValue().StrikeUnitJson);
+            Assert.That(after, Is.Not.Null, "the sheet must still be there.");
+            Assert.That(after!.SpellsCast, Is.EqualTo(2),
+                "two successful casts must be counted by the stage itself - this is what fails if the "
+                + "count is never reached in play.");
+        }
+
+        /// <summary>
+        /// The control for the test above: an ordinary game's casts cost nothing. The tally rides the
+        /// progress record, so writing it replicates that record to every client - paying for a
+        /// mid-activation replication on every cast of every game, to feed an objective only a campaign
+        /// can have, would be a real cost for nothing.
+        /// </summary>
+        [Test]
+        public async Task CastSpellStage_InAnOrdinaryGame_CountsNothing()
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester());
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 6,
+                new[] { SelfBuffSpell("Bless", threshold: 2, grantedRule: "Furious") },
+                new Position(10f, 10f));
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+            await stage.Enter(unitCtx);
+
+            Assert.That(caster.GetValue().StrikeUnitJson, Is.Null.Or.Empty,
+                "a unit with no campaign sheet is not in a campaign, so the stage must not invent one "
+                + "for it - an ordinary game pays nothing for a campaign-only objective.");
+        }
+
         // #234 — CastSpellStage is reachable directly, so it enforces the same gate rather than trusting the
         // menu: entering it after attacking spends nothing and loops straight back.
         [Test]

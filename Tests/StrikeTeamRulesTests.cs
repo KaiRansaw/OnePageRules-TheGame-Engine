@@ -88,6 +88,32 @@ namespace FDG.Tests
             Assert.That(log, Has.Some.Contains("dead"));
         }
 
+        /// <summary>
+        /// AfterGame writes this match's history entry from the log <b>as it stands when AfterGame
+        /// returns</b>. Pinned because it is a sharp edge that already caught me once: #430 scores the
+        /// special objective after AfterGame and appended its verdict to the returned list, which is a
+        /// copy as far as the history is concerned - so the line the player reads on the campaign screen
+        /// did not contain it. Anything a caller adds afterwards needs its own history entry.
+        /// </summary>
+        [Test]
+        public void AfterGame_WritesItsHistoryEntryFromTheLogItHasAtThatMoment()
+        {
+            ArmyListFile team = Team();
+            StrikeTeamRules.Start(team, "Red", "red");
+            string squad = U(team, "Squad").Sheet.Id;
+
+            List<string> log = StrikeTeamRules.AfterGame(team,
+                new[] { new StrikeUnitResult(squad, false, 0, 0) }, won: true, Dice(3));
+            int entriesAfterTheMatch = team.StrikeTeam!.History.Count;
+            log.Add("something a caller worked out afterwards");
+
+            Assert.That(entriesAfterTheMatch, Is.EqualTo(1), "one entry per match.");
+            Assert.That(team.StrikeTeam.History[0], Does.Not.Contain("afterwards"),
+                "a line added to the returned log after the fact does NOT reach the history - a caller "
+                + "that wants one there must add it.");
+            Assert.That(team.StrikeTeam.History.Count, Is.EqualTo(entriesAfterTheMatch));
+        }
+
         [Test]
         public void LevelUp_RegularGetsTraitAndCost()
         {
@@ -213,6 +239,57 @@ namespace FDG.Tests
             var dead = new UnitData(new PlayerID(Guid.NewGuid()), "Enemy", 4, 5, new List<DataBinding<ModelData>>());
             FirefightCampaign.OnUnitDestroyed(dead, killer);
             Assert.That(StrikeUnit.FromJson(killer.StrikeUnitJson)!.Kills, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// #430 Annihilator: the game's FIRST kill is stamped on the unit that made it. "First" is the
+        /// whole question - a finished table records that units died, never in what order - so this has
+        /// to be decided as it happens, and it must not move afterwards.
+        /// </summary>
+        [Test]
+        public void OnUnitDestroyed_StampsTheFirstKillOfTheGame_AndOnlyTheFirst()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            UnitData first = CampaignUnit(store, "First Blood");
+            UnitData second = CampaignUnit(store, "Late To It");
+            var dead = new UnitData(new PlayerID(Guid.NewGuid()), "Enemy", 4, 5, new List<DataBinding<ModelData>>());
+
+            FirefightCampaign.OnUnitDestroyed(dead, first, store);
+            for (int i = 0; i < 3; i++) FirefightCampaign.OnUnitDestroyed(dead, second, store);
+
+            Assert.That(StrikeUnit.FromJson(first.StrikeUnitJson)!.DrewFirstBlood, Is.True,
+                "the unit that killed first holds the stamp.");
+            Assert.That(StrikeUnit.FromJson(second.StrikeUnitJson)!.DrewFirstBlood, Is.False,
+                "and three later kills must not take it away - this is what fails if the stamp is "
+                + "written on every kill instead of only the first.");
+            Assert.That(StrikeUnit.FromJson(second.StrikeUnitJson)!.Kills, Is.EqualTo(3),
+                "while its kills are still counted normally.");
+        }
+
+        /// <summary>Without the store there is nothing to check against, so nothing is stamped.</summary>
+        [Test]
+        public void OnUnitDestroyed_WithNoStore_CountsTheKillButStampsNothing()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            UnitData killer = CampaignUnit(store, "Captain");
+            var dead = new UnitData(new PlayerID(Guid.NewGuid()), "Enemy", 4, 5, new List<DataBinding<ModelData>>());
+
+            FirefightCampaign.OnUnitDestroyed(dead, killer);
+
+            Assert.That(StrikeUnit.FromJson(killer.StrikeUnitJson)!.Kills, Is.EqualTo(1));
+            Assert.That(StrikeUnit.FromJson(killer.StrikeUnitJson)!.DrewFirstBlood, Is.False);
+        }
+
+        /// <summary>A campaign unit in the store, so the first-blood scan can see it.</summary>
+        private static UnitData CampaignUnit(GameDataStore store, string name)
+        {
+            var unit = new UnitData(new PlayerID(Guid.NewGuid()), name, 4, 4,
+                new List<DataBinding<ModelData>>())
+            {
+                StrikeUnitJson = new StrikeUnit { TeamFile = "army.fdgarmy" }.ToJson(),
+            };
+            store.Create(unit);
+            return unit;
         }
     }
 }

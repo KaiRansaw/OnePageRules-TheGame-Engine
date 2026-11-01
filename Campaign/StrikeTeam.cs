@@ -86,6 +86,29 @@ namespace FDG.Campaign
         /// <summary>Counted during a game; cleared when the result is written back.</summary>
         public int Kills { get; set; }
         public int HeroKills { get; set; }
+
+        /// <summary>
+        /// #430 - spells this unit cast successfully during the game in progress. Summed across an army
+        /// for the campaign's <b>Hexer</b> objective ("successfully cast four or more spells by the end of
+        /// the game"), which cannot be answered from a finished table: a resolved cast leaves no trace.
+        /// Cleared with <see cref="Kills"/> when the result is written back.
+        /// </summary>
+        public int SpellsCast { get; set; }
+
+        /// <summary>
+        /// #430 - this unit destroyed the FIRST enemy unit of the game, which is the campaign's
+        /// <b>Annihilator</b> objective ("be the first player to destroy an enemy unit"). At most one unit
+        /// on the table carries it, and a finished table cannot tell you who it was any other way - it
+        /// records that units died, never in what order. Cleared with <see cref="Kills"/>.
+        /// <para>
+        /// It lives on the sheet rather than on the game's progress record on purpose. The progress record
+        /// replicates to every client when it is written, and this is written from inside the attack
+        /// pipeline - paying for a mid-kill replication of the whole record, for a campaign-only
+        /// objective, is a cost for nothing. The sheet is already written at this exact point (kills are
+        /// counted here), so this rides machinery that is known to be safe here.
+        /// </para>
+        /// </summary>
+        public bool DrewFirstBlood { get; set; }
         /// <summary>The strike team file this unit belongs to (set when the team is saved).</summary>
         public string? TeamFile { get; set; }
         /// <summary>
