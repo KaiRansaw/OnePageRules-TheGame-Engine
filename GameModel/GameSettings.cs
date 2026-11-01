@@ -1,3 +1,4 @@
+using System;
 using Newtonsoft.Json;
 
 namespace FDG
@@ -328,8 +329,9 @@ namespace FDG
         /// <summary>Whether the lobby may pick it yet. The others are listed so the line-up is visible, but
         /// stay greyed out until their rules are in.</summary>
         /// <summary>
-        /// Whether the lobby may pick it yet. The others are listed so the line-up is visible, but stay
-        /// greyed out until their rules are in.
+        /// Whether the lobby may pick it. <b>Every system this game carries data for is now selectable</b>,
+        /// so this returns true for all of <see cref="DisplayOrder"/> - the method stays because the gate
+        /// is what a new system has to pass, and the next one added starts out failing it.
         /// <para>
         /// #418 added AoF: Quest, and the bar it had to clear is worth recording: its own enemy books
         /// (#417), its own 161-hero roster, its own faction/class data, a party stamped as its own
@@ -339,17 +341,25 @@ namespace FDG
         /// existed, making this line say yes would have played AoF: Quest by another system's rules,
         /// which is the one thing CLAUDE.md says never to do.
         /// </para>
+        /// <para>
+        /// <b>#420: AoF: Skirmish was left out of this list and nothing was blocking it.</b> It had its
+        /// own 46 army books (#412), its slug, army folder, force-org profile, CLI alias and table/
+        /// coherency rules, and it shares <see cref="Rules.Dispatch.CoreRulesProfile.Skirmish"/> with
+        /// Firefight, which was selectable throughout. It also played full headless games the whole
+        /// time. The line simply never got updated when its books landed, so one of the six game modes
+        /// sat greyed out in the lobby for no reason anybody had written down - which is why this now
+        /// enumerates the whole display order rather than listing members by hand.
+        /// </para>
         /// </summary>
-        public static bool IsAvailable(EGameSystem system) => system is
-            EGameSystem.GrimdarkFuture or EGameSystem.AgeOfFantasy or EGameSystem.GFFirefight
-            or EGameSystem.GFStarQuest or EGameSystem.AoFQuest;
+        public static bool IsAvailable(EGameSystem system) => Array.IndexOf(DisplayOrder, system) >= 0;
 
         /// <summary>The Game Modes this game offers.</summary>
         public static EGameMode[] Modes(EGameSystem system) => system switch
         {
-            // Both Quest systems play the Quest modes. AoF: Quest is not selectable yet (no hero
-            // roster), but its modes are the Quest ones the day it is - the mode enum members are named
-            // for Star Quest only because it got here first; they are the shared Quest modes.
+            // Both Quest systems play the Quest modes. The mode enum members are named for Star Quest
+            // only because it got here first; they are the shared Quest modes. (The note that used to
+            // sit here said AoF: Quest was "not selectable yet (no hero roster)" - #418 imported its
+            // 161-hero roster and made it selectable, and the comment outlived that by two weeks.)
             EGameSystem.GFStarQuest or EGameSystem.AoFQuest
                 => new[] { EGameMode.StarQuestMission, EGameMode.StarQuestHorde },
             _ => new[] { EGameMode.Standard, EGameMode.Horde },
