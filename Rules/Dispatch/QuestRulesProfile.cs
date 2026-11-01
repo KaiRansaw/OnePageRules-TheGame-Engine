@@ -54,8 +54,11 @@ namespace FDG.Rules.Dispatch
         /// failed cast back: a failed cast is final.</item>
         /// <item>"All models that are within <b>3"</b> of an enemy model from the target unit
         /// (horizontally or vertically), may attack it."</item>
-        /// <item>"Scout: This model may be deployed anywhere fully within <b>9"</b> of its deployment
-        /// zone."</item>
+        /// <item>"Scout: This model may be deployed anywhere fully within <b>12"</b> of its deployment
+        /// zone." <b>12", not 9"</b> - owner's ruling, 2026-10-31: "On Army Forge it says Scout is 12".
+        /// If there's any stat differences, refer to Army Forge." The 2.1.0 PDF reads 9" and Army Forge
+        /// serves 12" for both Quest systems; Army Forge is the one the army data itself comes from, so
+        /// it wins. See CLAUDE.md, "When the books and Army Forge disagree".</item>
         /// <item>"Villain: AI units within <b>6"</b> <b>use</b> the Villain's Qua for Morale Tests if
         /// it's better than their own" - mandatory.</item>
         /// </list>
@@ -70,7 +73,7 @@ namespace FDG.Rules.Dispatch
             FailedSkillPaymentIsOptional: true,
             MeleeReachHorizontalInches: 3f,
             MeleeReachVerticalInches: 3f,
-            ScoutForwardInches: 9f,
+            ScoutForwardInches: 12f,
             VillainAuraInches: 6f,
             VillainAuraIsMandatory: true);
 

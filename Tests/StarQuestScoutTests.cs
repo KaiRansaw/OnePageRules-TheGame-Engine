@@ -9,7 +9,9 @@ namespace FDG.Tests
     // #414 - Scout in Star Quest, which is one line and was doing nothing.
     //
     // GFSQ Core Rules v2.1.0 says the whole rule in one sentence: "May be deployed anywhere fully within
-    // 9" of its deployment zone." Compare Grimdark Future, Age of Fantasy, Firefight and Skirmish, which
+    // 12" of its deployment zone." (The PDF prints 9"; Army Forge serves 12", and the owner ruled on
+    // 2026-10-31 that Army Forge wins any numeric disagreement - see CLAUDE.md.) Compare Grimdark
+    // Future, Age of Fantasy, Firefight and Skirmish, which
     // all say: "May be set aside before deployment. After all other units are deployed, may be deployed
     // anywhere fully within 9" of their deployment zone, over 9" away from non-Scout enemy units. Players
     // alternate in placing Scout units, starting with the player that activates next."
@@ -58,7 +60,7 @@ namespace FDG.Tests
         // ── The widening ────────────────────────────────────────────────────────────────────────────
 
         [Test]
-        public void InStarQuest_AScoutUnitGetsNineMoreInches()
+        public void InStarQuest_AScoutUnitGetsTwelveMoreInches()
         {
             // The rule, stated as the number a player would measure. Every step of the crowding
             // escalation widens, not just the first, so a Scout in a packed corner keeps its advantage
@@ -67,9 +69,13 @@ namespace FDG.Tests
 
             float[] widened = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.GFStarQuest), scout, WaveRadii);
 
-            Assert.That(widened, Is.EqualTo(new[] { 15f, 18f, 21f, 24f }).AsCollection);
-            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(ScoutDeploymentRules.ForwardRangeInches),
-                "GFSQ 2.1.0: \"anywhere fully within 9\\\" of its deployment zone\"");
+            Assert.That(widened, Is.EqualTo(new[] { 18f, 21f, 24f, 27f }).AsCollection);
+            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(12f),
+                "Star Quest's Scout widens by 12\", per Army Forge. The 2.1.0 PDF prints 9\"; the owner "
+                + "ruled on 2026-10-31 that Army Forge wins any numeric disagreement, since it is where "
+                + "the army data itself comes from. Deliberately NOT compared against "
+                + "ScoutDeploymentRules.ForwardRangeInches any more - that is Grimdark Future's 9\", and "
+                + "the two numbers are now different things.");
         }
 
         [Test]
@@ -119,7 +125,7 @@ namespace FDG.Tests
 
             Assert.That(ScoutDeploymentRules.HasScout(fromBook), Is.True);
             Assert.That(ScoutDeploymentRules.WidenForScout(Context(EGameSystem.GFStarQuest), fromBook, WaveRadii)[0],
-                Is.EqualTo(15f));
+                Is.EqualTo(18f), "6\" wave radius + Star Quest's 12\" Scout.");
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
@@ -155,15 +161,15 @@ namespace FDG.Tests
         // the numbers agree today.
 
         [Test]
-        public void InAoFQuest_AScoutWidensByNineInches_TheSameAsStarQuest()
+        public void InAoFQuest_AScoutWidensByTwelveInches_TheSameAsStarQuest()
         {
             IUnit scout = MakeUnit("Ndoli Outrider", withScout: true);
 
             float[] widened = ScoutDeploymentRules.WidenForScout(Context(EGameSystem.AoFQuest), scout, WaveRadii);
 
-            Assert.That(widened, Is.EqualTo(new[] { 15f, 18f, 21f, 24f }).AsCollection);
-            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(9f),
-                "AoFQ 2.1.0: \"anywhere fully within 9\" of its deployment zone\"");
+            Assert.That(widened, Is.EqualTo(new[] { 18f, 21f, 24f, 27f }).AsCollection);
+            Assert.That(widened[0] - WaveRadii[0], Is.EqualTo(12f),
+                "AoF: Quest widens by the same 12\" - Army Forge serves it for both Quest systems.");
         }
 
         [Test]

@@ -254,7 +254,11 @@ namespace FDG.Tests
                 Assert.That(p.IgnoreShakenPower, Is.EqualTo(2), $"{system}");
                 Assert.That(p.FailedSkillPower, Is.EqualTo(1), $"{system}");
                 Assert.That(p.FailedSkillPaymentIsOptional, Is.True, $"{system}: optional from 2.1.0");
-                Assert.That(p.ScoutForwardInches, Is.EqualTo(9f), $"{system}: 9\" from 2.1.0");
+                // 12", not the 2.1.0 PDF's 9": owner's ruling 2026-10-31 that Army Forge is the source
+                // of truth wherever it and a book disagree on a number. Army Forge serves 12" for both
+                // Quest systems.
+                Assert.That(p.ScoutForwardInches, Is.EqualTo(12f),
+                    $"{system}: 12\" from Army Forge, which outranks the PDF on numbers");
                 Assert.That(p.VillainAuraInches, Is.EqualTo(6f), $"{system}: 6\" from 2.1.0");
                 Assert.That(p.VillainAuraIsMandatory, Is.True, $"{system}: \"use\", not \"may use\"");
                 Assert.That(p.MeleeReachHorizontalInches, Is.EqualTo(3f), $"{system}: flat 3\"");
