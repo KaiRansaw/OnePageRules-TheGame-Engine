@@ -309,13 +309,22 @@ namespace FDG.Tests
             QuestProgress quest = GameProgressUtilities.GetQuestProgress(store);
             TestContext.Progress.WriteLine($"Result: {result.ToSummaryLine()}");
             TestContext.Progress.WriteLine($"Wave {quest.Wave}, finished {quest.WavesFinished}, alertness {quest.Alertness}, party XP {quest.PartyXp}");
+            var heroes = new List<QuestHero>();
             foreach (UnitData u in store.GetAllValues<UnitData>().Where(u => u.IsQuestHero))
             {
                 QuestHero h = QuestHero.FromJson(u.QuestHeroJson)!;
-                TestContext.Progress.WriteLine($"  {h.Name}: level {h.Level}, XP {h.Xp}, Tou {h.Tough}, Q{h.Quality}+ alive={u.GetIsAlive()}");
+                heroes.Add(h);
+                TestContext.Progress.WriteLine($"  {h.Name}: level {h.Level}, XP {h.Xp}, Tou {h.Tough}, "
+                    + $"Q{h.Quality}+ items [{string.Join(", ", h.Items)}] alive={u.GetIsAlive()}");
             }
             TestContext.Progress.WriteLine($"Tokens left: {string.Join(", ", quest.Tokens.Select(t => t.Label))}");
-            Assert.That(quest.Tokens, Is.Not.Empty, "search tokens are placed at the start (the bots never pick them up).");
+            // #419 changed what this can assert. It used to be "tokens are placed at the start (the bots
+            // never pick them up)" - true until the heroes learned to walk onto one. Now the party clears
+            // them, so the evidence that the token system ran is either tokens still on the table or loot in
+            // a hero's pack, and which one depends on how far the party got before it died.
+            bool anyLoot = heroes.Any(h => h.Items.Count > 0);
+            Assert.That(quest.Tokens.Count > 0 || anyLoot, Is.True,
+                "search tokens are placed at the start, so either some are left or the party is holding loot.");
             Assert.That(quest.Tokens.All(t => t.X > 0 && t.X < 48 && t.Z > 0 && t.Z < 48), "tokens sit on the table.");
             Assert.That(GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, Is.EqualTo(48f), "Star Quest plays on a 4' x 4' table.");
             Assert.That(result.Message, Does.Contain("high score"));

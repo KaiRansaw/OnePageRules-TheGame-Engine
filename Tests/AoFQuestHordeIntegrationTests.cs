@@ -114,10 +114,10 @@ namespace FDG.Tests
             // The party's own state is the one place a player-facing name is KEPT rather than printed, so
             // it is the one thing a test can read back after the fact: a hero holding a "Med Kit" at the
             // end of an AoF: Quest game means the skin was bypassed between the treasure table and the
-            // sheet. Honest caveat - the bots never walk onto a search token, so the pack is normally
-            // empty and this is a backstop against a future AI that does collect, not live proof. What
-            // the names are is pinned directly by QuestItemSkinTests and QuestEventNameTests; what this
-            // game proves is that the AoF: Quest system reaches those lookups at all.
+            // sheet. #419 made this live: the heroes now walk onto search tokens and keep what is inside,
+            // so an AoF: Quest party really does finish these games holding items, and a Star Quest name
+            // among them would fail here. It was written a day earlier as a backstop for exactly that
+            // change, and recorded then as not yet proving anything.
             var heroes = new List<QuestHero>();
             foreach (UnitData u in store.GetAllValues<UnitData>().Where(u => u.IsQuestHero))
             {
@@ -137,7 +137,9 @@ namespace FDG.Tests
                     Assert.That(starQuestOnly.Any(s => item.Contains(s, StringComparison.OrdinalIgnoreCase)),
                         Is.False, $"{hero.Name} is holding a Star Quest item in an AoF: Quest game: {item}");
 
-            Assert.That(quest.Tokens, Is.Not.Empty, "search tokens are placed at the start (the bots never pick them up).");
+            // #419: the heroes collect tokens now, so this can no longer demand that any are left.
+            Assert.That(quest.Tokens.Count > 0 || heroes.Any(h => h.Items.Count > 0), Is.True,
+                "search tokens are placed at the start, so either some are left or the party is holding loot.");
             Assert.That(quest.Tokens.All(t => t.X > 0 && t.X < 48 && t.Z > 0 && t.Z < 48), "tokens sit on the table.");
             Assert.That(GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, Is.EqualTo(48f),
                 "AoF: Quest plays on the same 4' x 4' table as Star Quest.");

@@ -186,6 +186,10 @@ namespace FDG.Ai.StarQuest
         public readonly HashSet<UnitID> MoveInsteadOfCharge = new();
         /// <summary>Units whose move was declined and that have nothing but Move left: stand still.</summary>
         public readonly HashSet<UnitID> StandStill = new();
+        /// <summary>#419 - heroes whose Charge has already been swapped for a Move this activation. Once
+        /// only: the swap has to be latched or a hero that cannot complete the move is offered Charge again
+        /// on the reopened menu, swapped again, and the activation never ends.</summary>
+        public readonly HashSet<UnitID> HeroMoveSwapped = new();
     }
 
     /// <summary>Star Quest: "the AI activates all units in order from the closest to a hero to the furthest."</summary>
@@ -226,7 +230,17 @@ namespace FDG.Ai.StarQuest
         public Task<string> Resolve(ChooseActionRequest request)
         {
             IUnit? unit = StarQuestAiBrain.FindUnit(_table, request.ActivatingUnitID);
-            if (unit == null || !StarQuestAiBrain.UsesQuestAi(unit)) return _solo.Resolve(request);
+            if (unit == null) return _solo.Resolve(request);
+
+            // #419 - a bot-run hero. The solo bot's ranking is almost right for one: it takes the free Skill
+            // action first (#414), then Charge > Move > Shoot > Pass. The one thing it gets wrong is
+            // preferring a CHARGE while the hero has somewhere to be - a charge drags the hero into melee
+            // with whatever is nearest instead of onto the objective marker a step away, and the mission
+            // stalls. So ask the solo bot, and substitute Move for exactly that case. Everything else -
+            // the Skill latch, the shoot-if-in-range rule, the decline latch - is left where it works.
+            if (QuestHeroAi.IsHero(unit)) return HeroAction(request, unit);
+
+            if (!StarQuestAiBrain.UsesQuestAi(unit)) return _solo.Resolve(request);
 
             IReadOnlyList<string> options = request.ValidOptions;
             // AI casters cast first thing when activated (one random spell, all tokens on it).
@@ -271,6 +285,37 @@ namespace FDG.Ai.StarQuest
                 pick = ChooseActionStage.SHOOT_CHOICE_NAME;
             pick ??= Has(ChooseActionStage.PASS_CHOICE_NAME) ?? options[0];
             return Task.FromResult(pick);
+        }
+
+        /// <summary>
+        /// #419 - the solo bot's answer, with a Charge swapped for a Move when the hero has somewhere to
+        /// walk and is not there yet. Deliberately a substitution rather than a parallel ranking: the Skill
+        /// latch that makes a mission finishable at all lives in the solo resolver, and a second ranking
+        /// here would have to reproduce it and then keep up with it.
+        /// </summary>
+        private async Task<string> HeroAction(ChooseActionRequest request, IUnit hero)
+        {
+            // A fresh activation: Rest is offered only to a hero that has not yet moved, attacked or acted,
+            // which is the one "this activation just began" signal the request carries. Same signal the
+            // Skill latch uses, for the same reason.
+            if (request.ValidOptions.Contains(QuestActions.RestOption))
+                _memory.HeroMoveSwapped.Remove(hero.ID);
+
+            string pick = await _solo.Resolve(request);
+            if (pick != ChooseActionStage.CHARGE_CHOICE_NAME) return pick;
+            if (!request.ValidOptions.Contains(ChooseActionStage.MOVEMENT_CHOICE_NAME)) return pick;
+
+            QuestHeroPlan? plan = QuestHeroAi.Plan(_table, hero);
+            if (plan == null || QuestHeroAi.InReach(hero, plan)) return pick;
+
+            // Once per activation. Without this latch the substitution is the loop: a hero whose Move
+            // cannot complete (boxed in, or in melee) comes back to a menu still offering Charge, gets
+            // swapped to Move again, and the activation spins until the ~1.5M-decision watchdog. One Horde
+            // seed went from under a second to not finishing in ten minutes. If the swap has already been
+            // spent, the Charge stands - fighting what is in front of it is a perfectly good fallback.
+            if (!_memory.HeroMoveSwapped.Add(hero.ID)) return pick;
+            
+            return ChooseActionStage.MOVEMENT_CHOICE_NAME;
         }
     }
 
@@ -338,7 +383,20 @@ namespace FDG.Ai.StarQuest
         public Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request)
         {
             UnitData unit = request.UnitDataBinding.GetValue();
-            if (!request.MainActivationMove || !StarQuestAiBrain.UsesQuestAi(unit)) return _solo.Resolve(request);
+            if (!request.MainActivationMove) return _solo.Resolve(request);
+
+            // #419 - a bot-run hero walks to the thing the mission needs: an objective marker (within 1"),
+            // a search token (within 1"), a delivery point, or the exit corner. The solo bot cannot do this
+            // because none of those is an IObjective - see QuestHeroAi. With no hero plan (nothing on the
+            // table to work) the solo bot takes it and the hero fights, which is the right answer then.
+            if (QuestHeroAi.IsHero(unit))
+            {
+                QuestHeroPlan? heroPlan = QuestHeroAi.Plan(_table, unit);
+                if (heroPlan == null || QuestHeroAi.InReach(unit, heroPlan)) return _solo.Resolve(request);
+                return MoveToward(request, heroPlan.Goal, heroPlan.StopWithin);
+            }
+
+            if (!StarQuestAiBrain.UsesQuestAi(unit)) return _solo.Resolve(request);
             bool standStill = _memory.StandStill.Remove(unit.ID);
             QuestAiPlan plan = StarQuestAiBrain.Plan(_table, _me, unit);
             if (plan.Kind == EQuestAiMove.Charge && _memory.MoveInsteadOfCharge.Remove(unit.ID))
@@ -435,6 +493,65 @@ namespace FDG.Ai.StarQuest
                     request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain, terrain, out _, friendlyFootprints))
                 return _solo.Resolve(request);
             return Done(move);
+        }
+
+        /// <summary>
+        /// #419 - walk toward a point and stop <paramref name="stopWithin"/> short of it, routing round
+        /// terrain. The same planner call the enemy's RushToGoal uses; what differs is the stopping
+        /// distance, because a hero that stops 3" from an objective marker cannot work it and a hero that
+        /// walks onto the marker's exact centre is wasting the rest of its move.
+        /// <para>
+        /// Aims for half the reach rather than the reach itself: the reach is measured from the model's
+        /// edge (<see cref="QuestMission.DistanceToPoint"/> subtracts the base radius) while the move is
+        /// planned from the unit's centre of mass, and with a multi-model unit those are not the same
+        /// point. Half the slack costs nothing - the move is capped by the budget anyway - and arriving at
+        /// 0.9" when 1" was needed is the one failure that cannot be recovered next activation, because the
+        /// hero is already standing where it meant to be.
+        /// </para>
+        /// </summary>
+        private Task<CancellableResult<List<ModelMoveEntry>>> MoveToward(DefineMovementPathRequest request,
+            Position goal, float stopWithin)
+        {
+            var living = request.UnitDataBinding.GetValue().ModelBindings
+                .Where(mb => mb.GetValue().GetIsAlive()).ToList();
+            if (living.Count == 0) return Done(MovementPlanner.StayInPlace(request.UnitDataBinding));
+
+            Func<ModelMoveEntry, ModelMoveBudget> budgetFor = entry =>
+            {
+                var (_, rush, maxDist) = request.BudgetFor(entry.Model.GetValue().ID);
+                return new ModelMoveBudget(rush, maxDist);
+            };
+
+            float cx = living.Average(mb => mb.GetValue().Position.x);
+            float cz = living.Average(mb => mb.GetValue().Position.z);
+            float dist = Position.GetDistance2D(new Position(cx, cz), goal);
+            float budget = Math.Clamp(dist - stopWithin * 0.5f, 0f, request.MaxDistanceInches - 0.001f);
+
+            List<ModelMoveEntry> move = MovementPlanner.PlanMoveToward(request.UnitDataBinding, living, _table,
+                goal, budget, request.MaxDistanceInches, budgetFor, request.CanMoveThroughEnemies,
+                request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain);
+
+            var terrain = _table.Terrain.Objects.ToList();
+            var enemyFootprints = MovementPlanner.LiveEnemyFootprints(_table, _me);
+            var friendlyFootprints = MovementPlanner.LiveFriendlyFootprints(_table, _me,
+                request.UnitDataBinding.GetValue().ID);
+            if (MovementUtilities.ValidatePaths(move, budgetFor, enemyFootprints, request.CanMoveThroughEnemies,
+                    request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain, terrain, out _, friendlyFootprints))
+                return Done(move);
+
+            // #419 - the walk cannot be made legal (boxed in, or the goal is behind something impassable).
+            // Stand still, explicitly and validly.
+            //
+            // The obvious thing here is to hand back to the solo bot, and that is what the first version
+            // did. It hangs the game: the solo path resolver declines a move it has no legal answer for,
+            // the engine's Back affordance reopens the action menu, the hero is offered Move again, and
+            // round and round until the ~1.5M-decision watchdog. One Horde seed went from finishing in
+            // under a second to not finishing in ten minutes. The enemy's own branches carry
+            // SoloMoveDeclineLatch and StarQuestAiMemory.StandStill for exactly this reason, and those
+            // guards were written after the same bug - hero moves have to respect them too.
+            return Done(MovementPlanner.StayInPlaceValidated(request.UnitDataBinding, living, budgetFor,
+                enemyFootprints, request.CanMoveThroughEnemies, request.IgnoresDifficultTerrain,
+                request.IgnoresImpassibleTerrain, terrain, friendlyFootprints));
         }
 
         private static Task<CancellableResult<List<ModelMoveEntry>>> Done(List<ModelMoveEntry> move) =>
