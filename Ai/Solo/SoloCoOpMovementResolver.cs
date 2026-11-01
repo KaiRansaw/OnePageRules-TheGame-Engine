@@ -57,12 +57,12 @@ namespace FDG.Ai.Solo
 
                 case ESoloAiMove.RushToObjective when plan.Goal is { } rushGoal:
                     // Every inch: the unit is crossing ground, not setting up a shot.
-                    return Done(AiMoveExecutor.Toward(request, _table, _me, rushGoal,
+                    return Done(TowardWithTerrain(request, unit, rushGoal,
                         SoloAiBrain.ObjectiveReachInches, request.MaxDistanceInches));
 
                 case ESoloAiMove.AdvanceToObjective when plan.Goal is { } advanceGoal:
                     // Capped at the Advance budget so the shot the plan promised is still legal.
-                    return Done(AiMoveExecutor.Toward(request, _table, _me, advanceGoal,
+                    return Done(TowardWithTerrain(request, unit, advanceGoal,
                         SoloAiBrain.ObjectiveReachInches, request.MaxAdvanceDistance));
 
                 case ESoloAiMove.AdvanceAndShoot when plan.Target != null:
@@ -77,6 +77,57 @@ namespace FDG.Ai.Solo
                     // the action menu and invites the loop documented in AiMoveExecutor.
                     return Done(AiMoveExecutor.Toward(request, _table, _me, CentreOf(unit), 0f, 0f));
             }
+        }
+
+        /// <summary>
+        /// #424 the Terrain clause: "AI units must always try to end their move into or behind Cover
+        /// terrain if possible, moving around Difficult and Dangerous terrain."
+        ///
+        /// <para>
+        /// The plain destination is worked out first - how far the unit would get toward its goal with no
+        /// terrain preference - and then <see cref="SoloCoOpTerrainPolicy"/> is asked whether a nearby end
+        /// point is better. The adjusted point is aimed at with no stopping distance, since it already IS
+        /// a stopping point; the mover then plans and VALIDATES the walk to it exactly as before, so an
+        /// unreachable piece of cover costs nothing but the attempt.
+        /// </para>
+        /// </summary>
+        private List<ModelMoveEntry> TowardWithTerrain(DefineMovementPathRequest request, IUnit unit,
+            Position goal, float stopWithin, float budgetCap)
+        {
+            Position plain = PlainDestination(request, unit, goal, stopWithin, budgetCap);
+            Position aim = SoloCoOpTerrainPolicy.PreferredEndPoint(_table, _me, unit, plain, goal,
+                request.IgnoresDifficultTerrain);
+
+            // Unchanged? Take the original path, which keeps the goal's own stopping distance and the
+            // tie-break behaviour of every move before #424.
+            if (Position.GetDistance2D(aim, plain) <= 0.001f)
+                return AiMoveExecutor.Toward(request, _table, _me, goal, stopWithin, budgetCap);
+
+            return AiMoveExecutor.Toward(request, _table, _me, aim, 0f, budgetCap);
+        }
+
+        /// <summary>
+        /// Where the unit would stop with no terrain preference: straight at the goal, as far as the
+        /// budget allows, stopping <paramref name="stopWithin"/> short. Mirrors
+        /// <see cref="AiMoveExecutor.Toward"/>'s own arithmetic - deliberately a copy rather than a
+        /// refactor of it, because that method is shared with the frozen baseline and the Tactician.
+        /// </summary>
+        private static Position PlainDestination(DefineMovementPathRequest request, IUnit unit,
+            Position goal, float stopWithin, float budgetCap)
+        {
+            List<IModel> living = unit.Models.Where(m => m.GetIsAlive()).ToList();
+            if (living.Count == 0) return goal;
+
+            var centre = new Position(living.Average(m => m.Position.x), living.Average(m => m.Position.z));
+            float distance = Position.GetDistance2D(centre, goal);
+            float cap = Math.Max(0f, Math.Min(budgetCap, request.MaxDistanceInches) - 0.001f);
+            float travel = Math.Clamp(distance - stopWithin * 0.5f, 0f, cap);
+            if (distance <= 0.001f || travel <= 0.001f) return centre;
+
+            float t = travel / distance;
+            return new Position(
+                centre.x + (goal.x - centre.x) * t,
+                centre.z + (goal.z - centre.z) * t);
         }
 
         /// <summary>
