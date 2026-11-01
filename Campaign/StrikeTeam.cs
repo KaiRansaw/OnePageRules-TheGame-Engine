@@ -34,6 +34,13 @@ namespace FDG.Campaign
         /// <summary>True for an army the bot runs, so the campaign screen can spend its treasury for it.</summary>
         public bool IsBot { get; set; }
         /// <summary>
+        /// #428 - the campaign army file of this campaign's standing enemy (a bot army created with it),
+        /// or null when it has none. Set on the PLAYER's army only; the enemy's own block leaves it null
+        /// and carries <see cref="IsBot"/> instead. Every mission is fought against this same army, which
+        /// is what gives the campaign an arc: it levels, recruits and remembers losing.
+        /// </summary>
+        public string? EnemyArmyFile { get; set; }
+        /// <summary>
         /// The special objective rolled for the next mission, worth
         /// <see cref="CampaignNumbers.SpecialObjectiveBonus"/> if it is completed. Empty until one is
         /// rolled; cleared again once the mission is over.
