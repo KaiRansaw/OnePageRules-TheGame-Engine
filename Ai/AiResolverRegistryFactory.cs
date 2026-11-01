@@ -52,9 +52,13 @@ namespace FDG.Ai
                 .RegisterResolver(new AiYesNoResolver())
                 .RegisterResolver<StageResolution.Requests.StringSelectionRequest, string>(stringSelection)
                 // #191 B1 step 5a: Choose Action is its own request type; the same instance answers it.
+                // #419: the official bot answers Choose Action from the Solo & Co-Op decision tree. The
+                // baseline keeps the plain ranked menu, which plan D1 freezes.
                 .RegisterResolver<StageResolution.Requests.ChooseActionRequest, string>(starQuest
                     ? new StarQuest.StarQuestActionResolver(tableState, playerID, declineLatch, stringSelection, questMemory)
-                    : stringSelection)
+                    : book
+                        ? new Solo.SoloCoOpActionResolver(tableState, playerID, declineLatch, stringSelection)
+                        : stringSelection)
                 .RegisterResolver(new AiChooseAbilityEffectResolver())
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestSpellResolver(playerSeed)
@@ -75,10 +79,14 @@ namespace FDG.Ai
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
                     StageResolution.CancellableResult<Data.DataBinding<UnitData>>>(
                     new AiChooseMeleeDefenderResolver()))
+                // #419: and moves to where that tree is heading, which for four of its five branches is an
+                // objective rather than an enemy.
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestMovementResolver(tableState, playerID, declineLatch, questMemory)
-                    : (IStageResolver<StageResolution.Requests.DefineMovementPathRequest,
-                        CancellableResult<List<StageResolution.Requests.ModelMoveEntry>>>)new AiDefineMovementResolver(tableState, playerID, declineLatch))
+                    : book
+                        ? new Solo.SoloCoOpMovementResolver(tableState, playerID, declineLatch)
+                        : (IStageResolver<StageResolution.Requests.DefineMovementPathRequest,
+                            CancellableResult<List<StageResolution.Requests.ModelMoveEntry>>>)new AiDefineMovementResolver(tableState, playerID, declineLatch))
                 .RegisterResolver(new AiAircraftAdvanceResolver())
                 .RegisterResolver(new AiConsolidationMoveResolver(tableState, playerID))
                 .RegisterResolver(new AiAssignWoundsResolver())

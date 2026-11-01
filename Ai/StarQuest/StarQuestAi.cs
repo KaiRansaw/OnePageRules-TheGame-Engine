@@ -482,63 +482,18 @@ namespace FDG.Ai.StarQuest
         }
 
         /// <summary>
-        /// #419 - walk toward a point and stop <paramref name="stopWithin"/> short of it, routing round
-        /// terrain. The same planner call the enemy's RushToGoal uses; what differs is the stopping
-        /// distance, because a hero that stops 3" from an objective marker cannot work it and a hero that
-        /// walks onto the marker's exact centre is wasting the rest of its move.
+        /// #419 - walk to the thing the mission needs, stopping close enough to use it. Delegates to
+        /// <see cref="AiMoveExecutor.Toward"/>, which the official Solo &amp; Co-Op bot shares: both brains
+        /// ask the same question (a point, and how close to get) and both used to pay for the same
+        /// mistake, a declined move that reopens the action menu forever.
         /// <para>
-        /// Aims for half the reach rather than the reach itself: the reach is measured from the model's
-        /// edge (<see cref="QuestMission.DistanceToPoint"/> subtracts the base radius) while the move is
-        /// planned from the unit's centre of mass, and with a multi-model unit those are not the same
-        /// point. Half the slack costs nothing - the move is capped by the budget anyway - and arriving at
-        /// 0.9" when 1" was needed is the one failure that cannot be recovered next activation, because the
-        /// hero is already standing where it meant to be.
+        /// Rushes rather than Advances - a hero crossing the table for a marker wants every inch, and the
+        /// Quest action resolver does not promise a shot afterwards.
         /// </para>
         /// </summary>
         private Task<CancellableResult<List<ModelMoveEntry>>> MoveToward(DefineMovementPathRequest request,
-            Position goal, float stopWithin)
-        {
-            var living = request.UnitDataBinding.GetValue().ModelBindings
-                .Where(mb => mb.GetValue().GetIsAlive()).ToList();
-            if (living.Count == 0) return Done(MovementPlanner.StayInPlace(request.UnitDataBinding));
-
-            Func<ModelMoveEntry, ModelMoveBudget> budgetFor = entry =>
-            {
-                var (_, rush, maxDist) = request.BudgetFor(entry.Model.GetValue().ID);
-                return new ModelMoveBudget(rush, maxDist);
-            };
-
-            float cx = living.Average(mb => mb.GetValue().Position.x);
-            float cz = living.Average(mb => mb.GetValue().Position.z);
-            float dist = Position.GetDistance2D(new Position(cx, cz), goal);
-            float budget = Math.Clamp(dist - stopWithin * 0.5f, 0f, request.MaxDistanceInches - 0.001f);
-
-            List<ModelMoveEntry> move = MovementPlanner.PlanMoveToward(request.UnitDataBinding, living, _table,
-                goal, budget, request.MaxDistanceInches, budgetFor, request.CanMoveThroughEnemies,
-                request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain);
-
-            var terrain = _table.Terrain.Objects.ToList();
-            var enemyFootprints = MovementPlanner.LiveEnemyFootprints(_table, _me);
-            var friendlyFootprints = MovementPlanner.LiveFriendlyFootprints(_table, _me,
-                request.UnitDataBinding.GetValue().ID);
-            if (MovementUtilities.ValidatePaths(move, budgetFor, enemyFootprints, request.CanMoveThroughEnemies,
-                    request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain, terrain, out _, friendlyFootprints))
-                return Done(move);
-
-            // #419 - the walk cannot be made legal (boxed in, or the goal is behind something impassable).
-            // Stand still, explicitly and validly.
-            //
-            // The obvious thing here is to hand back to the solo bot, and that is what the first version
-            // did. It hangs the game: the solo path resolver declines a move it has no legal answer for,
-            // the engine's Back affordance reopens the action menu, the hero is offered Move again, and
-            // round and round until the ~1.5M-decision watchdog. One Horde seed went from finishing in
-            // under a second to not finishing in ten minutes. The enemy's own branches carry
-            // SoloMoveDeclineLatch and StarQuestAiMemory.StandStill for exactly this reason, and those
-            // guards were written after the same bug - hero moves have to respect them too.
-            return Done(MovementPlanner.StayInPlaceValidated(request.UnitDataBinding, living, budgetFor,
-                enemyFootprints, request.CanMoveThroughEnemies, request.IgnoresDifficultTerrain,
-                request.IgnoresImpassibleTerrain, terrain, friendlyFootprints));
-        }
+            Position goal, float stopWithin) =>
+            Done(AiMoveExecutor.Toward(request, _table, _me, goal, stopWithin, request.MaxDistanceInches));
 
         private static Task<CancellableResult<List<ModelMoveEntry>>> Done(List<ModelMoveEntry> move) =>
             Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(new Selected<List<ModelMoveEntry>>(move));
