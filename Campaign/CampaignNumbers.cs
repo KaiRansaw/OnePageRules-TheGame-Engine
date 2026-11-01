@@ -41,6 +41,12 @@ namespace FDG.Campaign
     /// <param name="VeteranRecruitCost">Surcharge for one new recruit per mission to start with 5 XP.</param>
     /// <param name="HeroSkillsCoverUnit">GF and AoF hero skill traits read "the Hero and its unit"; the skirmish
     /// books read just "the Hero", because at that scale a hero is its own unit.</param>
+    /// <param name="EventCredits">
+    /// What the two treasury random events pay: Credits Stash / Gold Stash is this, and Treasure Holopad /
+    /// Treasure Map is D3 times it. 25 in three books and <b>15 in AoF: Skirmish</b> (#433) - the one
+    /// number in the 36-entry event table that is not shared, and the reason that table needed a
+    /// per-system seam at all.
+    /// </param>
     public readonly record struct CampaignNumbers(
         int Treasury,
         int ArmyCapOverLowest,
@@ -52,7 +58,8 @@ namespace FDG.Campaign
         int RegularLevelCost,
         int HeroLevelCost,
         int VeteranRecruitCost,
-        bool HeroSkillsCoverUnit)
+        bool HeroSkillsCoverUnit,
+        int EventCredits)
     {
         /// <summary>VP the winning army earns. The same in all four books.</summary>
         public const int WinVp = 2;
@@ -77,24 +84,52 @@ namespace FDG.Campaign
             Treasury: 750, ArmyCapOverLowest: 325, UnderdogPer: 65, SpecialObjectiveBonus: 75,
             WinPoints: 150, LosePoints: 300, HeroInjuryTalentCost: 25,
             RegularLevelCost: 25, HeroLevelCost: 55, VeteranRecruitCost: 50,
-            HeroSkillsCoverUnit: true);
+            HeroSkillsCoverUnit: true, EventCredits: 25);
 
         /// <summary>GF: Firefight (Campaign Rules v3.6.0).</summary>
         public static CampaignNumbers Firefight { get; } = new(
             Treasury: 400, ArmyCapOverLowest: 125, UnderdogPer: 25, SpecialObjectiveBonus: 40,
             WinPoints: 80, LosePoints: 160, HeroInjuryTalentCost: 15,
             RegularLevelCost: 15, HeroLevelCost: 25, VeteranRecruitCost: 30,
-            HeroSkillsCoverUnit: false);
+            HeroSkillsCoverUnit: false, EventCredits: 25);
 
-        /// <summary>Age of Fantasy (Campaign Rules v3.6.0). Identical to Grimdark Future.</summary>
-        public static CampaignNumbers AgeOfFantasy { get; } = GrimdarkFuture;
+        /// <summary>
+        /// Age of Fantasy (Campaign Rules v3.6.0).
+        ///
+        /// <para>
+        /// <b>Not identical to Grimdark Future</b>, though it was written that way here until #433. Every
+        /// number matches except the two that matter most to a mission: the book prints a
+        /// <b>250pt</b> army cap and <b>50pts</b> per underdog point, against Grimdark Future's 325 and
+        /// 65. Aliasing the two gave every Age of Fantasy campaign a 30% wider mission cap than its own
+        /// book allows, and one fewer underdog point than it should hand out at a given gap - invisible
+        /// in play, because a too-generous cap never refuses anything.
+        /// </para>
+        /// <para>
+        /// The cross-check that confirms the pair: <c>ArmyCapOverLowest / UnderdogPer</c> is exactly 5 in
+        /// all four books (325/65, 125/25, 250/50, 100/20), so the two numbers move together and 250/50
+        /// is self-consistent while 250/65 or 325/50 would not be.
+        /// </para>
+        /// </summary>
+        public static CampaignNumbers AgeOfFantasy { get; } = new(
+            Treasury: 750, ArmyCapOverLowest: 250, UnderdogPer: 50, SpecialObjectiveBonus: 75,
+            WinPoints: 150, LosePoints: 300, HeroInjuryTalentCost: 25,
+            RegularLevelCost: 25, HeroLevelCost: 55, VeteranRecruitCost: 50,
+            HeroSkillsCoverUnit: true, EventCredits: 25);
 
         /// <summary>AoF: Skirmish (Campaign Rules v3.6.0).</summary>
         public static CampaignNumbers Skirmish { get; } = new(
             Treasury: 300, ArmyCapOverLowest: 100, UnderdogPer: 20, SpecialObjectiveBonus: 30,
             WinPoints: 60, LosePoints: 120, HeroInjuryTalentCost: 15,
             RegularLevelCost: 15, HeroLevelCost: 25, VeteranRecruitCost: 30,
-            HeroSkillsCoverUnit: false);
+            HeroSkillsCoverUnit: false, EventCredits: 15);
+
+        /// <summary>
+        /// The books' own ratio of mission cap to underdog rate, identical in all four: the full legal
+        /// window a mission army may occupy is exactly this many underdog points wide. Used by the
+        /// difficulty bands (#435) and worth a name, because it is the one piece of arithmetic that makes
+        /// a difficulty scale behave the same in every system without per-system tuning.
+        /// </summary>
+        public const int UnderdogPointsAcrossTheCap = 5;
 
         /// <summary>
         /// The price list for a game system. Star Quest and Quest have their own campaign (the GFSQ

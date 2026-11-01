@@ -35,12 +35,23 @@ namespace FDG.Tests
             return army;
         }
 
-        [TestCase(EGameSystem.GrimdarkFuture, 750, 325, 65, 75, 150, 300, 25, 25, 55, 50)]
-        [TestCase(EGameSystem.GFFirefight, 400, 125, 25, 40, 80, 160, 15, 15, 25, 30)]
-        [TestCase(EGameSystem.AgeOfFantasy, 750, 325, 65, 75, 150, 300, 25, 25, 55, 50)]
-        [TestCase(EGameSystem.AoFSkirmish, 300, 100, 20, 30, 60, 120, 15, 15, 25, 30)]
+        /// <summary>
+        /// Every number, read off each book's Preparation and Mission Setup sections.
+        /// <para>
+        /// <b>Age of Fantasy's cap and underdog rate were wrong here until #433</b>, and this test is why
+        /// they stayed wrong: it asserted 325 and 65 for Age of Fantasy, copied from Grimdark Future
+        /// along with the production alias, so the suite agreed with the bug. The book prints
+        /// <b>250pts</b> and <b>50pts</b>. If a future change makes these two match Grimdark Future again,
+        /// it is a regression, not a simplification.
+        /// </para>
+        /// </summary>
+        [TestCase(EGameSystem.GrimdarkFuture, 750, 325, 65, 75, 150, 300, 25, 25, 55, 50, 25)]
+        [TestCase(EGameSystem.GFFirefight, 400, 125, 25, 40, 80, 160, 15, 15, 25, 30, 25)]
+        [TestCase(EGameSystem.AgeOfFantasy, 750, 250, 50, 75, 150, 300, 25, 25, 55, 50, 25)]
+        [TestCase(EGameSystem.AoFSkirmish, 300, 100, 20, 30, 60, 120, 15, 15, 25, 30, 15)]
         public void EachBooksNumbers(EGameSystem system, int treasury, int cap, int underdog, int special,
-                                     int win, int lose, int injury, int regular, int hero, int veteran)
+                                     int win, int lose, int injury, int regular, int hero, int veteran,
+                                     int eventCredits)
         {
             CampaignNumbers n = CampaignNumbers.For(system);
             Assert.Multiple(() =>
@@ -55,7 +66,27 @@ namespace FDG.Tests
                 Assert.That(n.RegularLevelCost, Is.EqualTo(regular));
                 Assert.That(n.HeroLevelCost, Is.EqualTo(hero));
                 Assert.That(n.VeteranRecruitCost, Is.EqualTo(veteran));
+                Assert.That(n.EventCredits, Is.EqualTo(eventCredits));
             });
+        }
+
+        /// <summary>
+        /// The cross-check that makes the cap and the underdog rate trustworthy as a PAIR: every book's
+        /// cap is exactly five underdog points wide (325/65, 125/25, 250/50, 100/20). That is almost
+        /// certainly deliberate on OPR's part, and it is the arithmetic that would have caught #433's
+        /// Age of Fantasy mix-up on its own - 250 with 65, or 325 with 50, fails this.
+        /// </summary>
+        [TestCase(EGameSystem.GrimdarkFuture)]
+        [TestCase(EGameSystem.GFFirefight)]
+        [TestCase(EGameSystem.AgeOfFantasy)]
+        [TestCase(EGameSystem.AoFSkirmish)]
+        public void EveryBooksCapIsExactlyFiveUnderdogPointsWide(EGameSystem system)
+        {
+            CampaignNumbers n = CampaignNumbers.For(system);
+
+            Assert.That(n.ArmyCapOverLowest, Is.EqualTo(n.UnderdogPer * CampaignNumbers.UnderdogPointsAcrossTheCap),
+                $"{system}: a cap of {n.ArmyCapOverLowest} against {n.UnderdogPer} pts per underdog point "
+                + "breaks the ratio every book shares, so one of the two numbers is a typo.");
         }
 
         /// <summary>
@@ -79,8 +110,32 @@ namespace FDG.Tests
                 Assert.That(CampaignNumbers.XpPerLevel, Is.EqualTo(5));
                 Assert.That(CampaignNumbers.MaxXp, Is.EqualTo(30), "six levels at most");
                 Assert.That(CampaignNumbers.MaxHeroes, Is.EqualTo(3));
-                Assert.That(CampaignNumbers.AgeOfFantasy, Is.EqualTo(CampaignNumbers.GrimdarkFuture),
-                    "the AoF book's numbers are Grimdark Future's");
+            });
+        }
+
+        /// <summary>
+        /// Age of Fantasy against Grimdark Future, stated as the two differences rather than as equality.
+        /// The old version of this asserted the two were IDENTICAL, which is what let #433's mix-up
+        /// through: every other number does match, so the claim looked right and the two that matter most
+        /// to a mission went unchecked. Written as a difference list so adding a number to one book and
+        /// not the other fails here.
+        /// </summary>
+        [Test]
+        public void AgeOfFantasyMatchesGrimdarkFuture_ExceptItsCapAndUnderdogRate()
+        {
+            CampaignNumbers gf = CampaignNumbers.GrimdarkFuture;
+            CampaignNumbers aof = CampaignNumbers.AgeOfFantasy;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(aof.ArmyCapOverLowest, Is.EqualTo(250), "the AoF book prints 250, GF prints 325.");
+                Assert.That(aof.UnderdogPer, Is.EqualTo(50), "the AoF book prints 50, GF prints 65.");
+                Assert.That(aof, Is.Not.EqualTo(gf),
+                    "these two books are NOT the same price list - that assumption was #433's bug.");
+                Assert.That(aof with { ArmyCapOverLowest = gf.ArmyCapOverLowest, UnderdogPer = gf.UnderdogPer },
+                    Is.EqualTo(gf),
+                    "and apart from those two, every other number is shared - so if this fails, a third "
+                    + "number has diverged and belongs in the list above.");
             });
         }
 

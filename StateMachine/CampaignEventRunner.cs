@@ -76,7 +76,9 @@ namespace FDG.Stages
                 if (!CampaignEventTargeting.ShouldFire(Die)) continue;
 
                 CampaignEvent fired = CampaignEvents.Roll(Die);
-                log.Add($"Campaign event {fired.Code}: {fired.Name}. {fired.Text}");
+                EGameSystem system = SystemOf(gameContext);
+                log.Add($"Campaign event {fired.Code}: {CampaignEventNames.Name(fired, system)}. "
+                        + CampaignEventNames.Text(fired, system));
                 log.Add(await Apply(gameContext, fired, Die));
             }
 
@@ -212,7 +214,10 @@ namespace FDG.Stages
                     // file, the same way a spell count or a first-blood stamp does.
                     IUnit? bearer = PickScopedUnit(table, fired.Scope, d6, HasSheet);
                     if (bearer == null) return "No campaign army could be rewarded, so nothing happened.";
-                    int amount = CampaignEventTargeting.RollAmount(fired, d6);
+                    // Per system: AoF: Skirmish pays 15pts where the other three pay 25 (#433). VP is
+                    // shared, so only GainPoints is re-priced.
+                    int amount = CampaignEventTargeting.RollAmount(
+                        fired with { Amount = CampaignEventNames.Credits(fired, SystemOf(gameContext)) }, d6);
                     bool points = fired.Kind == ECampaignEventKind.GainPoints;
                     bool ok = EditSheet(bearer, sheet =>
                     {
@@ -360,7 +365,7 @@ namespace FDG.Stages
 
                 case ECampaignEventScope.RandomQuarter:
                 {
-                    (float width, float height) = TableSize(table);
+                    (float width, float height) = TableSize(gameContext);
                     TableQuarter quarter = CampaignEventTargeting.PickQuarter(width, height, d6);
                     shape = new RectangularZone(quarter.Area.Left, quarter.Area.Right,
                         quarter.Area.Bottom, quarter.Area.Top);
@@ -430,10 +435,26 @@ namespace FDG.Stages
 
         // -- Shared ----------------------------------------------------------------------------------
 
-        private static (float Width, float Height) TableSize(ITableState table) =>
-            GameProgressUtilities.TryGetProgress(table.DataStore)?.Settings is { } settings
-                ? GameWideConstants.TableSizeFor(settings.GameSystem)
-                : (GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+        /// <summary>
+        /// Which game this is: the event's name, its wording, its treasury figure (#433) and the size of
+        /// a table quarter all depend on it.
+        ///
+        /// <para>
+        /// <b>Read from the live settings, not from the progress record.</b> The first version of this
+        /// asked <c>GameProgressUtilities.TryGetProgress</c> and fell back to Grimdark Future - and the
+        /// record does not exist yet at the start of round one, which is exactly when the first event
+        /// fires. So an Age of Fantasy campaign announced an <i>Anomalous Gale</i> instead of a
+        /// <i>Hexed Gale</i>, and <see cref="TableSize"/> drew a Firefight quarter on Grimdark Future's
+        /// 72x48 table instead of Firefight's 48x48. Both were caught by the played-game fixture rather
+        /// than by any unit test, because a test double has no progress record either and agreed with the
+        /// fallback.
+        /// </para>
+        /// </summary>
+        private static EGameSystem SystemOf(IGameContext gameContext) =>
+            gameContext.Settings.GameSystem;
+
+        private static (float Width, float Height) TableSize(IGameContext gameContext) =>
+            GameWideConstants.TableSizeFor(SystemOf(gameContext));
 
         private static float UnitRadius(IUnit unit) =>
             unit.Models.Where(m => m.GetIsAlive())

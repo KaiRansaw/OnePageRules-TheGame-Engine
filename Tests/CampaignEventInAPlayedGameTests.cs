@@ -93,7 +93,8 @@ namespace FDG.Tests
         }
 
         private static (GameDataStore Store, InProcessBus Bus, GameSettings Settings, PlayerSlot[] Slots,
-            List<string> Log) Scene(int seed, bool campaign)
+            List<string> Log) Scene(int seed, bool campaign,
+                EGameSystem system = EGameSystem.GrimdarkFuture)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             // One bus for the whole game - the AI controllers' games and the server must share it, or the
@@ -117,14 +118,16 @@ namespace FDG.Tests
             GameSettings settings = GameSettings.GetDefault();
             settings.RandomnessType = ERandomnessType.Probabilistic;
             settings.DiceSeed = seed;
+            settings.GameSystem = system;
 
             return (store, bus, settings, slots, log);
         }
 
-        private static async Task<List<string>> PlayAGame(int seed, bool campaign)
+        private static async Task<List<string>> PlayAGame(int seed, bool campaign,
+            EGameSystem system = EGameSystem.GrimdarkFuture)
         {
             (GameDataStore store, InProcessBus bus, GameSettings settings, PlayerSlot[] slots,
-                List<string> log) = Scene(seed, campaign);
+                List<string> log) = Scene(seed, campaign, system);
 
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
@@ -172,6 +175,39 @@ namespace FDG.Tests
         /// And the guard, in a real game: an ordinary army has no sheets, so nothing fires. Sabotaging
         /// <c>IsCampaignGame</c> to return true fails this and nothing else in the suite.
         /// </summary>
+        /// <summary>
+        /// #433, in a played game: an Age of Fantasy campaign must never be told a <i>Solar Flare</i>
+        /// happened. Asserted as "no science-fiction-only name appears", rather than "a fantasy name
+        /// appears", because which event fires is a dice roll - 15 of the 36 are named identically in both
+        /// books, so a run could legitimately produce only shared names and that is not a failure.
+        /// <para>
+        /// This is the test that proves the RUNNER consults the skin. Everything in
+        /// <c>CampaignEventNameTests</c> would still pass if the runner logged <c>fired.Name</c> directly.
+        /// </para>
+        /// </summary>
+        [Test]
+        [CancelAfter(600_000)]
+        public async Task AnAgeOfFantasyCampaign_NeverAnnouncesAScienceFictionEventName()
+        {
+            // The canonical names of the 21 events the fantasy books rename - exactly the strings that
+            // must never reach an Age of Fantasy log.
+            var sciFiOnly = CampaignEventNames.RenamedCodes
+                .Select(code => CampaignEvents.ByCode(code).Name)
+                .ToList();
+
+            var fired = new List<string>();
+            foreach (int seed in new[] { 7311, 4242, 991, 5150 })
+                fired.AddRange(EventLines(await PlayAGame(seed, campaign: true,
+                    system: EGameSystem.AgeOfFantasy)));
+
+            Assume.That(fired, Is.Not.Empty, "no event fired across four games, so there is nothing to check.");
+
+            foreach (string line in fired)
+                foreach (string sciFi in sciFiOnly)
+                    Assert.That(line, Does.Not.Contain(sciFi),
+                        $"an Age of Fantasy campaign announced '{sciFi}': {line}");
+        }
+
         [Test]
         [CancelAfter(600_000)]
         public async Task AnOrdinaryGame_FiresNoRandomEventAtAll()

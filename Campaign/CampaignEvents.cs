@@ -90,18 +90,24 @@ namespace FDG.Campaign
         ECampaignEventRoll Roll = ECampaignEventRoll.Hit);
 
     /// <summary>
-    /// The 36-entry campaign random event table, identical in all four Campaign Rules v3.6.0 books
-    /// (Grimdark Future, GF: Firefight, Age of Fantasy, AoF: Skirmish - the wording matches word for
-    /// word). At the beginning of each round every player rolls one die, and on a 5+ an event happens.
+    /// The 36-entry campaign random event table. All four Campaign Rules v3.6.0 books carry the same 36
+    /// effects, in the same order, under the same two-dice codes. At the beginning of each round every
+    /// player rolls one die, and on a 5+ an event happens (#432 rolls it; <c>CampaignEventRunner</c>
+    /// applies it).
     /// <para>
-    /// This is the Grimdark Future / Firefight naming. Age of Fantasy uses the same 36 effects; only the
-    /// flavour names differ in places, and they are not worth a second table until AoF campaign has a
-    /// screen of its own.
+    /// <b>This is the canonical Grimdark Future / Firefight table, and it is not the whole story.</b> Two
+    /// things vary by system and neither lives here: the fantasy books rename 21 of the 36
+    /// (<see cref="CampaignEventNames"/>), and AoF: Skirmish's two treasury events pay 15pts where the
+    /// others pay 25 (<see cref="CampaignNumbers.EventCredits"/>). So the points figure in those two
+    /// entries is written as <see cref="CampaignEventNames.PointsToken"/> rather than a number -
+    /// <see cref="CampaignEvent.Amount"/> keeps 25 as the canonical value, and anything showing an event
+    /// to a player goes through <c>CampaignEventNames</c> for the name, the text and the amount.
     /// </para>
     /// <para>
-    /// The table is data only for now - nothing rolls it or applies it yet. Wiring it into the round
-    /// start is the next slice; the structured <see cref="ECampaignEventKind"/> is what makes that
-    /// mechanical rather than 36 hand-written cases. See WorkItems/410.
+    /// An earlier version of this comment said the fantasy names were "not worth a second table until AoF
+    /// campaign has a screen of its own". It has had one since #418, and #432 then put these names in
+    /// front of players, so #433 built the seam. Worth remembering as a shape: a note deferring work
+    /// until a condition is met does not notice when the condition is met.
     /// </para>
     /// </summary>
     public static class CampaignEvents
@@ -176,13 +182,13 @@ namespace FDG.Campaign
             new(56, "Refreshment Kit", "One random Shaken unit stops being Shaken.",
                 ECampaignEventKind.StopBeingShaken, ECampaignEventScope.RandomUnit),
 
-            new(61, "Credits Stash", "One random army gets 25pts.",
+            new(61, "Credits Stash", "One random army gets {pts}pts.",
                 ECampaignEventKind.GainPoints, ECampaignEventScope.RandomArmy, Amount: 25),
             new(62, "Injector Pouch", "One random unit gets 1 XP.",
                 ECampaignEventKind.GainXp, ECampaignEventScope.RandomUnit, Amount: 1),
             new(63, "Grenade Bag", "One random player gets 1 VP.",
                 ECampaignEventKind.GainVp, ECampaignEventScope.RandomPlayer, Amount: 1),
-            new(64, "Treasure Holopad", "One random army gets D3 * 25pts.",
+            new(64, "Treasure Holopad", "One random army gets D3 * {pts}pts.",
                 ECampaignEventKind.GainPoints, ECampaignEventScope.RandomArmy, Amount: 25, D3Dice: 1),
             new(65, "Kit Box", "One random unit gets D3 XP.",
                 ECampaignEventKind.GainXp, ECampaignEventScope.RandomUnit, Amount: 1, D3Dice: 1),
