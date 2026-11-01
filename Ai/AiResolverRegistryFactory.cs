@@ -108,7 +108,12 @@ namespace FDG.Ai
                 .RegisterResolver(new AiSelectionResolver<ModelData>())
                 .RegisterResolver(new AiSelectionResolver<RectangularZone>())
                 .RegisterResolver(new AiPlaceObjectsResolver<ModelData>(tableState))
-                .RegisterResolver(new AiPlaceObjectiveResolver(tableState, objectiveRng))
+                // #419: the official bot places markers by the book's squares rule; the baseline keeps the
+                // mirrored-random spread that plan D1 freezes.
+                .RegisterResolver(book
+                    ? new Solo.SoloCoOpObjectiveResolver(tableState, objectiveRng)
+                    : (IStageResolver<StageResolution.Requests.PlaceObjectiveRequest, Position>)
+                    new AiPlaceObjectiveResolver(tableState, objectiveRng))
                 .RegisterResolver(new AiPlaceOneTerrainResolver(tableState, terrainRng))
                 .RegisterResolver(new AiHordeShopResolver());
 

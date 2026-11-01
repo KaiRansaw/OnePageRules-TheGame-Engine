@@ -42,6 +42,20 @@ namespace FDG
         /// <summary>Standard game or Horde Mode (Standard before the main phase has a progress record).</summary>
         EGameMode GameMode => EGameMode.Standard;
 
+        /// <summary>
+        /// Which OPR game system is being played (Grimdark Future before the main phase has a progress
+        /// record).
+        /// <para>
+        /// #419: added for the official AI, whose rulebook differs by system in seven places - six
+        /// objective squares against AoF: Skirmish's four, three deployment sections against its two, and
+        /// the Artillery, Transport, Blast and Deadly clauses. A resolver is handed only
+        /// <see cref="ITableState"/>, so without this the system would have to be threaded through five
+        /// factories to reach the place that needs it. Same shape as <see cref="GameMode"/> above, and
+        /// backed by the same replicated settings, so it reads the same on host and client.
+        /// </para>
+        /// </summary>
+        EGameSystem GameSystem => EGameSystem.GrimdarkFuture;
+
         /// <summary>Horde Mode: the defenders' points earned so far, or null outside Horde Mode.</summary>
         int? HordePointsEarned => null;
 
@@ -83,6 +97,9 @@ namespace FDG
         public int? RoundCount => GameProgressUtilities.TryGetProgress(_store)?.RoundCount;
 
         public EGameMode GameMode => GameProgressUtilities.TryGetProgress(_store)?.Settings.GameMode ?? EGameMode.Standard;
+
+        public EGameSystem GameSystem =>
+            GameProgressUtilities.TryGetProgress(_store)?.Settings.GameSystem ?? EGameSystem.GrimdarkFuture;
 
         public int? HordePointsEarned => GameMode == EGameMode.Horde
             ? GameProgressUtilities.TryGetProgress(_store)?.Horde?.PointsEarned ?? 0
