@@ -128,6 +128,71 @@ namespace FDG.Tests
             Assert.That(mover.GetValue().Tokens.HasToken(UsedMarker), Is.False, "declining spends nothing");
         }
 
+        // #422: "pick one of them." The stage took crossed[0] behind a comment conceding the point, which
+        // on a flyer's run across a board is routinely the least useful of the units it passes over - the
+        // one the path happened to clip first rather than the squad holding the objective. Now the same
+        // prompt Strafing has always had, shared through MoveThroughTargetPick.
+        [Test]
+        public async Task Stage_SeveralEnemiesCrossed_ThePlayerPicksWhichOne()
+        {
+            var requester = new StrafeRequester(accept: true) { PickIndex = 1 };
+            var ctx = new WoundTestContext(_store, requester, new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> mover = MakeMover("Skimmers", crossingX: 1, new Position(0f, 0f));
+            MakeEnemy("Nearer", new Position(3f, 0f), new Position(3f, 1f), new Position(3f, 2f));
+            MakeEnemy("Further", new Position(7f, 0f), new Position(7f, 1f), new Position(7f, 2f));
+
+            await RunCrossing(ctx, mover, new Position(12f, 0f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(requester.SelectionAsked, Is.True, "two crossed enemies means a pick.");
+                Assert.That(requester.YesNoAsked, Is.False,
+                    "and no yes/no on top of it - a cancellable pick is not asked twice.");
+                Assert.That(requester.WoundRequest!.UnitReceivingWounds.GetValue().Name,
+                    Is.EqualTo("Further"),
+                    "the wounds land on the unit the player picked, not the first one crossed.");
+            });
+        }
+
+        // Backing out of the pick is declining the ability - and must not spend the once-per-activation
+        // marker, exactly as declining the yes/no does not.
+        [Test]
+        public async Task Stage_SeveralEnemiesCrossed_CancellingThePickSpendsNothing()
+        {
+            var requester = new StrafeRequester(accept: true) { PickIndex = null };
+            var ctx = new WoundTestContext(_store, requester, new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> mover = MakeMover("Skimmers", crossingX: 1, new Position(0f, 0f));
+            MakeEnemy("Nearer", new Position(3f, 0f), new Position(3f, 1f), new Position(3f, 2f));
+            MakeEnemy("Further", new Position(7f, 0f), new Position(7f, 1f), new Position(7f, 2f));
+
+            await RunCrossing(ctx, mover, new Position(12f, 0f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(requester.WoundRequest, Is.Null);
+                Assert.That(mover.GetValue().Tokens.HasToken(UsedMarker), Is.False,
+                    "backing out of the pick is declining the ability.");
+            });
+        }
+
+        // The ordinary case stays a yes/no: one enemy crossed does not deserve a one-option dialog.
+        [Test]
+        public async Task Stage_OneEnemyCrossed_StillAsksYesNo()
+        {
+            var requester = new StrafeRequester(accept: true);
+            var ctx = new WoundTestContext(_store, requester, new AllOnFaceDiceRoller(6));
+            DataBinding<UnitData> mover = MakeMover("Skimmers", crossingX: 1, new Position(0f, 0f));
+            MakeEnemy("Grunts", new Position(5f, 0f));
+
+            await RunCrossing(ctx, mover, new Position(10f, 0f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(requester.YesNoAsked, Is.True);
+                Assert.That(requester.SelectionAsked, Is.False);
+            });
+        }
+
         // Isolation: a unit carrying BOTH Strafing and Crossing Attack at the same hook - each stage claims
         // only its own op type, so neither double-offers or double-charges. #197 re-scoped Strafing to the
         // weapon and changed its effect to AttackWithThisWeapon; the split is what still matters.

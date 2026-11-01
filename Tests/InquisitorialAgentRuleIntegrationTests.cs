@@ -182,12 +182,17 @@ namespace FDG.Tests
                 "'stops being fatigued when activated for the second time'");
         }
 
+        // #422: Martial Prowess used to be the CONTROL for both riders - "the same reactivation with
+        // neither clause" - and this case asserted it kept its fatigue and ignored the quota. That was the
+        // 3.5.1 wording the engine was written against. The 3.6.0 rule is the Inquisitorial Agent's shape
+        // in as many words: "...(stops being Fatigued when activated again). Only up to one third of the
+        // units in the army with this rule at the beginning of the game (rounding up) may use it in a
+        // single round." So the case is now the same assertion in the other direction - and the control
+        // for "a shared implementation that always applies the riders" moved to
+        // ReactivateWithNoRiders_KeepsFatigue_AndIgnoresTheQuota below, which declares neither.
         [Test]
-        public async Task MartialProwess_KeepsItsFatigue_AndIgnoresTheQuota()
+        public async Task MartialProwess_ClearsFatigue_AndIsCappedAtOneThird()
         {
-            // The control for both riders. Martial Prowess is the same reactivation with neither clause, so
-            // a shared implementation that always cleared fatigue - or always applied a quota - would show
-            // up here rather than in the rule that asked for them.
             var ctx = new TriggeredMoveTestContext(_store, new CannedYesNoRequester(accept: true));
             List<DataBinding<UnitData>> veterans = new List<DataBinding<UnitData>>();
             for (int i = 0; i < 3; i++) veterans.Add(MakeUnit($"Veterans {i}", CoreRuleCatalog.MartialProwess));
@@ -198,10 +203,50 @@ namespace FDG.Tests
 
             await RunStage(ctx, round);
 
-            Assert.That(Reactivated(veterans), Is.EqualTo(3),
-                "no quota is declared, so all three reactivate");
-            Assert.That(veterans.All(v => v.GetValue().Tokens.HasToken(TokenType.Fatigued)), Is.True,
-                "Martial Prowess says nothing about fatigue, so the token stays");
+            Assert.Multiple(() =>
+            {
+                Assert.That(Reactivated(veterans), Is.EqualTo(1),
+                    "one third of three, rounding up, is one - not all three.");
+                Assert.That(veterans.Count(v => v.GetValue().Tokens.HasToken(TokenType.Fatigued)),
+                    Is.EqualTo(2),
+                    "the one that took its second activation stops being Fatigued; the two that did not "
+                    + "keep the token.");
+            });
+        }
+
+        // The control the case above used to be: a reactivation declaring NEITHER rider, so an
+        // implementation that cleared fatigue or capped the round unconditionally fails here rather than
+        // passing quietly in the two rules that do ask for both.
+        [Test]
+        public async Task ReactivateWithNoRiders_KeepsFatigue_AndIgnoresTheQuota()
+        {
+            var plain = new SpecialRuleDefinition("Second Wind",
+                Array.Empty<HookEntry>(),
+                new[]
+                {
+                    new ActivatedAbility(EHookID.Activation_OnNextActivatorRequested, new Cost.OncePerGame(),
+                        new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
+                        new Effect.Reactivate(),
+                        new Condition.AllModelsHaveThisRule()),
+                });
+
+            var ctx = new TriggeredMoveTestContext(_store, new CannedYesNoRequester(accept: true));
+            List<DataBinding<UnitData>> units = new List<DataBinding<UnitData>>();
+            for (int i = 0; i < 3; i++) units.Add(MakeUnit($"Troops {i}", plain));
+            foreach (DataBinding<UnitData> u in units) FatigueUtilities.ApplyFatigued(u.GetValue());
+
+            SingleRoundContext round = MakeRound(ctx);
+            foreach (DataBinding<UnitData> u in units) round.MarkUnitAsActivated(u);
+
+            await RunStage(ctx, round);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(Reactivated(units), Is.EqualTo(3),
+                    "no quota is declared, so all three reactivate.");
+                Assert.That(units.All(u => u.GetValue().Tokens.HasToken(TokenType.Fatigued)), Is.True,
+                    "and no fatigue clause is declared, so the token stays.");
+            });
         }
 
         // ---- Helpers -----------------------------------------------------------------------------------

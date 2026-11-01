@@ -264,6 +264,9 @@ namespace FDG.Tests
 
             IUnit caster = harness.BuildUnit("P1", modelCount: 1, "Mend");
             IUnit ally = harness.BuildUnit("P1", modelCount: 3);
+            // #422: "pick one friendly model within 3" WITH TOUGH". A squad of 1-wound models is not a
+            // legal Mend target at all, so the ally needs Tough for there to be a heal to emit.
+            foreach (IModel model in ally.Models) model.SetMaxWounds(3);
 
             var ops = harness.Accept(new AbilityOffer(caster, "Mend", mend), ally);
 

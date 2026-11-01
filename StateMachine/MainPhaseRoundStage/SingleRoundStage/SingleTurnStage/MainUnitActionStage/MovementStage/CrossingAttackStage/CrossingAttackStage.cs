@@ -24,8 +24,9 @@ namespace FDG.Stages
     /// StrafingStage offers ONLY DealHits ones, so the two never double-offer or double-charge a rule that
     /// happens to sit at the same hook.
     ///
-    /// DEFERRED (mirrors StrafingStage): only the FIRST enemy crossed is offered (OncePerActivation caps to
-    /// one), and the once-per-activation marker is not auto-cleared, so a unit crosses at most once per game.
+    /// #422: the enemy is now the player's pick when the path crosses several ("pick one of them"), shared
+    /// with Strafing's identical clause through <see cref="MoveThroughTargetPick"/>. STILL DEFERRED: the
+    /// once-per-activation marker is not auto-cleared, so a unit crosses at most once per game.
     /// </summary>
     public class CrossingAttackStage : ParentStage<IMovementActionContext, ICombatMetadata>
     {
@@ -72,18 +73,15 @@ namespace FDG.Stages
                 return;
             }
 
-            // The path may cross several enemies; OncePerActivation allows one crossing, so target the first.
-            DataBinding<UnitData> enemy = crossed[0];
-
             foreach (AbilityOffer offer in offers)
             {
-                var question = new YesNoRequest(mover.PlayerID,
-                    $"Use {offer.RuleName}: {mover.Name} strikes {enemy.GetValue().Name} while moving through?",
-                    defaultAnswer: true, displayName: $"Deciding Whether to Use {offer.RuleName}");
-                bool accepted = await GameContext.PlayerRequester
-                    .RequestDecision<YesNoRequest, bool>(question);
-
-                if (!accepted) continue;
+                // #422: "pick one of them". The path may cross several enemies and this took crossed[0],
+                // which on a flyer's run across a board is frequently the least useful of them - the unit
+                // the path happened to clip first rather than the squad sitting on the objective. Shared
+                // with Strafing's identical clause via MoveThroughTargetPick; null means declined.
+                DataBinding<UnitData>? picked = await MoveThroughTargetPick.Pick(GameContext, mover,
+                    offer.RuleName, weaponName: null, crossed, "Choosing a Crossing Attack Target");
+                if (picked is not { } enemy) continue;
 
                 IReadOnlyList<RuleOperation> ops = GameContext.RuleEvaluator
                     .ResolveAbility(offer, new[] { (IUnit)enemy.GetValue() });

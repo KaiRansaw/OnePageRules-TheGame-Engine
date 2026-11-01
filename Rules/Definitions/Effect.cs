@@ -642,10 +642,30 @@ public abstract record Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
+            // #422: Mend reads "pick one friendly model within 3" WITH TOUGH, and remove D3 wounds from
+            // it". Two things were wrong with taking Models.First():
+            //
+            //   * no Tough filter, so a one-wound model was a legal pick when the book says it is not; and
+            //   * the first model in the list, which is as likely as not to be undamaged while the Tough(6)
+            //     model beside it sits on its last wound - the heal was simply thrown away.
+            //
+            // Selection is now "the most-wounded LIVING model that has Tough", which is what a player
+            // picks essentially every time, and no operation at all when the unit holds no Tough model.
+            //
+            // Deferred, and NOT cut silently: the book's "pick" is the player's choice, and this is a
+            // deterministic stand-in for it. The unit is already the player's pick (the ability carries a
+            // 3" friendly TargetSelector); what is approximated is which model inside it. A genuine model
+            // -level request is its own slice - the request/resolver pair does not exist yet, and there is
+            // no CLI or GUI resolver for "pick a model in this unit" to reuse. Recorded in WorkItems/420.
+            IModel? target = ruleInvocation.EffectiveTarget.Models
+                .Where(m => m.GetIsAlive() && m.TotalWounds > 1f)
+                .OrderByDescending(m => m.WoundsDealt)
+                .FirstOrDefault();
+            if (target == null) return;
+
             // Roll the heal die now and reduce the per-face histogram to a scalar pip
             // total (Σ face·count) — fractional under the probabilistic roller, hence
-            // InvokeHeal.Amount is a float. Model selection ("most-wounded first") is
-            // Phase 8; queue-level just needs a model.
+            // InvokeHeal.Amount is a float.
             IDiceResults results = ruleInvocation.DiceRoller!.Roll(Amount.Sides, Amount.Count);
             float amount = 0f;
             for (int face = results.SideMin; face <= results.SideMax; face++)
@@ -653,7 +673,7 @@ public abstract record Effect
                 amount += face * results.At(face);
             }
 
-            operations.Add(new RuleOperation.InvokeHeal(ruleInvocation.EffectiveTarget.Models.First(), amount));
+            operations.Add(new RuleOperation.InvokeHeal(target, amount));
         }
     }
 

@@ -153,6 +153,77 @@ namespace FDG.Tests
             Assert.That(ally.GetValue().Models[0].WoundsDealt, Is.EqualTo(0f), "Mend healed the wounded ally");
         }
 
+        // #422: Mend reads "pick one friendly model within 3\" WITH TOUGH, and remove D3 wounds from it".
+        // Effect.Heal took Models.First(), which was wrong twice over - no Tough filter, and a model
+        // picked by list position rather than by damage. A squad's first model is as likely as not to be
+        // undamaged while the Tough(6) model beside it sits on its last wound, and the heal was thrown
+        // away. Selection is now the most-wounded living model that has Tough.
+        [Test]
+        public async Task Mend_HealsTheMostWoundedToughModel_NotTheFirstOne()
+        {
+            DataBinding<UnitData> bearer = MakeUnitAt(new Position(1f, 0f), CoreRuleCatalog.Mend);
+            DataBinding<UnitData> ally = MakeUnitWithModelsAt(new Position(2f, 0f), modelCount: 3);
+
+            // Model 0 is the one Models.First() used to pick: Tough, and completely undamaged.
+            foreach (IModel m in ally.GetValue().Models) m.SetMaxWounds(6);
+            ally.GetValue().Models[2].DealWounds(5);   // one wound left - the model a player would heal
+            ally.GetValue().Models[1].DealWounds(1);
+
+            var ctx = new TriggeredMoveTestContext(_store, new CannedTargetRequester(ally));
+            UnitActionContext unitCtx = NewActivation(ctx, bearer);
+            StashOffer(ctx, unitCtx, bearer);
+            await RunStage(ctx, unitCtx);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ally.GetValue().Models[2].WoundsDealt, Is.EqualTo(1f),
+                    "the most-wounded model is healed: 5 taken, 4 removed by the fixed roller's D3.");
+                Assert.That(ally.GetValue().Models[0].WoundsDealt, Is.EqualTo(0f),
+                    "and the undamaged first model is left alone - it was the old pick.");
+            });
+        }
+
+        // The "with Tough" half. A squad of one-wound models is not a legal Mend target, and the heal
+        // must not silently land on one of them.
+        [Test]
+        public async Task Mend_UnitWithNoToughModel_HealsNothing()
+        {
+            DataBinding<UnitData> bearer = MakeUnitAt(new Position(1f, 0f), CoreRuleCatalog.Mend);
+            DataBinding<UnitData> ally = MakeUnitWithModelsAt(new Position(2f, 0f), modelCount: 2);
+            ally.GetValue().Models[0].DealWounds(0.5f);   // damaged, but no Tough
+
+            var ctx = new TriggeredMoveTestContext(_store, new CannedTargetRequester(ally));
+            UnitActionContext unitCtx = NewActivation(ctx, bearer);
+            StashOffer(ctx, unitCtx, bearer);
+            await RunStage(ctx, unitCtx);
+
+            Assert.That(ally.GetValue().Models[0].WoundsDealt, Is.EqualTo(0.5f),
+                "no model in the unit has Tough, so there is nothing the book lets Mend pick.");
+        }
+
+        // A dead model is not a pick either - Mend removes wounds, it does not resurrect.
+        [Test]
+        public async Task Mend_SkipsDeadModels()
+        {
+            DataBinding<UnitData> bearer = MakeUnitAt(new Position(1f, 0f), CoreRuleCatalog.Mend);
+            DataBinding<UnitData> ally = MakeUnitWithModelsAt(new Position(2f, 0f), modelCount: 2);
+            foreach (IModel m in ally.GetValue().Models) m.SetMaxWounds(6);
+            ally.GetValue().Models[0].DealWounds(6);   // dead, and the most "wounded" of the two
+            ally.GetValue().Models[1].DealWounds(2);
+
+            var ctx = new TriggeredMoveTestContext(_store, new CannedTargetRequester(ally));
+            UnitActionContext unitCtx = NewActivation(ctx, bearer);
+            StashOffer(ctx, unitCtx, bearer);
+            await RunStage(ctx, unitCtx);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ally.GetValue().Models[0].WoundsDealt, Is.EqualTo(6f), "the dead model stays dead.");
+                Assert.That(ally.GetValue().Models[1].WoundsDealt, Is.EqualTo(0f),
+                    "the living wounded model is the pick.");
+            });
+        }
+
         // --- Targeting filters (AbilityTargeting) ---
 
         // #153 supplement: TargetSelector.RequiredRule restricts candidates to units carrying the named
@@ -397,6 +468,24 @@ namespace FDG.Tests
 
         // Builds a unit at a specific position (so GetIsOnBattlefield sees it as placed), optionally with a
         // rule attached. All units share _player, so they're mutually friendly.
+        // #422: Mend's model selection needs a unit with more than one model, so the "first model" and
+        // the "most-wounded model" can be different models.
+        private DataBinding<UnitData> MakeUnitWithModelsAt(Position position, int modelCount)
+        {
+            var modelBindings = new List<DataBinding<ModelData>>();
+            for (int i = 0; i < modelCount; i++)
+            {
+                var model = new ModelData(0.5f, new List<Weapon>(),
+                    new Position(position.x + i * 0.1f, position.z), _store);
+                modelBindings.Add(_store.GetDataBinding<ModelData>(_store.Create(model)));
+            }
+
+            var unit = new UnitData(_player, "Test Squad", quality: 4, defense: 4, modelBindings: modelBindings);
+            DataBinding<UnitData> binding = _store.GetDataBinding<UnitData>(_store.Create(unit));
+            _store.Create(new ArmyData(_player, new List<DataBinding<UnitData>> { binding }));
+            return binding;
+        }
+
         private DataBinding<UnitData> MakeUnitAt(Position position, SpecialRuleDefinition? rule)
         {
             var model = new ModelData(0.5f, new List<Weapon>(), position, _store);

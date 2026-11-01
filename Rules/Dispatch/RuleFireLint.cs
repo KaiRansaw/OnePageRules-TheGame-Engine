@@ -226,11 +226,22 @@ public static class RuleFireLint
 
         // The effect ops only (mirrors RuleEvaluator.ResolveAbility's per-target apply) — cost ops
         // are always applier-handled and would mask a no-op effect.
+        //
+        // #422: tried against each of the lint's synthesized targets rather than only the plain opponent,
+        // for the same reason ContextVariants synthesizes several contexts - an effect may legitimately
+        // produce nothing against a target the book does not let it pick. Mend is the case: it reads "pick
+        // one friendly model within 3" WITH TOUGH", so against the plain 1-wound opponent it correctly
+        // emits no heal, and the lint read that correct refusal as a dead rule. The guarantee is unchanged
+        // - the effect must produce operations in SOME legal world, not in every world.
         var effectOps = new List<RuleOperation>();
         try
         {
-            ability.Effect.Apply(new RuleInvocation(Hook: null, world.Bearer,
-                ArgumentsFor(definition), Target: world.Other, DiceRoller: Dice), effectOps);
+            foreach (UnitData target in new[] { world.Other, world.ToughOther })
+            {
+                ability.Effect.Apply(new RuleInvocation(Hook: null, world.Bearer,
+                    ArgumentsFor(definition), Target: target, DiceRoller: Dice), effectOps);
+                if (effectOps.Count > 0) break;
+            }
         }
         catch (Exception e)
         {

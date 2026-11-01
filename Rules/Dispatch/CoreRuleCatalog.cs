@@ -2199,6 +2199,20 @@ public static class CoreRuleCatalog
     /// (NOT an <see cref="RuleOperation.InvokeTriggeredMove">ExecutableOperation</see>): it mutates
     /// activation-turn-scoped state (the round's unactivated pool) that the <c>IOperationServices</c>
     /// seam — which only sees <c>IGameContext</c> — can't reach, so the stage applies it directly.
+    /// <para>
+    /// <b>#422: the two riders the rule actually has.</b> The full 3.6.0 text is "once per game, if all
+    /// models in this unit have this rule, it may be activated even if it had already activated this round
+    /// (<b>stops being Fatigued when activated again</b>). <b>Only up to one third of the units in the army
+    /// with this rule at the beginning of the game (rounding up) may use it in a single round</b>." Both
+    /// clauses were absent here, and both are a one-word change: the
+    /// <see cref="Effect.Reactivate"/> primitive has carried <c>ClearsFatigue</c> and
+    /// <c>ArmyRoundQuotaDivisor</c> since #197 built them for the Inquisitorial Agent, with a comment
+    /// saying "Martial Prowess says no such thing, so it stays off by default". That was true of the 3.5.1
+    /// wording the engine was written against; the rule has since grown into the Agent's shape, and nobody
+    /// went back to the comment. Without the quota, a Martial Prowess army could take a second activation
+    /// with every unit in the same round; without the fatigue clear, the second activation swung at
+    /// Fatigued strength, which is most of what the extra activation is for.
+    /// </para>
     /// </summary>
     public static SpecialRuleDefinition MartialProwess { get; } = new SpecialRuleDefinition("Martial Prowess",
         Array.Empty<HookEntry>(),
@@ -2206,12 +2220,19 @@ public static class CoreRuleCatalog
         {
             new ActivatedAbility(EHookID.Activation_OnNextActivatorRequested, new Cost.OncePerGame(),
                 new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
-                new Effect.Reactivate(),
+                // #422: both riders are the rule's own text in 3.6.0, and both were off. The engine
+                // primitive already carried them for #197's Inquisitorial Agent, whose wording Martial
+                // Prowess has since grown into - see the note above.
+                new Effect.Reactivate(ClearsFatigue: true, ArmyRoundQuotaDivisor: 3),
                 // #267: the extra activation belongs to the whole unit, so every model must have the rule.
+                // The book agrees in as many words - "if all models in this unit have this rule".
                 new Condition.AllModelsHaveThisRule()),
         },
         Valence: EValence.Positive,
-        Description: "Once per game, this unit may activate a second time.");
+        Description: "Once per game, if all models in this unit have this rule, it may be activated even "
+            + "if it had already activated this round (stops being Fatigued when activated again). Only "
+            + "up to one third of the units in the army with this rule at the beginning of the game "
+            + "(rounding up) may use it in a single round.");
 
     // Mid-move attack primitive (StrafingStage offer -> save+wound sub-pipeline) ---
 
@@ -2638,7 +2659,7 @@ public static class CoreRuleCatalog
                 new Condition.Always()),
         },
         Valence: EValence.Positive,
-        Description: "Once per activation, before attacking, heal D3 wounds from a friendly unit within 3\".");
+        Description: "Once per activation, before attacking, pick one friendly model within 3\" with Tough, and remove D3 wounds from it.");
 
     // Action-restriction (ChooseActionStage drops the disallowed menu options) -------------------------
 

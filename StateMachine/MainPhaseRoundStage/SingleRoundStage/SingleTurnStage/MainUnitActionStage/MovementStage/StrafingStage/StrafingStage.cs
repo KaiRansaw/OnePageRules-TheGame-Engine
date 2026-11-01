@@ -131,46 +131,14 @@ namespace FDG.Stages
         }
 
         /// <summary>
-        /// "Pick one of them." One enemy crossed is the ordinary case and gets the yes/no it deserves - a
-        /// one-option selection dialog is a worse question than the question it stands for. Several crossed
-        /// get a cancellable pick, and no yes/no on top of it: an ability that already lets the player
-        /// decline at the pick is not asked twice (the same ruling Dash's placement prompt follows).
-        /// Returns null when the player declines.
+        /// "Pick one of them." #422 lifted the implementation into
+        /// <see cref="MoveThroughTargetPick"/> so Crossing Attack gets the same prompt instead of silently
+        /// taking the first enemy its path clipped. The behaviour here is unchanged.
         /// </summary>
-        private async Task<DataBinding<UnitData>?> PickTargetCrossed(IUnit mover, AbilityOffer offer,
-            List<DataBinding<UnitData>> crossed)
-        {
-            string weaponName = offer.Weapon?.Name ?? offer.RuleName;
-
-            if (crossed.Count == 1)
-            {
-                var question = new YesNoRequest(mover.PlayerID,
-                    $"Use {offer.RuleName}: {mover.Name} attacks {crossed[0].GetValue().Name} with its " +
-                    $"{weaponName} while moving through?",
-                    defaultAnswer: true, displayName: $"Deciding Whether to Use {offer.RuleName}");
-                bool accepted = await GameContext.PlayerRequester
-                    .RequestDecision<YesNoRequest, bool>(question);
-                return accepted ? crossed[0] : null;
-            }
-
-            var options = new List<CancellableSelectionRequest<UnitData>.ValidOption>();
-            foreach (DataBinding<UnitData> enemy in crossed)
-            {
-                options.Add(new CancellableSelectionRequest<UnitData>.ValidOption(
-                    enemy, enemy.GetValue().Name));
-            }
-
-            var request = new CancellableSelectionRequest<UnitData>(mover.PlayerID,
-                $"{offer.RuleName}: pick one unit moved through to attack with {weaponName}",
-                options, System.Array.Empty<CancellableSelectionRequest<UnitData>.InvalidOption>(),
-                displayName: "Choosing a Strafing Target");
-
-            CancellableResult<DataBinding<UnitData>> reply = await GameContext.PlayerRequester
-                .RequestDecision<CancellableSelectionRequest<UnitData>, CancellableResult<DataBinding<UnitData>>>(
-                    request);
-
-            return reply is Selected<DataBinding<UnitData>> selected ? selected.Value : null;
-        }
+        private Task<DataBinding<UnitData>?> PickTargetCrossed(IUnit mover, AbilityOffer offer,
+            List<DataBinding<UnitData>> crossed) =>
+            MoveThroughTargetPick.Pick(GameContext, mover, offer.RuleName,
+                offer.Weapon?.Name ?? offer.RuleName, crossed, "Choosing a Strafing Target");
 
         /// <summary>
         /// A strafe weapon is only ever usable by a unit that can move through enemies, and Strafing itself
