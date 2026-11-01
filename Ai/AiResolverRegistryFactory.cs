@@ -25,6 +25,10 @@ namespace FDG.Ai
             int? playerSeed = GameRandom.DeriveForSlot(seed, slotID);
             Random? objectiveRng = playerSeed.HasValue ? GameRandom.Create(playerSeed, salt: 1) : null;
             Random? terrainRng = playerSeed.HasValue ? GameRandom.Create(playerSeed, salt: 2) : null;
+            // #419: the D3 for the Solo & Co-Op activation order, on its own salt so adding it does not
+            // shift the objective or terrain streams and re-roll every pinned benchmark.
+            Random activationRng = playerSeed.HasValue
+                ? GameRandom.Create(playerSeed, salt: 3)! : new Random();
 
             // #358: one latch per solo set - the path resolver's main-move decline tells the
             // action menu to skip the movement family once, breaking the decline-repick livelock.
@@ -69,12 +73,13 @@ namespace FDG.Ai
                 .RegisterResolver(new AiSelectionResolver<UnitData>(evaluator))
                 // #191 A4-1's request split: activation is its own type; solo-rules keeps the same
                 // first-option behavior via the adapter (pinned by the benchmark hashes).
+                // #419: the Solo & Co-Op activation order (D3 for a table section, then a random unit in
+                // it, Shaken last) replaces "take the first option the engine offered", which let a player
+                // read the whole turn in advance.
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestActivationResolver(tableState, playerID)
                     : (IStageResolver<StageResolution.Requests.ChooseUnitToActivateRequest, Data.DataBinding<UnitData>>)
-                    new DerivedRequestAdapter<StageResolution.Requests.ChooseUnitToActivateRequest,
-                    StageResolution.Requests.SelectionRequest<UnitData>, Data.DataBinding<UnitData>>(
-                    new AiSelectionResolver<UnitData>()))
+                    new Solo.SoloRulesActivationResolver(activationRng))
                 .RegisterResolver(new AiSelectionResolver<ModelData>())
                 .RegisterResolver(new AiSelectionResolver<RectangularZone>())
                 .RegisterResolver(new AiPlaceObjectsResolver<ModelData>(tableState))

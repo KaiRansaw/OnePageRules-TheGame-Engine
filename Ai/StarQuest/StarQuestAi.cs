@@ -54,44 +54,33 @@ namespace FDG.Ai.StarQuest
         /// </summary>
         public const float UnseenEngagementInches = 12f;
 
-        public static IUnit? FindUnit(ITableState table, UnitID id) => table.Units.Objects.FirstOrDefault(u => u.ID.Equals(id));
+        // #419: the geometry and damage arithmetic moved to AiCombatMath so the Solo & Co-Op brain can use
+        // the same copy. These stay as forwards - they are called all over this file and its tests, and
+        // renaming them would have been churn for nothing.
+
+        public static IUnit? FindUnit(ITableState table, UnitID id) => AiCombatMath.FindUnit(table, id);
 
         public static bool UsesQuestAi(IUnit unit) => unit is not UnitData { IsQuestHero: true };
 
+        /// <summary>
+        /// The Quest version: enemies, minus anything a Quest rule says cannot be targeted right now (a
+        /// hero hidden by a Smoke marker, for instance). That filter is why this is not AiCombatMath's.
+        /// </summary>
         public static List<IUnit> Enemies(ITableState table, PlayerID me, IUnit? attacker = null) =>
             table.Units.Objects.Where(u => !ITeamExtensions.AreAllied(table.Teams.Objects, me, u.PlayerID)
                 && u.GetIsAlive() && u.GetIsOnBattlefield()
                 && !QuestFlags.CannotBeTargeted(table.Progress.Quest, u, attacker)).ToList();
 
-        public static float Distance(IUnit a, IUnit b) =>
-            UnitCompareUtilities.MinDistanceBetweenUnits(a, b, out _, out _, includeVertical: false);
+        public static float Distance(IUnit a, IUnit b) => AiCombatMath.Distance(a, b);
 
-        public static bool Sees(IUnit a, IUnit b, List<ITerrain> terrain) =>
-            a.Models.Where(m => m.GetIsAlive()).Any(ma => b.Models.Where(m => m.GetIsAlive())
-                .Any(mb => LineOfSightUtilities.HasLineOfSight(ma.Position, mb.Position, terrain)));
+        public static bool Sees(IUnit a, IUnit b, List<ITerrain> terrain) => AiCombatMath.Sees(a, b, terrain);
 
-        public static float MaxRange(IUnit unit) =>
-            unit.Models.Where(m => m.GetIsAlive()).SelectMany(m => m.Weapons).Select(w => w.RangeInches).DefaultIfEmpty(0f).Max();
+        public static float MaxRange(IUnit unit) => AiCombatMath.MaxRange(unit);
 
-        /// <summary>Average wounds the unit's weapons of one kind would deal to the target (hit, then fail to block).</summary>
+        /// <summary>Average wounds the unit's weapons of one kind would deal to the target.</summary>
         /// <param name="reachInches">Ranged only: how far away the target will be; weapons that can't reach it are skipped.</param>
-        public static float ExpectedWounds(IUnit attacker, IUnit target, bool melee, float reachInches = 0f)
-        {
-            int quality = attacker is UnitData ua ? ua.Quality : 4;
-            int defense = target is UnitData ut ? ut.Defense : 4;
-            float pHit = Math.Clamp((7f - quality) / 6f, 1f / 6f, 5f / 6f);
-            float total = 0f;
-            foreach (IModel model in attacker.Models.Where(m => m.GetIsAlive()))
-                foreach (Weapon w in model.Weapons)
-                {
-                    bool isMelee = w.RangeInches <= 0f;
-                    if (isMelee != melee || (!melee && w.RangeInches < reachInches)) continue;
-                    int needed = defense + w.ArmorPenetration;
-                    float pBlock = needed > 6 ? 1f / 6f : Math.Clamp((7f - needed) / 6f, 1f / 6f, 5f / 6f);
-                    total += w.Attacks * pHit * (1f - pBlock);
-                }
-            return total;
-        }
+        public static float ExpectedWounds(IUnit attacker, IUnit target, bool melee, float reachInches = 0f) =>
+            AiCombatMath.ExpectedWounds(attacker, target, melee, reachInches);
 
         public static QuestAiPlan Plan(ITableState table, PlayerID me, IUnit unit)
         {
@@ -169,10 +158,7 @@ namespace FDG.Ai.StarQuest
         public static IObjective? AiGoal(ITableState table, IUnit unit) =>
             table.Objectives.Objects.OrderBy(o => DistanceToPoint(unit, o.Position)).FirstOrDefault();
 
-        public static float DistanceToPoint(IUnit unit, Position p) =>
-            unit.Models.Where(m => m.GetIsAlive())
-                .Select(m => MathF.Max(0f, Position.GetDistance2D(m.Position, p) - m.BaseRadiusInches))
-                .DefaultIfEmpty(float.MaxValue).Min();
+        public static float DistanceToPoint(IUnit unit, Position p) => AiCombatMath.DistanceToPoint(unit, p);
 
         /// <summary>How close the unit is to the nearest enemy (for activation order).</summary>
         public static float DistanceToNearestEnemy(ITableState table, PlayerID me, IUnit unit) =>
