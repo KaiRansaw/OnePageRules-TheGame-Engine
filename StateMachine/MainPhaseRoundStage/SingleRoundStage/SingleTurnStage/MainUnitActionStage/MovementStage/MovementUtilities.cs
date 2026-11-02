@@ -783,10 +783,44 @@ namespace FDG.Stages
                 ? move.Facings[move.Facings.Count - 1]
                 : model.Facing;
 
+        /// <summary>
+        /// Whether this model's swept path touches anything that makes it take a Dangerous Terrain Test -
+        /// a <see cref="ETerrainType.Dangerous"/> piece always, and an
+        /// <see cref="ETerrainType.Unstable"/> piece only when the model moved far enough to matter.
+        ///
+        /// <para>
+        /// Unstable is AoF: Quest's conditional Dangerous: <i>"If any model in a unit moves over 6" when
+        /// moving into or through unstable terrain, then it counts as Dangerous terrain."</i> So the
+        /// distinction is the DISTANCE of this model's own move, not the unit or the action - an Advance
+        /// picks its way across the rubble and a Rush does not.
+        /// </para>
+        ///
+        /// <para>
+        /// Folded in here rather than at the call sites deliberately: this is the one chokepoint both the
+        /// movement executor and the GUI's move preview already ask, so the preview warns about unstable
+        /// ground and the executor tests for it without either of them knowing the type exists.
+        /// </para>
+        /// </summary>
         public static bool DoesPathCrossDangerousTerrain(ModelMoveEntry move, IEnumerable<ITerrain> terrain)
-            => DoesPathCrossTerrainPieces(move, terrain
-                .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
+        {
+            List<ITerrain> pieces = terrain as IList<ITerrain> is { } list ? list.ToList() : terrain.ToList();
+
+            if (DoesPathCrossTerrainPieces(move, pieces
+                    .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
+                    .ToList()))
+            {
+                return true;
+            }
+
+            if (GetTotalMoveDistance(move) <= GameWideConstants.UNSTABLE_TERRAIN_SAFE_MOVE_INCHES)
+            {
+                return false;
+            }
+
+            return DoesPathCrossTerrainPieces(move, pieces
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Unstable))
                 .ToList());
+        }
 
         /// <summary>Public sibling of the Dangerous check (#155): whether the move's swept path touches any
         /// Difficult-flagged piece. Lets a move-preview resolver know a model's committed waypoints have

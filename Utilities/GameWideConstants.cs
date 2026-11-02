@@ -84,6 +84,20 @@ namespace FDG
         public const float DIFFICULT_TERRAIN_MOVE_CAP_INCHES = 6f;
 
         /// <summary>
+        /// How far a model may move into or through <see cref="ETerrainType.Unstable"/> terrain before it
+        /// counts as Dangerous: <i>"If any model in a unit moves OVER 6" when moving into or through
+        /// unstable terrain, then it counts as Dangerous terrain"</i> (AoF: Quest, Beginners Guide
+        /// v2.1.0 - the only current book that defines the type; audit finding 8).
+        /// <para>
+        /// "Over" six, so a move of exactly 6" is safe and 6.1" is not - an Advance crosses it freely and
+        /// a Rush or Charge does not. Shares the number with
+        /// <see cref="DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/> but not the meaning: that one CAPS a move,
+        /// this one is a threshold a move can exceed.
+        /// </para>
+        /// </summary>
+        public const float UNSTABLE_TERRAIN_SAFE_MOVE_INCHES = 6f;
+
+        /// <summary>
         /// Models that aren't charging must keep at least this far (base-to-base) from enemy models.
         /// A move may end either at or beyond this standoff, or in base contact (a charge) — but not in
         /// the band between, and never overlapping or passing through an enemy base.

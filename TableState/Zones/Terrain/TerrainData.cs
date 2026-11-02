@@ -79,6 +79,18 @@ namespace FDG
             {
                 return ESightLineEffect.Blocking;
             }
+
+            // Dense (AoF: Quest): "Units may draw line of sight INTO AND OUT OF dense terrain, but not
+            // THROUGH it to targets on the other side." So unlike Blocking, which stops any line that
+            // touches it, this stops only a line that crosses the piece with BOTH ends outside - a unit
+            // standing in a dense wood shoots out of it and is shot at normally. Checked after Blocking
+            // because a piece carrying both is simply Blocking, which is the stricter reading.
+            if (TerrainType.HasFlag(ETerrainType.Dense) && Shape.DoesPathIntersectZone(a, b)
+                && !Shape.IsPointWithinZone(a) && !Shape.IsPointWithinZone(b))
+            {
+                return ESightLineEffect.Blocking;
+            }
+
             if (TerrainType.HasFlag(ETerrainType.Cover) && Shape.DoesPathIntersectZone(a, b))
             {
                 return ESightLineEffect.Cover;

@@ -109,7 +109,7 @@ namespace FDG.Stages
                 if (entry.Shape == null) continue;
                 if (!FitsTable(entry.Shape)) continue;
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(entry.TerrainType, entry.Shape, entry.HeightInches, entry.Name));
+                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), entry.Shape, entry.HeightInches, entry.Name));
             }
         }
 
@@ -137,6 +137,23 @@ namespace FDG.Stages
         /// Deployment-zone pieces are settled first so midfield jitter validates against the whole board.
         /// Only the built-in auto layout gets either treatment; a user's LoadFromFile layout is placed verbatim.
         /// </summary>
+        /// <summary>
+        /// #440 - a piece's terrain types, plus the two AoF: Quest adds to the shared pool (Dense on
+        /// forests, Unstable on ruins). No-op in the other five systems, whose books define neither.
+        ///
+        /// <para>
+        /// Applied at EVERY place a pool entry becomes a <see cref="TerrainData"/> - the auto layout, a
+        /// loaded layout file, alternating placement and points placement - because a Quest table set up
+        /// one way and not another would be the kind of defect that only shows up in whichever mode
+        /// nobody tested. <c>QuestTerrainTypesTests</c> pins all four.
+        /// </para>
+        /// </summary>
+        private static ETerrainType WithQuestTypes(IMapSetupContext context, ETerrainType declared,
+            string? pieceName)
+            => QuestTerrainTypes.AppliesTo(context.GameContext.Settings.GameSystem)
+                ? declared | QuestTerrainTypes.ExtraFlagsFor(pieceName)
+                : declared;
+
         private static void PlaceAutoLayout(IMapSetupContext context, TerrainLayoutFile layout)
         {
             // #198: all randomness here draws from the game's seeded source. This was `new System.Random()` -
@@ -151,7 +168,7 @@ namespace FDG.Stages
             var placed = new List<ITerrain>();
             void Create(TerrainPieceEntry entry, IZone shape)
             {
-                var data = new TerrainData(entry.TerrainType, shape, entry.HeightInches, entry.Name);
+                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), shape, entry.HeightInches, entry.Name);
                 placed.Add(data);
                 context.GameContext.GameDataStore.Create(data);
             }
@@ -318,7 +335,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(template.TerrainType, placedShape, template.HeightInches, template.Name));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name));
 
                 piecesPlaced++;
                 cursor.TryAdvance(_ => true, _ => true, out _, out _);
@@ -441,7 +458,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(template.TerrainType, placedShape, template.HeightInches, template.Name));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name));
 
                 turn.RecordPlacement(cost);
                 context.Log($"  {name} placed {template.Name} for {TerrainPointsBudget.Pts(cost)} " +

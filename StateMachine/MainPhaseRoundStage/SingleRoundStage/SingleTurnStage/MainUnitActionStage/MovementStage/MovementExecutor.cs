@@ -71,8 +71,14 @@ namespace FDG.Stages
             // counted-as one).
             if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
 
+            // Unstable belongs in this list even though it is not Dangerous: AoF: Quest's Unstable counts
+            // AS Dangerous for a model that moved over 6", and that distance rule lives inside
+            // MovementUtilities.DoesPathCrossDangerousTerrain below. Filtering to Dangerous alone here
+            // would hand that method a list with no Unstable piece in it, so the rule would be
+            // unreachable - correct code downstream, fed nothing. (Audit finding 8.)
             List<ITerrain> dangerous = relevantTerrain
-                .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous)
+                    || t.TerrainType.HasFlag(ETerrainType.Unstable))
                 .ToList();
 
             // "Counts as being in Dangerous Terrain" (#153): every moving model tests, regardless of what
@@ -147,6 +153,11 @@ namespace FDG.Stages
         {
             if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
 
+            // Dangerous ONLY, deliberately - no Unstable here. This is the "or that activate in it" half
+            // of the rule, and AoF: Quest's Unstable is conditional on MOVING over 6" into or through the
+            // piece: "If any model in a unit MOVES over 6" when moving into or through unstable terrain,
+            // then it counts as Dangerous terrain." A unit that simply starts its activation standing in
+            // rubble has not moved, so it tests for nothing. (Audit finding 8.)
             List<ITerrain> dangerous = relevantTerrain
                 .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
                 .ToList();
