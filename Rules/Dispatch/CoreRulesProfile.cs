@@ -36,8 +36,17 @@ namespace FDG.Rules.Dispatch
         int TransportNonHeroToughCap,
         int TransportStandardModelTough,
         int MaxTargetsPerShootAction,
-        bool StrikeBackIsMandatory)
+        bool StrikeBackIsMandatory,
+        int CommandGroupExtraPicks,
+        bool CommandGroupCapIsPerArmy)
     {
+        /// <summary>
+        /// The Command Group upgrades that confer on the picked units: <b>Banner</b> and <b>Musician</b>.
+        /// <b>Sergeant is deliberately absent</b> - it is <i>"This model gets AP(+1) when attacking"</i>
+        /// in every system, self-only, with nothing to confer (#439).
+        /// </summary>
+        public static readonly string[] ConferringCommandGroupRules = { "Banner", "Musician" };
+
         /// <summary>
         /// Grimdark Future and Age of Fantasy: the full-scale games. Blast caps on the target unit's
         /// models and spills nowhere; Scout sets aside and deploys last; melee has its Melee Results step.
@@ -60,7 +69,14 @@ namespace FDG.Rules.Dispatch
             // "may fire at up to two different targets with different weapon types."
             MaxTargetsPerShootAction: 2,
             // "Then defenders MAY CHOOSE to strike back, but don't have to."
-            StrikeBackIsMandatory: false);
+            StrikeBackIsMandatory: false,
+            // GF and AoF print the narrow Command Group: "This model AND ITS UNIT get +1 to Morale Test
+            // rolls triggered by shooting or melee" - nobody else. AoF v3.6.0's section is the one that
+            // prints it; GF's core book has no Command Groups section at all, and Army Forge serves the
+            // same narrow wording for it (#439).
+            CommandGroupExtraPicks: 0,
+            // AoF v3.6.0: "Each UNIT may only have one of each of the following upgrades."
+            CommandGroupCapIsPerArmy: false);
 
         /// <summary>
         /// GF: Firefight and AoF: Skirmish. Identical to the full-scale games except that <b>Blast splits</b>:
@@ -96,7 +112,20 @@ namespace FDG.Rules.Dispatch
             TransportStandardModelTough: 3,
             // Both skirmish books print the full-scale clauses here, word for word.
             MaxTargetsPerShootAction: 2,
-            StrikeBackIsMandatory: false);
+            StrikeBackIsMandatory: false,
+            // #439: the WIDE Command Group. AoFS v3.6.0 prints it ("This model's unit and up to 2
+            // friendly units picked before the start of the game get ... If this model is killed, picked
+            // models that are deployed lose the rule"), GFF's core book has no Command Groups section,
+            // and Army Forge serves that same wide wording for Firefight - the Transport situation
+            // exactly, so Army Forge governs.
+            CommandGroupExtraPicks: 2,
+            // Deliberately FALSE on the shared skirmish profile, and overridden for AoF: Skirmish alone
+            // in <see cref="For"/>. Only the AoFS book caps Command Groups per army ("Each army may only
+            // have one model with one of the following upgrades"); GFF's core book has no Command Groups
+            // section, and Army Forge's one-line summaries carry no cap either way - so there is NO
+            // source for an army-wide cap in Firefight. Reading AoFS's clause across to it because both
+            // are skirmish games is the mistake CLAUDE.md names as the easiest one to make here.
+            CommandGroupCapIsPerArmy: false);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -134,7 +163,17 @@ namespace FDG.Rules.Dispatch
             // #437: MUST strike back. GFSQ v2.1.0 "Then defenders must strike back"; AoFQ v2.1.0 "the
             // defending unit must strike back". The full-scale books say "may choose to ... but don't
             // have to", and the engine offered that choice everywhere.
-            StrikeBackIsMandatory: true);
+            StrikeBackIsMandatory: true,
+            // #439: both Quest systems take the WIDE Command Group from Army Forge - "This model's unit
+            // and up to 2 friendly units picked before the start of the game". Neither Quest core book
+            // has a Command Groups section, so Army Forge is the only source, as with Transport above.
+            // Checked: all four wide systems' Banner and Musician say plain "up to 2 friendly units",
+            // with no "nearest" qualifier - that word appears on the Quest systems' "...Aura" rules
+            // (Enhanced Lustbound Aura and its family), which are a different mechanism, so the player
+            // picks freely here.
+            CommandGroupExtraPicks: 2,
+            // No Quest book prints a Command Groups cap, so the book data's per-unit maxPicks stands.
+            CommandGroupCapIsPerArmy: false);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same ways as Star Quest. Checked line by line, originally against
@@ -156,10 +195,21 @@ namespace FDG.Rules.Dispatch
         /// It therefore shares Star Quest's profile; the two systems' numbers differ, their special-rule
         /// READINGS do not.
         /// </summary>
+        /// <summary>
+        /// AoF: Skirmish is the skirmish profile with one clause of its own: <i>"Each army may only have
+        /// one model with one of the following upgrades."</i> It is the ONLY book of the six that caps
+        /// Command Groups per army, and Firefight's core book has no Command Groups section at all - so
+        /// this override exists to stop that clause being read across to Firefight on the strength of
+        /// both being skirmish games (#439).
+        /// </summary>
+        private static readonly CoreRulesProfile AoFSkirmishProfile =
+            Skirmish with { SystemName = "AoF: Skirmish", CommandGroupCapIsPerArmy = true };
+
         public static CoreRulesProfile For(EGameSystem system) => system switch
         {
             EGameSystem.GFStarQuest or EGameSystem.AoFQuest => StarQuest,
-            EGameSystem.GFFirefight or EGameSystem.AoFSkirmish => Skirmish,
+            EGameSystem.AoFSkirmish => AoFSkirmishProfile,
+            EGameSystem.GFFirefight => Skirmish,
             _ => FullScale,
         };
 

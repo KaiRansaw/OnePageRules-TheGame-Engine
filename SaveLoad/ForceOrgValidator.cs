@@ -131,8 +131,48 @@ namespace FDG.SaveLoad
                 warnings.Add("Army has no non-Hero units.");
             }
 
+            // #439 - AoF: Skirmish alone: "Each army may only have one model with one of the following
+            // upgrades" (Sergeant / Musician / Banner). Every other system's book caps them per UNIT,
+            // which the book data's own maxPicks: 1 already enforces, so this fires for one system.
+            //
+            // Counted as UPGRADES TAKEN, not units carrying one: each is an Affects.One section, so a
+            // squad with a Banner model and a Sergeant model is two models with Command Group upgrades
+            // and breaks a cap worded "one model with one of the following".
+            if (GameSystemInfo.FromSlug(army.GameSystem) is { } system
+                && Rules.Dispatch.CoreRulesProfile.For(system).CommandGroupCapIsPerArmy)
+            {
+                int commandGroupUpgrades = army.Units.Sum(CommandGroupUpgradeCount);
+                if (commandGroupUpgrades > 1)
+                {
+                    warnings.Add($"Too many Command Group upgrades: {commandGroupUpgrades} "
+                        + "(this game allows one model in the whole army to have a Sergeant, Musician or "
+                        + "Banner).");
+                }
+            }
+
             return warnings;
         }
+
+        /// <summary>
+        /// How many Command Group upgrades a unit carries. Sergeant counts here even though it confers on
+        /// nobody - the cap is on the upgrades, not on the ones that buff other units.
+        /// </summary>
+        private static int CommandGroupUpgradeCount(UnitFileEntry unit) =>
+            unit.SpecialRules.Count(EntryIsCommandGroup);
+
+        private static bool EntryIsCommandGroup(SpecialRuleEntry entry) => entry switch
+        {
+            SpecialRuleEntry_Core core => IsCommandGroupName(core.Name),
+            SpecialRuleEntry_CoreNumeric num => IsCommandGroupName(num.Name),
+            SpecialRuleEntry_Alias alias => IsCommandGroupName(alias.Name),
+            _ => false,
+        };
+
+        private static bool IsCommandGroupName(string? name) =>
+            name is not null
+            && (string.Equals(name, "Sergeant", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Musician", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Banner", StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// A unit's contribution to the 3.6 density cap: its Tough value per model where it has one, else

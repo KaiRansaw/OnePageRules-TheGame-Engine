@@ -36,6 +36,12 @@ namespace FDG.Stages
                 .AddChild(new RollForMapSideStage(GameContext, this), out var rollForMapSide)
                 .AddChild(new ChooseMapSideStage(GameContext, this), out var chooseMapSide)
                 .AddChild(new RollForFirstDeploymentStage(GameContext, this), out var rollForFirstDeployment)
+                // #439: the Command Group picks go BEFORE units are placed - the books say "picked
+                // before the start of the game", and a picked unit may still be in Ambush or Scout
+                // reserve when the bearer dies, which is what "picked models that are DEPLOYED lose the
+                // rule" is about. Falls straight through in Grimdark Future and Age of Fantasy, whose
+                // Banner and Musician confer on the bearer's own unit only.
+                .AddChild(new PickCommandGroupUnitsStage(GameContext, this), out var pickCommandGroups)
                 .AddChild(new DeployAllUnitsStage(GameContext, this), out var deployAllUnits)
                 .AddSibling(nameof(ToMain), ToMain, out string toMainEvent)
                 .Build();
@@ -44,7 +50,8 @@ namespace FDG.Stages
 
             rollForMapSide.OnFinish.Bind(chooseMapSide);
             chooseMapSide.ToRollForFirstDeployment.Bind(rollForFirstDeployment);
-            rollForFirstDeployment.ToDeployAllUnits.Bind(deployAllUnits);
+            rollForFirstDeployment.ToDeployAllUnits.Bind(pickCommandGroups);
+            pickCommandGroups.ToDeployAllUnits.Bind(deployAllUnits);
             deployAllUnits.ToMain.Bind(toMainEvent);
 
             return dictionary;
