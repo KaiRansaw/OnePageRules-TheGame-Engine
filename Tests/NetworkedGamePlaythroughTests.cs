@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using FDG.Ai;
@@ -8,6 +9,7 @@ using FDG.Network.Connection.Lobby;
 using FDG.Players;
 using FDG.SaveLoad;
 using FDG.StageResolution;
+using FDG.TextInterface;
 using NUnit.Framework;
 
 namespace FDG.Tests
@@ -43,25 +45,52 @@ namespace FDG.Tests
         private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(20);
 
         /// <summary>
-        /// How long the game itself gets. <b>A hang detector, not a performance budget</b> - and the
-        /// number matters more than that wording suggests, so here is the measurement behind it.
+        /// How long the game may go with <b>nothing happening at all</b> before this fixture calls it a
+        /// hang. Note what it is measured against: not total runtime, but the gap since the last log line
+        /// any seat produced.
         ///
         /// <para>
-        /// These games are almost entirely <i>waiting</i>: 2m12s of wall clock for the two tests against
-        /// 8s of CPU, because every decision for a remote seat is a real socket round trip. Measured on a
-        /// quiet box that is about 66s each. At 180s the detector sat barely 3x over the real runtime,
-        /// and under the parallel load of the full suite the three-player test duly blew through it and
-        /// failed - a false red on a correct game (2026-11-01, during #432). Raised to 240s, with
-        /// <c>CancelAfter</c> moved out to 420s so the join phase cannot push a slow-but-healthy run into
-        /// NUnit's own cancellation instead of this assertion's clearer message.
+        /// <b>Why it is a stall detector and not a deadline.</b> These games are almost entirely
+        /// <i>waiting</i> - about 8s of CPU for 2m12s of wall clock, because every decision for a remote
+        /// seat is a real socket round trip. So their wall-clock runtime is a function of how busy the
+        /// box is, not of whether the game works, and a flat deadline measures the wrong thing. This
+        /// fixture proved that twice in one day (2026-11-01): a 180s deadline failed the three-player
+        /// test under the full suite's parallel load, it was raised to 240s with the measurement written
+        /// down, and <b>the 240s deadline then failed the same test the same way</b> - while the test
+        /// passed in 1m32s when run on its own. Ratcheting the number up is a treadmill; the third false
+        /// red would have cost another cycle.
         /// </para>
         ///
         /// <para>
-        /// If this ever fires again, the thing to check is whether the box was busy, not whether the game
-        /// is broken: a quiet, CPU-idle run of this fixture is what a correct networked test looks like.
+        /// A progress tap removes the guesswork. <see cref="TableProgressWatch"/> samples each seat's
+        /// <see cref="ITableState"/> and asks only "has anything on the table changed since last time" -
+        /// the round, the activating unit, how many units are still to activate, where the models are,
+        /// how wounded they are. A slow-but-healthy game simply takes as long as it takes, and a
+        /// genuinely wedged one - a seat that stopped answering, a state machine blocked on a reply that
+        /// never comes - stops changing and is caught in <see cref="StallTimeout"/> rather than in four
+        /// minutes, with a message saying how far it got.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Why the table and not the log.</b> The obvious tap is the game's
+        /// <see cref="ILogMessageUI"/>, which this test leaves null, and it was tried first: it receives
+        /// <b>nothing</b>. Log lines are routed per player slot and an AI-driven seat discards them, so
+        /// the sink stays silent through a perfectly good game. <see cref="ITableState.Progress"/>'s own
+        /// summary says to read it "instead of parsing round info out of the log or banner stream" -
+        /// which is exactly right, and is why the fingerprint is built from table state instead.
+        /// </para>
+        ///
+        /// <para>
+        /// 45s is many times the longest real gap between two table changes in these games. Every
+        /// activation moves models and most deal wounds, so a 4-round game fingerprints dozens of times;
+        /// even deployment changes it on every placement. <c>CancelAfter(420_000)</c> stays as the
+        /// backstop for the case this cannot see: a hang with no game running yet, in the join handshake.
         /// </para>
         /// </summary>
-        private static readonly TimeSpan GameTimeout = TimeSpan.FromSeconds(240);
+        private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(45);
+
+        /// <summary>How often the stall detector looks; small enough to be prompt, large enough to be free.</summary>
+        private static readonly TimeSpan StallPollInterval = TimeSpan.FromSeconds(2);
 
         private readonly List<IDisposable> _disposables = new();
         private readonly List<FDGHost> _hosts = new();
@@ -114,8 +143,9 @@ namespace FDG.Tests
             // Both seats get the official AI. The host's registry stands on its own local game; the
             // client's stands on the client's synced store inside its own FDGGame_AsClient, so every
             // decision it makes is a request that crossed the wire.
-            hostVm.OnLaunched += game => AttachAi(game, slotID: 0);
-            clientVm.OnLaunched += game => AttachAi(game, slotID: 1);
+            var watch = new TableProgressWatch();
+            hostVm.OnLaunched += game => AttachAi(game, slotID: 0, watch);
+            clientVm.OnLaunched += game => AttachAi(game, slotID: 1, watch);
 
             var ended = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             hostVm.OnGameEnded += result => ended.TrySetResult(result);
@@ -123,12 +153,8 @@ namespace FDG.Tests
             Assert.That(hostVm.TryLaunchGame(out string? failReason), Is.True,
                 $"the host refused to launch: {failReason}");
 
-            Task winner = await Task.WhenAny(ended.Task, Task.Delay(GameTimeout));
-            Assert.That(winner, Is.SameAs(ended.Task),
-                "the networked game never reached a result - a networked seat stopped answering, or the "
-                + "host state machine stalled waiting on one.");
-
-            string gameResult = await ended.Task;
+            string gameResult = await AwaitGameEnd(ended.Task, watch,
+                "the networked game never reached a result");
             Assert.That(gameResult, Is.Not.Null.And.Not.Empty,
                 "the game ended without a result string.");
         }
@@ -176,9 +202,10 @@ namespace FDG.Tests
             Assert.That(hostVm.BlockingLaunchProblems(), Is.Empty,
                 "the three-player lobby must be launchable before this test means anything.");
 
-            hostVm.OnLaunched += game => AttachAi(game, slotID: 0);
-            firstVm.OnLaunched += game => AttachAi(game, slotID: 1);
-            secondVm.OnLaunched += game => AttachAi(game, slotID: 2);
+            var watch = new TableProgressWatch();
+            hostVm.OnLaunched += game => AttachAi(game, slotID: 0, watch);
+            firstVm.OnLaunched += game => AttachAi(game, slotID: 1, watch);
+            secondVm.OnLaunched += game => AttachAi(game, slotID: 2, watch);
 
             var ended = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             hostVm.OnGameEnded += result => ended.TrySetResult(result);
@@ -186,10 +213,9 @@ namespace FDG.Tests
             Assert.That(hostVm.TryLaunchGame(out string? failReason), Is.True,
                 $"the host refused to launch a three-player game: {failReason}");
 
-            Task winner = await Task.WhenAny(ended.Task, Task.Delay(GameTimeout));
-            Assert.That(winner, Is.SameAs(ended.Task),
-                "the three-player networked game never reached a result.");
-            Assert.That(await ended.Task, Is.Not.Null.And.Not.Empty,
+            string gameResult = await AwaitGameEnd(ended.Task, watch,
+                "the three-player networked game never reached a result");
+            Assert.That(gameResult, Is.Not.Null.And.Not.Empty,
                 "the game ended without a result string.");
         }
 
@@ -198,13 +224,164 @@ namespace FDG.Tests
         /// registry for the player(s) this process owns and hand it to the game. On a client this is also
         /// what sends <c>PostLaunchPlayerReadyMessage</c> and wires the networked request receiver, so the
         /// host's state machine unblocks on it.
+        /// <para>
+        /// Also hands this seat's table to <paramref name="watch"/>, which is the fixture's only window
+        /// into "is anything still happening". Every seat shares one watch, so a change on ANY of them
+        /// counts as progress. That is the permissive direction on purpose: the failure this guards
+        /// against is the fixture calling a working game hung, so it should take the whole table's word
+        /// for it.
+        /// </para>
         /// </summary>
-        private static void AttachAi(IFDGGame game, int slotID)
+        private static void AttachAi(IFDGGame game, int slotID, TableProgressWatch watch)
         {
             PlayerID playerID = game.LocalPlayerIDs.Single();
             IStageResolverRegistry registry = AiProfileFactory.BuildRegistry(EAiProfile.SoloRules,
                 game.TableState, playerID, seed: 5150, slotID: slotID);
             game.AssignInterfaces(null, null, registry, null, null);
+            watch.Watch(game.TableState);
+        }
+
+        /// <summary>
+        /// Wait for <paramref name="ended"/>, failing only once the table has gone quiet for
+        /// <see cref="StallTimeout"/>. See <see cref="StallTimeout"/> for why this is not a deadline.
+        /// </summary>
+        private static async Task<string> AwaitGameEnd(Task<string> ended, TableProgressWatch watch,
+            string whatStalled)
+        {
+            while (true)
+            {
+                if (ended.IsCompleted) return await Finish(ended, watch);
+
+                Task finished = await Task.WhenAny(ended, Task.Delay(StallPollInterval));
+                if (finished == ended) return await Finish(ended, watch);
+
+                TimeSpan quietFor = watch.SinceLastChange;
+                if (quietFor < StallTimeout) continue;
+
+                // Deliberately detailed: the whole point of this detector is that when it DOES fire, the
+                // reader can tell a stall from a slow box without re-running anything.
+                Assert.Fail($"{whatStalled}: nothing on any seat's table changed for "
+                    + $"{quietFor.TotalSeconds:0}s (stall threshold {StallTimeout.TotalSeconds:0}s). "
+                    + $"{watch.ChangeCount} table changes were seen before it went quiet"
+                    + $"{(watch.ChangeCount == 0 ? " - the game never got as far as putting anything on the table" : $", the last state being: {watch.LastFingerprint}")}. "
+                    + "A networked seat stopped answering, or the host state machine stalled waiting on one. "
+                    + "This is NOT the old wall-clock timeout - a busy box no longer fails this test, so a "
+                    + "failure here means the game really did stop.");
+            }
+        }
+
+        /// <summary>
+        /// The game reached a result - but first, prove the detector that was watching it could see.
+        /// <para>
+        /// A watch that never observed a change would make <see cref="AwaitGameEnd"/> vacuous in the
+        /// dangerous direction: it would wait out <see cref="StallTimeout"/> and fail a perfectly good
+        /// game, which is the exact failure mode this whole mechanism replaced. Worse, it would do it
+        /// silently whenever the game happened to finish inside the window, so the fixture would look
+        /// fine right up until a slow run made it look broken. This is not a hypothetical - the first
+        /// version of this detector watched <see cref="ILogMessageUI"/> and received nothing at all, and
+        /// this assertion is what caught it rather than a flake three weeks later.
+        /// </para>
+        /// </summary>
+        private static async Task<string> Finish(Task<string> ended, TableProgressWatch watch)
+        {
+            Assert.That(watch.ChangeCount, Is.GreaterThan(0),
+                "the game ended without the watch ever seeing the table change, so the stall detector was "
+                + "blind for the whole run. Either AttachAi stopped handing it the game's ITableState, or "
+                + "the fingerprint stopped reading anything that moves - and both turn this test back "
+                + "into a coin flip on a busy box.");
+            return await ended;
+        }
+
+        /// <summary>
+        /// The progress tap: samples the watched tables and reports how long since any of them last
+        /// looked different. Keeps no history beyond the latest fingerprint - the question is only
+        /// whether the game is still moving, not what it did.
+        /// </summary>
+        private sealed class TableProgressWatch
+        {
+            private readonly object _gate = new();
+            private readonly List<ITableState> _tables = new();
+            private readonly Stopwatch _clock = Stopwatch.StartNew();
+            private string _fingerprint = "";
+            private TimeSpan _lastChange = TimeSpan.Zero;
+            private int _changeCount;
+
+            public void Watch(ITableState table)
+            {
+                lock (_gate) _tables.Add(table);
+            }
+
+            public int ChangeCount { get { lock (_gate) { Sample(); return _changeCount; } } }
+
+            public string LastFingerprint { get { lock (_gate) { Sample(); return _fingerprint; } } }
+
+            /// <summary>
+            /// How long since the fingerprint last changed - or since the watch was created, when it
+            /// never has, so a game that never starts still trips the detector.
+            /// </summary>
+            public TimeSpan SinceLastChange
+            {
+                get { lock (_gate) { Sample(); return _clock.Elapsed - _lastChange; } }
+            }
+
+            private void Sample()
+            {
+                string now = Fingerprint();
+                if (now == _fingerprint) return;
+
+                _fingerprint = now;
+                _lastChange = _clock.Elapsed;
+                _changeCount++;
+            }
+
+            /// <summary>
+            /// Everything cheap that moves while a game is being played: the round, which unit is
+            /// activating, how many are still to go, the objective scores, and - because deployment and
+            /// movement happen with the round counter still null - how many models there are, where they
+            /// are, and how wounded they are.
+            /// <para>
+            /// Read from the test thread while engine threads mutate the same state, so an enumeration
+            /// can legitimately throw mid-walk. A throw is counted as PROGRESS, not ignored: something
+            /// was actively changing the collection at that instant, which is the very thing being
+            /// asked about. A wedged game mutates nothing and cannot throw here.
+            /// </para>
+            /// </summary>
+            private string Fingerprint()
+            {
+                var parts = new List<string>();
+
+                foreach (ITableState table in _tables)
+                {
+                    try
+                    {
+                        IGameProgress progress = table.Progress;
+                        int models = 0;
+                        var geometry = new HashCode();
+                        float wounds = 0f;
+
+                        foreach (IModel model in table.Models.Objects)
+                        {
+                            models++;
+                            wounds += model.WoundsDealt;
+                            geometry.Add(model.Position);
+                        }
+
+                        parts.Add($"r{progress.RoundCount?.ToString() ?? "-"}"
+                            + $"/a{progress.ActivatingUnit?.Name ?? "-"}"
+                            + $"/u{progress.UnactivatedUnits.Count}"
+                            + $"/s{string.Join(",", progress.Scores.Select(s => s.ObjectiveCount))}"
+                            + $"/m{models}/w{wounds:0.##}/g{geometry.ToHashCode()}");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Mutation in flight - see the remarks above. Unique per sample so it always
+                        // reads as a change.
+                        parts.Add($"mutating:{ex.GetType().Name}:{_clock.Elapsed.Ticks}");
+                    }
+                }
+
+                return string.Join(" | ", parts);
+            }
         }
 
         // Connects a real client and waits out the greeting handshake, as ClientModal does.
