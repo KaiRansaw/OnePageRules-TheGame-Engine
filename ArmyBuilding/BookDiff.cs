@@ -44,8 +44,10 @@ namespace FDG.ArmyBuilding
     /// </list>
     /// <para>
     /// Units are matched by <b>name</b>, not id: ids are per-book, so the same unit in two different
-    /// systems has two different ids and only the name joins them. Upgrade options are matched by id
-    /// within a unit, because that is what OPR keeps stable across versions and what a price is keyed to.
+    /// systems has two different ids and only the name joins them. Upgrade options are matched by their
+    /// own <b>option</b> id, which OPR does keep stable; <b>section</b> ids are regenerated on every API
+    /// response and pair nothing, which made this tool unusable for the refresh it was built for until
+    /// #443 measured it. See <see cref="Options"/>.
     /// </para>
     /// </summary>
     public static class BookDiff
@@ -172,11 +174,12 @@ namespace FDG.ArmyBuilding
             }
 
             // A section's shape decides how many times an option may be taken, so a change there is a
-            // real rules change even when every option still costs the same.
-            var leftSections = a.Sections.ToDictionary(s => s.Id, s => s, StringComparer.OrdinalIgnoreCase);
-            foreach (UpgradeSection s in b.Sections)
+            // real rules change even when every option still costs the same. Paired by label, not id -
+            // see SectionsByLabel.
+            Dictionary<string, UpgradeSection> leftSections = SectionsByLabel(a);
+            foreach ((string key, UpgradeSection s) in SectionsByLabel(b))
             {
-                if (!leftSections.TryGetValue(s.Id, out UpgradeSection? old)) continue;
+                if (!leftSections.TryGetValue(key, out UpgradeSection? old)) continue;
                 string so = Shape(old), sn = Shape(s);
                 if (so != sn)
                     changes.Add(new BookChange(unit, "Upgrade section: " + s.Label, so, sn, EBookChange.Changed));
@@ -189,10 +192,66 @@ namespace FDG.ArmyBuilding
             book.Units.GroupBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        private static Dictionary<string, UpgradeOption> Options(RosterUnit unit) =>
-            unit.Sections.SelectMany(s => s.Options.Select(o => (Key: s.Id + "/" + o.Id, Option: o)))
-                .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Option, StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// Keys a unit's upgrade options so the same option pairs with itself across two imports.
+        ///
+        /// <para>
+        /// <b>By option id, NOT by section id.</b> The key used to be <c>sectionId + "/" + optionId</c>,
+        /// on the stated premise that OPR keeps its ids stable. Measured against a live import on
+        /// 2026-11-01 (#443): <b>section</b> ids are regenerated on every API response - 0 of 3,672
+        /// matched across Grimdark Future alone - while <b>option</b> ids are perfectly stable, 48,155 of
+        /// 48,155. So the old key paired nothing, and every option in every book came out as both
+        /// removed and added: 48,170 of each, with the 2 genuine price changes buried in the middle. The
+        /// tool was built to review a refresh and could not be used for one.
+        /// </para>
+        ///
+        /// <para>
+        /// Option ids are unique within a unit in 5,142 of 5,145 units. The three exceptions are one unit
+        /// - Vampiric Undead's Werewolf Champion, in the three fantasy systems - whose two identically
+        /// labelled "Replace Dual Hand Weapon" sections reuse the same five ids. The occurrence suffix
+        /// pairs those first-with-first in section order, which is right as long as section order is
+        /// stable, and it is: it is the order the book prints them in.
+        /// </para>
+        /// </summary>
+        private static Dictionary<string, UpgradeOption> Options(RosterUnit unit)
+        {
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var keyed = new Dictionary<string, UpgradeOption>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (UpgradeSection section in unit.Sections)
+            {
+                foreach (UpgradeOption option in section.Options)
+                {
+                    seen.TryGetValue(option.Id, out int n);
+                    seen[option.Id] = n + 1;
+                    keyed[n == 0 ? option.Id : $"{option.Id}#{n}"] = option;
+                }
+            }
+
+            return keyed;
+        }
+
+        /// <summary>
+        /// Pairs sections across two imports by label rather than id, for the same reason
+        /// <see cref="Options"/> does: a section id is regenerated per response and pairs nothing.
+        /// Labels repeat within a unit in 19% of units ("Upgrade with one", up to three times), so the
+        /// occurrence index disambiguates - again in the book's own printed order.
+        /// </summary>
+        private static Dictionary<string, UpgradeSection> SectionsByLabel(RosterUnit unit)
+        {
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var keyed = new Dictionary<string, UpgradeSection>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (UpgradeSection section in unit.Sections)
+            {
+                string label = section.Label ?? "";
+                seen.TryGetValue(label, out int n);
+                seen[label] = n + 1;
+                keyed[n == 0 ? label : $"{label}#{n}"] = section;
+            }
+
+            return keyed;
+        }
 
         private static void Number(string unit, string what, int a, int b, List<BookChange> changes)
         {
