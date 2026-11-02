@@ -94,6 +94,33 @@ namespace FDG
         /// </summary>
         public Dictionary<int, ZoneRect>? DeploymentZones { get; set; }
 
+        /// <summary>
+        /// #434 - each army's remaining Underdog Bonus points for THIS mission, keyed by
+        /// <see cref="Players.PlayerSlotInfo.SlotID"/>. Null outside a campaign game and in every
+        /// pre-#434 save.
+        ///
+        /// <para>
+        /// Campaign Rules v3.6.0, identically in all four books: <i>"Any army that has a point value
+        /// lower than at least one other gets an underdog bonus. You get 1 underdog point for every
+        /// 65pts difference between your army and the one with the highest value. Each underdog point can
+        /// be spent to modify all dice in a friendly or enemy roll by +1 or -1, but only one point can be
+        /// spent per roll."</i> (65 in Grimdark Future; 25 / 50 / 20 in the other three.)
+        /// </para>
+        /// <para>
+        /// Per MISSION, not per campaign: the pool is recomputed from what each side brings each time, so
+        /// it is progress state rather than something on the army sheet. Rides this record for the same
+        /// reasons <see cref="Horde"/> and <see cref="DeploymentZones"/> do - it replicates to every
+        /// player, it is saved, and <c>GameProgressUtilities.WriteProgress</c> carries it forward when the
+        /// per-turn snapshot rewrites the record.
+        /// </para>
+        /// <para>
+        /// Keyed by slot id rather than <c>PlayerID</c> because a Guid-keyed dictionary needs a converter
+        /// to survive the save, and the slot id is already how <see cref="DeploymentZones"/>' sibling
+        /// state identifies a seat.
+        /// </para>
+        /// </summary>
+        public Dictionary<int, int>? Underdog { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,

@@ -48,11 +48,19 @@ namespace FDG.Stages
             int markerNet = await TargetMarkerSpend.ConsumeNet(GameContext,
                 metaData.AttackingUnit.PlayerID(), metaData.DefendingUnit.GetValue(), ERollKind.Save);
 
+            // #434: the campaign Underdog Bonus on the save. The DEFENDER is the one rolling, so its
+            // owner gets +1 and the attacker's owner gets -1 - UnderdogSpend works that out from who
+            // owns the rolling unit. Subtracted like the granted defense buffs, since a positive delta
+            // to the roller lowers its threshold. No-op outside a campaign.
+            int underdogNet = await UnderdogSpend.ConsumeNet(
+                GameContext, ERollKind.Save, metaData.DefendingUnit.GetValue());
+
             int baseDefenseWithAP = baseDefense + ap - coverResults.DefenseRollBonus - rollToHitResults.SaveModifier
-                - grantedDefense + markerNet;
+                - grantedDefense + markerNet - underdogNet;
 
             GameContext.Log($"Base roll to save is {baseDefense}, AP {ap}, cover -{coverResults.DefenseRollBonus}, " +
                 $"Rending/save mods {rollToHitResults.SaveModifier}, markers +{markerNet}, " +
+                $"underdog {underdogNet:+0;-0;0}, " +
                 $"effective threshold {baseDefenseWithAP} (not yet clamped).");
 
             foreach (SuccessfulHitInfo hits in rollToHitResults.SuccessfulHitList)

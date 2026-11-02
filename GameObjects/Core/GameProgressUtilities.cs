@@ -55,6 +55,16 @@ namespace FDG
                 progress.DeploymentZones = CloneZones(zones);
             PendingZones.Remove(store);
 
+            // #434: the same two hops for the underdog pool. It is computed at mission setup - before the
+            // main phase writes the first progress record - so the pending hop is what gets it into the
+            // game at all, and the carry-forward is what stops the next snapshot erasing it mid-mission.
+            if (progress.Underdog == null)
+                progress.Underdog = TryGetProgress(store)?.Underdog;
+            if (progress.Underdog == null
+                && PendingUnderdog.TryGetValue(store, out Dictionary<int, int>? pool))
+                progress.Underdog = new Dictionary<int, int>(pool);
+            PendingUnderdog.Remove(store);
+
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {
                 store.SetValue(existing, progress);
@@ -85,6 +95,62 @@ namespace FDG
 
         /// <summary>#429 - deployment zones written during deployment, waiting for the first progress record.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, ZoneRect>> PendingZones = new();
+
+        /// <summary>#434 - the underdog pool written at mission setup, waiting for the first progress record.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, int>> PendingUnderdog = new();
+
+        /// <summary>
+        /// #434 - writes this mission's underdog pool (slot id -> points). Call once at mission setup,
+        /// from <c>UnderdogPool.Seed</c>; before the first progress record exists it waits in the pending
+        /// table and moves into that record, exactly as the Star Quest and deployment-zone state does.
+        /// </summary>
+        public static void SetUnderdogPool(IReadWriteableGameDataStore store, Dictionary<int, int> pool)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress != null)
+            {
+                progress.Underdog = new Dictionary<int, int>(pool);
+                return;
+            }
+
+            PendingUnderdog.Remove(store);
+            PendingUnderdog.Add(store, new Dictionary<int, int>(pool));
+        }
+
+        /// <summary>
+        /// #434 - this mission's underdog pool, from the progress record or from the pending table when
+        /// the record does not exist yet. Empty when there is none, so callers need no null handling: a
+        /// standard (non-campaign) game simply has no underdog points.
+        /// </summary>
+        public static IReadOnlyDictionary<int, int> UnderdogPool(IReadableGameDataStore store)
+        {
+            Dictionary<int, int>? stored = TryGetProgress(store)?.Underdog;
+            if (stored != null) return stored;
+            return PendingUnderdog.TryGetValue(store, out Dictionary<int, int>? pending)
+                ? pending
+                : new Dictionary<int, int>();
+        }
+
+        /// <summary>
+        /// #434 - takes one underdog point off <paramref name="slotId"/>, returning false (and changing
+        /// nothing) when that seat has none left. The write goes wherever the pool currently lives, so
+        /// spending works before and after the first progress record.
+        /// </summary>
+        public static bool TrySpendUnderdogPoint(IReadWriteableGameDataStore store, int slotId)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress?.Underdog != null)
+            {
+                if (!progress.Underdog.TryGetValue(slotId, out int left) || left <= 0) return false;
+                progress.Underdog[slotId] = left - 1;
+                return true;
+            }
+
+            if (!PendingUnderdog.TryGetValue(store, out Dictionary<int, int>? pending)) return false;
+            if (!pending.TryGetValue(slotId, out int pendingLeft) || pendingLeft <= 0) return false;
+            pending[slotId] = pendingLeft - 1;
+            return true;
+        }
 
         private static Dictionary<int, ZoneRect> CloneZones(Dictionary<int, ZoneRect> zones)
         {

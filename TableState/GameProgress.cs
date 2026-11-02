@@ -78,6 +78,14 @@ namespace FDG
 
         /// <summary>Star Quest Horde's wave / alertness / XP (null in other games).</summary>
         QuestProgress? Quest => null;
+
+        /// <summary>
+        /// #434 - Underdog Bonus points this seat has left for this mission, keyed by slot id. Empty in a
+        /// standard game: the core rules ask for two armies of equal cost and have no underdog rule, so
+        /// the bonus exists only in a campaign. The front end reads this to show the pool and to know
+        /// whether to offer a spend at all.
+        /// </summary>
+        IReadOnlyDictionary<int, int> UnderdogPoints => new Dictionary<int, int>();
     }
 
     /// <summary>
@@ -113,6 +121,8 @@ namespace FDG
 
         public QuestProgress? Quest => GameProgressUtilities.TryGetProgress(_store)?.Quest
             ?? GameProgressUtilities.PendingQuestFor(_store);
+
+        public IReadOnlyDictionary<int, int> UnderdogPoints => GameProgressUtilities.UnderdogPool(_store);
 
         public IReadOnlyList<IUnit> UnactivatedUnits
         {

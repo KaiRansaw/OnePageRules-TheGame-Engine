@@ -112,8 +112,13 @@ namespace FDG.Stages
             // -1") rather than showing as a bare "buff". Read before the one-shot grants drain.
             (int grantedNet, IReadOnlyList<GrantedModifier> grantedDetail) =
                 GrantedRollModifiers.ConsumeDetailed(testingUnit, ERollKind.Morale);
+            // #434: the campaign Underdog Bonus. The testing unit is the roller, so its owner gets +1 and
+            // an opponent gets -1; capped at one point per roll by UnderdogSpend. No-op outside a
+            // campaign, and a no-op on the Shaken auto-fail path above because that returns before here -
+            // which is right, since no die is rolled there for a point to shift.
+            int underdogNet = await UnderdogSpend.ConsumeNet(gameContext, ERollKind.Morale, testingUnit);
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
-                - grantedNet);
+                - grantedNet - underdogNet);
 
             // Decisive single die — one concrete face even under the probabilistic roller (#090).
             IDiceResults initialRoll = gameContext.DiceRoller.RollDecisive();

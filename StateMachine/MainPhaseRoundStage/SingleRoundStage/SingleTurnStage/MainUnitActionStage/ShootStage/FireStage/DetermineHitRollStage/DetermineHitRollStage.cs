@@ -157,6 +157,17 @@ namespace FDG.Stages
                 results.HitRollNeeded -= markerNet;
             }
 
+            // #434: the campaign Underdog Bonus. Offered to whichever seat holds points - +1 when it is
+            // their own hit roll, -1 when it is an enemy's - and capped at one point per roll by
+            // UnderdogSpend. Skipped while fatigued for the same reason as everything above: only
+            // unmodified 6s hit, so a point spent here would buy nothing. No-op outside a campaign.
+            int underdogNet = 0;
+            if (!fatiguedInMelee)
+            {
+                underdogNet = await UnderdogSpend.ConsumeNet(GameContext, ERollKind.Hit, attacker);
+                results.HitRollNeeded -= underdogNet;
+            }
+
             // Star Quest (Vengeful Strike +1 to hit a Shaken enemy; Dread Attack / Martial Strike note the
             // target). Shown with the granted modifiers on the dice beat.
             // Campaign hero skills and talents used to be applied here (the v3.5.1 Firefight Mastermind,

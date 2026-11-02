@@ -240,6 +240,12 @@ namespace FDG.Stages
             // been spent so a browsed-and-cancelled spell never burns the debuff.
             int granted = GrantedRollModifiers.ConsumeNet(caster, ERollKind.Cast);
 
+            // #434: the campaign Underdog Bonus on the casting roll. Offered after the cost is spent, for
+            // the same reason the granted debuff is read there - a browsed-and-cancelled spell must never
+            // burn a point. No-op outside a campaign.
+            int underdog = await UnderdogSpend.ConsumeNet(GameContext, ERollKind.Cast, caster);
+            granted += underdog;
+
             // #409 Spell Amplifier (OPR 3.6.0) - "Gets +1 to casting rolls". The first PASSIVE cast-roll
             // modifier in the game: everything above is one-shot state someone had to spend or be granted
             // (the caster's own boost, the 18" assists, a Casting Buff token), whereas this is a standing
