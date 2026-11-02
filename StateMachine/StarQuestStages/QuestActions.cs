@@ -392,9 +392,21 @@ namespace FDG.Stages
             if (wounds > 0f) await CasualtyPresentation.ApplyUnitWounds(context, target, wounds);
         }
 
-        /// <summary>A morale test; true when passed.</summary>
+        /// <summary>
+        /// A morale test; true when passed.
+        /// <para>
+        /// Fixed at <see cref="EMoraleTrigger.OtherSource"/> because every caller is a non-combat
+        /// event - an advanced skill's nerve check, a Dread or Enchantment flag, a treasure's effect -
+        /// and none of them is shooting or melee, so Banner's +1 must not apply (audit finding 3).
+        /// <b>A Quest caller that IS shooting or melee must not use this helper</b>; it should call
+        /// <c>MoraleUtilities.TakeMoraleTest</c> with <see cref="EMoraleTrigger.ShootingOrMelee"/>, the
+        /// way the melee and wound-driven paths do.
+        /// </para>
+        /// </summary>
         public static async Task<bool> Morale(IGameContext context, UnitData unit) =>
-            (await MoraleUtilities.TakeMoraleTest(context, unit, HeroStatRules.GetMoraleQuality(unit, context.TableState))).Passed;
+            (await MoraleUtilities.TakeMoraleTest(context, unit,
+                HeroStatRules.GetMoraleQuality(unit, context.TableState),
+                EMoraleTrigger.OtherSource)).Passed;
 
         public static Task Toast(IGameContext context, string text) =>
             context.Announce(text, Blue, EBannerTier.Toast);

@@ -42,7 +42,7 @@ namespace FDG.Tests
         public void Headstrong_GivesPlusOneToMorale()
         {
             var (h, unit, _) = Setup(HordeExperience.Headstrong);
-            h.Evaluate(unit, ERuleSeat.Actor, new PreMoraleTestContext(unit))
+            h.Evaluate(unit, ERuleSeat.Actor, new PreMoraleTestContext(unit, EMoraleTrigger.ShootingOrMelee))
                 .HasOperation<RuleOperation.ApplyRollModifier>(op => op.Roll == ERollKind.Morale && op.Delta == 1);
         }
 

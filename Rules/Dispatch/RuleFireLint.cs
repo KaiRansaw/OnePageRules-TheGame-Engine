@@ -848,7 +848,11 @@ public static class RuleFireLint
                 yield return new PostMeleeActionContext(bearer);
                 break;
             case EHookID.Morale_OnPreMoraleTest:
-                yield return new PreMoraleTestContext(bearer);
+                // Both triggers, because a Banner-shaped rule fires on only one of them: probing just
+                // the combat case would hide a rule gated the other way, and probing just the other
+                // would report Banner itself as a rule that never fires.
+                yield return new PreMoraleTestContext(bearer, EMoraleTrigger.ShootingOrMelee);
+                yield return new PreMoraleTestContext(bearer, EMoraleTrigger.OtherSource);
                 break;
             case EHookID.Morale_OnMoraleTestComplete:
                 yield return new MoraleTestContext(bearer);

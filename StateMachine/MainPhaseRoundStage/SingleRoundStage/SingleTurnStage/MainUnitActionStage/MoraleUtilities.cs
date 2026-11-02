@@ -60,7 +60,7 @@ namespace FDG.Stages
         /// regardless of Quality.
         /// </summary>
         public static async Task<MoraleTestOutcome> TakeMoraleTest(IGameContext gameContext, IUnit testingUnit,
-            int baseRollNeeded, bool failureCausesShakenOrRout = false)
+            int baseRollNeeded, EMoraleTrigger trigger, bool failureCausesShakenOrRout = false)
         {
             // The v3.5.1 Firefight talent Motivated auto-passed the first morale test of the match. In
             // Campaign Rules v3.6.0 Motivated is a plain +1 to Morale Test rolls, which is an ordinary
@@ -92,7 +92,7 @@ namespace FDG.Stages
             // #245: the NAMED live evaluation - identical to EvaluateAll (logs, spends grants), but each
             // op carries its rule name so the beat's chips can say which rule shifted the test.
             IReadOnlyList<(RuleOperation Op, string RuleName)> named = gameContext.RuleEvaluator.EvaluateAllNamedLive(
-                new PreMoraleTestContext(testingUnit), RuleParticipant.Actor(testingUnit));
+                new PreMoraleTestContext(testingUnit, trigger), RuleParticipant.Actor(testingUnit));
             RollModifierSink modifiers = new RollModifierSink();
             modifiers.ApplyFrom(named.Select(n => n.Op).ToList());
             // #033 granted morale modifiers (e.g. a spell's "-1 to morale" debuff) fold in with the same
@@ -333,7 +333,10 @@ namespace FDG.Stages
             // #006: a living joined hero takes morale on behalf of the unit (its Quality).
             // failureCausesShakenOrRout: this test's failure Shakens the unit, so a conversion rule
             // (#197 P7 No Retreat) may rescue it.
+            // The book's own Banner case: the wounds that brought this unit to half strength came from
+            // shooting or melee - this method's entire job is the wound-driven test.
             if ((await TakeMoraleTest(gameContext, unit, HeroStatRules.GetMoraleQuality(unitBinding.GetValue(), gameContext.TableState),
+                    EMoraleTrigger.ShootingOrMelee,
                     failureCausesShakenOrRout: true)).Passed) return true;
 
             await ApplyShakenWithPresentation(gameContext, unitBinding);

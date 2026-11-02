@@ -482,8 +482,11 @@ namespace FDG.Stages
             foreach (DataBinding<UnitData> target in targets)
             {
                 UnitData targetUnit = target.GetValue();
+                // A spell forced this test, not shooting or melee, so Banner's +1 does NOT apply - every
+                // book gates it on "Morale Test rolls triggered by shooting or melee" (audit finding 3).
                 MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                    GameContext, targetUnit, HeroStatRules.GetMoraleQuality(targetUnit, GameContext.TableState));
+                    GameContext, targetUnit, HeroStatRules.GetMoraleQuality(targetUnit, GameContext.TableState),
+                    EMoraleTrigger.OtherSource);
 
                 if (outcome.Passed)
                 {

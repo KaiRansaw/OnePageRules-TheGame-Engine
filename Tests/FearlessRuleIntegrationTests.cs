@@ -29,7 +29,7 @@ namespace FDG.Tests
             var unit = MakeUnit(quality: 5);
             AttachFearless(unit);
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.Passed, Is.True);
             Assert.That(outcome.PassedViaReroll, Is.True, "4 fails the Quality-5 test but clears the Fearless 4+ re-roll.");
@@ -41,7 +41,7 @@ namespace FDG.Tests
             var unit = MakeUnit(quality: 5);
             AttachFearless(unit);
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 3), unit.GetValue(), baseRollNeeded: 5);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 3), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.Passed, Is.False, "3 fails both the Quality-5 test and the 4+ re-roll.");
         }
@@ -52,7 +52,7 @@ namespace FDG.Tests
             var unit = MakeUnit(quality: 4);
             AttachFearless(unit);
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 4);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.Passed, Is.True);
             Assert.That(outcome.PassedViaReroll, Is.False, "the initial test already passed — no second chance needed.");
@@ -63,7 +63,7 @@ namespace FDG.Tests
         {
             var unit = MakeUnit(quality: 5);
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.Passed, Is.False, "no morale rule → a failed test has no second chance.");
         }
@@ -84,7 +84,7 @@ namespace FDG.Tests
             var unit = MakeUnit(quality: 5);
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Brave", brave));
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(4), "+1 morale lowers the Quality-5 threshold to 4.");
             Assert.That(outcome.Passed, Is.True);
@@ -98,7 +98,7 @@ namespace FDG.Tests
             var unit = MakeUnit(quality: 5);
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Courage", CoreRuleCatalog.Courage));
 
-            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5);
+            var outcome = await MoraleUtilities.TakeMoraleTest(Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(4), "Courage's +1 lowers the Quality-5 threshold to 4.");
             Assert.That(outcome.Passed, Is.True, "the eased test passes on a 4.");

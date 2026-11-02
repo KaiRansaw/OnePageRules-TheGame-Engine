@@ -2,6 +2,7 @@ using FDG.Presentation.Beats;
 using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
+using FDG.Rules.Foundation;
 using FDG.Rules.Tokens;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
@@ -148,8 +149,11 @@ namespace FDG.Stages
                 return;
             }
 
+            // A unit rule (Mind Control, Fatigue Debuff) forced this test, not shooting or melee, so
+            // Banner's +1 does NOT apply - see EMoraleTrigger (audit finding 3).
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                _gameContext, unitData, HeroStatRules.GetMoraleQuality(unitData, _gameContext.TableState));
+                _gameContext, unitData, HeroStatRules.GetMoraleQuality(unitData, _gameContext.TableState),
+                EMoraleTrigger.OtherSource);
 
             if (outcome.Passed)
             {

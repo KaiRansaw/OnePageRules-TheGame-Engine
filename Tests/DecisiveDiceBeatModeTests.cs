@@ -43,7 +43,7 @@ namespace FDG.Tests
             var sink = new RecordingPresentationSink();
             (TestGameContext ctx, DataBinding<UnitData> unit) = Build(sink);
 
-            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4);
+            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.ShootingOrMelee);
 
             DiceRolledBeat beat = SingleDiceBeat(sink);
             Assert.That(beat.Mode, Is.EqualTo(ERandomnessType.Realistic),

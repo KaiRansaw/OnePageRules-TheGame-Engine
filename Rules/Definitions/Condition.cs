@@ -54,6 +54,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(AfterMoving), "afterMoving")]
 [JsonDerivedType(typeof(MostModelsWithinInchesOfTerrain), "mostModelsWithinInchesOfTerrain")]
 [JsonDerivedType(typeof(IsMelee), "isMelee")]
+[JsonDerivedType(typeof(MoraleTriggeredByCombat), "moraleTriggeredByCombat")]
 [JsonDerivedType(typeof(IsCharging), "isCharging")]
 [JsonDerivedType(typeof(IsNotSpell), "isNotSpell")]
 [JsonDerivedType(typeof(IsSpell), "isSpell")]
@@ -521,6 +522,24 @@ public abstract record Condition
     public sealed record IsMelee : CapabilityCondition<IHasCombatKind>
     {
         protected override bool EvaluateCore(IHasCombatKind context) => context.IsMelee;
+    }
+
+    /// <summary>
+    /// True when the morale test being taken was caused by shooting or melee - the gate every book puts
+    /// on <b>Banner</b>: <i>"+1 to Morale Test rolls triggered by shooting or melee"</i>.
+    ///
+    /// <para>
+    /// The pre-morale hook fires for every morale test there is, including the ones a spell, a unit rule
+    /// (Mind Control, Fatigue Debuff) or a campaign random event forces. Banner was authored with an
+    /// <see cref="Always"/> condition, which is indistinguishable from correct in a plain game - where
+    /// essentially every morale test does come from combat - and wrong the moment a non-combat source is
+    /// in play. Found by the 2026-11-01 rules audit (finding 3).
+    /// </para>
+    /// </summary>
+    public sealed record MoraleTriggeredByCombat : CapabilityCondition<IHasMoraleTrigger>
+    {
+        protected override bool EvaluateCore(IHasMoraleTrigger context) =>
+            context.MoraleTrigger == EMoraleTrigger.ShootingOrMelee;
     }
 
     /// <summary>

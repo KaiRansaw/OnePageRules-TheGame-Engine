@@ -62,7 +62,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit(modelCount: 5, withRule: 5);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.True, "'the test counts as passed instead'");
             Assert.That(outcome.PassedViaConversion, Is.True, "...and the caller can tell it was bought");
@@ -75,7 +75,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit(modelCount: 5, withRule: 0);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.False);
             Assert.That(unit.GetValue().RemainingWounds, Is.EqualTo(5f), "and nothing was self-inflicted");
@@ -89,7 +89,7 @@ namespace FDG.Tests
             var ctx = Context(face: 3);
             DataBinding<UnitData> unit = MakeUnit(modelCount: 5, withRule: 5);
 
-            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality,
+            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee,
                 failureCausesShakenOrRout: true);
 
             Assert.That(unit.GetValue().RemainingWounds, Is.EqualTo(0f),
@@ -106,7 +106,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit(modelCount: 3, withRule: 3);
             Shake(unit);
 
-            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality,
+            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee,
                 failureCausesShakenOrRout: true);
 
             Assert.That(3f - unit.GetValue().RemainingWounds, Is.EqualTo(expectedWounds));
@@ -123,7 +123,7 @@ namespace FDG.Tests
                 new ResolvedRule("Regeneration", CoreRuleCatalog.Regeneration));
             Shake(unit);
 
-            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality,
+            await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee,
                 failureCausesShakenOrRout: true);
 
             Assert.That(unit.GetValue().RemainingWounds, Is.EqualTo(0f),
@@ -141,7 +141,7 @@ namespace FDG.Tests
             Shake(unit);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.True,
                 "an automatic failure is still 'a morale test that causes it to be Routed'");
@@ -158,7 +158,7 @@ namespace FDG.Tests
             Shake(unit);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.False,
                 "a 6 cannot rescue a Shaken unit - no die is rolled at all");
@@ -175,7 +175,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit(modelCount: 5, withRule: 5);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: false);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: false);
 
             Assert.That(outcome.Passed, Is.False, "the failure stands, so the consequence lands");
             Assert.That(unit.GetValue().RemainingWounds, Is.EqualTo(5f),
@@ -192,7 +192,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit(modelCount: 5, withRule: carriers);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.EqualTo(converts),
                 "'a unit where MOST models have this rule' - a strict majority of the living");
@@ -210,7 +210,7 @@ namespace FDG.Tests
             }
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), Quality, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), Quality, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.True,
                 "the two survivors are all of the living models, so 'most' is satisfied");
@@ -229,7 +229,7 @@ namespace FDG.Tests
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Fearless", CoreRuleCatalog.Fearless));
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                ctx, unit.GetValue(), baseRollNeeded: 5, failureCausesShakenOrRout: true);
+                ctx, unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee, failureCausesShakenOrRout: true);
 
             Assert.That(outcome.Passed, Is.True);
             Assert.That(outcome.PassedViaReroll, Is.True, "Fearless rescued it for free");

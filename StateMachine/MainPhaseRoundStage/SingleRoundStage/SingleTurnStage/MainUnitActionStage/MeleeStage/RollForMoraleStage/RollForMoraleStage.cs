@@ -1,4 +1,5 @@
 ﻿using System;
+using FDG.Rules.Foundation;
 
 namespace FDG.Stages
 {
@@ -44,8 +45,11 @@ namespace FDG.Stages
 
             // failureCausesShakenOrRout: the melee-loss test Shakens, or Routs a loser at half
             // strength - the two outcomes #197 P7's No Retreat is worded for.
+            // The melee loser's test - the squarely book case for Banner's "triggered by shooting or
+            // melee".
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
                 GameContext, testingUnit, determineMoraleSaveNeededResult.RollNeeded,
+                EMoraleTrigger.ShootingOrMelee,
                 failureCausesShakenOrRout: true);
 
             if (outcome.Passed)
