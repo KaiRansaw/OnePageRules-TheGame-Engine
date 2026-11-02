@@ -32,6 +32,7 @@ namespace FDG.Rules.Definitions;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(Always), "always")]
 [JsonDerivedType(typeof(UnitHasRule), "unitHasRule")]
+[JsonDerivedType(typeof(UnitHasRuleOrGrant), "unitHasRuleOrGrant")]
 [JsonDerivedType(typeof(AllModelsHaveThisRule), "allModelsHaveThisRule")]
 [JsonDerivedType(typeof(MostModelsHaveThisRule), "mostModelsHaveThisRule")]
 [JsonDerivedType(typeof(TargetHasRule), "targetHasRule")]
@@ -55,6 +56,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(MostModelsWithinInchesOfTerrain), "mostModelsWithinInchesOfTerrain")]
 [JsonDerivedType(typeof(IsMelee), "isMelee")]
 [JsonDerivedType(typeof(MoraleTriggeredByCombat), "moraleTriggeredByCombat")]
+[JsonDerivedType(typeof(MoraleAttackedFromBeyond), "moraleAttackedFromBeyond")]
 [JsonDerivedType(typeof(IsCharging), "isCharging")]
 [JsonDerivedType(typeof(IsNotSpell), "isNotSpell")]
 [JsonDerivedType(typeof(IsSpell), "isSpell")]
@@ -91,6 +93,51 @@ public abstract record Condition
             invocation.Bearer.RuleDefinitions.Any(
                 r => string.Equals(r.Definition.Name, RuleName, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(r.RequestedName, RuleName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Like <see cref="UnitHasRule"/>, but also true when the unit holds the rule as a
+    /// <b>grant</b> - an aura, or a "pick a friendly unit, it gains X" buff.
+    ///
+    /// <para>
+    /// The distinction is invisible until it bites. <see cref="UnitHasRule"/> reads
+    /// <see cref="RuleInvocation.Bearer"/>'s static <c>RuleDefinitions</c>, and
+    /// <c>RuleEvaluator.CollectGrantedRules</c> walks granted rules in a <i>separate</i> pass that never
+    /// merges into that list. So a granted rule fires its own hooks perfectly well while being
+    /// <b>invisible</b> to a <see cref="UnitHasRule"/> gate on another rule.
+    /// </para>
+    ///
+    /// <para>
+    /// #442 needed this: the Hold the Line family's band is unlocked by the matching "Enhanced ..."
+    /// rule, and in several books that rule arrives only from <i>Enhanced Hold the Line Aura</i> or
+    /// <i>Enhanced Hold the Line Buff</i> - never statically. Gated on <see cref="UnitHasRule"/>, those
+    /// units would have been left with no bonus at close range, which is the opposite of what the
+    /// Enhanced rule is for.
+    /// </para>
+    ///
+    /// <para>
+    /// Matched on the grant's rule NAME, which is all a <see cref="TokenPayload.RuleGrant"/>
+    /// carries; no resolver is needed, so this works the same in a test harness as in a game. Use
+    /// <see cref="UnitHasRule"/> when a rule genuinely must be in the army list (a points-cost or
+    /// composition gate) and this when the question is "is the unit behaving as if it has X right now",
+    /// which is what a rules-text "if this unit has X" almost always means.
+    /// </para>
+    /// </summary>
+    public sealed record UnitHasRuleOrGrant(string RuleName) : Condition
+    {
+        public override bool Evaluate(RuleInvocation invocation)
+        {
+            if (invocation.Bearer.RuleDefinitions.Any(
+                    r => string.Equals(r.Definition.Name, RuleName, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(r.RequestedName, RuleName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // Through the shared helper, so "has" means the same thing here as it does to
+            // MostModelsHaveThisRule and RuleCarrierCount.
+            return RuleGrantQueries.UnitHasGrantedRule(invocation.Bearer, RuleName);
+        }
     }
 
     /// <summary>
@@ -539,7 +586,63 @@ public abstract record Condition
     public sealed record MoraleTriggeredByCombat : CapabilityCondition<IHasMoraleTrigger>
     {
         protected override bool EvaluateCore(IHasMoraleTrigger context) =>
-            context.MoraleTrigger == EMoraleTrigger.ShootingOrMelee;
+            context.MoraleTrigger.IsCombat();
+    }
+
+    /// <summary>
+    /// #442: the Hold the Line family's band - <i>"+1 to Morale Test rolls when <b>shot/charged from
+    /// over 9"/6" away</b>"</i>. Four rules share that sentence verbatim in every system that prints
+    /// them (Hold the Line, Valiant, Hive Bond, Battle-Hardened), and three more are worded as removing
+    /// it ("Enhanced ...").
+    ///
+    /// <para>
+    /// One condition rather than a hand-composed
+    /// <c>Or(And(shooting, over 9), And(melee, over 6))</c>, for the same reason
+    /// <see cref="AttackedFromOverInches"/> is one condition: the books state it as a single paired
+    /// phrase, so the rule data should read like the sentence it came from. The pairing is also the
+    /// whole subtlety - the two numbers are not interchangeable, and which applies depends on the
+    /// morale test's CAUSE, not on the rule.
+    /// </para>
+    ///
+    /// <para>
+    /// A morale test from neither cause is never in the band, whatever the distance: a spell that forces
+    /// a test was not "shooting", so the family gives nothing there. Likewise a melee the unit was not
+    /// charged into reports a launch distance of 0 (see
+    /// <see cref="Dispatch.Contexts.PreMoraleTestContext"/>) and falls outside the band - a unit that
+    /// did the charging, or that was already locked in combat, was not "charged from over 6" away".
+    /// </para>
+    ///
+    /// <para>
+    /// Declares BOTH capabilities it reads, so <see cref="Dispatch.RuleValidator"/> rejects this
+    /// condition on any hook that cannot supply them. That check is the thing that would have caught
+    /// this family's original defect, had the condition existed to be validated.
+    /// </para>
+    /// </summary>
+    /// <param name="ShotInches">The shooting threshold - 9" in every current book.</param>
+    /// <param name="ChargedInches">The charge threshold - 6" in every current book.</param>
+    public sealed record MoraleAttackedFromBeyond(float ShotInches, float ChargedInches) : Condition
+    {
+        public override bool Evaluate(RuleInvocation invocation)
+        {
+            if (invocation.Hook is not IHasMoraleTrigger trigger
+                || invocation.Hook is not IHasAttackOriginDistance origin)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(MoraleAttackedFromBeyond)} requires {nameof(IHasMoraleTrigger)} and "
+                    + $"{nameof(IHasAttackOriginDistance)}, but the firing context "
+                    + $"({invocation.Hook.GetType().Name}) does not provide both.");
+            }
+
+            return trigger.MoraleTrigger switch
+            {
+                EMoraleTrigger.Shooting => origin.AttackOriginDistanceInches > ShotInches,
+                EMoraleTrigger.Melee => origin.AttackOriginDistanceInches > ChargedInches,
+                _ => false,
+            };
+        }
+
+        public override IReadOnlyCollection<Type> RequiredCapabilities =>
+            [typeof(IHasMoraleTrigger), typeof(IHasAttackOriginDistance)];
     }
 
     /// <summary>

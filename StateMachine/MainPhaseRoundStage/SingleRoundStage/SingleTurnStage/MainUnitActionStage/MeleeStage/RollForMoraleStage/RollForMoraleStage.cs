@@ -47,10 +47,15 @@ namespace FDG.Stages
             // strength - the two outcomes #197 P7's No Retreat is worded for.
             // The melee loser's test - the squarely book case for Banner's "triggered by shooting or
             // melee".
+            //
+            // #442: and the distance the charge came from, which the Hold the Line family needs for its
+            // "charged from over 6" away" band. 0 if this unit did the charging or nothing charged at
+            // all - the band is about being charged, not about being in a melee.
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
                 GameContext, testingUnit, determineMoraleSaveNeededResult.RollNeeded,
-                EMoraleTrigger.ShootingOrMelee,
-                failureCausesShakenOrRout: true);
+                EMoraleTrigger.Melee,
+                failureCausesShakenOrRout: true,
+                attackerLaunchDistanceInches: context.ChargeLaunchDistanceAgainst(testingUnit));
 
             if (outcome.Passed)
             {

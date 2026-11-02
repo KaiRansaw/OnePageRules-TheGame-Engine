@@ -95,7 +95,7 @@ namespace FDG.Tests
             foreach (IModel model in unit.Models.Take(2)) model.DealWounds(model.TotalWounds);
 
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(c, units[0],
-                remainingWoundsBefore: 4f);
+                remainingWoundsBefore: 4f, EMoraleTrigger.Shooting, attackerLaunchDistanceInches: 12f);
 
             Assert.That(result, Is.False, "it tested (not null) and failed on a 1.");
             Assert.That(unit.Tokens.HasToken(TokenType.Shaken), Is.True);
@@ -111,7 +111,7 @@ namespace FDG.Tests
             foreach (IModel model in units[0].GetValue().Models.Take(2)) model.DealWounds(model.TotalWounds);
 
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(c, units[0],
-                remainingWoundsBefore: 4f);
+                remainingWoundsBefore: 4f, EMoraleTrigger.Shooting, attackerLaunchDistanceInches: 12f);
 
             Assert.That(result, Is.False);
         }

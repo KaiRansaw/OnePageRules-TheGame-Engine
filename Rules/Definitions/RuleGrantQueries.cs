@@ -10,7 +10,8 @@ namespace FDG.Rules.Definitions;
 /// and must count aura / "gains rule X" grants alongside statically attached rules.
 ///
 /// Shared so those two agree by construction: a rule whose gate says every model has it and whose count
-/// says how many do must not disagree about what "has" means.
+/// says how many do must not disagree about what "has" means. <see cref="Condition.UnitHasRuleOrGrant"/>
+/// (#442) joined them for the same reason.
 /// </summary>
 internal static class RuleGrantQueries
 {
@@ -19,12 +20,20 @@ internal static class RuleGrantQueries
     /// are matched by canonical name — the alias-aware resolver the dispatcher uses for read-back isn't
     /// available in here, and core auras grant the canonical name.
     /// </summary>
-    internal static bool UnitHasGrantedRule(IUnit unit, SpecialRuleDefinition definition)
+    internal static bool UnitHasGrantedRule(IUnit unit, SpecialRuleDefinition definition) =>
+        UnitHasGrantedRule(unit, definition.Name);
+
+    /// <summary>
+    /// The same question asked by NAME, for a gate that names another rule rather than the one firing
+    /// (<see cref="Condition.UnitHasRuleOrGrant"/>). Same matching, so "has" cannot come to mean two
+    /// different things depending on which condition asked.
+    /// </summary>
+    internal static bool UnitHasGrantedRule(IUnit unit, string ruleName)
     {
         foreach (Token token in unit.Tokens.GetAllTokens(TokenType.RuleGrant))
         {
             if (token.Payload is TokenPayload.RuleGrant grant
-                && string.Equals(grant.RuleName, definition.Name, StringComparison.OrdinalIgnoreCase))
+                && string.Equals(grant.RuleName, ruleName, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

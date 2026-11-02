@@ -139,7 +139,7 @@ namespace FDG.Tests
             GrantBannerFrom(bearer, picked);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                Ctx(die: 4), picked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
+                Ctx(die: 4), picked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.Melee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(4),
                 "the granted Banner must ease the picked unit's threshold exactly as it eases the "
@@ -154,7 +154,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unpicked = MakeUnit("Riflemen", _us, quality: 5);
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                Ctx(die: 4), unpicked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
+                Ctx(die: 4), unpicked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.Melee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(5));
             Assert.That(outcome.Passed, Is.False);
@@ -196,7 +196,7 @@ namespace FDG.Tests
                 "the book: \"If this model is killed, picked models that are deployed lose the rule.\"");
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                Ctx(die: 4), picked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
+                Ctx(die: 4), picked.GetValue(), baseRollNeeded: 5, EMoraleTrigger.Melee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(5),
                 "and the bonus is really gone, not just the token - checked through the morale engine.");

@@ -42,7 +42,11 @@ namespace FDG.Tests
 
         // -- The condition kind itself ------------------------------------------------------------------
 
-        [TestCase(EMoraleTrigger.ShootingOrMelee, true)]
+        // #442 split the single combat trigger into Shooting and Melee for the Hold the Line family's
+        // 9"/6" band. Banner must keep covering BOTH, since its own wording is the undivided
+        // "triggered by shooting/melee" - which is exactly what these cases pin.
+        [TestCase(EMoraleTrigger.Shooting, true)]
+        [TestCase(EMoraleTrigger.Melee, true)]
         [TestCase(EMoraleTrigger.OtherSource, false)]
         public void TheCondition_IsTrueOnlyForCombatMorale(EMoraleTrigger trigger, bool expected)
         {
@@ -53,9 +57,31 @@ namespace FDG.Tests
                 new PreMoraleTestContext(unit, trigger), unit, Array.Empty<RuleArgument>()));
 
             Assert.That(fired, Is.EqualTo(expected),
-                trigger == EMoraleTrigger.ShootingOrMelee
-                    ? "shooting or melee is the book's own case."
+                expected
+                    ? "shooting and melee are both the book's own case - Banner does not split them."
                     : "a spell, a unit rule or a campaign event is not shooting or melee.");
+        }
+
+        /// <summary>
+        /// Banner is distance-blind, unlike the Hold the Line family it sits next to (#442). Pinned
+        /// because the two families share this hook and a copy-paste of the wrong gate would be
+        /// invisible: both still fire on a long-range test, and only a point-blank one tells them apart.
+        /// </summary>
+        [TestCase(EMoraleTrigger.Shooting)]
+        [TestCase(EMoraleTrigger.Melee)]
+        public void TheCondition_DoesNotCareHowFarAwayTheAttackerWas(EMoraleTrigger trigger)
+        {
+            IUnit unit = MakeUnit(quality: 4).GetValue();
+            var condition = new Condition.MoraleTriggeredByCombat();
+
+            foreach (float distance in new[] { 0f, 1f, 6f, 9f, 24f })
+            {
+                bool fired = condition.Evaluate(new RuleInvocation(
+                    new PreMoraleTestContext(unit, trigger, distance), unit, Array.Empty<RuleArgument>()));
+
+                Assert.That(fired, Is.True,
+                    $"Banner's text names no distance, so {distance}\" must not change it.");
+            }
         }
 
         // -- The trigger reaching the rule through the real morale engine -------------------------------
@@ -71,7 +97,7 @@ namespace FDG.Tests
             unit.GetValue().AttachRuleDefinition(BannerShaped());
 
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
-                Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.ShootingOrMelee);
+                Ctx(die: 4), unit.GetValue(), baseRollNeeded: 5, EMoraleTrigger.Melee);
 
             Assert.That(outcome.RollNeeded, Is.EqualTo(4),
                 "the +1 lowers the Quality-5 threshold to 4 for a combat-triggered test.");
@@ -140,7 +166,8 @@ namespace FDG.Tests
             KillModels(unit, 2); // half strength: 2 of 4 living
 
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(
-                Ctx(die: 4), unit, remainingWoundsBefore: 4f);
+                Ctx(die: 4), unit, remainingWoundsBefore: 4f,
+                EMoraleTrigger.Shooting, attackerLaunchDistanceInches: 12f);
 
             Assert.That(result, Is.True,
                 "wounds come from shooting or melee, so the bonus applies and the 4 clears the eased test.");
@@ -155,7 +182,8 @@ namespace FDG.Tests
             KillModels(unit, 2);
 
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(
-                Ctx(die: 4), unit, remainingWoundsBefore: 4f);
+                Ctx(die: 4), unit, remainingWoundsBefore: 4f,
+                EMoraleTrigger.Shooting, attackerLaunchDistanceInches: 12f);
 
             Assert.That(result, Is.False, "no bonus, so the threshold stays at 5 and a 4 fails.");
             Assert.That(unit.GetValue().Tokens.HasToken(TokenType.Shaken), Is.True);

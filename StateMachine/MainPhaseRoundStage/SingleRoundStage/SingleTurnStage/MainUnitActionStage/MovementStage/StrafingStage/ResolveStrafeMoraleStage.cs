@@ -1,5 +1,6 @@
 using System;
 using FDG.Data;
+using FDG.Rules.Foundation;
 using FDG.Utilities;
 
 namespace FDG.Stages
@@ -39,8 +40,18 @@ namespace FDG.Stages
             StrafeMoraleBaseline baseline = QueryForResultOrThrowException<StrafeMoraleBaseline>(metaData);
             DataBinding<UnitData> defender = metaData.DefendingUnit;
 
+            // #442: Strafing attacks "as if it was shooting", so its victim's test is a shooting one and
+            // carries the shooter's distance for the Hold the Line family's 9" band. Measured now, after
+            // the strafing run - a strafe moves THROUGH its victim, so the launch distance the rule asks
+            // about ("shot from over 9" away") is as close as this attack ever gets to having one, and in
+            // practice a strafe passes within 9" and the band does not apply.
+            float shotFrom = UnitCompareUtilities.MinDistanceBetweenUnits(
+                metaData.AttackingUnit.GetValue(), defender.GetValue(), out _, out _,
+                includeVertical: true);
+
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(
-                GameContext, defender, baseline.RemainingWoundsBefore);
+                GameContext, defender, baseline.RemainingWoundsBefore,
+                EMoraleTrigger.Shooting, shotFrom);
 
             if (result == true)
             {

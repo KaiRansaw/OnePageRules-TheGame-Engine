@@ -55,6 +55,23 @@ namespace FDG.Stages
         /// </summary>
         public bool DefenderStruckBack { get; }
 
+        /// <summary>
+        /// #442: how far away the charge that hit <paramref name="chargedUnit"/> was declared from, for
+        /// the Hold the Line family's <i>"charged from over 6" away"</i> band. Returns <c>0</c> - read
+        /// everywhere as "no launch distance applies" - whenever that phrase does not describe what
+        /// happened:
+        /// <list type="bullet">
+        ///   <item>nothing charged (a melee the units were already locked in),</item>
+        ///   <item><paramref name="chargedUnit"/> is itself the charger (it charged; it was not charged),</item>
+        ///   <item>the charger's activation-start snapshot has no entry for it (spawned mid-activation,
+        ///         or a simulator path with no activation context).</item>
+        /// </list>
+        /// Distinct from the charge origin distance <c>CombatMetadata</c> carries, which is always
+        /// measured against the CURRENT defender and so follows <see cref="SwapCombatRoles"/>; this one
+        /// is asked about a named unit, because the unit taking a morale test may be either side.
+        /// </summary>
+        public float ChargeLaunchDistanceAgainst(IUnit chargedUnit);
+
         /// <summary>Record that the defender struck back this melee. Idempotent.</summary>
         public void RegisterDefenderStruckBack();
 
@@ -592,6 +609,18 @@ namespace FDG.Stages
 
             return _activationContext.TryGetActivationStartDistanceTo(
                 DefendingUnit.GetValue().ID, out float distance) ? distance : 0f;
+        }
+
+        /// <inheritdoc />
+        public float ChargeLaunchDistanceAgainst(IUnit chargedUnit)
+        {
+            if (ChargingUnit == null || _activationContext == null || chargedUnit == null) return 0f;
+            // The charger was not charged. Asked rather than assumed because SwapCombatRoles means the
+            // unit taking the morale test can be on either side of this context.
+            if (ReferenceEquals(ChargingUnit.GetValue(), chargedUnit)) return 0f;
+
+            return _activationContext.TryGetActivationStartDistanceTo(
+                chargedUnit.ID, out float distance) ? distance : 0f;
         }
 
         /*

@@ -55,8 +55,15 @@ namespace FDG.Stages
                     + $"from {attacker.Name} for this morale check (Scourge).");
             }
 
+            // #442: the Hold the Line family's +1 applies only when shot from over 9" away, so the test
+            // carries the shooter's distance. The same measurement RollToHitStage and AssignWoundsStage
+            // take, so this gate reads the range exactly as the hit and save gates did.
+            float shotFrom = UnitCompareUtilities.MinDistanceBetweenUnits(
+                attacker, defenderBinding.GetValue(), out _, out _, includeVertical: true);
+
             bool? result = await MoraleUtilities.ResolveWoundDrivenMorale(
-                GameContext, defenderBinding, attacked.RemainingWoundsAtStart, counted);
+                GameContext, defenderBinding, attacked.RemainingWoundsAtStart,
+                EMoraleTrigger.Shooting, shotFrom, counted);
 
             if (result == true)
             {

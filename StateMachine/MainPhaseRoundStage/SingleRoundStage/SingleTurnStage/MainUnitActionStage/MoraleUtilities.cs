@@ -59,8 +59,18 @@ namespace FDG.Stages
         /// and, if a morale re-roll is granted (Fearless), rolls one more decisive die that passes on a 4+
         /// regardless of Quality.
         /// </summary>
+        /// <param name="attackerLaunchDistanceInches">
+        /// #442: how far away the attack that caused this test was launched from - the shooter's distance
+        /// for a shooting-driven test, the distance the charge was declared from for a melee one. Needed
+        /// by the Hold the Line family, whose +1 applies only <i>"when shot/charged from over 9"/6"
+        /// away"</i>. Defaults to 0, which reads as "no launch distance applies" and withholds that
+        /// family's bonus - the right default for the morale sources that have no attacker at all
+        /// (a spell, a campaign event), and the conservative one everywhere else. See
+        /// <see cref="PreMoraleTestContext"/>.
+        /// </param>
         public static async Task<MoraleTestOutcome> TakeMoraleTest(IGameContext gameContext, IUnit testingUnit,
-            int baseRollNeeded, EMoraleTrigger trigger, bool failureCausesShakenOrRout = false)
+            int baseRollNeeded, EMoraleTrigger trigger, bool failureCausesShakenOrRout = false,
+            float attackerLaunchDistanceInches = 0f)
         {
             // The v3.5.1 Firefight talent Motivated auto-passed the first morale test of the match. In
             // Campaign Rules v3.6.0 Motivated is a plain +1 to Morale Test rolls, which is an ordinary
@@ -92,7 +102,8 @@ namespace FDG.Stages
             // #245: the NAMED live evaluation - identical to EvaluateAll (logs, spends grants), but each
             // op carries its rule name so the beat's chips can say which rule shifted the test.
             IReadOnlyList<(RuleOperation Op, string RuleName)> named = gameContext.RuleEvaluator.EvaluateAllNamedLive(
-                new PreMoraleTestContext(testingUnit, trigger), RuleParticipant.Actor(testingUnit));
+                new PreMoraleTestContext(testingUnit, trigger, attackerLaunchDistanceInches),
+                RuleParticipant.Actor(testingUnit));
             RollModifierSink modifiers = new RollModifierSink();
             modifiers.ApplyFrom(named.Select(n => n.Op).ToList());
             // #033 granted morale modifiers (e.g. a spell's "-1 to morale" debuff) fold in with the same
@@ -320,8 +331,20 @@ namespace FDG.Stages
         /// Returns null if no test was taken (above half, unwounded, or destroyed outright), true if
         /// passed, false if failed and Shaken. Logging is left to the caller, which knows the wound source.
         /// </summary>
+        /// <param name="trigger">
+        /// #442: which of the two combat causes brought this unit to half strength. This method serves
+        /// both - shooting (<c>ResolveRangedMoraleStage</c>, <c>ResolveStrafeMoraleStage</c>) and melee
+        /// (<c>DetermineMeleeWinnerStage</c>) - and the Hold the Line family's band is 9" for one and 6"
+        /// for the other, so the caller must say. Required, with no default: a silent fall-through to the
+        /// common case is how the four per-system defects in #437 hid.
+        /// </param>
+        /// <param name="attackerLaunchDistanceInches">
+        /// How far away the attack came from - see <see cref="TakeMoraleTest"/>. 0 withholds the Hold the
+        /// Line family's bonus, which is the conservative direction.
+        /// </param>
         public static async Task<bool?> ResolveWoundDrivenMorale(IGameContext gameContext, DataBinding<UnitData> unitBinding,
-            float remainingWoundsBefore, float extraWoundsCounted = 0f)
+            float remainingWoundsBefore, EMoraleTrigger trigger, float attackerLaunchDistanceInches,
+            float extraWoundsCounted = 0f)
         {
             IUnit unit = unitBinding.GetValue();
             // #414: the skirmish early-out is gone. 3.5.1 Firefight had no morale from wounds (an
@@ -336,8 +359,9 @@ namespace FDG.Stages
             // The book's own Banner case: the wounds that brought this unit to half strength came from
             // shooting or melee - this method's entire job is the wound-driven test.
             if ((await TakeMoraleTest(gameContext, unit, HeroStatRules.GetMoraleQuality(unitBinding.GetValue(), gameContext.TableState),
-                    EMoraleTrigger.ShootingOrMelee,
-                    failureCausesShakenOrRout: true)).Passed) return true;
+                    trigger,
+                    failureCausesShakenOrRout: true,
+                    attackerLaunchDistanceInches: attackerLaunchDistanceInches)).Passed) return true;
 
             await ApplyShakenWithPresentation(gameContext, unitBinding);
             return false;

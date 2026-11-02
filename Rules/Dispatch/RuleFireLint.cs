@@ -848,11 +848,20 @@ public static class RuleFireLint
                 yield return new PostMeleeActionContext(bearer);
                 break;
             case EHookID.Morale_OnPreMoraleTest:
-                // Both triggers, because a Banner-shaped rule fires on only one of them: probing just
-                // the combat case would hide a rule gated the other way, and probing just the other
-                // would report Banner itself as a rule that never fires.
-                yield return new PreMoraleTestContext(bearer, EMoraleTrigger.ShootingOrMelee);
-                yield return new PreMoraleTestContext(bearer, EMoraleTrigger.OtherSource);
+                // Every trigger, and both sides of the distance band, because a morale rule may be gated
+                // on any one combination and the lint's job is to report a rule that can NEVER fire:
+                //  - Banner fires on the two combat causes and not on the third.
+                //  - The Hold the Line family (#442) fires only beyond its band, 9" shooting / 6" charged,
+                //    so a probe inside the band would report all four of those rules as dead.
+                //  - An unconditional morale rule fires on all of them.
+                // The far distance is well past both thresholds; the near one is 0, which is also what a
+                // real test carries when there is no attacker at all.
+                foreach (EMoraleTrigger trigger in new[]
+                         { EMoraleTrigger.Shooting, EMoraleTrigger.Melee, EMoraleTrigger.OtherSource })
+                {
+                    yield return new PreMoraleTestContext(bearer, trigger, 0f);
+                    yield return new PreMoraleTestContext(bearer, trigger, 24f);
+                }
                 break;
             case EHookID.Morale_OnMoraleTestComplete:
                 yield return new MoraleTestContext(bearer);

@@ -57,10 +57,15 @@ namespace FDG.Stages
             // The activating unit tests first. The book does not order them, and this is its activation.
             if (!CoreRulesProfile.For(GameContext).MeleeResultsDecideMorale)
             {
+                // #442: a melee cause, and each unit is asked for its OWN charge-launch distance - whoever
+                // charged gets 0, because the Hold the Line family's band is "charged from over 6" away"
+                // and the charger was not charged.
                 await MoraleUtilities.ResolveWoundDrivenMorale(GameContext, context.AttackingUnit,
-                    context.AttackerRemainingWoundsAtStart, extraWoundsCounted: defenderBonus);
+                    context.AttackerRemainingWoundsAtStart, EMoraleTrigger.Melee,
+                    context.ChargeLaunchDistanceAgainst(attacker), extraWoundsCounted: defenderBonus);
                 await MoraleUtilities.ResolveWoundDrivenMorale(GameContext, context.DefendingUnit,
-                    context.DefenderRemainingWoundsAtStart, extraWoundsCounted: attackerBonus);
+                    context.DefenderRemainingWoundsAtStart, EMoraleTrigger.Melee,
+                    context.ChargeLaunchDistanceAgainst(defender), extraWoundsCounted: attackerBonus);
 
                 // No winner is recorded: nothing downstream of this stage reads one on this path, and a
                 // Tie result would be a lie about a comparison the rules never make.

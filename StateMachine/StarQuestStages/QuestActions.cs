@@ -399,8 +399,9 @@ namespace FDG.Stages
         /// event - an advanced skill's nerve check, a Dread or Enchantment flag, a treasure's effect -
         /// and none of them is shooting or melee, so Banner's +1 must not apply (audit finding 3).
         /// <b>A Quest caller that IS shooting or melee must not use this helper</b>; it should call
-        /// <c>MoraleUtilities.TakeMoraleTest</c> with <see cref="EMoraleTrigger.ShootingOrMelee"/>, the
-        /// way the melee and wound-driven paths do.
+        /// <c>MoraleUtilities.TakeMoraleTest</c> with <see cref="EMoraleTrigger.Shooting"/> or
+        /// <see cref="EMoraleTrigger.Melee"/> - and the attacker's launch distance, which the Hold the
+        /// Line family needs (#442) - the way the melee and wound-driven paths do.
         /// </para>
         /// </summary>
         public static async Task<bool> Morale(IGameContext context, UnitData unit) =>

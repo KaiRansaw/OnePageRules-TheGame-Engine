@@ -22,7 +22,7 @@ namespace FDG.Tests
             MoraleUtilities.ApplyShaken(unit);
 
             MoraleUtilities.MoraleTestOutcome outcome =
-                await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.ShootingOrMelee);
+                await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.Melee);
 
             Assert.That(outcome.Passed, Is.False,
                 "a Shaken unit always fails its morale test, even when a 6 would otherwise pass.");
@@ -36,7 +36,7 @@ namespace FDG.Tests
             var (ctx, unit) = Build(dieValue: 6);
 
             MoraleUtilities.MoraleTestOutcome outcome =
-                await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.ShootingOrMelee);
+                await MoraleUtilities.TakeMoraleTest(ctx, unit.GetValue(), baseRollNeeded: 4, EMoraleTrigger.Melee);
 
             Assert.That(outcome.Passed, Is.True, "an un-Shaken unit rolling a 6 against Quality 4 passes.");
         }
