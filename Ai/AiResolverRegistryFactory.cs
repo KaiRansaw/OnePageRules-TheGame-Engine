@@ -113,10 +113,9 @@ namespace FDG.Ai
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
                     StageResolution.CancellableResult<Data.DataBinding<UnitData>>>(
                     new AiChooseMeleeDefenderResolver()))
-                // #439: its own resolver rather than an adapter onto the melee-defender one - "which unit
-                // gets my banner" and "which unit do I fight" are not the same question, and the
-                // melee-defender resolver reads living-model counts to answer the second.
-                .RegisterResolver(new AiPickCommandGroupUnitResolver())
+                // #439: its own resolver rather than an adapter onto an existing unit picker - "which
+                // units get my banner" is a multi-select, and no other request in the engine is one.
+                .RegisterResolver(new AiPickCommandGroupUnitsResolver())
                 // #419: and moves to where that tree is heading, which for four of its five branches is an
                 // objective rather than an enemy.
                 .RegisterResolver(starQuest

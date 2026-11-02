@@ -290,6 +290,70 @@ namespace FDG.Tests
                 + "them, and both ride the same token type.");
         }
 
+        // -- Guarding against a reply the front end should not have sent --------------------------------
+
+        /// <summary>
+        /// The allowance is enforced engine-side, not taken on trust from whoever answered. A reply with
+        /// more units than the book allows is clamped - and it matters more than it looks, because the
+        /// roll-modifier sinks ADD, so an over-long or duplicated reply would silently multiply the bonus
+        /// rather than fail somewhere visible.
+        /// </summary>
+        [Test]
+        public void MorePicksThanAllowed_AreClamped()
+        {
+            DataBinding<UnitData> a = MakeUnit("A", _us);
+            DataBinding<UnitData> b = MakeUnit("B", _us);
+            DataBinding<UnitData> c = MakeUnit("C", _us);
+            var candidates = new[] { a, b, c };
+
+            List<DataBinding<UnitData>> accepted = PickCommandGroupUnitsStage.AcceptablePicks(
+                candidates, new[] { a, b, c }, maxPicks: 2, "Banner");
+
+            Assert.That(accepted, Is.EqualTo(new[] { a, b }),
+                "the first two, in the order replied - not an arbitrary subset.");
+        }
+
+        [Test]
+        public void TheSameUnitTwice_IsGrantedOnce()
+        {
+            DataBinding<UnitData> a = MakeUnit("A", _us);
+            DataBinding<UnitData> b = MakeUnit("B", _us);
+
+            List<DataBinding<UnitData>> accepted = PickCommandGroupUnitsStage.AcceptablePicks(
+                new[] { a, b }, new[] { a, a }, maxPicks: 2, "Banner");
+
+            Assert.That(accepted, Is.EqualTo(new[] { a }),
+                "a duplicate would double the bonus, since the modifier sinks add.");
+        }
+
+        [Test]
+        public void AUnitThatWasNeverOffered_IsRefused()
+        {
+            DataBinding<UnitData> offered = MakeUnit("Offered", _us);
+            DataBinding<UnitData> notOffered = MakeUnit("Not offered", _us);
+
+            List<DataBinding<UnitData>> accepted = PickCommandGroupUnitsStage.AcceptablePicks(
+                new[] { offered }, new[] { notOffered, offered }, maxPicks: 2, "Banner");
+
+            Assert.That(accepted, Is.EqualTo(new[] { offered }),
+                "a unit the stage never put on offer - an enemy, or the bearer itself - is not grantable "
+                + "just because a reply named it.");
+        }
+
+        [Test]
+        public void AUnitAnotherBearerAlreadyCovered_IsRefused()
+        {
+            DataBinding<UnitData> bearer = MakeUnit("Colour Party", _us, attachBanner: true);
+            DataBinding<UnitData> alreadyCovered = MakeUnit("Riflemen", _us);
+            GrantBannerFrom(bearer, alreadyCovered);
+
+            List<DataBinding<UnitData>> accepted = PickCommandGroupUnitsStage.AcceptablePicks(
+                new[] { alreadyCovered }, new[] { alreadyCovered }, maxPicks: 2, "Banner");
+
+            Assert.That(accepted, Is.Empty,
+                "two banners covering one unit would stack to +2 morale, which no book grants.");
+        }
+
         // -- AoF: Skirmish's army-wide cap -------------------------------------------------------------
 
         /// <summary>
@@ -387,43 +451,46 @@ namespace FDG.Tests
         // -- The bot's answer ---------------------------------------------------------------------------
 
         /// <summary>
-        /// No book tells the AI how to pick, so the resolver takes the first option offered (army order).
-        /// Pinned not because the choice is important but because it must be DETERMINISTIC: a bot that
-        /// picked at random would make every AI-vs-AI benchmark irreproducible.
+        /// No book tells the AI how to pick, so the resolver takes the first options offered (army
+        /// order). Pinned not because the choice is important but because it must be DETERMINISTIC: a bot
+        /// that picked at random would make every AI-vs-AI benchmark irreproducible.
         /// </summary>
         [Test]
-        public async Task TheBot_TakesTheFirstOptionOffered()
+        public async Task TheBot_TakesItsFullAllowance_InTheOrderOffered()
         {
             DataBinding<UnitData> first = MakeUnit("Riflemen", _us);
             DataBinding<UnitData> second = MakeUnit("Gunners", _us);
+            DataBinding<UnitData> third = MakeUnit("Scouts", _us);
 
-            var request = new PickCommandGroupUnitRequest(_us, "Colour Party", "Banner", 1, 2,
+            var request = new PickCommandGroupUnitsRequest(_us, "Colour Party", "Banner", maxPicks: 2,
                 new[]
                 {
-                    new PickCommandGroupUnitRequest.ValidOption(first, "Riflemen"),
-                    new PickCommandGroupUnitRequest.ValidOption(second, "Gunners"),
-                },
-                Array.Empty<PickCommandGroupUnitRequest.InvalidOption>());
+                    new PickCommandGroupUnitsRequest.ValidOption(first, "Riflemen"),
+                    new PickCommandGroupUnitsRequest.ValidOption(second, "Gunners"),
+                    new PickCommandGroupUnitsRequest.ValidOption(third, "Scouts"),
+                });
 
-            CancellableResult<DataBinding<UnitData>> reply =
-                await new AiPickCommandGroupUnitResolver().Resolve(request);
+            CancellableResult<List<DataBinding<UnitData>>> reply =
+                await new AiPickCommandGroupUnitsResolver().Resolve(request);
 
-            Assert.That(reply, Is.InstanceOf<Selected<DataBinding<UnitData>>>(),
+            Assert.That(reply, Is.InstanceOf<Selected<List<DataBinding<UnitData>>>>(),
                 "a free buff is never declined by the bot.");
-            Assert.That(((Selected<DataBinding<UnitData>>)reply).Value, Is.SameAs(first));
+
+            List<DataBinding<UnitData>> picks = ((Selected<List<DataBinding<UnitData>>>)reply).Value;
+            Assert.That(picks, Is.EqualTo(new[] { first, second }),
+                "the first two offered, and never more than the allowance even with three on offer.");
         }
 
         [Test]
-        public async Task TheBot_DeclinesRatherThanThrowing_WhenThereIsNothingToPick()
+        public async Task TheBot_PicksNothing_WhenThereIsNothingToPick()
         {
-            var request = new PickCommandGroupUnitRequest(_us, "Colour Party", "Banner", 1, 2,
-                Array.Empty<PickCommandGroupUnitRequest.ValidOption>(),
-                Array.Empty<PickCommandGroupUnitRequest.InvalidOption>());
+            var request = new PickCommandGroupUnitsRequest(_us, "Colour Party", "Banner", maxPicks: 2,
+                Array.Empty<PickCommandGroupUnitsRequest.ValidOption>());
 
-            CancellableResult<DataBinding<UnitData>> reply =
-                await new AiPickCommandGroupUnitResolver().Resolve(request);
+            CancellableResult<List<DataBinding<UnitData>>> reply =
+                await new AiPickCommandGroupUnitsResolver().Resolve(request);
 
-            Assert.That(reply, Is.InstanceOf<Cancelled<DataBinding<UnitData>>>(),
+            Assert.That(((Selected<List<DataBinding<UnitData>>>)reply).Value, Is.Empty,
                 "the stage never issues an empty request, but a bot that cannot answer a free buff must "
                 + "not end the game over it.");
         }

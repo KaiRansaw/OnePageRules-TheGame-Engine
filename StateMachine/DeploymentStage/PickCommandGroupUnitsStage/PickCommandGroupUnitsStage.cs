@@ -88,61 +88,63 @@ namespace FDG.Stages
         {
             UnitData bearerUnit = bearer.GetValue();
 
-            for (int pickNumber = 1; pickNumber <= picksAllowed; pickNumber++)
+            List<DataBinding<UnitData>> candidates = allUnits
+                // By ID, not by binding reference. Both come out of the same ArmyData.UnitBindings list
+                // today, so reference equality happens to hold - but if a binding is ever re-wrapped on
+                // the way here, reference equality would stop matching and a bearer would be offered
+                // itself as a pick.
+                .Where(candidate => candidate.GetValue().ID != bearerUnit.ID
+                    // "friendly" is read as the bearer's OWN army. In a team game an ally's units are not
+                    // fed by your banner - the books assume two players and say only "friendly", and the
+                    // narrower reading is the one that cannot hand a buff to someone else's army by
+                    // accident. Recorded as a judgement call in claude/house-rules.md.
+                    && candidate.GetValue().PlayerID == bearerUnit.PlayerID
+                    && candidate.GetValue().GetIsAlive()
+                    // Already carries it natively, or was already picked for it by another bearer -
+                    // either way there is nothing a second grant would add, and the modifier sinks ADD,
+                    // so a second copy would silently double the bonus.
+                    && !CarriesRule(candidate.GetValue(), ruleName)
+                    && !HoldsGrantFor(candidate.GetValue(), ruleName))
+                .ToList();
+
+            if (candidates.Count == 0)
             {
-                List<DataBinding<UnitData>> candidates = allUnits
-                    // By ID, not by binding reference. Both come out of the same ArmyData.UnitBindings
-                    // list today, so reference equality happens to hold - but if a binding is ever
-                    // re-wrapped on the way here, reference equality would stop matching and a bearer
-                    // would be offered itself as a pick.
-                    .Where(candidate => candidate.GetValue().ID != bearerUnit.ID
-                        // "friendly" is read as the bearer's OWN army. In a team game an ally's units are
-                        // not fed by your banner - the books assume two players and say only "friendly",
-                        // and the narrower reading is the one that cannot hand a buff to someone else's
-                        // army by accident. Recorded as a judgement call in claude/house-rules.md.
-                        && candidate.GetValue().PlayerID == bearerUnit.PlayerID
-                        && candidate.GetValue().GetIsAlive()
-                        // Already carries it natively, or was already picked for it - either way there is
-                        // nothing a second grant would add.
-                        && !CarriesRule(candidate.GetValue(), ruleName)
-                        && !HoldsGrantFor(candidate.GetValue(), ruleName))
-                    .ToList();
-
-                if (candidates.Count == 0)
-                {
-                    if (pickNumber == 1)
-                    {
-                        context.Log($"{ruleName} on {bearerUnit.Name}: no other friendly unit to confer it on.");
-                    }
-
-                    return;
-                }
-
-                var options = candidates
-                    .Select(candidate => new PickCommandGroupUnitRequest.ValidOption(
-                        candidate, candidate.GetValue().Name))
-                    .ToList();
-
-                var request = new PickCommandGroupUnitRequest(bearerUnit.PlayerID, bearerUnit.Name, ruleName,
-                    pickNumber, picksAllowed, options,
-                    Array.Empty<PickCommandGroupUnitRequest.InvalidOption>());
-
-                CancellableResult<DataBinding<UnitData>> reply = await context.GameContext.PlayerRequester
-                    .RequestDecision<PickCommandGroupUnitRequest, CancellableResult<DataBinding<UnitData>>>(
-                        request);
-
-                if (reply is not Selected<DataBinding<UnitData>> selected)
-                {
-                    // Declining is a legal answer to "up to 2", and it ends this bearer's picking rather
-                    // than skipping one slot - there is no reason a player would decline the first and
-                    // want the second.
-                    context.Log($"{ruleName} on {bearerUnit.Name}: no further units picked.");
-                    return;
-                }
-
-                Grant(selected.Value, ruleName, bearerUnit);
-                context.Log($"{ruleName} on {bearerUnit.Name} also covers {selected.Value.GetValue().Name}.");
+                context.Log($"{ruleName} on {bearerUnit.Name}: no other friendly unit to confer it on.");
+                return;
             }
+
+            var options = candidates
+                .Select(candidate => new PickCommandGroupUnitsRequest.ValidOption(
+                    candidate, candidate.GetValue().Name))
+                .ToList();
+
+            // ONE request for both picks, not one per pick (Kai, 2026-11-01).
+            var request = new PickCommandGroupUnitsRequest(bearerUnit.PlayerID, bearerUnit.Name, ruleName,
+                picksAllowed, options);
+
+            CancellableResult<List<DataBinding<UnitData>>> reply = await context.GameContext.PlayerRequester
+                .RequestDecision<PickCommandGroupUnitsRequest,
+                    CancellableResult<List<DataBinding<UnitData>>>>(request);
+
+            // A cancel and an empty list both mean "none", which the books allow - it is "UP TO 2".
+            if (reply is not Selected<List<DataBinding<UnitData>>> selected || selected.Value.Count == 0)
+            {
+                context.Log($"{ruleName} on {bearerUnit.Name}: no units picked.");
+                return;
+            }
+
+            List<DataBinding<UnitData>> toGrant =
+                AcceptablePicks(candidates, selected.Value, picksAllowed, ruleName);
+
+            foreach (DataBinding<UnitData> pick in toGrant)
+            {
+                Grant(pick, ruleName, bearerUnit);
+            }
+
+            context.Log(toGrant.Count == 0
+                ? $"{ruleName} on {bearerUnit.Name}: no units picked."
+                : $"{ruleName} on {bearerUnit.Name} also covers "
+                  + $"{string.Join(" and ", toGrant.Select(pick => pick.GetValue().Name))}.");
         }
 
         /// <summary>
@@ -150,6 +152,47 @@ namespace FDG.Stages
         /// <see cref="RuleOperation.GrantTokenToUnit"/> so token provenance and valence are handled by the
         /// one code path rather than by a second, nearly-identical one here.
         /// </summary>
+        /// <summary>
+        /// Which of the units a front end replied with should actually be granted the rule.
+        ///
+        /// <para>
+        /// Trusting the reply's CONTENTS is not the same as trusting its shape. A resolver could send more
+        /// units than the book allows, the same unit twice, or a unit that was never offered - from a bug,
+        /// a stale client, or a tampered network reply - and the roll-modifier sinks ADD, so a duplicate
+        /// would silently double the bonus rather than fail. The allowance is known here and nowhere else,
+        /// so the check belongs here rather than repeated in three front ends.
+        /// </para>
+        ///
+        /// <para>
+        /// Keeps the reply's order, and keeps the FIRST of any duplicate pair, so what gets granted is
+        /// what the player picked rather than an arbitrary subset.
+        /// </para>
+        /// </summary>
+        internal static List<DataBinding<UnitData>> AcceptablePicks(
+            IReadOnlyList<DataBinding<UnitData>> candidates,
+            IReadOnlyList<DataBinding<UnitData>> requested, int maxPicks, string ruleName)
+        {
+            var accepted = new List<DataBinding<UnitData>>();
+
+            foreach (DataBinding<UnitData> pick in requested)
+            {
+                if (accepted.Count >= maxPicks) break;
+
+                UnitData unit = pick.GetValue();
+
+                // Was it on offer at all?
+                if (candidates.All(candidate => candidate.GetValue().ID != unit.ID)) continue;
+
+                // Already granted - either by this reply (a duplicate) or by another bearer earlier.
+                if (accepted.Any(already => already.GetValue().ID == unit.ID)) continue;
+                if (HoldsGrantFor(unit, ruleName)) continue;
+
+                accepted.Add(pick);
+            }
+
+            return accepted;
+        }
+
         /// <remarks>
         /// <c>internal</c> so the tests grant through THIS code rather than rebuilding the token
         /// themselves - a test that constructs its own token proves the mechanism works and says nothing
