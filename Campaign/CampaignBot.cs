@@ -164,16 +164,38 @@ namespace FDG.Campaign
 
         /// <summary>
         /// Which units the bot takes to the next mission: the most experienced first, then the most
-        /// expensive, while they fit under <paramref name="cap"/>.
+        /// expensive, while they fit inside <paramref name="target"/> points.
+        ///
         /// <para>
-        /// Veterans first is the point. A bot that filled its cap with whatever came first in the file
+        /// <b><paramref name="target"/> is an aim, not the books' cap.</b> It used to be the cap, which
+        /// meant the bot filled it every single mission - every campaign game was played on
+        /// <see cref="EMissionDifficulty.Legendary"/> whether the player had asked for that or not.
+        /// <see cref="MissionDifficulty.EnemyPointsTarget"/> now decides the number and the cap is only
+        /// the ceiling it can never exceed (which it cannot, since every band sits at or below it).
+        /// </para>
+        ///
+        /// <para>
+        /// Veterans first is the point. A bot that filled its budget with whatever came first in the file
         /// would leave its levelled units at home, and the levelling would never be felt across the
         /// table - which is the whole reason the bot has a campaign sheet at all. Recovering units (No
-        /// Permadeath) are never picked, and at least one unit always comes even if it is over the cap,
-        /// because a mission with no enemy is worse than a mission with an oversized one.
+        /// Permadeath) are never picked.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>At least one unit always comes</b>, because a mission with no enemy is worse than a mission
+        /// with an oversized one - but it is the <b>cheapest</b> available unit, not the most experienced.
+        /// Taking the veteran there is how an easy setting could field a 300-point character against a
+        /// 100-point force: the old code's unconditional first pick had exactly that hole, and a low
+        /// target is precisely when it opens.
         /// </para>
         /// </summary>
-        public static List<string> PickWhatToBring(ArmyListFile bot, int cap)
+        /// <param name="roll">
+        /// Supplied by the screen's <b>Randomize</b> button: picks across the whole roster instead of
+        /// veterans-first, so the rival's force varies between missions at the same difficulty.
+        /// <c>roll(n)</c> returns 1..n, the convention the solo AI uses. Null for the deterministic
+        /// veterans-first order, which is what an unattended run and a replayed save want.
+        /// </param>
+        public static List<string> PickWhatToBring(ArmyListFile bot, int target, Func<int, int>? roll = null)
         {
             var bringing = new List<string>();
             int total = 0;
@@ -182,20 +204,53 @@ namespace FDG.Campaign
                 .Where(CampaignRules.CanBringToMission)
                 .Select(u => (Unit: u, Sheet: CampaignRules.Sheet(u)))
                 .Where(x => x.Sheet != null)
-                .OrderByDescending(x => x.Sheet!.Xp)
-                .ThenByDescending(x => x.Unit.PointCost)
-                .ThenBy(x => x.Unit.Name, StringComparer.Ordinal)
                 .ToList();
+
+            available = roll == null
+                ? available
+                    .OrderByDescending(x => x.Sheet!.Xp)
+                    .ThenByDescending(x => x.Unit.PointCost)
+                    .ThenBy(x => x.Unit.Name, StringComparer.Ordinal)
+                    .ToList()
+                : Shuffled(available, roll);
 
             foreach ((UnitFileEntry unit, StrikeUnit? sheet) in available)
             {
-                if (bringing.Count > 0 && total + unit.PointCost > cap) continue;
+                if (total + unit.PointCost > target) continue;
                 bringing.Add(sheet!.Id);
                 total += unit.PointCost;
             }
 
+            // Nothing fit: send the cheapest thing it owns rather than nothing, and rather than whatever
+            // happened to sort first.
+            if (bringing.Count == 0 && available.Count > 0)
+            {
+                (UnitFileEntry _, StrikeUnit? cheapest) = available
+                    .OrderBy(x => x.Unit.PointCost)
+                    .ThenBy(x => x.Unit.Name, StringComparer.Ordinal)
+                    .First();
+                bringing.Add(cheapest!.Id);
+            }
+
             if (bot.StrikeTeam is { } info) info.Bringing = bringing;
             return bringing;
+        }
+
+        /// <summary>
+        /// A Fisher-Yates shuffle driven by the game's own dice delegate, so a seeded run reproduces and
+        /// nothing here holds a <see cref="Random"/> of its own.
+        /// </summary>
+        private static List<T> Shuffled<T>(List<T> source, Func<int, int> roll)
+        {
+            var list = new List<T>(source);
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = roll(i + 1) - 1;        // roll(n) is 1..n, so this is 0..i
+                if (j < 0) j = 0;
+                if (j > i) j = i;              // a misbehaving delegate must not throw here
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+            return list;
         }
 
         /// <summary>

@@ -82,6 +82,67 @@ namespace FDG.Campaign
             }
         }
 
+        /// <summary>
+        /// #435 - the seeding call a real game makes: works out the pool from the seats themselves, at
+        /// launch, with nothing for a caller to pass wrongly or forget.
+        ///
+        /// <para>
+        /// <b>Why here and not on the campaign screen.</b> The screen knows the two forces, but not the
+        /// slot ids they end up in - those are assigned in the lobby. Seeding from the slots closes that
+        /// gap and, more usefully, makes the pool a property of what is actually on the table rather than
+        /// of what a screen intended. #434 shipped without this call and the Bonus did nothing in play as
+        /// a result; a seeding step that lives on the launch path cannot be left unwired again.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Which seats are bots is read from the controller, not from the army file.</b>
+        /// <c>StrikeTeamInfo.IsBot</c> says what the campaign screen thinks; the controller says who is
+        /// actually playing the seat. Those can differ - a campaign army opened hot-seat by a second
+        /// human, or a player's army handed to a bot - and the house rule is about whether a human can
+        /// judge when to spend a point, which only the controller answers.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Campaign games only</b>, and only the four systems with a Campaign Rules v3.6.0 book of
+        /// their own. A standard game has no campaign sheets on its armies, so this leaves the pool empty
+        /// and every roll stage's guard costs one dictionary scan. The two Quest campaigns are a different
+        /// book with no underdog rule and are excluded by
+        /// <see cref="CampaignNumbers.HasCampaignBook"/> rather than by falling through to a parent
+        /// system's numbers.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Fresh launches only.</b> On a resume the slots' army files are vestigial (the armies live in
+        /// the loaded store) and the pool - including whatever has already been spent - comes back with
+        /// the progress record, so re-seeding would refund the mission's spending.
+        /// </para>
+        /// </summary>
+        public static void SeedFromSlots(IGameContext gameContext, IReadOnlyList<PlayerSlot> slots,
+            EGameSystem system)
+        {
+            if (!CampaignNumbers.HasCampaignBook(system)) return;
+
+            var entrants = new List<(int SlotId, CampaignEntrant Entrant, bool IsBot)>();
+            foreach (PlayerSlot slot in slots)
+            {
+                if (!slot.IsFilled) continue;
+                if (slot.ArmyListFile is not { StrikeTeam: { } team } army) continue;
+
+                // The points BROUGHT: the mission file the campaign screen writes holds only the units
+                // coming to this mission, so its total is the force on the table (the house rule recorded
+                // on Seed below).
+                string name = team.Name.Length > 0 ? team.Name : army.Name;
+                bool isBot = slot.Controller is ComputerPlayerController;
+                entrants.Add((slot.SlotID, new CampaignEntrant(name, army.TotalPoints, false), isBot));
+            }
+
+            // One campaign army is not a campaign mission: the Bonus compares armies, and with nothing to
+            // compare against the arithmetic gives zero anyway. Returning early keeps the log quiet.
+            if (entrants.Count < 2) return;
+
+            Seed(gameContext, entrants, CampaignNumbers.For(system));
+        }
+
         /// <summary>Underdog points <paramref name="player"/> has left this mission; 0 when it has none.</summary>
         public static int Remaining(IGameContext gameContext, PlayerID player)
         {

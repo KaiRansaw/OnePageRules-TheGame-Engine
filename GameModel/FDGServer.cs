@@ -260,6 +260,15 @@ namespace FDG.GameModel
                 }
             }
 
+            // #435: a campaign mission's Underdog Bonus, seeded from the forces actually seated. Behind
+            // the same fresh-launch flag as the creation rules above, and for the same reason: on a
+            // resume the pool (and what has been spent of it) comes back with the progress record.
+            if (applyCreationRules)
+            {
+                FDG.Campaign.UnderdogPool.SeedFromSlots(_gameContext, _playerSlotManager.PlayerSlots,
+                    gameSettings.GameSystem);
+            }
+
             if (TEST_SINGLE_TURN)
             {
                 LaunchSingleTurnTester(_gameContext);

@@ -267,7 +267,7 @@ namespace FDG.Tests
             sheet.Xp = 20;
             CampaignRules.Save(veteran, sheet);
 
-            List<string> bringing = CampaignBot.PickWhatToBring(army, cap: veteran.PointCost);
+            List<string> bringing = CampaignBot.PickWhatToBring(army, target: veteran.PointCost);
 
             Assert.That(bringing, Does.Contain(CampaignRules.Sheet(veteran)!.Id),
                 "the veteran must be the one that comes.");
@@ -280,7 +280,7 @@ namespace FDG.Tests
             (BuiltArmyFile army, BookFile book) = Bot(treasury: 500);
             CampaignBot.BetweenMissions(army, book, CampaignNumbers.Firefight, rivalValue: 2000, Dice(3));
 
-            List<string> bringing = CampaignBot.PickWhatToBring(army, cap: 150);
+            List<string> bringing = CampaignBot.PickWhatToBring(army, target: 150);
 
             int total = army.Units
                 .Where(u => CampaignRules.Sheet(u) is { } sh && bringing.Contains(sh.Id))
@@ -298,7 +298,7 @@ namespace FDG.Tests
         {
             (BuiltArmyFile army, _) = Bot(treasury: 0);
 
-            List<string> bringing = CampaignBot.PickWhatToBring(army, cap: 0);
+            List<string> bringing = CampaignBot.PickWhatToBring(army, target: 0);
 
             Assert.That(bringing.Count, Is.EqualTo(1));
         }
@@ -313,7 +313,7 @@ namespace FDG.Tests
             sheet.MissionsOut = 2;
             CampaignRules.Save(hurt, sheet);
 
-            List<string> bringing = CampaignBot.PickWhatToBring(army, cap: 10_000);
+            List<string> bringing = CampaignBot.PickWhatToBring(army, target: 10_000);
 
             Assert.That(bringing, Does.Not.Contain(CampaignRules.Sheet(hurt)!.Id),
                 "#427's recovering units apply to the bot as much as to the player.");

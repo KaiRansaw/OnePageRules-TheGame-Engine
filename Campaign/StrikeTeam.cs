@@ -34,6 +34,17 @@ namespace FDG.Campaign
         /// <summary>True for an army the bot runs, so the campaign screen can spend its treasury for it.</summary>
         public bool IsBot { get; set; }
         /// <summary>
+        /// #435 - how hard the rival's force is sized for the next mission. Set on the PLAYER's army,
+        /// beside <see cref="EnemyArmyFile"/>, because it is the player's choice about their own campaign
+        /// and the rival's block is the thing being sized. Chosen on Mission Setup and remembered, so a
+        /// campaign stays at the difficulty it was being played at.
+        /// <para>
+        /// <see cref="EMissionDifficulty.Unset"/> on a campaign saved before this existed - see that
+        /// member for what it resolves to and why it is not Legendary.
+        /// </para>
+        /// </summary>
+        public EMissionDifficulty Difficulty { get; set; } = EMissionDifficulty.Unset;
+        /// <summary>
         /// #428 - the campaign army file of this campaign's standing enemy (a bot army created with it),
         /// or null when it has none. Set on the PLAYER's army only; the enemy's own block leaves it null
         /// and carries <see cref="IsBot"/> instead. Every mission is fought against this same army, which
