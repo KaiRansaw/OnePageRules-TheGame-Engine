@@ -39,7 +39,23 @@ namespace FDG.Tests
     /// <see cref="ILobbyViewModel.OnGameEnded"/> produced a result. A failure here is a real multiplayer
     /// break, not a flaky double: the only doubles in the test are the dice.</para>
     /// </summary>
-    [TestFixture]
+    // NonParallelizable, like the other networking fixture (FdgHostConnectionLimitTests). This is the
+    // heaviest test in the suite - three in-process players driving a whole game over real sockets,
+    // ~1m25s on its own - and the stall detector below fails it when the table makes no progress for
+    // StallTimeout.
+    //
+    // HONEST STATUS (2026-11-02): this test is INTERMITTENT in the full suite and reliable on its own.
+    // Observed twice red at ~48s and twice green in the same session, no code between them that it
+    // touches. The attribute is the conventional first move and it is NOT PROVEN to fix this - do not
+    // read it as a fix. The real cause is unidentified; the open suspicion is contention for threads or
+    // sockets with whatever else the runner has in flight, which would make the stall the runner's
+    // scheduling rather than a multiplayer break. Tracked in claude/fdg-todo.md.
+    //
+    // Raising StallTimeout is NOT the answer: that threshold exists to report a real hang quickly, and
+    // padding it to cover a scheduling hiccup trades the one thing it is for. If this needs fixing
+    // properly, the thing to measure is what the table's last progress was when it gave up - the failure
+    // message already prints it, so capture a red run's message rather than theorising again.
+    [TestFixture, NonParallelizable]
     public class NetworkedGamePlaythroughTests
     {
         private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(20);
