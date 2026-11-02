@@ -597,10 +597,11 @@ namespace FDG.Ai.Tactician
             foreach (IModel model in unit.Models)
             {
                 if (!model.GetIsAlive() || dead.Contains(model)) continue;
-                // #197 Strafing: strafe-only weapons never swing (mirrors GetMeleeWeapons, which the
-                // full-strength batch above goes through).
-                weapons.AddRange(model.Weapons.Where(weapon =>
-                    weapon.IsMelee() && !StrafingRules.IsStrafeOnly(weapon)));
+                // The THIRD copy of the pool test, found the same day as the second and carrying the
+                // same stale "mirrors GetMeleeWeapons" comment. It had drifted too: without Assault the
+                // AI undercounted a survivor's attacks and so undervalued its own melees. Through
+                // WeaponPools now, like the other two.
+                weapons.AddRange(model.Weapons.Where(Rules.Dispatch.WeaponPools.CountsAsMelee));
             }
             return Batch(weapons);
         }

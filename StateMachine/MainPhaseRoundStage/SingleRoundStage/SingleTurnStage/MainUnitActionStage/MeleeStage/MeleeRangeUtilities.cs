@@ -101,9 +101,11 @@ namespace FDG.Stages
 
                 foreach (Weapon weapon in model.Weapons)
                 {
-                    // #197 Strafing: a strafe weapon "may only be used in this way", and its range 0 would
-                    // otherwise classify it as melee. Mirrors IUnitExtensions.GetMeleeWeapons.
-                    if (weapon.IsMelee() && !Rules.Dispatch.StrafingRules.IsStrafeOnly(weapon))
+                    // Rules.Dispatch.WeaponPools, not a local copy of the test. This loop USED to carry
+                    // its own, with a comment claiming it mirrored IUnitExtensions.GetMeleeWeapons - and
+                    // it had stopped: Assault was added there and not here, so an Assault weapon was
+                    // never in the pool a melee actually swings.
+                    if (Rules.Dispatch.WeaponPools.CountsAsMelee(weapon))
                     {
                         weapons.Add(weapon);
                     }

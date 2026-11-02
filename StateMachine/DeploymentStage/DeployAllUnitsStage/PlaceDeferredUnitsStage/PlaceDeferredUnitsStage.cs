@@ -82,8 +82,31 @@ namespace FDG.Stages
         }
 
         /// <summary>
-        /// The owner's deployment zone extended toward the table center (in Z) by
-        /// <paramref name="rangeInches"/>, clamped at center so a Scout can't cross midfield.
+        /// The owner's deployment zone extended toward the middle of the table by
+        /// <paramref name="rangeInches"/>, clamped at the middle so a Scout cannot cross it.
+        ///
+        /// <para>
+        /// <b>On BOTH axes, and never shrinking.</b> This used to assume every deployment zone was a band
+        /// across the bottom or the top of the table, and extended only in Z. That is true of every zone
+        /// the game generates, and false of a hand-drawn one from the Map Maker - which is how Kai found
+        /// it (2026-11-02, "scout doesn't seem to work with the custom deployment zones on the custom map
+        /// i made").
+        /// </para>
+        /// <para>
+        /// It did not merely fail to widen. A zone spanning the table's full height - a LEFT or RIGHT
+        /// zone, which a hand-drawn map can easily have - has its centre exactly on the midline, so the
+        /// old code took the "top zone" branch and moved the zone's BOTTOM edge up to the midline. The
+        /// Scout's zone came out as the top half of its own deployment zone: smaller than where it could
+        /// have stood by deploying normally, and in the wrong place. A rule that silently takes something
+        /// away is worse than one that silently does nothing.
+        /// </para>
+        /// <para>
+        /// Each axis is treated on its own: a zone entirely on one side of the middle has its inner edge
+        /// pushed toward the middle; a zone that already spans the middle on that axis is left alone,
+        /// because there is no "forward" along it. That reproduces the old behaviour exactly for the
+        /// standard top and bottom bands, and does the right thing for left/right, corner and arbitrary
+        /// hand-drawn rectangles.
+        /// </para>
         /// </summary>
         private RectangularZone BuildForwardZone(IDeploymentTurnContext context, UnitData unit, float rangeInches)
         {
@@ -91,19 +114,29 @@ namespace FDG.Stages
                 .First(team => team.Players.Contains(unit.PlayerID));
             RectangularZone zone = context.PlayerDeploymentZones[ownerTeam].GetValue();
 
-            float center = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES / 2f;
-            float zoneCenterZ = (zone.Bottom + zone.Top) / 2f;
+            // The LIVE table, not a constant: ConfigureTable sets these per game system at launch, so a
+            // 48x48 Firefight table and a 72x48 Grimdark Future one both get their own middle.
+            return ForwardZone(zone, rangeInches,
+                GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES / 2f,
+                GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES / 2f);
+        }
 
-            if (zoneCenterZ < center)
-            {
-                // Bottom zone — extend the inner (Top) edge upward toward center.
-                float newTop = Math.Min(zone.Top + rangeInches, center);
-                return new RectangularZone(zone.Left, zone.Right, zone.Bottom, newTop);
-            }
+        /// <summary>
+        /// The arithmetic of <see cref="BuildForwardZone"/>, with no table state - so the awkward zone
+        /// shapes that broke it can be tested directly.
+        /// </summary>
+        internal static RectangularZone ForwardZone(RectangularZone zone, float rangeInches,
+                                                    float middleX, float middleZ)
+        {
+            float left = zone.Left, right = zone.Right, bottom = zone.Bottom, top = zone.Top;
 
-            // Top zone — extend the inner (Bottom) edge downward toward center.
-            float newBottom = Math.Max(zone.Bottom - rangeInches, center);
-            return new RectangularZone(zone.Left, zone.Right, newBottom, zone.Top);
+            if (right <= middleX) right = Math.Min(right + rangeInches, middleX);
+            else if (left >= middleX) left = Math.Max(left - rangeInches, middleX);
+
+            if (top <= middleZ) top = Math.Min(top + rangeInches, middleZ);
+            else if (bottom >= middleZ) bottom = Math.Max(bottom - rangeInches, middleZ);
+
+            return new RectangularZone(left, right, bottom, top);
         }
     }
 }
