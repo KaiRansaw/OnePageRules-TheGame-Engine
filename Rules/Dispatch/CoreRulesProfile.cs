@@ -87,7 +87,10 @@ namespace FDG.Rules.Dispatch
             // #420: "up to X friendly models with Tough(3) or Heroes with up to Tough(18), and
             // non-Heroes with up to Tough(9) which occupy 3 spaces each." The skirmish games put every
             // ordinary model at Tough(3), so the whole scale is x3 - and the engine was running
-            // Grimdark Future's 6/3/1 here, which refused passengers the book allows.
+            // Grimdark Future's 6/3/1 here, which refused passengers the rule allows.
+            // #437 - WHERE THAT WORDING COMES FROM: Army Forge, not these books. Neither the GFF nor the
+            // AoFS Core Rules v3.6.0 has a Transport entry at all; Army Forge serves one per system with
+            // the scaled caps. Correct numbers, wrong citation until now.
             TransportHeroToughCap: 18,
             TransportNonHeroToughCap: 9,
             TransportStandardModelTough: 3,
@@ -118,6 +121,7 @@ namespace FDG.Rules.Dispatch
             EveryHeroLendsMoraleQuality: true,
             // "up to X friendly models with Tough(9) or Heroes with up to Tough(54), and non-Heroes
             // with up to Tough(27)." The Quest scale is x9 on Grimdark Future's.
+            // #437: again Army Forge's wording - GFSQ Core Rules v2.1.0 has no Transport entry either.
             TransportHeroToughCap: 54,
             TransportNonHeroToughCap: 27,
             TransportStandardModelTough: 9,

@@ -202,9 +202,21 @@ public static class TransportUtilities
     /// the END of an entering move, not a teleport: the unit walks up with an ordinary Move and this is the
     /// band in which the Embark action becomes available.
     ///
-    /// <b>#422: this is the book's own number, not an engine choice.</b> Transport reads "units may
-    /// enter/exit by using any move action, <b>getting within 2" to enter</b>, and staying fully within 6"
-    /// when exiting" — identically in all six systems, which differ only in the Tough caps. It was 1" here,
+    /// <b>#422: this is Army Forge's own number, not an engine choice</b> — attribution corrected in #437.
+    /// Army Forge serves Transport as "units may enter/exit by using any move action, <b>getting within 2"
+    /// to enter</b>, and staying fully within 6" when exiting", for every system that has the rule.
+    ///
+    /// <para>
+    /// The earlier version of this comment claimed "the book's own number ... identically in all six
+    /// systems", and that was wrong twice over. The <b>GF Core Rules v3.6.0 PDF prints "getting in contact
+    /// to enter"</b>, not 2"; and <b>Transport does not appear in the GFF, AoFS or GFSQ core books at
+    /// all</b>, so Army Forge is the only current source for it in those systems. The 2" is correct and
+    /// stays, under the owner's Army-Forge-wins ruling (2026-10-31) — but a comment that cites the wrong
+    /// source sends the next reader hunting a bug that does not exist, which is exactly what it did during
+    /// the 2026-11-01 rules audit.
+    /// </para>
+    ///
+    /// It was 1" here,
     /// reasoned from first principles (true base contact is unreachable since #205 made friendly models
     /// end-of-move obstacles, so the band had to be non-zero, and 1" matched the cohesion rule's idea of
     /// "adjacent"). The reasoning was sound and the number was still wrong: a unit that walked up and
