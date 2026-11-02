@@ -47,11 +47,16 @@ namespace FDG.Presentation.Beats
         /// <summary>Prominence of this announcement (#275) — size, sound, and whether play pauses for it.</summary>
         public EBannerTier Tier { get; }
 
-        public BannerBeat(string bannerText, TextColor color, EBannerTier tier = EBannerTier.Headline)
+        /// <inheritdoc cref="PresentationBeat.ReferencedRules"/>
+        public override IReadOnlyList<string> ReferencedRules { get; }
+
+        public BannerBeat(string bannerText, TextColor color, EBannerTier tier = EBannerTier.Headline,
+            IReadOnlyList<string>? referencedRules = null)
         {
             BannerText = bannerText;
             Color = color;
             Tier = tier;
+            ReferencedRules = referencedRules ?? Array.Empty<string>();
         }
 
         /// <summary>

@@ -44,12 +44,19 @@ namespace FDG
         /// at all, which is the point of having it.
         /// </para>
         /// </summary>
+        /// <param name="referencedRules">
+        /// Special-rule names appearing verbatim in <paramref name="text"/>, for a front end to highlight
+        /// and explain on hover - see <see cref="PresentationBeat.ReferencedRules"/>. The logged copy is
+        /// unaffected: a log line is plain text wherever it ends up.
+        /// </param>
         public static Task Announce(this IGameContextAccessor contextAccessor, string text,
-            TextColor? color = null, EBannerTier tier = EBannerTier.Notice, CancellationToken ct = default)
+            TextColor? color = null, EBannerTier tier = EBannerTier.Notice, CancellationToken ct = default,
+            IReadOnlyList<string>? referencedRules = null)
         {
             TextColor resolved = color ?? TextColor.White;
             contextAccessor.Log(text, resolved);
-            return contextAccessor.GameContext.Presenter.Present(new BannerBeat(text, resolved, tier), ct);
+            return contextAccessor.GameContext.Presenter.Present(
+                new BannerBeat(text, resolved, tier, referencedRules), ct);
         }
 
         public static ITextOutput TextOutput(this IGameContextAccessor contextAccessor)

@@ -53,5 +53,26 @@ namespace FDG.Presentation
         /// parent/child.
         /// </summary>
         public virtual string? Text => null;
+
+        /// <summary>
+        /// Special-rule names that appear verbatim inside <see cref="Text"/> and that a front end may
+        /// decorate - highlighted in place, with a hover giving the rule's own wording from the books.
+        /// Empty for almost every beat.
+        ///
+        /// <para>
+        /// The beat carries the NAMES rather than pre-formatted markup for the same reason
+        /// <c>OptionDescriptionRules</c> does (#369): the engine knows which rule it is talking about,
+        /// and each front end knows how it can show that - the GUI underlines and hovers, the CLI prints
+        /// the line plainly and ignores this entirely. Putting markup in the text instead would leak a
+        /// renderer's syntax into the engine and into every log file.
+        /// </para>
+        ///
+        /// <para>
+        /// A name here is a promise that it occurs in <see cref="Text"/>, so a front end can find it by
+        /// a plain substring search. It is not a promise that the rule resolves - an unknown name gets
+        /// the glossary's "not enforced by the engine" tooltip rather than being dropped.
+        /// </para>
+        /// </summary>
+        public virtual IReadOnlyList<string> ReferencedRules => Array.Empty<string>();
     }
 }

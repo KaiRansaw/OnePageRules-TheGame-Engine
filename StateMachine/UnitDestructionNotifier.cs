@@ -33,6 +33,12 @@ namespace FDG.Stages
             // killer-less (Rout) path, which previously bypassed spillout entirely.
             await SpilloutExecutor.SpillIfDestroyedTransport(gameContext, dead);
 
+            // #441: the Command Group obituary runs BEFORE the sweep below, because the sweep is what
+            // removes the grants - afterwards there is nothing left to name. It reads the same
+            // OwnerUnitID the sweep matches on, so the units it names are exactly the ones about to lose
+            // the buff.
+            await CommandGroupObituary.Announce(gameContext, dead);
+
             // A destroyed unit's OwnerDestroyed marks die with it, wherever they sit.
             List<ITokenContainer> containers = new List<ITokenContainer>();
             foreach (IUnit unit in gameContext.TableState.Units.Objects)
