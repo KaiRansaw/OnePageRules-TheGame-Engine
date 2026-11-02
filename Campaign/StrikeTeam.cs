@@ -43,6 +43,14 @@ namespace FDG.Campaign
         /// member for what it resolves to and why it is not Legendary.
         /// </para>
         /// </summary>
+        /// <remarks>
+        /// The converter is declared HERE, on the property, not only on the enum. System.Text.Json
+        /// resolves a property-level <c>[JsonConverter]</c> ahead of anything in
+        /// <c>JsonSerializerOptions.Converters</c>, and <c>RuleJson.Options</c> carries a
+        /// <c>JsonStringEnumConverter</c> that otherwise wins over the enum's own attribute and throws on
+        /// the names this field used to be saved under. Found by a test, not by reasoning.
+        /// </remarks>
+        [System.Text.Json.Serialization.JsonConverter(typeof(MissionDifficultyJsonConverter))]
         public EMissionDifficulty Difficulty { get; set; } = EMissionDifficulty.Unset;
         /// <summary>
         /// #428 - the campaign army file of this campaign's standing enemy (a bot army created with it),

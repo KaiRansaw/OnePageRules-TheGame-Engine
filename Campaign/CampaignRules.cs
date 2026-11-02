@@ -168,14 +168,24 @@ namespace FDG.Campaign
             info.Matches++;
             if (won)
             {
-                info.Vp += CampaignNumbers.WinVp;
-                info.BankedPoints += n.WinPoints;
-                log.Add($"Won the mission: +{CampaignNumbers.WinVp} VP, +{n.WinPoints} pts.");
+                // #435: a win scales with the mission's difficulty - 1 VP and half the book's treasury
+                // per level, so Normal pays exactly what the book prints and Easy deliberately pays
+                // less. Read off the army's own strike-team block rather than taken as a parameter, so no
+                // caller can pay the wrong rate by forgetting to pass it.
+                int vp = MissionDifficulty.WinVp(info.Difficulty);
+                int points = MissionDifficulty.WinPoints(info.Difficulty, n);
+                info.Vp += vp;
+                info.BankedPoints += points;
+                log.Add($"Won the mission on {MissionDifficulty.Name(info.Difficulty)}: "
+                        + $"+{vp} VP, +{points} pts.");
             }
             else
             {
-                info.BankedPoints += n.LosePoints;
-                log.Add($"Lost the mission: +{n.LosePoints} pts.");
+                // A loss pays the book's flat figure at every setting (Kai, 2026-11-02). See
+                // MissionDifficulty.LosePoints for why scaling it would invert the books' catch-up.
+                int points = MissionDifficulty.LosePoints(info.Difficulty, n);
+                info.BankedPoints += points;
+                log.Add($"Lost the mission: +{points} pts.");
             }
             // #432: and whatever the random events handed the army, banked once.
             if (eventPoints > 0)

@@ -42,21 +42,21 @@ namespace FDG.Tests
             foreach (CampaignNumbers n in AllFour)
             {
                 int yours = 1000;
-                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Legendary, yours, n),
+                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Brutal, yours, n),
                     Is.EqualTo(yours + n.ArmyCapOverLowest),
-                    "Legendary is the top of the legal window.");
-                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Beginner, yours, n),
+                    "Brutal is the top of the legal window.");
+                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Easy, yours, n),
                     Is.EqualTo(yours - n.ArmyCapOverLowest),
-                    "Beginner is the bottom of it.");
+                    "Easy is the bottom of it.");
             }
         }
 
         [Test]
-        public void IntermediateIsAnEvenMatch()
+        public void NormalIsAnEvenMatch()
         {
             foreach (CampaignNumbers n in AllFour)
             {
-                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Intermediate, 740, n),
+                Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Normal, 740, n),
                     Is.EqualTo(740),
                     "the core rules' own 'two armies of equal point cost'.");
             }
@@ -105,15 +105,15 @@ namespace FDG.Tests
         /// can", which is not the same mission.
         /// </summary>
         [Test]
-        public void ABeginnerTargetNeverFallsToZero()
+        public void AnEasyTargetNeverFallsToZero()
         {
             CampaignNumbers n = CampaignNumbers.Firefight;   // 125pt cap, so 100 pts goes negative
-            Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Beginner, 100, n),
+            Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Easy, 100, n),
                 Is.EqualTo(1));
         }
 
         /// <summary>
-        /// The band and the Underdog Bonus are the same number read twice: at Legendary the rival gets a
+        /// The band and the Underdog Bonus are the same number read twice: at Brutal the rival gets a
         /// full cap more AND the player is handed five points to spend on it. If someone changes a band
         /// without going through <see cref="CampaignNumbers.UnderdogPer"/>, that pairing breaks silently
         /// and the hardest setting stops paying for itself.
@@ -143,14 +143,317 @@ namespace FDG.Tests
         /// is what "keep today's behaviour" would have meant, since the old picker always filled the cap.
         /// </summary>
         [Test]
-        public void UnsetMeansAnEvenMatch_NotLegendary()
+        public void UnsetMeansAnEvenMatch_NotBrutal()
         {
             Assert.That(MissionDifficulty.Resolve(EMissionDifficulty.Unset),
-                Is.EqualTo(EMissionDifficulty.Intermediate));
-            Assert.That(MissionDifficulty.Name(EMissionDifficulty.Unset), Is.EqualTo("Intermediate"));
+                Is.EqualTo(EMissionDifficulty.Normal));
+            Assert.That(MissionDifficulty.Name(EMissionDifficulty.Unset), Is.EqualTo("Normal"));
             Assert.That(MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Unset, 640,
                     CampaignNumbers.GrimdarkFuture),
                 Is.EqualTo(640));
+        }
+
+        // -- The rewards ---------------------------------------------------------------------------
+
+        /// <summary>
+        /// The claim that pins Kai's two answers together ("scale by the level" + "Normal is the normal
+        /// payout"): on Normal the campaign pays EXACTLY what its own book prints. If it does not, the
+        /// scale has stopped being a modifier on the books and become a replacement for them.
+        /// </summary>
+        [Test]
+        public void OnNormal_TheBooksOwnPayoutIsUnchanged()
+        {
+            foreach (CampaignNumbers n in AllFour)
+            {
+                Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Normal, n),
+                    Is.EqualTo(n.WinPoints), "Normal must pay the book's win treasury exactly.");
+                Assert.That(MissionDifficulty.LosePoints(EMissionDifficulty.Normal, n),
+                    Is.EqualTo(n.LosePoints));
+            }
+            Assert.That(MissionDifficulty.WinVp(EMissionDifficulty.Normal),
+                Is.EqualTo(CampaignNumbers.WinVp), "and the book's 2 VP.");
+        }
+
+        /// <summary>Grimdark Future, written out, because this is the table Kai signed off.</summary>
+        [Test]
+        public void TheWinPayoutIsHalfTheBooksFigurePerLevel()
+        {
+            CampaignNumbers n = CampaignNumbers.GrimdarkFuture;   // win 150, 2 VP
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Easy, n), Is.EqualTo(75));
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Normal, n), Is.EqualTo(150));
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Hard, n), Is.EqualTo(225));
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Brutal, n), Is.EqualTo(300));
+
+            Assert.That(MissionDifficulty.WinVp(EMissionDifficulty.Easy), Is.EqualTo(1));
+            Assert.That(MissionDifficulty.WinVp(EMissionDifficulty.Normal), Is.EqualTo(2));
+            Assert.That(MissionDifficulty.WinVp(EMissionDifficulty.Hard), Is.EqualTo(3));
+            Assert.That(MissionDifficulty.WinVp(EMissionDifficulty.Brutal), Is.EqualTo(4));
+        }
+
+        /// <summary>
+        /// Kai's call: <i>"Easy is scaled down, so rewards are scaled down as well"</i>. So Easy is the
+        /// one setting that pays LESS than the books do - which is the opposite of how every other
+        /// house rule here works, and therefore the one worth pinning.
+        /// </summary>
+        [Test]
+        public void EasyPaysLessThanTheBook_AndTheHardSettingsPayMore()
+        {
+            foreach (CampaignNumbers n in AllFour)
+            {
+                Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Easy, n),
+                    Is.LessThan(n.WinPoints));
+                Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Hard, n),
+                    Is.GreaterThan(n.WinPoints));
+                Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Brutal, n),
+                    Is.GreaterThan(MissionDifficulty.WinPoints(EMissionDifficulty.Hard, n)));
+            }
+        }
+
+        /// <summary>
+        /// Kai's call: <i>"loss payout scale does not change"</i>. The books pay the loser roughly double
+        /// the winner so whoever is behind catches up; multiplying that by four on the hardest setting
+        /// would make losing the profitable move and pull the rubber band backwards. Sabotage check: make
+        /// LosePoints scale and this is what fails.
+        /// </summary>
+        [Test]
+        public void TheLossPayoutIsFlatAtEverySetting()
+        {
+            foreach (CampaignNumbers n in AllFour)
+            {
+                foreach (EMissionDifficulty d in MissionDifficulty.All)
+                {
+                    Assert.That(MissionDifficulty.LosePoints(d, n), Is.EqualTo(n.LosePoints),
+                        $"{MissionDifficulty.Name(d)} must pay the book's flat loss figure.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Every book's win payout must divide evenly, or Normal would not land on the book's figure.
+        /// All four print an even number today; this is the guard for the day one does not.
+        /// </summary>
+        [Test]
+        public void EveryBooksWinPayoutScalesWithoutRounding()
+        {
+            foreach (CampaignNumbers n in AllFour)
+            {
+                int perLevel = MissionDifficulty.WinPoints(EMissionDifficulty.Easy, n);
+                Assert.That(perLevel * 2, Is.EqualTo(n.WinPoints),
+                    $"a {n.WinPoints}pt win does not halve cleanly, so Normal would not pay the book's "
+                    + "figure. Rework the scale rather than accepting the rounding.");
+            }
+        }
+
+        /// <summary>
+        /// The order of the arithmetic, proved rather than asserted in a comment.
+        ///
+        /// <para>
+        /// <c>WinPoints</c> multiplies by the level and THEN halves. All four books print an even win
+        /// payout (150, 80, 150, 60), so today the other order gives identical answers and a sabotage
+        /// that swaps them passes every other test here - which is how a documented precaution turns out
+        /// to be protecting nothing. This test uses a book with an ODD payout, where the two orders
+        /// genuinely differ, so the claim in that doc comment is now a tested one.
+        /// </para>
+        /// <para>
+        /// With a 75pt win: multiply-first gives 37 / 75 / 112 / 150, and <b>Normal still lands exactly
+        /// on 75</b>. Halve-first gives 37 / 74 / 111 / 148 - Normal pays a point less than its own book,
+        /// which is the single thing this scale must never do.
+        /// </para>
+        /// </summary>
+        [Test]
+        public void WithAnOddWinPayout_NormalStillPaysTheBooksFigureExactly()
+        {
+            CampaignNumbers odd = CampaignNumbers.GrimdarkFuture with { WinPoints = 75 };
+
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Normal, odd), Is.EqualTo(75),
+                "Normal must pay the book's figure even when it does not halve cleanly. If this fails, "
+                + "WinPoints is halving before it multiplies.");
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Easy, odd), Is.EqualTo(37));
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Hard, odd), Is.EqualTo(112));
+            Assert.That(MissionDifficulty.WinPoints(EMissionDifficulty.Brutal, odd), Is.EqualTo(150));
+        }
+
+        [Test]
+        public void TheLevelIsTheStoredNumber()
+        {
+            Assert.That(MissionDifficulty.Level(EMissionDifficulty.Easy), Is.EqualTo(1));
+            Assert.That(MissionDifficulty.Level(EMissionDifficulty.Brutal), Is.EqualTo(4));
+            Assert.That(MissionDifficulty.Level(EMissionDifficulty.Unset),
+                Is.EqualTo(MissionDifficulty.Level(MissionDifficulty.Default)));
+        }
+
+        // -- The rename, and the saves written before it --------------------------------------------
+
+        /// <summary>
+        /// The four settings were renamed on 2026-11-02 (Beginner/Intermediate/Expert/Legendary ->
+        /// Easy/Normal/Hard/Brutal) because sharing Quest's published vocabulary made two different
+        /// mechanics read as one. The enum is stored by NAME, so without a reader that accepts the old
+        /// ones a campaign army saved by the previous build would not merely lose its difficulty - the
+        /// whole file would fail to deserialize and the campaign would look gone.
+        /// </summary>
+        [Test]
+        public void ACampaignSavedUnderTheOldNamesStillLoads()
+        {
+            var expected = new (string Old, EMissionDifficulty Now)[]
+            {
+                ("Beginner", EMissionDifficulty.Easy),
+                ("Intermediate", EMissionDifficulty.Normal),
+                ("Expert", EMissionDifficulty.Hard),
+                ("Legendary", EMissionDifficulty.Brutal),
+            };
+            foreach ((string old, EMissionDifficulty now) in expected)
+            {
+                StrikeTeamInfo? read = System.Text.Json.JsonSerializer.Deserialize<StrikeTeamInfo>(
+                    $"{{\"name\":\"Old\",\"difficulty\":\"{old}\"}}",
+                    Rules.Serialization.RuleJson.Options);
+                Assert.That(read, Is.Not.Null, $"a file saying \"{old}\" must still load at all.");
+                Assert.That(read!.Difficulty, Is.EqualTo(now));
+            }
+        }
+
+        [Test]
+        public void TheCurrentNamesAndNumbersRoundTrip()
+        {
+            foreach (EMissionDifficulty d in MissionDifficulty.All)
+            {
+                string json = System.Text.Json.JsonSerializer.Serialize(
+                    new StrikeTeamInfo { Name = "A", Difficulty = d },
+                    Rules.Serialization.RuleJson.Options);
+                Assert.That(json, Does.Contain($"\"{MissionDifficulty.Name(d)}\""),
+                    "written under its current name.");
+                StrikeTeamInfo back = System.Text.Json.JsonSerializer.Deserialize<StrikeTeamInfo>(
+                    json, Rules.Serialization.RuleJson.Options)!;
+                Assert.That(back.Difficulty, Is.EqualTo(d));
+            }
+
+            // And the numeric form, which is what a hand-edited file or an older serializer may hold.
+            StrikeTeamInfo numeric = System.Text.Json.JsonSerializer.Deserialize<StrikeTeamInfo>(
+                "{\"name\":\"A\",\"difficulty\":4}", Rules.Serialization.RuleJson.Options)!;
+            Assert.That(numeric.Difficulty, Is.EqualTo(EMissionDifficulty.Brutal));
+        }
+
+        /// <summary>
+        /// Nonsense must not take the campaign down with it - it reads as Unset, which resolves to
+        /// Normal, the setting that pays exactly what the book prints.
+        /// </summary>
+        [Test]
+        public void AnUnknownNameReadsAsUnset_NotAnException()
+        {
+            StrikeTeamInfo read = System.Text.Json.JsonSerializer.Deserialize<StrikeTeamInfo>(
+                "{\"name\":\"A\",\"difficulty\":\"Nightmare\"}",
+                Rules.Serialization.RuleJson.Options)!;
+            Assert.That(read.Difficulty, Is.EqualTo(EMissionDifficulty.Unset));
+            Assert.That(MissionDifficulty.Resolve(read.Difficulty),
+                Is.EqualTo(EMissionDifficulty.Normal));
+        }
+
+        /// <summary>
+        /// The names must not collide with the Quest Campaign Builder's published 1-4 scale, which is the
+        /// whole reason for the rename. Quest keeps Beginner/Intermediate/Expert/Legendary
+        /// (StarQuestMissionRules.DifficultyNames); the campaign must share none of them.
+        /// </summary>
+        [Test]
+        public void NoSettingSharesAQuestDifficultyName()
+        {
+            foreach (EMissionDifficulty d in MissionDifficulty.All)
+            {
+                Assert.That(StateMachine.StarQuestMissionRules.DifficultyNames,
+                    Does.Not.Contain(MissionDifficulty.Name(d)),
+                    $"\"{MissionDifficulty.Name(d)}\" is one of Quest's published difficulty names. The "
+                    + "two scales are different mechanics and sharing a word made them read as one.");
+            }
+        }
+
+        // -- The payout reaching a finished mission --------------------------------------------------
+
+        /// <summary>
+        /// A campaign army of the given difficulty, finished a mission. Deliberately exercises the real
+        /// <see cref="CampaignRules.AfterGame"/> rather than the arithmetic above: the scale could be
+        /// perfect and still never be consulted, which is exactly how #434's Underdog Bonus shipped doing
+        /// nothing. Delete the two MissionDifficulty calls in AfterGame and only these tests fail.
+        /// </summary>
+        private static StrikeTeamInfo Played(EMissionDifficulty difficulty, bool won, CampaignNumbers n)
+        {
+            var army = new BuiltArmyFile { Name = "Raiders", Faction = "Test" };
+            army.Units.Add(new UnitFileEntry { Name = "Squad", ModelCount = 5, Quality = 5, Defense = 5,
+                                               PointCost = 100 });
+            CampaignRules.Start(army, "Raiders", "raiders.fdgarmy", n, EGameSystem.GrimdarkFuture,
+                ECampaignType.Endless, noPermadeath: false, isBot: false);
+            StrikeTeamInfo info = army.StrikeTeam!;
+            info.Difficulty = difficulty;
+            info.BankedPoints = 0;
+            info.Vp = 0;
+
+            string id = CampaignRules.Sheet(army.Units[0])!.Id;
+            CampaignRules.AfterGame(army, new[] { new CampaignUnitResult(id, false, 0, 0) }, won, n,
+                () => 4);
+            return info;
+        }
+
+        [Test]
+        public void AFinishedMission_PaysTheDifficultysRate()
+        {
+            CampaignNumbers n = CampaignNumbers.GrimdarkFuture;
+            foreach (EMissionDifficulty d in MissionDifficulty.All)
+            {
+                StrikeTeamInfo won = Played(d, won: true, n);
+                Assert.That(won.BankedPoints, Is.EqualTo(MissionDifficulty.WinPoints(d, n)),
+                    $"a win on {MissionDifficulty.Name(d)} must pay its own rate.");
+                Assert.That(won.Vp, Is.EqualTo(MissionDifficulty.WinVp(d)));
+            }
+        }
+
+        /// <summary>
+        /// Normal pays exactly what the book printed before any of this existed - so an existing campaign
+        /// played at the default setting earns the same as it always did.
+        /// </summary>
+        [Test]
+        public void AFinishedMissionOnNormal_PaysTheBooksOwnFigures()
+        {
+            foreach (CampaignNumbers n in AllFour)
+            {
+                Assert.That(Played(EMissionDifficulty.Normal, true, n).BankedPoints,
+                    Is.EqualTo(n.WinPoints));
+                Assert.That(Played(EMissionDifficulty.Normal, true, n).Vp,
+                    Is.EqualTo(CampaignNumbers.WinVp));
+            }
+        }
+
+        [Test]
+        public void AFinishedMission_PaysTheFlatLossWhateverTheDifficulty()
+        {
+            CampaignNumbers n = CampaignNumbers.GrimdarkFuture;
+            foreach (EMissionDifficulty d in MissionDifficulty.All)
+            {
+                StrikeTeamInfo lost = Played(d, won: false, n);
+                Assert.That(lost.BankedPoints, Is.EqualTo(n.LosePoints),
+                    $"a loss on {MissionDifficulty.Name(d)} must still pay the book's flat figure.");
+                Assert.That(lost.Vp, Is.Zero, "and a loss is worth no VP at any setting.");
+            }
+        }
+
+        /// <summary>
+        /// A campaign carried over from before difficulty existed (Unset) must not quietly change what it
+        /// earns - it resolves to Normal, which is the book's own rate.
+        /// </summary>
+        [Test]
+        public void AnOlderCampaign_EarnsExactlyWhatItAlwaysDid()
+        {
+            CampaignNumbers n = CampaignNumbers.GrimdarkFuture;
+            StrikeTeamInfo info = Played(EMissionDifficulty.Unset, won: true, n);
+            Assert.That(info.BankedPoints, Is.EqualTo(n.WinPoints));
+            Assert.That(info.Vp, Is.EqualTo(CampaignNumbers.WinVp));
+        }
+
+        /// <summary>The history line should say which setting it was played on, or a campaign's record
+        /// cannot be read back - 225 pts means nothing without "on Hard" beside it.</summary>
+        [Test]
+        public void TheHistoryLineNamesTheDifficulty()
+        {
+            StrikeTeamInfo info = Played(EMissionDifficulty.Hard, won: true,
+                CampaignNumbers.GrimdarkFuture);
+            Assert.That(info.History, Is.Not.Empty);
+            Assert.That(info.History[^1], Does.Contain("Hard"));
         }
 
         /// <summary>Game text is ASCII-only - the ImGui atlas renders anything above U+00FF as "?".</summary>
@@ -164,6 +467,7 @@ namespace FDG.Tests
                 foreach (CampaignNumbers n in AllFour)
                 {
                     texts.Add(MissionDifficulty.Describe(d, 500, n));
+                    texts.Add(MissionDifficulty.DescribeReward(d, n));
                 }
             }
             foreach (string text in texts)
@@ -224,7 +528,7 @@ namespace FDG.Tests
 
         /// <summary>
         /// The bug this slice exists to fix: the picker filled whatever number it was given, so handing
-        /// it the cap made every mission Legendary. An easy setting must actually produce a smaller
+        /// it the cap made every mission Brutal. An easy setting must actually produce a smaller
         /// force.
         /// </summary>
         [Test]
@@ -234,9 +538,9 @@ namespace FDG.Tests
             CampaignNumbers n = CampaignNumbers.Firefight;
 
             int easy = PointsOf(army, CampaignBot.PickWhatToBring(army,
-                MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Beginner, 200, n)));
+                MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Easy, 200, n)));
             int hard = PointsOf(army, CampaignBot.PickWhatToBring(army,
-                MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Legendary, 200, n)));
+                MissionDifficulty.EnemyPointsTarget(EMissionDifficulty.Brutal, 200, n)));
 
             Assert.That(easy, Is.LessThan(hard));
             Assert.That(hard, Is.LessThanOrEqualTo(MissionDifficulty.HardCap(200, n)));
