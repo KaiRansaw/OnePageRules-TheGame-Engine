@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FDG.Stages;
 
 using NUnit.Framework;
@@ -173,6 +174,58 @@ namespace FDG.Tests
 
             Assert.That(Forward(zone, range: 9f).Top, Is.EqualTo(15f));
             Assert.That(Forward(zone, range: 12f).Top, Is.EqualTo(18f));
+        }
+
+        /// <summary>
+        /// An L-shaped zone (Kai, 2026-11-02) is pushed forward part by part, and the notch stays out.
+        ///
+        /// <para>
+        /// The lazy implementation - take the zone's bounding box and push that - would hand the Scout
+        /// the whole notch of the L, ground its own unit was never allowed to deploy in. Scout is meant
+        /// to let a unit start further forward, not to let it start somewhere its army could not.
+        /// </para>
+        /// </summary>
+        [Test]
+        public void AnLShapedZoneIsPushedForwardWithoutGainingItsNotch()
+        {
+            // Bottom band 0-20 x 0-6, with an arm up the left: 0-6 x 6-20. Middle of a 72x48 table.
+            var zone = new MultiRectZone(new List<RectangularZone>
+            {
+                new RectangularZone(0f, 20f, 0f, 6f),
+                new RectangularZone(0f, 6f, 6f, 20f),
+            });
+
+            RectangularZone forward = PlaceDeferredUnitsStage.ForwardZone(zone, 9f, 36f, 24f);
+
+            Assert.That(forward, Is.InstanceOf<MultiRectZone>(),
+                "an L pushed forward is still an L, not the box around it.");
+
+            // The band's top edge moves from 6 to 15; the arm's from 20 to 24 (the middle, capped).
+            Assert.That(forward.IsPointWithinZone(new Float2(18f, 14f)), Is.True,
+                "the band gained its 9 inches.");
+            Assert.That(forward.IsPointWithinZone(new Float2(3f, 23f)), Is.True,
+                "the arm gained ground too, up to the middle line.");
+
+            // The notch, high above the band and right of the arm, must still be out.
+            Assert.That(forward.IsPointWithinZone(new Float2(18f, 22f)), Is.False,
+                "the notch of the L is not Scout ground - the unit could never have deployed there.");
+        }
+
+        /// <summary>Scout never reaches past the middle of the table, whatever shape the zone is.</summary>
+        [Test]
+        public void AnLShapedZoneStillStopsAtTheMiddle()
+        {
+            var zone = new MultiRectZone(new List<RectangularZone>
+            {
+                new RectangularZone(0f, 20f, 0f, 20f),
+                new RectangularZone(20f, 30f, 0f, 6f),
+            });
+
+            RectangularZone forward = PlaceDeferredUnitsStage.ForwardZone(zone, 9f, 36f, 24f);
+
+            Assert.That(forward.IsPointWithinZone(new Float2(10f, 24.5f)), Is.False,
+                "past the halfway line.");
+            Assert.That(forward.Bounds.Top, Is.LessThanOrEqualTo(24f + 0.001f));
         }
     }
 }

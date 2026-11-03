@@ -77,9 +77,47 @@ namespace FDG.SaveLoad
         public string Label { get; set; } = string.Empty;
     }
 
-    /// <summary>A rectangular deployment zone on a custom map, in table inches.</summary>
+    /// <summary>
+    /// A deployment zone on a custom map, in table inches.
+    ///
+    /// <para>
+    /// Normally one rectangle, given by <see cref="Left"/>/<see cref="Right"/>/<see cref="Bottom"/>/
+    /// <see cref="Top"/>. A zone with <see cref="ExtraParts"/> is the UNION of that rectangle and
+    /// those - which is how an L, a T or any other rectilinear shape is written down (Kai, 2026-11-02).
+    /// </para>
+    ///
+    /// <para>
+    /// Expressed as "one rectangle plus extras" rather than a plain list so that every map written
+    /// before odd shapes existed is still a valid zone with nothing to migrate, and so that any
+    /// older code reading only the four edges gets the zone's bounding box rather than nothing at all.
+    /// </para>
+    /// </summary>
     [Serializable]
     public class MapDeploymentZoneEntry
+    {
+        public float Left { get; set; }
+        public float Right { get; set; }
+        public float Bottom { get; set; }
+        public float Top { get; set; }
+
+        /// <summary>
+        /// Further rectangles joined to the main one. Empty (and null, in a file written before this
+        /// field) means an ordinary rectangular zone.
+        /// </summary>
+        public List<MapZoneRect> ExtraParts { get; set; } = new List<MapZoneRect>();
+
+        /// <summary>Every rectangle in this zone, the main one first. Never empty.</summary>
+        public IEnumerable<MapZoneRect> AllParts()
+        {
+            yield return new MapZoneRect { Left = Left, Right = Right, Bottom = Bottom, Top = Top };
+            if (ExtraParts == null) yield break;
+            foreach (MapZoneRect part in ExtraParts) yield return part;
+        }
+    }
+
+    /// <summary>One rectangle of a deployment zone, in table inches.</summary>
+    [Serializable]
+    public class MapZoneRect
     {
         public float Left { get; set; }
         public float Right { get; set; }

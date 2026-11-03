@@ -51,6 +51,10 @@ namespace FDG.SaveLoad
             Add(typeof(ArmyData), "army");
             Add(typeof(TerrainData), "terrain");
             Add(typeof(RectangularZone), "rectangularZone");
+            // An odd-shaped deployment zone (Kai, 2026-11-02): a RectangularZone subclass, so it is
+            // stored wherever a deployment zone is and needs its own stable id or a saved game with an
+            // L-shaped zone cannot be loaded back.
+            Add(typeof(MultiRectZone), "multiRectZone");
             Add(typeof(ObjectiveData), "objective");
             Add(typeof(PlayerID), "playerId");
             Add(typeof(GameProgressData), "gameProgress");

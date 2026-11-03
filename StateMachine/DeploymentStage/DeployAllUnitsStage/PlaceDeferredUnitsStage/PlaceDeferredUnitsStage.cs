@@ -128,6 +128,19 @@ namespace FDG.Stages
         internal static RectangularZone ForwardZone(RectangularZone zone, float rangeInches,
                                                     float middleX, float middleZ)
         {
+            // An odd-shaped zone is pushed forward PART BY PART, and the result is the union of the
+            // extended parts. Taking its bounding box instead would hand a Scout the notch of an L -
+            // ground its own unit was never allowed to deploy in - which is a bigger gift than Scout
+            // is meant to be. (Kai reported the plain-rectangle version of this bug on 2026-11-02;
+            // L-shaped zones arrived the same day and would have reintroduced it.)
+            if (zone is MultiRectZone multi)
+            {
+                var pushed = new List<RectangularZone>(multi.Parts.Count);
+                foreach (RectangularZone part in multi.Parts)
+                    pushed.Add(ForwardZone(part, rangeInches, middleX, middleZ));
+                return MultiRectZone.Of(pushed);
+            }
+
             float left = zone.Left, right = zone.Right, bottom = zone.Bottom, top = zone.Top;
 
             if (right <= middleX) right = Math.Min(right + rangeInches, middleX);

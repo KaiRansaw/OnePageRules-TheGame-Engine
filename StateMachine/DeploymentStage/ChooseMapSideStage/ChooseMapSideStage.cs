@@ -132,6 +132,30 @@ namespace FDG.Stages
         */
 
 
+        /// <summary>
+        /// One of a custom map's deployment zones as a real zone. A zone drawn as several rectangles -
+        /// an L, a T (Kai, 2026-11-02) - becomes a <see cref="MultiRectZone"/>, which IS a
+        /// <see cref="RectangularZone"/> whose geometry answers for the union, so nothing downstream
+        /// needs to know the difference. A single rectangle stays a plain one.
+        /// </summary>
+        internal static RectangularZone BuildMapZone(FDG.SaveLoad.MapDeploymentZoneEntry entry)
+        {
+            var parts = new List<RectangularZone>();
+            foreach (FDG.SaveLoad.MapZoneRect r in entry.AllParts())
+            {
+                float left = MathF.Min(r.Left, r.Right), right = MathF.Max(r.Left, r.Right);
+                float bottom = MathF.Min(r.Bottom, r.Top), top = MathF.Max(r.Bottom, r.Top);
+                // A part with no area is something half-drawn in the map maker, not a shape - skip it
+                // rather than letting RectangularZone's constructor throw mid-deployment.
+                if (right - left < 0.01f || top - bottom < 0.01f) continue;
+                parts.Add(new RectangularZone(left, right, bottom, top));
+            }
+
+            if (parts.Count == 0)
+                throw new InvalidOperationException("A map deployment zone has no usable rectangles.");
+            return MultiRectZone.Of(parts);
+        }
+
         private List<RectangularZone> GetRectangularZones(int teamCount)
         {
             if(teamCount <= 0)
@@ -142,9 +166,7 @@ namespace FDG.Stages
             // Map maker: a custom map's own deployment zones, when it has one for every team.
             var mapZones = CustomMapRules.DeploymentZones(GameContext.Settings);
             if (mapZones.Count >= teamCount && mapZones.Count >= 2)
-                return mapZones.Select(z => new RectangularZone(
-                    MathF.Min(z.Left, z.Right), MathF.Max(z.Left, z.Right),
-                    MathF.Min(z.Bottom, z.Top), MathF.Max(z.Bottom, z.Top))).ToList();
+                return mapZones.Select(BuildMapZone).ToList();
 
             //We need to return equally-sized zones, and there are two sides to the table.
             //That means there will be an extra zone when the team number is odd.

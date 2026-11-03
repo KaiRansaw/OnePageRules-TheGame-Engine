@@ -3,6 +3,22 @@ namespace FDG
 {
     /// <summary>
     /// Represents a 2D rectangular area on the map.
+    ///
+    /// <para>
+    /// Its geometry is <b>virtual</b> so <see cref="MultiRectZone"/> can be a rectangular zone whose
+    /// real shape is a union of rectangles - an L, a T, a corner with a bite out of it. That is how
+    /// odd-shaped deployment zones (Kai, 2026-11-02) exist without re-typing the whole deployment
+    /// pipeline, which is written against <c>RectangularZone</c> from the request type through the
+    /// data bindings to the save format.
+    /// </para>
+    ///
+    /// <para>
+    /// A subclass keeps <see cref="Bounds"/> as the shape's axis-aligned bounding box, which is the
+    /// documented <see cref="IBoundedZone"/> contract - callers scan Bounds for candidates and then
+    /// ask <see cref="IsPointWithinZone"/>. Code that treats Left/Right/Bottom/Top as THE zone gets a
+    /// superset, so anything where that matters has to ask the zone instead; see
+    /// <see cref="ContainsFootprint"/>.
+    /// </para>
     /// </summary>
     public class RectangularZone : IBoundedZone
     {
@@ -11,7 +27,7 @@ namespace FDG
         public readonly float Bottom;
         public readonly float Top;
 
-        public ZoneBounds Bounds => new ZoneBounds(Left, Right, Bottom, Top);
+        public virtual ZoneBounds Bounds => new ZoneBounds(Left, Right, Bottom, Top);
 
         public RectangularZone(float left, float right, float bottom, float top)
         {
@@ -26,7 +42,7 @@ namespace FDG
             Top = top;
         }
 
-        public bool DoesPathIntersectZone(Float2 startPosition, Float2 endPosition)
+        public virtual bool DoesPathIntersectZone(Float2 startPosition, Float2 endPosition)
         {
             if (CannotTouch(startPosition, endPosition, 0f)) return false;
 
@@ -38,7 +54,7 @@ namespace FDG
                    IsPointWithinZone(startPosition) || IsPointWithinZone(endPosition);
         }
 
-        public bool DoesPathIntersectZone(Float2 startPosition, Float2 endPosition, float inflationRadius)
+        public virtual bool DoesPathIntersectZone(Float2 startPosition, Float2 endPosition, float inflationRadius)
         {
             if (inflationRadius <= 0f) return DoesPathIntersectZone(startPosition, endPosition);
 
@@ -85,10 +101,27 @@ namespace FDG
             return maxY < Bottom - inflationRadius || minY > Top + inflationRadius;
         }
 
-        public bool IsPointWithinZone(Float2 position)
+        public virtual bool IsPointWithinZone(Float2 position)
         {
             return position.X >= Left && position.X <= Right &&
                    position.Y >= Bottom && position.Y <= Top;
+        }
+
+        /// <summary>
+        /// Whether an axis-aligned footprint of the given half-extents, centred at
+        /// (<paramref name="centreX"/>, <paramref name="centreZ"/>), lies ENTIRELY within the zone.
+        ///
+        /// <para>
+        /// Its own method because "the centre is inside" is not the same question once a zone can have
+        /// a notch: a model standing in the short arm of an L, one inch from the inner corner, has its
+        /// centre inside and half its base hanging over ground that is not its deployment zone. For a
+        /// plain rectangle the two questions coincide, which is why this is simply the inset test here.
+        /// </para>
+        /// </summary>
+        public virtual bool ContainsFootprint(float centreX, float centreZ, float halfX, float halfZ)
+        {
+            return centreX >= Left + halfX && centreX <= Right - halfX
+                && centreZ >= Bottom + halfZ && centreZ <= Top - halfZ;
         }
 
         private static bool LinesIntersect(Float2 a, Float2 b, Float2 c, Float2 d)
@@ -107,7 +140,7 @@ namespace FDG
             return v1.X * v2.Y - v1.Y * v2.X;
         }
 
-        public Float2? GetFirstSegmentEntry(Float2 startPosition, Float2 endPosition)
+        public virtual Float2? GetFirstSegmentEntry(Float2 startPosition, Float2 endPosition)
         {
             if (IsPointWithinZone(startPosition)) return startPosition;
 
@@ -134,7 +167,7 @@ namespace FDG
             return found ? bestPoint : (Float2?)null;
         }
 
-        public Float2? GetLastSegmentExit(Float2 startPosition, Float2 endPosition)
+        public virtual Float2? GetLastSegmentExit(Float2 startPosition, Float2 endPosition)
         {
             if (IsPointWithinZone(endPosition)) return null;
 

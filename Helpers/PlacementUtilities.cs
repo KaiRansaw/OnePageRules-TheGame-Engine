@@ -51,6 +51,14 @@ namespace FDG
         public static bool IsBaseWithinZone(Position centre, IBaseShape shape, Float2 facing, IBoundedZone zone)
         {
             (float halfX, float halfZ) = BaseShapeGeometry.FootprintHalfExtents(shape, facing);
+
+            // An odd-shaped zone answers for its own footprint test, because "the centre is inside" is
+            // not the same question once the zone has a notch: a model in the short arm of an L, an
+            // inch from the inner corner, has its centre inside and half its base over ground that is
+            // not its zone. See MultiRectZone.ContainsFootprint.
+            if (zone is RectangularZone rect)
+                return rect.ContainsFootprint(centre.x, centre.z, halfX, halfZ);
+
             ZoneBounds b = zone.Bounds;
             return centre.x >= b.Left + halfX
                 && centre.x <= b.Right - halfX
