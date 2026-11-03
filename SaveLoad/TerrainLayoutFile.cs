@@ -11,7 +11,31 @@ namespace FDG.SaveLoad
 
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The table this map was drawn on, in inches. Defaults to the standard 6' x 4', which is also
+        /// what every layout written before these fields gets - so an old map keeps the size it was
+        /// actually drawn at and nothing shifts underneath it.
+        ///
+        /// <para>
+        /// Stored as a SIZE rather than a game system on purpose (Kai, 2026-11-02): a 72x48 map is
+        /// playable in any system that uses a 72x48 table, and tying a map to one system would hide it
+        /// from the others for no reason. <see cref="GameWideConstants.TableSizeFor"/> is what
+        /// turns a system into the size to compare against.
+        /// </para>
+        /// </summary>
+        public float TableWidthInches { get; set; } = GameWideConstants.STANDARD_TABLE_WIDTH_INCHES;
+
+        public float TableHeightInches { get; set; } = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
+
+        /// <summary>
+        /// Map maker: model bases dropped on the table purely as size references, so the person drawing
+        /// a map can see whether a unit actually fits through a gap. <b>The game ignores these
+        /// completely</b> - they are not terrain, they block nothing and they are never placed. They are
+        /// saved with the map only so they are still there when it is reopened.
+        /// </summary>
+        public List<MapBaseMarkerEntry> BaseMarkers { get; set; } = new List<MapBaseMarkerEntry>();
 
         /// <summary>
         /// Map maker: fixed objective markers. Empty (the default, and every layout written before this
@@ -33,6 +57,24 @@ namespace FDG.SaveLoad
     {
         public float X { get; set; }
         public float Z { get; set; }
+    }
+
+    /// <summary>
+    /// A model base dropped on a map as a size reference. Carries a real
+    /// <see cref="BaseFileEntry"/> rather than a bare diameter, so what the map maker draws is the same
+    /// footprint an army list can actually give a model - a reference that disagreed with the game's own
+    /// base shapes would be worse than none.
+    /// </summary>
+    [Serializable]
+    public class MapBaseMarkerEntry
+    {
+        public float X { get; set; }
+        public float Z { get; set; }
+
+        public BaseFileEntry Base { get; set; } = new BaseFileEntry();
+
+        /// <summary>What to call it on the board ("28mm", "Cavalry"). Cosmetic. ASCII only.</summary>
+        public string Label { get; set; } = string.Empty;
     }
 
     /// <summary>A rectangular deployment zone on a custom map, in table inches.</summary>
