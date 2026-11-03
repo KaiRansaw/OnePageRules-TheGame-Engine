@@ -137,9 +137,9 @@ namespace FDG
         }
 
         /// <summary>
-        /// Lays the partition out AND assigns each model the slot nearest to where it currently
-        /// stands, so per-model travel into the new shape stays small (the same greedy idea as
-        /// CohesiveFormation.AssignModelsToCells). Returns each MODEL's offset from the formation
+        /// Lays the partition out AND assigns models to slots so that the FURTHEST any single model
+        /// has to walk is as short as possible - see <see cref="MinimiseTheWorstWalk"/> for why that is
+        /// the quantity that decides whether a group move is legal at all. Returns each MODEL's offset from the formation
         /// centroid, in the input model order. Extents are permuted with the assignment before the
         /// final layout, so a mixed-base unit still gets per-model row spacing. For unplaced models
         /// (all at the same point) the assignment degenerates to input order.
@@ -152,43 +152,205 @@ namespace FDG
             int n = halfXs.Count;
             if (n == 0) return Array.Empty<(float, float)>();
 
-            // Provisional slots (input-order extents) around the unit's current centroid decide who
-            // goes where; the final layout re-spaces with the assigned models' own extents.
-            var provisional = LayoutOffsets(halfXs, halfZs, rowCounts, gap);
             float cx = 0f, cz = 0f;
             for (int i = 0; i < n; i++) { cx += currentPositions[i].x; cz += currentPositions[i].z; }
             cx /= n; cz /= n;
 
-            var modelForSlot = new int[n];
-            var used = new bool[n];
-            for (int k = 0; k < n; k++)
-            {
-                float slotX = cx + provisional[k].dx, slotZ = cz + provisional[k].dz;
-                int best = -1;
-                float bestDist = float.MaxValue;
-                for (int m = 0; m < n; m++)
-                {
-                    if (used[m]) continue;
-                    float dx = currentPositions[m].x - slotX, dz = currentPositions[m].z - slotZ;
-                    float d = dx * dx + dz * dz;
-                    if (d < bestDist) { bestDist = d; best = m; }
-                }
-                used[best] = true;
-                modelForSlot[k] = best;
-            }
-
+            // Assignment and spacing depend on each other when bases differ in size: a row's height is
+            // its TALLEST model and each model sits at its OWN width, so moving a big model into a row
+            // moves that row's slots. Assigning once against provisional (input-order) slots therefore
+            // optimises against geometry that the assignment itself then changes - measurably: a mixed
+            // base six-model unit came out walking 3.95" where 3.69" was achievable.
+            //
+            // So: assign, re-space with the assigned extents, and assign again on the slots that
+            // actually resulted. It converges in a round or two (the slots stop moving once the
+            // assignment stops changing); the cap is there so it cannot oscillate forever between two
+            // equally good answers.
+            var slotOffsets = LayoutOffsets(halfXs, halfZs, rowCounts, gap);
+            int[] modelForSlot = Enumerable.Range(0, n).ToArray();
             var permutedHalfXs = new float[n];
             var permutedHalfZs = new float[n];
-            for (int k = 0; k < n; k++)
+
+            const int maxRounds = 4;
+            for (int round = 0; round < maxRounds; round++)
             {
-                permutedHalfXs[k] = halfXs[modelForSlot[k]];
-                permutedHalfZs[k] = halfZs[modelForSlot[k]];
+                var cost = new float[n, n];       // [slot, model] - squared distance, monotone in distance
+                for (int k = 0; k < n; k++)
+                {
+                    float slotX = cx + slotOffsets[k].dx, slotZ = cz + slotOffsets[k].dz;
+                    for (int m = 0; m < n; m++)
+                    {
+                        float dx = currentPositions[m].x - slotX, dz = currentPositions[m].z - slotZ;
+                        cost[k, m] = dx * dx + dz * dz;
+                    }
+                }
+
+                int[] next = MinimiseTheWorstWalk(cost, n);
+
+                for (int k = 0; k < n; k++)
+                {
+                    permutedHalfXs[k] = halfXs[next[k]];
+                    permutedHalfZs[k] = halfZs[next[k]];
+                }
+                var nextOffsets = LayoutOffsets(permutedHalfXs, permutedHalfZs, rowCounts, gap);
+
+                bool settled = round > 0 && next.AsSpan().SequenceEqual(modelForSlot);
+                modelForSlot = next;
+                slotOffsets = nextOffsets;
+                if (settled) break;
             }
-            var slotOffsets = LayoutOffsets(permutedHalfXs, permutedHalfZs, rowCounts, gap);
 
             var byModel = new (float dx, float dz)[n];
             for (int k = 0; k < n; k++) byModel[modelForSlot[k]] = slotOffsets[k];
             return byModel;
+        }
+
+        /// <summary>
+        /// Who stands where: the assignment of models to formation slots that minimises <b>the furthest
+        /// any single model has to walk</b>.
+        ///
+        /// <para>
+        /// That is the right thing to minimise, and it is not obvious. OPR measures movement <b>per
+        /// model</b>, so a group move is legal only if EVERY model reaches its slot inside the unit's
+        /// allowance - the move is decided by its worst-off model, not by the total walked or by the
+        /// unit's centre. Minimise the total and you will happily walk one model 8" to save four models
+        /// an inch each, and the whole move is then rejected.
+        /// </para>
+        ///
+        /// <para>
+        /// This replaces a greedy nearest-model pass (slot 0 took the closest unused model, then slot 1,
+        /// and so on). Greedy is optimal for nothing: an early slot takes a model a later slot needed,
+        /// and the last slot is left with whoever is furthest away. Kai reported it from play on
+        /// 2026-11-02 - "the unit CAN make the move, but certain models can't because their spot in the
+        /// formation is weird" - and the tests measure it: a six-model unit re-forming had its worst
+        /// model walking 6.13" where 3.8" was achievable.
+        /// </para>
+        ///
+        /// <para>
+        /// Method: binary search the threshold over the distinct costs, and at each one ask whether a
+        /// perfect matching exists using only pairs within it (Kuhn's augmenting paths). The smallest
+        /// threshold that still matches everybody IS the best achievable worst walk. Then a bounded
+        /// swap pass shortens the total among the assignments that tie at that threshold, so the
+        /// unit does not wander while respecting the limit.
+        /// </para>
+        ///
+        /// <para>
+        /// Costs are SQUARED distances. Squaring is monotone, so the ordering - and therefore the
+        /// chosen threshold - is identical to using real distances, with no square roots in the inner
+        /// loop. Units are small (n is a squad), so the O(n^3 log n) worst case is microseconds.
+        /// </para>
+        /// </summary>
+        /// <param name="cost">[slot, model] cost of sending that model to that slot.</param>
+        /// <returns>For each slot, the index of the model that should stand in it.</returns>
+        internal static int[] MinimiseTheWorstWalk(float[,] cost, int n)
+        {
+            var thresholds = new List<float>(n * n);
+            for (int k = 0; k < n; k++)
+                for (int m = 0; m < n; m++)
+                    thresholds.Add(cost[k, m]);
+            thresholds.Sort();
+
+            // Smallest threshold that still lets everybody be matched.
+            int lo = 0, hi = thresholds.Count - 1, bestIndex = thresholds.Count - 1;
+            int[]? bestMatch = null;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) / 2;
+                int[]? match = TryMatchWithin(cost, n, thresholds[mid]);
+                if (match != null)
+                {
+                    bestIndex = mid;
+                    bestMatch = match;
+                    hi = mid - 1;
+                }
+                else lo = mid + 1;
+            }
+
+            // The search always succeeds at the largest threshold (every pair is allowed), so a null
+            // here would mean the cost matrix was not square. Fall back to the identity rather than
+            // throwing: a formation that is merely untidy beats a crash mid-move.
+            int[] result = bestMatch ?? Enumerable.Range(0, n).ToArray();
+
+            ShortenTotalWithoutWalkingAnyoneFurther(cost, n, result, thresholds[bestIndex]);
+            return result;
+        }
+
+        /// <summary>
+        /// Kuhn's algorithm: can every slot be given a model using only pairs costing at most
+        /// <paramref name="limit"/>? Returns the assignment, or null if somebody would be left out.
+        /// </summary>
+        private static int[]? TryMatchWithin(float[,] cost, int n, float limit)
+        {
+            var modelForSlot = new int[n];
+            var slotForModel = new int[n];
+            Array.Fill(modelForSlot, -1);
+            Array.Fill(slotForModel, -1);
+
+            var seen = new bool[n];
+            for (int slot = 0; slot < n; slot++)
+            {
+                Array.Clear(seen);
+                if (!Augment(cost, n, limit, slot, seen, modelForSlot, slotForModel)) return null;
+            }
+            return modelForSlot;
+        }
+
+        private static bool Augment(float[,] cost, int n, float limit, int slot, bool[] seen,
+            int[] modelForSlot, int[] slotForModel)
+        {
+            for (int model = 0; model < n; model++)
+            {
+                if (seen[model] || cost[slot, model] > limit) continue;
+                seen[model] = true;
+
+                // Free, or its current slot can be re-housed somewhere else within the limit.
+                if (slotForModel[model] == -1
+                    || Augment(cost, n, limit, slotForModel[model], seen, modelForSlot, slotForModel))
+                {
+                    modelForSlot[slot] = model;
+                    slotForModel[model] = slot;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Many assignments tie at the best worst-walk. Among those, prefer the one where the unit
+        /// walks less in total - otherwise models that could have stayed put take a stroll for no
+        /// reason, which looks like a bug even when the move is legal.
+        ///
+        /// <para>
+        /// A bounded pass of pairwise swaps, taking any swap that shortens the total without pushing
+        /// either model past <paramref name="limit"/>. Not guaranteed optimal, and deliberately so: the
+        /// number that governs legality is already optimal, and this is tidiness. The pass count is
+        /// capped so a pathological case cannot spin.
+        /// </para>
+        /// </summary>
+        private static void ShortenTotalWithoutWalkingAnyoneFurther(float[,] cost, int n,
+            int[] modelForSlot, float limit)
+        {
+            const int maxPasses = 4;
+            for (int pass = 0; pass < maxPasses; pass++)
+            {
+                bool improved = false;
+                for (int a = 0; a < n; a++)
+                {
+                    for (int b = a + 1; b < n; b++)
+                    {
+                        int ma = modelForSlot[a], mb = modelForSlot[b];
+                        float now = cost[a, ma] + cost[b, mb];
+                        float swapped = cost[a, mb] + cost[b, ma];
+                        if (swapped >= now) continue;
+                        if (cost[a, mb] > limit || cost[b, ma] > limit) continue;
+
+                        modelForSlot[a] = mb;
+                        modelForSlot[b] = ma;
+                        improved = true;
+                    }
+                }
+                if (!improved) break;
+            }
         }
 
         /// <summary>Largest base-to-base distance between any two laid-out models, by circumscribing radii.</summary>
