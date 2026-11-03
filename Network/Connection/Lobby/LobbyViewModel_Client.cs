@@ -30,6 +30,12 @@ namespace FDG.Network.Connection.Lobby
         public void SetSavedSlotPlayerType(PlayerID slotPlayerID, EPlayerType playerType,
             FDG.Ai.EAiProfile aiProfile = FDG.Ai.EAiProfile.SoloRules) { }
 
+        // Only the host seats players. A client's own seat is its own; the rest are not its business.
+        public void SetPlayerType(PlayerID playerID, EPlayerType playerType,
+            FDG.Ai.EAiProfile aiProfile = FDG.Ai.EAiProfile.SoloRules) { }
+
+        public bool CheckCanSetPlayerType(PlayerID playerID) => false;
+
         public bool TryResumeGame(out string? failReason)
         {
             failReason = "Only the host can resume a saved game.";

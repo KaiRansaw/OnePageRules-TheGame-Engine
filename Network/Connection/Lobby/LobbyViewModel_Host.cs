@@ -775,6 +775,84 @@ namespace FDG.Network.Connection.Lobby
             }
         }
 
+        /// <summary>
+        /// Kai, 2026-11-02: hand every seat to a bot and watch the two armies fight. With no
+        /// <see cref="EPlayerType.Local"/> seat, <see cref="Launch"/>'s controller loop builds no
+        /// <see cref="FDGGame_AsLocal"/> - that object was only ever a side effect of finding a human -
+        /// so the front end would have had nothing to bind to: the game would run to a result with the
+        /// lobby still on screen and nothing drawn.
+        ///
+        /// <para>
+        /// This builds one with NO local player IDs, which is exactly a spectator.
+        /// <see cref="FDGGame_AsLocal.AssignInterfaces"/> creates one request receiver per local ID, so
+        /// an empty list receives no requests and is never asked to decide anything, while TableState,
+        /// the log and the presentation sink all still arrive.
+        /// </para>
+        ///
+        /// <para>
+        /// Returns null when a model would go unread: when a seat IS local (the loop already made one,
+        /// and two would double every log line) or when nothing is subscribed to
+        /// <see cref="OnLaunched"/>. That second case is the real "dedicated server" the old null check
+        /// was written for - a headless host with nobody watching.
+        /// </para>
+        /// </summary>
+        internal FDGGame_AsLocal? MakeSpectatorGameModelIfNobodyIsPlaying()
+        {
+            if (OnLaunched == null) return null;
+            if (_playerInfosFull.Values.Any(info => info.PlayerType == EPlayerType.Local)) return null;
+
+            FDGGame_AsLocal spectator = new FDGGame_AsLocal(_gameDataStore, _messageBus);
+            OnLaunched?.Invoke(spectator);
+            return spectator;
+        }
+
+        public bool CheckCanSetPlayerType(PlayerID playerID)
+        {
+            // Once the game is running the crew is fixed. A resume lobby re-crews through
+            // SetSavedSlotPlayerType, which is the same operation under its own name.
+            if (_isLaunched) return false;
+            if (!_playerInfosFull.TryGetValue(playerID, out LobbyPlayerInfoFull? info)) return false;
+
+            // Taking a connected client's controls away is a kick. Same reasoning as
+            // CheckCanRemovePlayer, and the same answer: not from here.
+            return info.PlayerType != EPlayerType.Network;
+        }
+
+        /// <summary>
+        /// Hands a seat to a human or to a bot, the host's own seat included. See
+        /// <see cref="ILobbyViewModel.SetPlayerType"/> for why that last part matters.
+        /// </summary>
+        public void SetPlayerType(PlayerID playerID, EPlayerType playerType,
+            FDG.Ai.EAiProfile aiProfile = FDG.Ai.EAiProfile.SoloRules)
+        {
+            // Re-checked rather than trusting the caller, like RemovePlayer: the front end's button
+            // state is a frame stale and this is the seam a networked caller would arrive through.
+            if (!CheckCanSetPlayerType(playerID))
+            {
+                Debug.WriteLine($"Refused to re-seat player {playerID.ID}.");
+                return;
+            }
+
+            // Network is not a thing you can hand a seat TO - a networked seat is created by somebody
+            // connecting to it. Only Local and AI are assignable here.
+            if (playerType == EPlayerType.Network)
+            {
+                Debug.WriteLine("Refused to make a seat networked; a client creates its own seat.");
+                return;
+            }
+
+            LobbyPlayerInfoFull info = _playerInfosFull[playerID];
+            if (info.PlayerType == playerType && info.AiProfile == aiProfile) return;
+
+            info.PlayerType = playerType;
+            info.AiProfile = aiProfile;
+            UpdateInfoSummariesFromFullList();
+
+            // The crew is part of what a client's lobby draws, so push the settings the same way
+            // RemovePlayer does. (UpdateInfoSummariesFromFullList publishes the player list itself.)
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
         // Resume launch: the world already exists in the loaded store, so we only rebuild the
         // PlayerSlots (reusing saved PlayerIDs) and hand them to the resume FDGServer constructor,
         // which skips world creation. The saved PlayerSlotInfo entries are removed first so the
@@ -841,6 +919,13 @@ namespace FDG.Network.Connection.Lobby
             if (gameModel != null)
             {
                 OnLaunched?.Invoke(gameModel);
+            }
+            else
+            {
+                // A save re-crewed so that every seat is a bot - the same spectator case as a fresh
+                // launch, and the same fix. Re-crewing goes through SetSavedSlotPlayerType, so this is
+                // reachable here too.
+                MakeSpectatorGameModelIfNobodyIsPlaying();
             }
 
             await _messageBus.SendCommandToAllAsync(new LaunchGameMessage());
@@ -990,9 +1075,16 @@ namespace FDG.Network.Connection.Lobby
             server.OnGameCompleted += HandleServerGameCompleted;
             _server = server;
 
-            if (gameModel != null) //Dedicated server really doesn't need to do this.
+            if (gameModel != null)
             {
                 OnLaunched?.Invoke(gameModel);
+            }
+            else
+            {
+                // Every seat handed to a bot: the loop above found no Local slot and so built no game
+                // model. The helper makes a spectator one and raises OnLaunched itself (and returns
+                // null, raising nothing, when a dedicated/headless host has nobody watching).
+                MakeSpectatorGameModelIfNobodyIsPlaying();
             }
 
             LaunchGameMessage launchGameMessage = new LaunchGameMessage();

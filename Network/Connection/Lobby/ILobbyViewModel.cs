@@ -257,6 +257,30 @@ namespace FDG.Network.Connection.Lobby
         void SetSavedSlotPlayerType(PlayerID slotPlayerID, EPlayerType playerType,
             EAiProfile aiProfile = EAiProfile.SoloRules);
 
+        /// <summary>
+        /// Who plays a seat in a lobby that has not launched: a human at this keyboard, or a bot. The
+        /// seat keeps its army, colour and team - only the hands on it change.
+        ///
+        /// <para>
+        /// This includes the host's OWN seat. Kai asked for that on 2026-11-02 ("I'd like to be able to
+        /// have a bot also run seat 1 as an option"), and it is how you watch two bots play: hand every
+        /// seat to a bot and the game runs with nobody to ask, with the table still drawn for you.
+        /// </para>
+        ///
+        /// <para>
+        /// Refused for a connected network client's seat - taking a remote player's controls away is a
+        /// kick, which needs its own wire message and is deliberately not built here - and refused on a
+        /// client or after launch. Unlike <see cref="RemovePlayer"/> there is no Check* companion: the
+        /// front end asks <see cref="CheckCanSetPlayerType"/> to decide whether to offer the control.
+        /// </para>
+        /// </summary>
+        /// <param name="aiProfile">Which AI plays the seat when <paramref name="playerType"/> is AI.</param>
+        void SetPlayerType(PlayerID playerID, EPlayerType playerType,
+            EAiProfile aiProfile = EAiProfile.SoloRules);
+
+        /// <summary>Whether <see cref="SetPlayerType"/> would do anything for this seat.</summary>
+        bool CheckCanSetPlayerType(PlayerID playerID);
+
         /// <summary>Resumes the loaded game (host only). Returns false with a reason if this isn't a resume lobby.</summary>
         bool TryResumeGame(out string? failReason);
     }
