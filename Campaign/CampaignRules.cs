@@ -105,6 +105,46 @@ namespace FDG.Campaign
             }
         }
 
+        // -- The win/loss record --------------------------------------------------------------------
+
+        /// <summary>
+        /// #446 - how a won mission opens its history line. Shared by <see cref="AfterGame"/>, which
+        /// writes it, and <see cref="RecordOf"/>, which reads it back off campaigns saved before
+        /// <see cref="StrikeTeamInfo.Wins"/> existed. A constant rather than the same literal twice,
+        /// because the two drifting apart would make the backfill silently return zero wins.
+        /// </summary>
+        internal const string WonPrefix = "Won the mission on ";
+
+        /// <summary>
+        /// #446 - this army's win/loss record (campaign-flow-spec section 2).
+        ///
+        /// <para>
+        /// Normally just <see cref="StrikeTeamInfo.Wins"/> and the rest of
+        /// <see cref="StrikeTeamInfo.Matches"/>. A campaign saved before <c>Wins</c> existed reads back
+        /// with it at zero however many missions it won, so in that one case the wins are recovered by
+        /// counting the history lines <see cref="AfterGame"/> wrote. That is a migration path, not the
+        /// mechanism: once a mission is played under this build the stored count is authoritative.
+        /// </para>
+        ///
+        /// <para>
+        /// Safe to run whenever <c>Wins</c> is zero, including for an army that genuinely has lost every
+        /// mission - there are then no winning lines to find and the answer is zero either way.
+        /// <c>WonPrefix</c> is shared with the writer and
+        /// <c>CampaignRecordTests.AWinWrittenByAfterGameIsFoundByTheBackfill</c> drives a real
+        /// <c>AfterGame</c> and asserts the backfill recovers it, so a reworded log line fails a test
+        /// rather than quietly zeroing the record.
+        /// </para>
+        /// </summary>
+        public static (int Wins, int Losses) RecordOf(StrikeTeamInfo info)
+        {
+            int wins = info.Wins;
+            if (wins == 0 && info.Matches > 0)
+                wins = info.History.Count(line => line.StartsWith(WonPrefix, StringComparison.Ordinal));
+
+            wins = Math.Clamp(wins, 0, Math.Max(0, info.Matches));
+            return (wins, Math.Max(0, info.Matches - wins));
+        }
+
         // -- After a match ---------------------------------------------------------------------------
 
         /// <summary>
@@ -186,7 +226,8 @@ namespace FDG.Campaign
                 int points = MissionDifficulty.WinPoints(info.Difficulty, n);
                 info.Vp += vp;
                 info.BankedPoints += points;
-                log.Add($"Won the mission on {MissionDifficulty.Name(info.Difficulty)}: "
+                info.Wins++;   // #446 - the win half of the record; losses are Matches minus this.
+                log.Add($"{WonPrefix}{MissionDifficulty.Name(info.Difficulty)}: "
                         + $"+{vp} VP, +{points} pts.");
             }
             else

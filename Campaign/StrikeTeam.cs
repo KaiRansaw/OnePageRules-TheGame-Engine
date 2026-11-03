@@ -16,6 +16,17 @@ namespace FDG.Campaign
         public int BankedPoints { get; set; }
         public int Matches { get; set; }
         /// <summary>
+        /// #446 - missions this army has WON. Losses are <see cref="Matches"/> minus this, so the pair
+        /// is the win/loss record the campaign panel shows (campaign-flow-spec section 2).
+        /// <para>
+        /// Zero on every campaign saved before this field, including ones that had won missions, so it
+        /// must not be read directly for display - <see cref="CampaignRules.RecordOf"/> recovers the
+        /// record from <see cref="History"/> in that case. It is counted forward from here because a
+        /// derived figure should not be the authority once there is somewhere to put the real one.
+        /// </para>
+        /// </summary>
+        public int Wins { get; set; }
+        /// <summary>
         /// Which Campaign Rules v3.6.0 price list this army plays under. Defaults to
         /// <see cref="EGameSystem.GrimdarkFuture"/> (0), so a strike team file written before the 3.6
         /// move loads without a game system and must be read as Firefight by whoever opened it - the
