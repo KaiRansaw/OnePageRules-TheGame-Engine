@@ -3,8 +3,9 @@ namespace FDG.Campaign
 {
     /// <summary>
     /// Which end condition a campaign uses (Campaign Rules v3.6.0, "Campaign Types").
-    /// Only <see cref="Endless"/> is wired up; the rest are recognised so a saved campaign that was
-    /// created later still loads, and so <c>CampaignRules.IsOver</c> has somewhere to grow.
+    /// <see cref="Endless"/> and <see cref="PointLimited"/> are wired up (#445). The other two are
+    /// recognised so a saved campaign that was created as one still loads, and are deliberately not
+    /// offered - see claude/campaign-flow-spec.md section 3a for why.
     /// </summary>
     public enum ECampaignType
     {
@@ -12,10 +13,37 @@ namespace FDG.Campaign
         Endless = 0,
         /// <summary>Play D3+4 missions; most VP after the last one wins. Not wired up yet.</summary>
         GameLimited = 1,
-        /// <summary>First army to D3+4 VP after a match wins. Not wired up yet.</summary>
+        /// <summary>
+        /// First army to reach the VP target wins. Wired up in #445, with the target stored on
+        /// <see cref="StrikeTeamInfo.VpTarget"/> and the race read through
+        /// <see cref="CampaignPreGame.Standing"/>.
+        /// <para>
+        /// The book rolls the target as D3+4 (so 5-7); we let the player type any number and offer the
+        /// roll as a button. House rule, recorded in claude/house-rules.md.
+        /// </para>
+        /// </summary>
         PointLimited = 2,
         /// <summary>Ends after D3+4 weeks; most VP wins. Not wired up yet.</summary>
         TimeLimited = 3,
+    }
+
+    /// <summary>
+    /// #445 - how a campaign finished, or that it has not. Reported by
+    /// <see cref="CampaignPreGame.Standing"/>.
+    /// </summary>
+    public enum ECampaignOutcome
+    {
+        /// <summary>Still being played. Always the answer for an Endless campaign.</summary>
+        InProgress = 0,
+        /// <summary>The player's army reached the target with more VP than the rival.</summary>
+        YouWon = 1,
+        /// <summary>The standing enemy reached the target with more VP than the player.</summary>
+        RivalWon = 2,
+        /// <summary>
+        /// Both armies crossed the target in the same mission on equal VP. The books give no tiebreak,
+        /// so this is a real result rather than an arbitrary winner.
+        /// </summary>
+        Draw = 3,
     }
 
     /// <summary>

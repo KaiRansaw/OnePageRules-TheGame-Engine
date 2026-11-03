@@ -129,5 +129,72 @@ namespace FDG.Campaign
         /// Endless.
         /// </summary>
         public static int RollCampaignLength(Func<int> d6) => (Math.Clamp(d6(), 1, 6) + 1) / 2 + 4;
+
+        /// <summary>
+        /// #445 - where a campaign stands: both armies' VP, the target if it has one, and whether it is
+        /// decided. <see cref="Standing"/> builds it; nothing else should work the question out itself.
+        /// </summary>
+        /// <param name="Type">The campaign's end condition.</param>
+        /// <param name="VpTarget">The VP needed to win, or 0 when the campaign has no target.</param>
+        /// <param name="YourVp">The player's campaign VP.</param>
+        /// <param name="RivalVp">The standing enemy's campaign VP, or 0 when there is no enemy yet.</param>
+        /// <param name="Outcome">Who has won, or <see cref="ECampaignOutcome.InProgress"/>.</param>
+        public readonly record struct CampaignStanding(
+            ECampaignType Type, int VpTarget, int YourVp, int RivalVp, ECampaignOutcome Outcome)
+        {
+            /// <summary>True once the campaign is decided and no further mission should be played.</summary>
+            public bool IsOver => Outcome != ECampaignOutcome.InProgress;
+
+            /// <summary>
+            /// True when this campaign is being raced to a VP target. False for Endless, and false for a
+            /// PointLimited campaign with no target stored - which is how campaigns saved before #445
+            /// read, and they must behave as Endless rather than as "already won".
+            /// </summary>
+            public bool HasTarget => Type == ECampaignType.PointLimited && VpTarget > 0;
+
+            /// <summary>
+            /// The line the campaign screen shows: "First to 7 VP" or "Endless". Game text, so ASCII
+            /// only (CLAUDE.md).
+            /// </summary>
+            public string Describe() => HasTarget ? $"First to {VpTarget} VP" : "Endless";
+        }
+
+        /// <summary>
+        /// Works out <see cref="CampaignStanding"/> for a campaign from its two armies' blocks.
+        ///
+        /// <para>
+        /// The target is read from the PLAYER's block. Both blocks carry the same value (see
+        /// <see cref="StrikeTeamInfo.VpTarget"/>), and reading one of them rather than reconciling the
+        /// two is deliberate: a <c>Max</c> of the pair would paper over a bug that wrote them out of
+        /// step instead of letting a test catch it.
+        /// </para>
+        ///
+        /// <para>
+        /// <paramref name="rival"/> may be null - a campaign started in a folder with only one army has
+        /// no standing enemy (#428) - and then the rival sits on 0 VP, so only the player can reach the
+        /// target. That is correct rather than a special case: there is nobody else scoring.
+        /// </para>
+        /// </summary>
+        public static CampaignStanding Standing(StrikeTeamInfo you, StrikeTeamInfo? rival)
+        {
+            int yourVp = you.Vp;
+            int rivalVp = rival?.Vp ?? 0;
+
+            // Decided at all? Asked through IsOver so the end condition lives in exactly one place, with
+            // the leader's VP as the figure it tests. missionLimit is 0 because the mission- and
+            // week-limited types are not offered (campaign-flow-spec section 3a), so a campaign saved as
+            // one of those keeps opening rather than ending on a number nothing ever set.
+            bool over = IsOver(you.CampaignType, you.Matches, Math.Max(yourVp, rivalVp), 0, you.VpTarget);
+
+            ECampaignOutcome outcome = !over
+                ? ECampaignOutcome.InProgress
+                : yourVp > rivalVp ? ECampaignOutcome.YouWon
+                : rivalVp > yourVp ? ECampaignOutcome.RivalWon
+                // Both crossed the line in the same mission on equal VP. The books have no tiebreak for
+                // this, so it is a draw rather than a coin-flip dressed up as a rule.
+                : ECampaignOutcome.Draw;
+
+            return new CampaignStanding(you.CampaignType, you.VpTarget, yourVp, rivalVp, outcome);
+        }
     }
 }

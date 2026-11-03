@@ -54,9 +54,14 @@ namespace FDG.Campaign
         /// The books' No Permadeath option, fixed when the campaign is created: a unit that would be
         /// killed survives instead, loses that match's XP and sits out D3 missions.
         /// </param>
+        /// <param name="vpTarget">
+        /// #445 - the VP that wins a <see cref="ECampaignType.PointLimited"/> campaign. Ignored by
+        /// Endless, and 0 means no target. Pass the SAME value for both armies of one campaign: see
+        /// <see cref="StrikeTeamInfo.VpTarget"/> for why the two blocks must not disagree.
+        /// </param>
         public static void Start(ArmyListFile army, string armyName, string armyFile, CampaignNumbers n,
                                  EGameSystem system, ECampaignType type = ECampaignType.Endless,
-                                 bool noPermadeath = false, bool isBot = false)
+                                 bool noPermadeath = false, bool isBot = false, int vpTarget = 0)
         {
             army.Name = armyName;
             army.StrikeTeam = new StrikeTeamInfo
@@ -65,6 +70,11 @@ namespace FDG.Campaign
                 BankedPoints = Math.Max(0, n.Treasury - army.TotalPoints),
                 GameSystem = system,
                 CampaignType = type,
+                // Kept even when the type is Endless. A player who switches a campaign's type later (or a
+                // future screen that offers it) then still has the number they chose, and storing it
+                // costs nothing; HasTarget gates on the TYPE, so a stored target is inert until the type
+                // is PointLimited.
+                VpTarget = Math.Max(0, vpTarget),
                 NoPermadeath = noPermadeath,
                 IsBot = isBot,
             };

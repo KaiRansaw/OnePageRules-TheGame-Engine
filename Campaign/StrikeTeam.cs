@@ -22,8 +22,26 @@ namespace FDG.Campaign
         /// Firefight campaign screen passes its own numbers explicitly for exactly that reason.
         /// </summary>
         public EGameSystem GameSystem { get; set; } = EGameSystem.GrimdarkFuture;
-        /// <summary>The campaign's end condition. Only <see cref="ECampaignType.Endless"/> is wired up.</summary>
+        /// <summary>
+        /// The campaign's end condition. <see cref="ECampaignType.Endless"/> and
+        /// <see cref="ECampaignType.PointLimited"/> are wired up (#445); the other two are recognised
+        /// so a campaign saved as one still loads, and are not offered in the UI.
+        /// </summary>
         public ECampaignType CampaignType { get; set; } = ECampaignType.Endless;
+        /// <summary>
+        /// #445 - the VP an army must reach to win a <see cref="ECampaignType.PointLimited"/> campaign.
+        /// Zero means no target, which is what every campaign saved before this field had, and is why
+        /// <see cref="CampaignPreGame.IsOver"/> treats a zero limit as "not finished" rather than
+        /// "finished immediately" - an old Endless campaign must keep opening.
+        /// <para>
+        /// Written to BOTH armies' blocks even though only the player's is read
+        /// (<see cref="CampaignPreGame.Standing"/> takes it from the player). The target is a property of
+        /// the campaign rather than of either army, so letting the two files disagree would make whichever
+        /// one you happened to read the wrong answer. <see cref="Difficulty"/> and
+        /// <see cref="EnemyArmyFile"/> are genuinely the player's own and stay player-only; this is not.
+        /// </para>
+        /// </summary>
+        public int VpTarget { get; set; }
         /// <summary>
         /// The books' <b>No Permadeath</b> option, picked when the campaign is created (Kai's call,
         /// 2026-11-01: "have it be a toggle when creating a campaign"). A unit that would be killed
