@@ -64,6 +64,24 @@ namespace FDG.ArmyBuilding
         public static string Normalize(string? slug) =>
             string.IsNullOrWhiteSpace(slug) ? GrimdarkFuture : slug.Trim();
 
+        /// <summary>
+        /// #451 - the army-book slug for one of the four systems with a Campaign Rules book, so a screen
+        /// that knows the system it is building for can show only that system's books.
+        /// <para>
+        /// Null for the two Quest systems on purpose: each of those is TWO datasets (player heroes and
+        /// enemy army books) with different stats for the same unit (CLAUDE.md), so one slug would be the
+        /// wrong answer for one of them. A caller that needs a Quest book has to say which dataset.
+        /// </para>
+        /// </summary>
+        public static string? CampaignBookSlug(EGameSystem system) => system switch
+        {
+            EGameSystem.GrimdarkFuture => GrimdarkFuture,
+            EGameSystem.GFFirefight => GFFirefight,
+            EGameSystem.AgeOfFantasy => AgeOfFantasy,
+            EGameSystem.AoFSkirmish => AoFSkirmish,
+            _ => null,
+        };
+
         /// <summary>Whether two system fields name the same game system, absent meaning GDF on both sides.</summary>
         public static bool SameSystem(string? a, string? b) =>
             string.Equals(Normalize(a), Normalize(b), StringComparison.OrdinalIgnoreCase);
