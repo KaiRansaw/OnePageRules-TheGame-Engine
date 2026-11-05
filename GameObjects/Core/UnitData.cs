@@ -49,6 +49,35 @@ namespace FDG
         /// JSON), or null. Kills are counted on it during the game; it is written back to the team file afterwards.</summary>
         public string? StrikeUnitJson { get; set; }
 
+        /// <summary>
+        /// #454 - what a renamed campaign unit IS in its book ("Assault Grunts" under "Vargas Squad"), or null
+        /// when the unit's name already is its type, or it is not a campaign unit. Kai, 2026-11-05: "I need to
+        /// know which unit type the unit is." Read from the campaign sheet the unit carries onto the table.
+        /// <para>
+        /// Cached against the sheet's JSON string, because the hover card and the table labels ask every
+        /// frame and the sheet only changes when a kill or an event is recorded on it.
+        /// </para>
+        /// </summary>
+        [JsonIgnore]
+        public string? CampaignTypeIfRenamed
+        {
+            get
+            {
+                string? json = StrikeUnitJson;
+                if (!ReferenceEquals(json, _typeForJson))
+                {
+                    _typeForJson = json;
+                    _typeCache = FDG.Campaign.StrikeUnit.FromJson(json)?.UnitType;
+                }
+                return string.IsNullOrWhiteSpace(_typeCache)
+                       || string.Equals(_typeCache, Name, System.StringComparison.OrdinalIgnoreCase)
+                    ? null : _typeCache;
+            }
+        }
+
+        private string? _typeForJson;
+        private string? _typeCache;
+
         /// <summary>Star Quest: the hero's current power (it starts the mission full).</summary>
         public int QuestPower { get; set; }
 
