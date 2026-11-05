@@ -117,6 +117,32 @@ namespace FDG
         }
 
         /// <summary>
+        /// #459 Leader-Based Movement: the one model a unit's move is measured from - "only measure distances
+        /// from the leader ... No distances are measured for any other models except the leader". Null means
+        /// every model is measured as usual: the rule is off, or the unit has no living leader.
+        /// </summary>
+        public static ModelID? MeasuredMover(IUnit unit, GameSettings settings)
+        {
+            if (!Movement(settings) || unit.LeaderModelId is not { } id) return null;
+            IModel? leader = unit.Models.FirstOrDefault(m => m.ID.Equals(id));
+            return leader != null && leader.GetIsAlive() ? id : null;
+        }
+
+        /// <summary>
+        /// #458/#459: the leader whose distance alone is measured for a move that MAY take the Fast-Play freedom -
+        /// any move under Leader-Based Movement, or a charge under Leader-Based Melee ("When a unit wants to
+        /// charge, only measure distances from the leader"). Null when neither rule is on or there is no living
+        /// leader. Under Melee alone the freedom is legal only for a charge the leader itself reaches; the move
+        /// validation enforces that.
+        /// </summary>
+        public static ModelID? FreeMoveLeader(IUnit unit, GameSettings settings)
+        {
+            if (!(Movement(settings) || Melee(settings)) || unit.LeaderModelId is not { } id) return null;
+            IModel? leader = unit.Models.FirstOrDefault(m => m.ID.Equals(id));
+            return leader != null && leader.GetIsAlive() ? id : null;
+        }
+
+        /// <summary>
         /// A model described for the leader picker: its position in the unit and what it carries -
         /// "Model 3: Plasma Rifle, Rifle". Game text, so ASCII (weapon names come from the books, which are
         /// already folded on import).

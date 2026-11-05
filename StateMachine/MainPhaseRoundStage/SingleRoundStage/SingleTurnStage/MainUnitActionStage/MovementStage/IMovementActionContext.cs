@@ -1,4 +1,4 @@
-﻿
+
 using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -277,7 +277,13 @@ namespace FDG.Stages
         public void SubmitValidPathTemplate(List<ModelMoveEntry> paths)
         {
             _hasMoved = true;
-            _movementDistance = MovementUtilities.GetMaxMoveDistance(paths);
+            // #459 Fast-Play Leader-Based Movement: the unit moved as far as its leader did - that is the
+            // distance that decides Advance or Rush. The rest were placed, not measured.
+            ModelID? measured = FastPlay.MeasuredMover(MovingUnit.GetValue(), GameContext.Settings);
+            List<ModelMoveEntry> counted = measured is { } leader
+                ? paths.Where(p => p.Model.GetValue().ID.Equals(leader)).ToList()
+                : paths;
+            _movementDistance = MovementUtilities.GetMaxMoveDistance(counted.Count > 0 ? counted : paths);
             _paths = paths;
         }
 

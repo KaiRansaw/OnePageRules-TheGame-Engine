@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Text;
 using FDG.Data;
@@ -71,7 +71,9 @@ namespace FDG.Stages
                 context.MaxAdvanceDistance, context.MaxRushDistance, hardCap,
                 WeaponSightProfileBuilder.For(context.MovingUnit.GetValue(), context.GameContext.RuleEvaluator),
                 canMoveThroughEnemies, ignoresDifficultTerrain, ignoresImpassibleTerrain, BuildRangeOverrides(context),
-                perModelBudgets, allowCancel: true, mainActivationMove: true);
+                perModelBudgets, allowCancel: true, mainActivationMove: true,
+                measuredModelId: FastPlay.FreeMoveLeader(context.MovingUnit.GetValue(), context.GameContext.Settings),
+                leaderOnlyMovement: FastPlay.Movement(context.GameContext.Settings));
 
             CancellableResult<List<ModelMoveEntry>> pathResult = await context.PlayerRequester()
                 .RequestDecision<DefineMovementPathRequest, CancellableResult<List<ModelMoveEntry>>>(pathRequest);
@@ -102,10 +104,23 @@ namespace FDG.Stages
                     + sb.ToString());
             }
 
+            // #458/#459 Fast-Play: a charge is "measured from the leader" - the leader moves into contact first and
+            // the rest are placed around it. Leader-Based Movement lets the other models go any distance, so
+            // without this a far-placed model could start a melee the leader never reached.
+            if (LeaderMissedACharge(context, pathRequest, movements) is { } why)
+                throw new RequestResponseInvalidException(
+                    $"Response to {nameof(DefinePathStage)} movement request was invalid: {why}");
+
             context.SubmitValidPathTemplate(movements);
 
             await OnPathDefined.Activate(context);
         }
+
+        internal static string? LeaderMissedACharge(IMovementActionContext context, DefineMovementPathRequest request,
+            List<ModelMoveEntry> movements) =>
+            MovementUtilities.FastPlayChargeProblem(request, movements,
+                MovementUtilities.GetEnemyModelFootprints(context.MovingUnit, context.GameContext));
+
 
         /// <summary>
         /// The authoritative move validation, shared by the resolver-reply check and the #197 planned-move
@@ -134,12 +149,19 @@ namespace FDG.Stages
             // may not end stacked on them. The authoritative guard the AI resolvers were missing.
             List<EnemyModelFootprint> friendlyFootprints = MovementUtilities.GetFriendlyModelFootprints(context.MovingUnit, context.GameContext);
 
+            // #459: PlayerBudgetFor, so a model Fast-Play does not measure is not held to a distance; and only
+            // the measured model counts for the difficult-terrain cap. With the rule off both are the old checks.
             return MovementUtilities.ValidatePaths(movements,
-                entry => { var (_, rush, maxDist) = pathRequest.BudgetFor(entry.Model.GetValue().ID);
+                entry => { var (_, rush, maxDist) = pathRequest.PlayerBudgetFor(entry.Model.GetValue().ID);
                            return new ModelMoveBudget(rush, maxDist); },
                 enemyFootprints, canMoveThroughEnemies, ignoresDifficultTerrain, ignoresImpassibleTerrain,
                 context.RelevantTerrain, out invalidReasons,
-                friendlyFootprints, lenientCoherency: true);
+                friendlyFootprints, lenientCoherency: true,
+                // The difficult-terrain cap is a measured distance: only the leader's counts under Leader-Based
+                // Movement. Under Melee alone an ordinary move is measured for every model, as usual.
+                measured: pathRequest.LeaderOnlyMovement
+                    ? entry => pathRequest.IsMeasured(entry.Model.GetValue().ID)
+                    : null);
         }
 
         // #029: turn an Aircraft's Advance into a forced straight-line move along its fixed heading (the facing

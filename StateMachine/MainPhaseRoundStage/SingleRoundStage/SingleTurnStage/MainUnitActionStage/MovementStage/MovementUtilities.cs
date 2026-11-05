@@ -1,4 +1,4 @@
-﻿using FDG.Data;
+using FDG.Data;
 using FDG.StageResolution.Requests;
 using FDG.Utilities;
 using System.Runtime.CompilerServices;
@@ -145,7 +145,8 @@ namespace FDG.Stages
             bool ignoresDifficultTerrain, bool ignoresImpassibleTerrain,
             IEnumerable<ITerrain>? terrain, out List<ReasonForInvalidMove> errors,
             IEnumerable<EnemyModelFootprint>? friendlyFootprints = null,
-            bool lenientCoherency = false)
+            bool lenientCoherency = false,
+            Func<ModelMoveEntry, bool>? measured = null)
         {
             var __probe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
             try
@@ -153,7 +154,7 @@ namespace FDG.Stages
                 var sink = new FaultSink { Errors = new List<ReasonForInvalidMove>() };
                 ValidateCore(moves, budgetFor, AsReadOnly(enemyFootprints), canMoveThroughEnemies,
                     ignoresDifficultTerrain, ignoresImpassibleTerrain, terrain, AsReadOnly(friendlyFootprints),
-                    lenientCoherency, ref sink);
+                    lenientCoherency, ref sink, measured);
                 errors = sink.Errors!;
                 return errors.Count == 0;
             }
@@ -191,13 +192,18 @@ namespace FDG.Stages
             IReadOnlyList<EnemyModelFootprint> enemies, bool canMoveThroughEnemies,
             bool ignoresDifficultTerrain, bool ignoresImpassibleTerrain,
             IEnumerable<ITerrain>? terrain, IReadOnlyList<EnemyModelFootprint> friendlies,
-            bool lenientCoherency, ref FaultSink sink)
+            bool lenientCoherency, ref FaultSink sink, Func<ModelMoveEntry, bool>? measured = null)
         {
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, move => budgetFor(move).MaxDistanceInches, ref sink);
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
-            ValidateMovingThroughDifficultTerrain(geometry, terrain, ignoresDifficultTerrain, ref sink);
+            // #459 Fast-Play Leader-Based Movement: the difficult-terrain cap is a distance, and "no distances
+            // are measured for any other models except the leader" - so only the measured model counts, both
+            // for touching difficult terrain and for going over 6".
+            ValidateMovingThroughDifficultTerrain(
+                measured == null ? geometry : geometry.Where(g => measured(g.Move)).ToArray(),
+                terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
             if (lenientCoherency)
                 ValidateCoherencyNotWorsened(moves, ref sink);
@@ -1677,6 +1683,50 @@ namespace FDG.Stages
             {
                 throw new ArgumentException($"{nameof(PathTemplate)}.{methodName} called with model not in the unit.");
             }
+        }
+
+        /// <summary>
+        /// #458/#459 Fast-Play: why a move that took the Fast-Play freedom is illegal, or null. "When a unit
+        /// wants to charge, only measure distances from the leader and move it into base contact first" - so a
+        /// move whose unmeasured models went further than their ordinary budget may not start a melee the leader
+        /// did not reach, and under Leader-Based Melee alone (<see cref="DefineMovementPathRequest.LeaderOnlyMovement"/>
+        /// false) the freedom exists only for such a charge. A move within the ordinary budgets is never
+        /// affected, which keeps every AI move (the AI does not take the freedom) legal by construction.
+        /// Shared by the authoritative stage check and the GUI's Done gate, so the two cannot disagree.
+        /// </summary>
+        public static string? FastPlayChargeProblem(DefineMovementPathRequest request, List<ModelMoveEntry> movements,
+            IReadOnlyList<EnemyModelFootprint> enemies)
+        {
+            if (request.MeasuredModelId is not { } leaderId) return null;
+
+            bool usedTheFreedom = movements.Any(m =>
+            {
+                ModelID id = m.Model.GetValue().ID;
+                return !request.IsMeasured(id)
+                       && GetMaxMoveDistance(new List<ModelMoveEntry> { m }) > request.BudgetFor(id).maxDistance + 0.01f;
+            });
+            if (!usedTheFreedom) return null;
+
+            bool EndsInMelee(ModelMoveEntry m)
+            {
+                ModelData model = m.Model.GetValue();
+                Position end = m.Positions.Count > 0 ? m.Positions[^1] : model.Position;
+                Float2 facing = m.Facings is { Count: > 0 } f ? f[^1] : model.Facing;
+                return enemies.Any(e => !e.Uncontactable && BaseShapeGeometry.SurfaceGap2D(model.BaseShape, end, facing,
+                    e.BaseShape, e.Center, e.Facing) <= GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL);
+            }
+
+            ModelMoveEntry? leader = movements.FirstOrDefault(m => m.Model.GetValue().ID.Equals(leaderId));
+            bool leaderInMelee = leader != null && EndsInMelee(leader);
+
+            if (request.LeaderOnlyMovement)
+                return !movements.Any(EndsInMelee) || leaderInMelee
+                    ? null
+                    : "Fast-Play: a charge needs the leader to reach the enemy - only its distance is measured.";
+
+            return leaderInMelee
+                ? null
+                : "Fast-Play (Leader-Based Melee): only a charge the leader reaches may place the rest of the unit freely.";
         }
 
         public static string ErrorReasonToString(EErrorReasonType reason)

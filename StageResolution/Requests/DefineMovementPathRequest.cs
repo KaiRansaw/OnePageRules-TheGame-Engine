@@ -87,6 +87,27 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public bool MainActivationMove { get; }
 
+        /// <summary>
+        /// #459 Fast-Play Leader-Based Movement: the one model whose distance is measured - "only measure
+        /// distances from the leader ... No distances are measured for any other models except the leader, so
+        /// you may freely move them to their new position." Null when the rule is off (or the unit has no
+        /// living leader): every model is measured, as usual. The other models still have to end in coherency.
+        /// <para>Carried separately from <see cref="ModelMoveBudgets"/> on purpose: the AI clamps every model to
+        /// its budget, and handing it unlimited budgets would let it fling models across the table. The AI
+        /// keeps moving the ordinary way, which the relaxed validation still accepts.</para>
+        /// </summary>
+        public ModelID? MeasuredModelId { get; }
+
+        /// <summary>
+        /// #459: true under Leader-Based Movement - every move may take the freedom, and only the leader counts
+        /// for the difficult-terrain cap. False under Leader-Based Melee alone, where only a charge the leader
+        /// reaches may (see <c>MovementUtilities.FastPlayChargeProblem</c>).
+        /// </summary>
+        public bool LeaderOnlyMovement { get; }
+
+        /// <summary>Whether <paramref name="modelId"/>'s distance counts - every model, unless only the leader's does.</summary>
+        public bool IsMeasured(ModelID modelId) => MeasuredModelId is not { } leader || leader.Equals(modelId);
+
         [JsonConstructor]
         public DefineMovementPathRequest(PlayerID targetPlayerID, TaskID taskID, string taskName,
             DataBinding<UnitData> unitDataBinding, float maxAdvanceDistance, float maxRushDistance, float maxDistanceInches,
@@ -94,8 +115,11 @@ namespace FDG.StageResolution.Requests
             bool ignoresDifficultTerrain = false, bool ignoresImpassibleTerrain = false,
             IReadOnlyList<WeaponRangeOverride>? weaponRangeOverrides = null,
             IReadOnlyList<ModelMoveBudgetInfo>? modelMoveBudgets = null,
-            bool allowCancel = false, bool mainActivationMove = false)
+            bool allowCancel = false, bool mainActivationMove = false, ModelID? measuredModelId = null,
+            bool leaderOnlyMovement = false)
         {
+            MeasuredModelId = measuredModelId;
+            LeaderOnlyMovement = leaderOnlyMovement;
             TargetPlayerID = targetPlayerID;
             TaskID = taskID;
             TaskName = taskName;
@@ -119,8 +143,11 @@ namespace FDG.StageResolution.Requests
             bool ignoresDifficultTerrain = false, bool ignoresImpassibleTerrain = false,
             IReadOnlyList<WeaponRangeOverride>? weaponRangeOverrides = null,
             IReadOnlyList<ModelMoveBudgetInfo>? modelMoveBudgets = null,
-            bool allowCancel = false, bool mainActivationMove = false)
+            bool allowCancel = false, bool mainActivationMove = false, ModelID? measuredModelId = null,
+            bool leaderOnlyMovement = false)
         {
+            MeasuredModelId = measuredModelId;
+            LeaderOnlyMovement = leaderOnlyMovement;
             TargetPlayerID = targetPlayerID;
             TaskID = new TaskID(Guid.NewGuid());
             TaskName = taskName;
@@ -137,6 +164,16 @@ namespace FDG.StageResolution.Requests
             AllowCancel = allowCancel;
             MainActivationMove = mainActivationMove;
         }
+
+        /// <summary>
+        /// #459: the budget a PLAYER is held to - <see cref="BudgetFor"/>, except that a model Fast-Play does not
+        /// measure has no distance limit. The GUI and the authoritative validation use this; the AI keeps using
+        /// <see cref="BudgetFor"/> (see <see cref="MeasuredModelId"/> for why).
+        /// </summary>
+        public (float advance, float rush, float maxDistance) PlayerBudgetFor(ModelID modelId) =>
+            IsMeasured(modelId)
+                ? BudgetFor(modelId)
+                : (FastPlay.UnmeasuredMoveInches, FastPlay.UnmeasuredMoveInches, FastPlay.UnmeasuredMoveInches);
 
         /// <summary>
         /// This model's (Advance, Rush, hard-cap) budget: its <see cref="ModelMoveBudgets"/> entry, or the

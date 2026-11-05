@@ -62,7 +62,7 @@ namespace FDG.Tests
                 _inner.SendPlayerMessage(sendingPlayerName, messageType, message);
         }
 
-        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting, bool fastPlayMelee = false)
+        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting, bool fastPlayMelee = false, bool fastPlayMovement = false)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var bus = new InProcessBus();
@@ -85,6 +85,7 @@ namespace FDG.Tests
             settings.GameSystem = system;
             settings.FastPlayShooting = fastPlayShooting;
             settings.FastPlayMelee = fastPlayMelee;
+            settings.FastPlayMovement = fastPlayMovement;
 
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
@@ -133,6 +134,16 @@ namespace FDG.Tests
                     $"Fast-Play melee: everyone in range, but the log says \"{line}\"");
             }
             Assert.That(melees, Is.GreaterThan(0), "this seed must actually produce a melee, or the test proves nothing");
+        }
+
+        /// <summary>#459: all three leader rules on together, both games' books - a whole game still plays out.</summary>
+        [TestCase(EGameSystem.GrimdarkFuture, 4590)]
+        [TestCase(EGameSystem.AgeOfFantasy, 4591)]
+        public async Task WithEveryLeaderRuleOn_TheGameStillFinishes(EGameSystem system, int seed)
+        {
+            List<string> log = await PlayAGame(seed, system, fastPlayShooting: true, fastPlayMelee: true,
+                fastPlayMovement: true);
+            Assert.That(LeadersWereSet(log), Is.True);
         }
 
         [Test]
