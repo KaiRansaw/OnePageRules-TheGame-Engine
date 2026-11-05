@@ -101,6 +101,20 @@ namespace FDG.Campaign
         public List<string> Bringing { get; set; } = new();
         /// <summary>One line per finished match, newest last.</summary>
         public List<string> History { get; set; } = new();
+
+        /// <summary>
+        /// #448 - the campaign's own journal page: the player's overarching note for the whole campaign
+        /// (the premise, the rivalry, how it is going). Empty until written. Set through
+        /// <see cref="CampaignJournal.SetCampaignNote"/>, which cleans it for the game's font.
+        /// </summary>
+        public string Journal { get; set; } = "";
+
+        /// <summary>
+        /// #448 - one journal entry per mission that has one, in mission order. Kept apart from
+        /// <see cref="History"/> on purpose - see <see cref="CampaignJournal"/> for why. Written through
+        /// <see cref="CampaignJournal.SetNote"/>.
+        /// </summary>
+        public List<CampaignMissionNote> MissionNotes { get; set; } = new();
     }
 
     /// <summary>
