@@ -29,12 +29,16 @@ namespace FDG.Stages
         /// <see cref="LineOfSightUtilities.BuildModelBlockers"/> for this (attacker, defender) pair.</param>
         /// <param name="applyProximityExceptions">The #201 house rule
         /// (<see cref="GameSettings.CoverProximityExceptionsEnabled"/>) - see <see cref="CoverProximityRules"/>.</param>
+        /// <param name="measureFromOnly">#456 Leader-Based Shooting: judge cover from this one model only - every
+        /// shot counts as coming from the leader's position. Null: from every living attacker, as usual.</param>
         public static Result Evaluate(DataBinding<UnitData> attackingUnit,
             DataBinding<UnitData> defendingUnit, IReadOnlyList<ITerrain> terrain,
-            bool applyProximityExceptions)
+            bool applyProximityExceptions, ModelID? measureFromOnly = null)
         {
             List<DataBinding<ModelData>> attackers = attackingUnit.ModelBindings()
-                .Where(model => model.GetIsAlive()).ToList();
+                .Where(model => model.GetIsAlive()
+                                && (measureFromOnly is not { } only || model.GetValue().ID.Equals(only)))
+                .ToList();
             List<DataBinding<ModelData>> defenders = defendingUnit.ModelBindings()
                 .Where(model => model.GetIsAlive()).ToList();
 

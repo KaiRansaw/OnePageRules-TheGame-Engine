@@ -61,6 +61,9 @@ namespace FDG
         /// </summary>
         public ModelID? JoinedHeroModelId { get; }
 
+        /// <summary>#456 - the unit's Fast-Play leader, or null when there is none (the ordinary game).</summary>
+        public ModelID? LeaderModelId => null;
+
         public bool GetMobility(out float moveShootDistanceInches, out float chargeDistanceInches);
 
         public event DataValueChangedHandler<float> OnWoundsDealt;

@@ -43,6 +43,13 @@ namespace FDG
         // Serialized so the guard survives a mid-assignment save/network round-trip; null for non-hero units.
         [JsonProperty] private ModelID? _heroModelId;
 
+        /// <summary>
+        /// #456 - the unit's Fast-Play leader, "the last model that is removed when the unit takes wounds".
+        /// Null outside Fast-Play. Serialized like <see cref="_heroModelId"/>, because this object crosses
+        /// the wire as the defender's answer and the receiving side has to apply the same order.
+        /// </summary>
+        [JsonProperty] private ModelID? _leaderModelId;
+
         public float TotalAssignedWounds { get; private set; }
 
         public List<PendingWounds> PendingWounds;
@@ -72,6 +79,7 @@ namespace FDG
         public AssignWoundsResults(DataBinding<UnitData> defendingUnit, IReadOnlyList<WoundPacket> packets)
         {
             _heroModelId = defendingUnit.GetValue().HeroAttachment?.HeroModelId;
+            _leaderModelId = defendingUnit.GetValue().LeaderModelId;
 
             // #006: order the hero last so AutoFill (and any in-order fill) spares it until the rank and
             // file are full — the rule's "heroes are assigned wounds last, even if already wounded".
@@ -80,14 +88,16 @@ namespace FDG
             List<DataBinding<ModelData>> alive = defendingUnit.ModelBindings()
                 .Where(model => model.GetIsAlive()).ToList();
 
+            // #456: three tiers - the rank and file, then the Fast-Play leader ("the last model that is
+            // removed"), then a joined hero, which the Hero rule makes last of all. With no leader and no
+            // hero this is plain unit order, exactly as before.
             PendingWounds = new List<PendingWounds>();
-            foreach (DataBinding<ModelData> model in alive.Where(model => !IsHero(model)))
+            for (int tier = 0; tier <= 2; tier++)
             {
-                PendingWounds.Add(new PendingWounds(model));
-            }
-            foreach (DataBinding<ModelData> model in alive.Where(IsHero))
-            {
-                PendingWounds.Add(new PendingWounds(model));
+                foreach (DataBinding<ModelData> model in alive.Where(model => Tier(model) == tier))
+                {
+                    PendingWounds.Add(new PendingWounds(model));
+                }
             }
 
             _packets = Meaningful(packets);
@@ -244,7 +254,7 @@ namespace FDG
         public bool CanAssignWoundTo(PendingWounds entry) =>
             !AllPacketsCommitted
             && CanTakeMoreWounds(entry)
-            && !(IsHero(entry.Model) && AnyNonHeroHasRoom())
+            && !AnyLowerTierHasRoom(Tier(entry.Model))
             && !(entry.Wounds == 0f && AnyOtherModelMidFill(entry));
 
         /// <summary>
@@ -282,7 +292,9 @@ namespace FDG
             // #006: a joined hero is assigned wounds last — reject it while any rank-and-file model still
             // has room. AutoFill reaches the hero (ordered last) only once the others are full, so this
             // also makes the auto path spare the hero; it gates the player-choice path against picking it.
-            if (IsHero(model) && AnyNonHeroHasRoom())
+            // #456: and a Fast-Play leader after everyone else in the unit but before that hero - the same
+            // gate, one tier lower.
+            if (AnyLowerTierHasRoom(Tier(model)))
             {
                 return false;
             }
@@ -376,6 +388,7 @@ namespace FDG
                 new List<PacketCommit>(_commits))
             {
                 _heroModelId = _heroModelId,
+                _leaderModelId = _leaderModelId,
             };
 
         // #006 ---------------------------------------------------------------------------------------
@@ -383,12 +396,25 @@ namespace FDG
         private bool IsHero(DataBinding<ModelData> model) =>
             _heroModelId != null && model.GetValue().ID == _heroModelId.Value;
 
-        /// <summary> True while any non-hero pending entry can still take more wounds (capacity remaining). </summary>
-        private bool AnyNonHeroHasRoom()
+        private bool IsLeader(DataBinding<ModelData> model) =>
+            _leaderModelId != null && model.GetValue().ID == _leaderModelId.Value;
+
+        /// <summary>
+        /// #456 - where a model sits in the mandatory order: 0 the rank and file, 1 the Fast-Play leader,
+        /// 2 a joined hero. A hero that is somehow also the leader counts as the hero - it is last either way.
+        /// </summary>
+        private int Tier(DataBinding<ModelData> model) => IsHero(model) ? 2 : IsLeader(model) ? 1 : 0;
+
+        /// <summary>
+        /// True while any pending entry in a tier BELOW <paramref name="tier"/> can still take more wounds.
+        /// Generalises #006's "no hero while a non-hero has room" to the leader as well (#456); for tier 0
+        /// it is always false, so the rank and file are never held back.
+        /// </summary>
+        private bool AnyLowerTierHasRoom(int tier)
         {
             foreach (PendingWounds entry in PendingWounds)
             {
-                if (IsHero(entry.Model)) continue;
+                if (Tier(entry.Model) >= tier) continue;
                 float remaining = entry.Model.TotalWounds() - entry.Model.WoundsDealt();
                 if (entry.Wounds < remaining - WoundEpsilon) return true;
             }

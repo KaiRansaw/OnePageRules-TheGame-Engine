@@ -109,6 +109,19 @@ namespace FDG
 
         [JsonIgnore] public ModelID? JoinedHeroModelId => _heroAttachment?.HeroModelId;
 
+        /// <summary>
+        /// #456 - this unit's leader under the Fast-Play rules: "Before the game begins, you must clearly
+        /// define a single model within each unit to be its leader, and which will remain the unit's leader
+        /// until the end of the game. Since the leader is essential, it always has to be the last model that
+        /// is removed when the unit takes wounds." Null when Fast-Play is not in use - every rule that reads
+        /// it treats null as "no leader", which is the ordinary game.
+        /// <para>
+        /// A model ID rather than an index, like <see cref="JoinedHeroModelId"/>, so it stays valid as other
+        /// models die. Serialized, so a saved or networked game keeps the same leader.
+        /// </para>
+        /// </summary>
+        [JsonProperty] public ModelID? LeaderModelId { get; set; }
+
         public List<DataBinding<ModelData>> ModelBindings;
 
         [JsonIgnore]

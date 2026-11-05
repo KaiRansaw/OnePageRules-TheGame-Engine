@@ -70,6 +70,25 @@ namespace FDG
         /// </summary>
         public bool UnlimitedSplitFire;
 
+        // #456 - Fast-Play Rules (GF and AoF Advanced Rulebooks 3.6.0, p17): "Fast-Play rules allow you
+        // to speed up regular games, as well as play epic battles of massive size quickly. We highly
+        // recommend using these rules when playing games with 4000pts armies or higher" (GF; AoF says
+        // 3000pts). "Pick any of the following" - so each is its own toggle, all OFF by default, and a
+        // save from before #456 deserializes with them off, i.e. exactly as it was played.
+        // Only GF and AoF have them; the Firefight and Skirmish Advanced books do not print Fast-Play, so
+        // FastPlay.Applies gates on the game system as well as these flags. Kai chose Fast-Play over a
+        // bigger table for big games (2026-11-03); Simplified Terrain, the fourth rule, is deferred by his
+        // call (2026-11-05) as its own job.
+
+        /// <summary>#456 Fast-Play: Leader-Based Movement. See <see cref="FastPlay"/>.</summary>
+        public bool FastPlayMovement;
+
+        /// <summary>#456 Fast-Play: Leader-Based Melee. See <see cref="FastPlay"/>.</summary>
+        public bool FastPlayMelee;
+
+        /// <summary>#456 Fast-Play: Leader-Based Shooting. See <see cref="FastPlay"/>.</summary>
+        public bool FastPlayShooting;
+
         /// <summary>
         /// House rule (lobby toggle, default ON): when true, separate friendly units may end their
         /// move within 1" of each other, and may pass through each other's bases. Models still may

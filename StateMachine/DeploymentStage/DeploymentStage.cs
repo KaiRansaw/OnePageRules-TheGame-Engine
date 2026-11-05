@@ -42,6 +42,9 @@ namespace FDG.Stages
                 // rule" is about. Falls straight through in Grimdark Future and Age of Fantasy, whose
                 // Banner and Musician confer on the bearer's own unit only.
                 .AddChild(new PickCommandGroupUnitsStage(GameContext, this), out var pickCommandGroups)
+                // #456: Fast-Play unit leaders, "before the game begins". Falls straight through unless a
+                // Fast-Play rule is on in Grimdark Future or Age of Fantasy.
+                .AddChild(new PickUnitLeadersStage(GameContext, this), out var pickUnitLeaders)
                 .AddChild(new DeployAllUnitsStage(GameContext, this), out var deployAllUnits)
                 .AddSibling(nameof(ToMain), ToMain, out string toMainEvent)
                 .Build();
@@ -51,7 +54,8 @@ namespace FDG.Stages
             rollForMapSide.OnFinish.Bind(chooseMapSide);
             chooseMapSide.ToRollForFirstDeployment.Bind(rollForFirstDeployment);
             rollForFirstDeployment.ToDeployAllUnits.Bind(pickCommandGroups);
-            pickCommandGroups.ToDeployAllUnits.Bind(deployAllUnits);
+            pickCommandGroups.ToDeployAllUnits.Bind(pickUnitLeaders);
+            pickUnitLeaders.ToDeployAllUnits.Bind(deployAllUnits);
             deployAllUnits.ToMain.Bind(toMainEvent);
 
             return dictionary;

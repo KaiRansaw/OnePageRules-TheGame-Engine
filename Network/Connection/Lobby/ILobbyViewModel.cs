@@ -140,6 +140,15 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>#384 - see <see cref="GameSettings.UnlimitedSplitFire"/>.</summary>
         bool UnlimitedSplitFire { get; }
 
+        /// <summary>#456 - see <see cref="GameSettings.FastPlayMovement"/>.</summary>
+        bool FastPlayMovement { get; }
+
+        /// <summary>#456 - see <see cref="GameSettings.FastPlayMelee"/>.</summary>
+        bool FastPlayMelee { get; }
+
+        /// <summary>#456 - see <see cref="GameSettings.FastPlayShooting"/>.</summary>
+        bool FastPlayShooting { get; }
+
         /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
         bool FriendlyUnitsMayOverlap { get; }
 
@@ -227,6 +236,12 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>#384 - see <see cref="GameSettings.UnlimitedSplitFire"/>.</summary>
         void SetUnlimitedSplitFire(bool enabled);
+
+        /// <summary>
+        /// #456 - sets the three Fast-Play rules together (host only). One setter for the three rather than
+        /// three, because they are always drawn and changed as one group.
+        /// </summary>
+        void SetFastPlay(bool movement, bool melee, bool shooting);
 
         /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
         void SetFriendlyUnitsMayOverlap(bool enabled);

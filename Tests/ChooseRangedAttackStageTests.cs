@@ -1300,6 +1300,119 @@ namespace FDG.Tests
                 "the occluded carrier's rifle must not add attack dice - only the model with line of sight fires");
         }
 
+        // -- #456 Fast-Play: Leader-Based Shooting ------------------------------------------------------
+        // "only measure line of sight and distances from the leader model, to the closest model from the
+        // target unit. If the leader has line of sight, then all weapons that are in range of the target
+        // from the leader's position may shoot. ... models can freely shoot as if they were in the leader's
+        // position." (GF / AoF Advanced Rulebooks 3.6.0, p17)
+
+        /// <summary>The same wall as <see cref="Enter_OccludedCarrier_TrimsWeaponCountToEligibleShooters"/>:
+        /// the z=5 model is blocked, the z=12 model sees past it.</summary>
+        private static (TestGameContextWithRequester Ctx, DataBinding<UnitData> Attacker, DataBinding<ModelData> Blocked,
+            DataBinding<ModelData> Clear) WallScene(EGameSystem system, bool fastPlayShooting, float rifleRange = 24f)
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var requester = new CapturingRangedRequester
+            {
+                Reply = req =>
+                {
+                    var opt = req.WeaponOptions.Single();
+                    var target = opt.WeaponTargetStats.First(t => t.UnselectableReason == null);
+                    return new Selected<RangedAttackChoice>(new RangedAttackChoice(opt.Weapon, target.TargetUnit));
+                }
+            };
+            var ctx = new TestGameContextWithRequester(store, requester);
+            GameSettings settings = ctx.Settings;
+            settings.GameSystem = system;
+            settings.FastPlayShooting = fastPlayShooting;
+            ctx.Settings = settings;
+
+            var attackerPlayer = new PlayerID(Guid.NewGuid());
+            var enemyPlayer = new PlayerID(Guid.NewGuid());
+            store.Create(new TeamData(0, new List<PlayerID> { attackerPlayer }));
+            store.Create(new TeamData(1, new List<PlayerID> { enemyPlayer }));
+            store.Create(new TerrainData(ETerrainType.Blocking, new RectangularZone(8, 12, 3, 7)));
+            var blocked = MakeModel(store, new Position(1, 5), Rifle(rifleRange));
+            var clear = MakeModel(store, new Position(1, 12), Rifle(rifleRange));
+            var attackerUnit = MakeUnit(store, attackerPlayer, "Squad", new[] { blocked, clear });
+            store.Create(new ArmyData(attackerPlayer, new List<DataBinding<UnitData>> { attackerUnit }));
+            var enemyUnit = MakeUnit(store, enemyPlayer, "Enemy", new[] { MakeModel(store, new Position(21, 5)) });
+            store.Create(new ArmyData(enemyPlayer, new List<DataBinding<UnitData>> { enemyUnit }));
+            return (ctx, attackerUnit, blocked, clear);
+        }
+
+        private static async Task<int> WeaponsFired(TestGameContextWithRequester ctx, DataBinding<UnitData> attacker)
+        {
+            var combatCtx = new CombatActionContext(ctx, attacker, isMelee: false);
+            var stage = new ChooseRangedAttackStage(ctx, new NoOpLayer<ICombatActionContext>());
+            BindAllStageEvents(stage);
+            await stage.Enter(combatCtx);
+            return combatCtx.HasPendingAttack ? combatCtx.ConsumeAttackIntoContext(ctx).WeaponCount : 0;
+        }
+
+        [Test]
+        public async Task FastPlay_LeaderSees_SoEveryModelFires()
+        {
+            var (ctx, attacker, _, clear) = WallScene(EGameSystem.GrimdarkFuture, fastPlayShooting: true);
+            attacker.GetValue().LeaderModelId = clear.GetValue().ID;
+
+            Assert.That(await WeaponsFired(ctx, attacker), Is.EqualTo(2),
+                "the blocked model fires 'as if it were in the leader's position'.");
+        }
+
+        [Test]
+        public async Task FastPlay_LeaderBlocked_SoNobodyFires()
+        {
+            var (ctx, attacker, blocked, _) = WallScene(EGameSystem.GrimdarkFuture, fastPlayShooting: true);
+            attacker.GetValue().LeaderModelId = blocked.GetValue().ID;
+
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, ctx), Is.False,
+                "no line of sight is measured for any model but the leader - so the clear model cannot fire "
+                + "on its own, and Shoot is greyed.");
+        }
+
+        [Test]
+        public async Task FastPlay_RangeIsMeasuredFromTheLeader()
+        {
+            // A 12" rifle. The leader at x=1 is 20" from the target; nothing reaches from there.
+            var (ctx, attacker, _, clear) = WallScene(EGameSystem.GrimdarkFuture, fastPlayShooting: true, rifleRange: 12f);
+            attacker.GetValue().LeaderModelId = clear.GetValue().ID;
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, ctx), Is.False);
+
+            // Move the leader within 12" (and clear of the wall): now every rifle reaches "from the leader's
+            // position", including the one on the far model that is itself out of range.
+            clear.GetValue().PositionBinding.SetValue(new Position(14, 12));
+            Assert.That(await WeaponsFired(ctx, attacker), Is.EqualTo(2));
+        }
+
+        [Test]
+        public async Task FastPlay_Off_IsTheOrdinaryGame()
+        {
+            var (ctx, attacker, _, clear) = WallScene(EGameSystem.GrimdarkFuture, fastPlayShooting: false);
+            attacker.GetValue().LeaderModelId = clear.GetValue().ID;   // a leader alone changes nothing
+            Assert.That(await WeaponsFired(ctx, attacker), Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task FastPlay_NotInFirefight_WhoseBookHasNoFastPlay()
+        {
+            var (ctx, attacker, _, clear) = WallScene(EGameSystem.GFFirefight, fastPlayShooting: true);
+            attacker.GetValue().LeaderModelId = clear.GetValue().ID;
+            Assert.That(await WeaponsFired(ctx, attacker), Is.EqualTo(1),
+                "a flag left on from a Grimdark Future lobby must not leak a rule into a game whose book lacks it.");
+        }
+
+        [Test]
+        public async Task FastPlay_ADeadLeaderMeansTheOrdinaryWay()
+        {
+            var (ctx, attacker, blocked, clear) = WallScene(EGameSystem.GrimdarkFuture, fastPlayShooting: true);
+            attacker.GetValue().LeaderModelId = blocked.GetValue().ID;
+            blocked.GetValue().RemainingWoundsBinding.SetValue(0f);   // killed outside the wound order
+
+            Assert.That(await WeaponsFired(ctx, attacker), Is.EqualTo(1),
+                "the surviving model shoots the ordinary way rather than the unit being unable to shoot at all.");
+        }
+
         [Test]
         public async Task Enter_AllCarriersClear_KeepsFullWeaponCount()
         {

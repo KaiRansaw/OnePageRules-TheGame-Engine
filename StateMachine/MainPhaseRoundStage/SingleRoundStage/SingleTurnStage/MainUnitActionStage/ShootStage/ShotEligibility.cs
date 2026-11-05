@@ -144,12 +144,15 @@ namespace FDG.Stages
         /// line alive). Range is deliberately not asked — occlusion is a pure sight question; the
         /// range gate already ran at targeting.
         /// </summary>
+        /// <param name="measureFromOnly">#456 Leader-Based Shooting: only this model's sight counts. Null: any
+        /// living, placed model's, as usual.</param>
         public static bool UnitSeesUnit(IUnit attackingUnit, IUnit defendingUnit,
-            IReadOnlyList<ITerrain> blockers)
+            IReadOnlyList<ITerrain> blockers, ModelID? measureFromOnly = null)
         {
             foreach (IModel shooter in attackingUnit.Models)
             {
                 if (!shooter.GetIsAlive()) continue;
+                if (measureFromOnly is { } only && !shooter.ID.Equals(only)) continue;
                 if (shooter.Position.x == 0f && shooter.Position.z == 0f) continue;
                 // NearestVisibleModel applies the same alive+placed filter to the defender side.
                 if (NearestVisibleModel(shooter.Position, shooter.BaseShape, shooter.Facing,
@@ -163,7 +166,7 @@ namespace FDG.Stages
 
         /// <inheritdoc cref="UnitSeesUnit(IUnit, IUnit, IReadOnlyList{ITerrain})"/>
         public static bool UnitSeesUnit(DataBinding<UnitData> attackingUnit,
-            DataBinding<UnitData> defendingUnit, IReadOnlyList<ITerrain> blockers)
-            => UnitSeesUnit(attackingUnit.GetValue(), defendingUnit.GetValue(), blockers);
+            DataBinding<UnitData> defendingUnit, IReadOnlyList<ITerrain> blockers, ModelID? measureFromOnly = null)
+            => UnitSeesUnit(attackingUnit.GetValue(), defendingUnit.GetValue(), blockers, measureFromOnly);
     }
 }

@@ -548,7 +548,7 @@ namespace FDG.Ai.Tactician
             }
 
             return WoundAllocation.Simulate(packets,
-                WoundAllocation.Order(defenderModels ?? def.Models, def.JoinedHeroModelId), out _);
+                WoundAllocation.Order(defenderModels ?? def.Models, def.JoinedHeroModelId, def.LeaderModelId), out _);
         }
 
         // --- Allocation mirror: drains the pool along WoundAllocation.Order (already-wounded first,

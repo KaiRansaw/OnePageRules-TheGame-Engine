@@ -22,9 +22,12 @@ namespace FDG.Stages
             // panel's cover flag, so the preview and this roll cannot disagree. Dead models are
             // excluded on both sides there (#158); this stage used to count them. The #201
             // proximity exceptions ride the same call.
+            // #456 Leader-Based Shooting: every shot counts as fired from the leader's position, so cover
+            // is judged from there - a judgement call, recorded in claude/house-rules.md.
             CoverMajority.Result majority = CoverMajority.Evaluate(
                 metaData.AttackingUnit, metaData.DefendingUnit, terrain,
-                GameContext.Settings.CoverProximityExceptionsEnabled);
+                GameContext.Settings.CoverProximityExceptionsEnabled,
+                FastPlay.ShootingOrigin(metaData.AttackingUnit.GetValue(), GameContext.Settings));
 
             // Majority rule: more than half of the living defending models in cover → +1 defense bonus.
             int bonus = majority.HasCover ? 1 : 0;

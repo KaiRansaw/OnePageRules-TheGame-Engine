@@ -105,6 +105,11 @@ namespace FDG.Network.Connection.Lobby
         public bool SeeThroughFriendlyUnits => _settings_SeeThroughFriendlyUnits.Value;
 
         public bool UnlimitedSplitFire => _settings_UnlimitedSplitFire.Value;
+        // #456: the Fast-Play rules as the host last sent them. Plain fields - nothing observes them, the
+        // lobby reads them each frame.
+        public bool FastPlayMovement { get; private set; }
+        public bool FastPlayMelee { get; private set; }
+        public bool FastPlayShooting { get; private set; }
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -430,6 +435,9 @@ namespace FDG.Network.Connection.Lobby
             {
                 _settings_SeeThroughFriendlyUnits.OnNext(gameSettingsUpdate.GameSettings.SeeThroughFriendlyUnits);
             }
+            FastPlayMovement = gameSettingsUpdate.GameSettings.FastPlayMovement;
+            FastPlayMelee = gameSettingsUpdate.GameSettings.FastPlayMelee;
+            FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
             {
                 _settings_UnlimitedSplitFire.OnNext(gameSettingsUpdate.GameSettings.UnlimitedSplitFire);
@@ -549,6 +557,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetUnlimitedSplitFire(bool enabled)
         {
             throw new InvalidOperationException("Tried to set unlimited split fire when not the host.");
+        }
+
+        public void SetFastPlay(bool movement, bool melee, bool shooting)
+        {
+            throw new InvalidOperationException("Tried to set the Fast-Play rules when not the host.");
         }
 
         public void SetFriendlyUnitsMayOverlap(bool enabled)

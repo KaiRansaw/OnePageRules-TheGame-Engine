@@ -24,7 +24,8 @@ namespace FDG
         /// The defender's sub-choice between several already-wounded models is NOT modelled - they fill
         /// in unit-list order, matching <see cref="AssignWoundsResults"/>' own deferred note.
         /// </summary>
-        public static List<IModel> Order(IUnit defender) => Order(defender.Models, defender.JoinedHeroModelId);
+        public static List<IModel> Order(IUnit defender) =>
+            Order(defender.Models, defender.JoinedHeroModelId, defender.LeaderModelId);
 
         /// <summary>
         /// <see cref="Order(IUnit)"/> over an explicit model list - the Tactician prices a hypothetical
@@ -32,16 +33,20 @@ namespace FDG
         /// lazy version enumerated the living list three times through LINQ iterators and grew two lists
         /// from empty, per estimate, per candidate.
         /// </summary>
-        public static List<IModel> Order(IReadOnlyList<IModel> models, ModelID? heroId)
+        /// <param name="leaderId">#456 - the Fast-Play leader, poured after everyone else and before a
+        /// joined hero, mirroring <see cref="AssignWoundsResults"/>. Null outside Fast-Play.</param>
+        public static List<IModel> Order(IReadOnlyList<IModel> models, ModelID? heroId, ModelID? leaderId = null)
         {
             var order = new List<IModel>(models.Count);
             IModel? hero = null;
+            IModel? leader = null;
 
             for (int i = 0; i < models.Count; i++)
             {
                 IModel model = models[i];
                 if (!model.GetIsAlive()) continue;
                 if (heroId.HasValue && model.ID.Equals(heroId.Value)) { hero ??= model; continue; }
+                if (leaderId.HasValue && model.ID.Equals(leaderId.Value)) { leader ??= model; continue; }
                 if (model.WoundsDealt > 0f) order.Add(model);
             }
             for (int i = 0; i < models.Count; i++)
@@ -49,8 +54,10 @@ namespace FDG
                 IModel model = models[i];
                 if (!model.GetIsAlive()) continue;
                 if (heroId.HasValue && model.ID.Equals(heroId.Value)) continue;
+                if (leaderId.HasValue && model.ID.Equals(leaderId.Value)) continue;
                 if (model.WoundsDealt <= 0f) order.Add(model);
             }
+            if (leader != null) order.Add(leader);
             if (hero != null) order.Add(hero);
             return order;
         }

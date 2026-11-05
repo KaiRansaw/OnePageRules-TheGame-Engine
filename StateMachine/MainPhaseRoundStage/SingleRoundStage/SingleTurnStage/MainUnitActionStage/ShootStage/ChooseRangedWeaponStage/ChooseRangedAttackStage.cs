@@ -791,8 +791,16 @@ namespace FDG.Stages
             // #055/#045 truthfulness: this feeds the targeting UI's cover flag, so it is the SAME
             // computation CoverCheckStage rolls (#385: CoverMajority) - including the #158 dead-model
             // exclusion and the #201 proximity exceptions.
+            // #456 Leader-Based Shooting: measure from the leader only - sight, range and (a judgement call,
+            // see claude/house-rules.md) cover. Null: every model measures for itself, as usual.
+            ModelID? origin = FastPlay.ShootingOrigin(attackingUnit.GetValue(), gameContext.Settings);
+            ModelData? originModel = origin is { } o
+                ? attackingUnit.ModelBindings().Select(b => b.GetValue()).First(m => m.ID.Equals(o))
+                : null;
+            var originSight = new bool?[enemyUnit.GetValue().Models.Count];
+
             bool hasCover = wantCover && CoverMajority.Evaluate(attackingUnit, enemyUnit, allTerrain,
-                gameContext.Settings.CoverProximityExceptionsEnabled).HasCover;
+                gameContext.Settings.CoverProximityExceptionsEnabled, origin).HasCover;
 
             foreach (string weaponProfileKey in weaponProfileKeys)
             {
@@ -847,8 +855,15 @@ namespace FDG.Stages
                         weaponToStats[weaponProfileKey] = weaponTargetStats;
                     }
 
-                    if(CanWeaponShootAtUnit(attackingModel, enemyUnit, effectiveRange,
-                        allTerrain, ignoresLoS, sight))
+                    // #456: "If the leader has line of sight, then all weapons that are in range of the target
+                    // from the leader's position may shoot" - each model's weapon is tested from where the
+                    // leader stands, with the leader's sight shared across the whole unit.
+                    bool canShoot = originModel != null
+                        ? ShotEligibility.CanHitAny(originModel.PositionBinding.GetValue(), originModel.BaseShape,
+                            originModel.Facing, enemyUnit.GetValue().Models,
+                            ignoresLoS ? null : allTerrain, effectiveRange, originSight)
+                        : CanWeaponShootAtUnit(attackingModel, enemyUnit, effectiveRange, allTerrain, ignoresLoS, sight);
+                    if (canShoot)
                     {
                         weaponTargetStats.modelsThatCanShoot.Add(attackingModel);
                     }

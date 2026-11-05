@@ -90,6 +90,9 @@ namespace FDG.Network.Connection.Lobby
         public bool SeeThroughFriendlyUnits => _settings_SeeThroughFriendlyUnits.Value;
 
         public bool UnlimitedSplitFire => _settings_UnlimitedSplitFire.Value;
+        public bool FastPlayMovement => _gameSettings.FastPlayMovement;   // #456
+        public bool FastPlayMelee => _gameSettings.FastPlayMelee;
+        public bool FastPlayShooting => _gameSettings.FastPlayShooting;
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -1299,6 +1302,14 @@ namespace FDG.Network.Connection.Lobby
         {
             _settings_UnlimitedSplitFire.OnNext(enabled);
             _gameSettings.UnlimitedSplitFire = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetFastPlay(bool movement, bool melee, bool shooting)
+        {
+            _gameSettings.FastPlayMovement = movement;
+            _gameSettings.FastPlayMelee = melee;
+            _gameSettings.FastPlayShooting = shooting;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

@@ -34,8 +34,10 @@ namespace FDG.Stages
             // #385: the shared unit-sees-unit gate (living, placed models on both sides) - the same
             // per-model sight test the targeting previews use, so this stage can never cancel a shot
             // that was legally offered, nor let a dead model's sight line keep one alive.
+            // #456 Leader-Based Shooting: only the leader's sight counts.
             bool hasLoS = ShotEligibility.UnitSeesUnit(
-                metaData.AttackingUnit, metaData.DefendingUnit, terrain);
+                metaData.AttackingUnit, metaData.DefendingUnit, terrain,
+                FastPlay.ShootingOrigin(metaData.AttackingUnit.GetValue(), GameContext.Settings));
 
             if (!hasLoS)
             {

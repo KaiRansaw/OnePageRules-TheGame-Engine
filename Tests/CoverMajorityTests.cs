@@ -1,3 +1,4 @@
+using System.Linq;
 using FDG.Data;
 using FDG.Stages;
 using NUnit.Framework;
@@ -31,6 +32,27 @@ namespace FDG.Tests
             _coverTerrain = new List<ITerrain> { new TerrainData(ETerrainType.Cover, CoverRect) };
             _store.Create(new TerrainData(ETerrainType.Cover, CoverRect));
             _attacker = MakeUnit(new[] { AttackerPos });
+        }
+
+        // #456 Fast-Play Leader-Based Shooting: every shot counts as fired from the leader's position, so cover
+        // is judged from the leader alone (a judgement call - the book's wording covers line of sight and range;
+        // "as if they were in the leader's position" decides it. Recorded in claude/house-rules.md).
+        [Test]
+        public void FastPlay_CoverIsJudgedFromTheLeaderOnly()
+        {
+            // Two shooters: one behind the cover rect's line, one with a clear line from above.
+            var behind = new Position(0, 5);
+            var above = new Position(0, 30);
+            DataBinding<UnitData> attacker = MakeUnit(new[] { behind, above });
+            DataBinding<UnitData> defender = MakeUnit(new[] { InCoverPos });
+            ModelID aboveId = attacker.GetValue().Models.First(m => m.Position.z > 20f).ID;
+            ModelID behindId = attacker.GetValue().Models.First(m => m.Position.z < 20f).ID;
+
+            Assert.That(CoverMajority.Evaluate(attacker, defender, _coverTerrain, false).HasCover, Is.True,
+                "the ordinary game: any one shooter's line through cover counts.");
+            Assert.That(CoverMajority.Evaluate(attacker, defender, _coverTerrain, false, aboveId).HasCover, Is.False,
+                "from the leader's clear position there is no cover.");
+            Assert.That(CoverMajority.Evaluate(attacker, defender, _coverTerrain, false, behindId).HasCover, Is.True);
         }
 
         [Test]
