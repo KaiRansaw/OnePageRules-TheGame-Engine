@@ -1,3 +1,4 @@
+using System.Linq;
 using FDG.Data;
 using FDG.Stages;
 using NUnit.Framework;
@@ -367,6 +368,41 @@ namespace FDG.Tests
 
             float pairGap = DistanceUtilities.GetBaseToBaseDistanceInches_2D(d1Final, d2Final, 0.5f, 0.5f);
             Assert.That(pairGap, Is.GreaterThanOrEqualTo(-0.005f), "defenders must not overlap each other.");
+        }
+
+        // ── #458 Fast-Play: Leader-Based Melee places models "in any way you like" - no 3" cap ──────────
+
+        [Test]
+        public void FastPlay_NoDistanceCap_AFarModelStillReachesContact()
+        {
+            // b2b = 9": an ordinary pile-in moves 3" and stops short; Fast-Play brings it all the way in.
+            var charger = MakeModel(new Position(0f, 0f), radius: 0.5f);
+            var ordinary = PileInUtilities.ComputePileInMoves(new[] { charger },
+                new[] { MakeModel(new Position(10f, 0f), radius: 0.5f) }, terrain: null);
+            Assert.That(ordinary, Has.Count.EqualTo(1));
+            Assert.That(ordinary[0].NewPosition.x, Is.EqualTo(7f).Within(0.01f), "the ordinary 3\" step");
+
+            var fast = PileInUtilities.ComputePileInMoves(new[] { charger },
+                new[] { MakeModel(new Position(10f, 0f), radius: 0.5f) }, terrain: null,
+                maxDistanceInches: FastPlay.UnmeasuredMoveInches);
+            Assert.That(fast, Has.Count.EqualTo(1));
+            float b2b = DistanceUtilities.GetBaseToBaseDistanceInches_2D(fast[0].NewPosition,
+                charger.GetValue().Position, 0.5f, 0.5f);
+            Assert.That(b2b, Is.LessThanOrEqualTo(0.01f), "placed in base contact");
+        }
+
+        [Test]
+        public void FastPlay_TheLeaderIsHeldWhereItStands()
+        {
+            // The charging leader made its measured move already; only its unit-mates are placed.
+            var enemy = MakeModel(new Position(0f, 0f), radius: 0.5f);
+            var leader = MakeModel(new Position(1.5f, 0f), radius: 0.5f);   // not quite in contact
+            var mate = MakeModel(new Position(2.5f, 0f), radius: 0.5f);
+
+            var moves = PileInUtilities.ComputePileInMoves(new[] { enemy }, new[] { leader, mate }, terrain: null,
+                maxDistanceInches: FastPlay.UnmeasuredMoveInches, holdStill: leader.GetValue().ID);
+
+            Assert.That(moves.Select(m => m.Model), Does.Not.Contain(leader));
         }
 
         private DataBinding<ModelData> MakeModel(IBaseShape shape, Position initialPosition)

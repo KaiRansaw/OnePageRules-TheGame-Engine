@@ -62,7 +62,7 @@ namespace FDG.Tests
                 _inner.SendPlayerMessage(sendingPlayerName, messageType, message);
         }
 
-        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting)
+        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting, bool fastPlayMelee = false)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var bus = new InProcessBus();
@@ -84,6 +84,7 @@ namespace FDG.Tests
             settings.DiceSeed = seed;
             settings.GameSystem = system;
             settings.FastPlayShooting = fastPlayShooting;
+            settings.FastPlayMelee = fastPlayMelee;
 
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
@@ -106,6 +107,32 @@ namespace FDG.Tests
             Assert.That(LeadersWereSet(log), Is.True,
                 $"{system}: the leader stage never ran. Check that DeploymentStage binds "
                 + "PickCommandGroupUnits -> PickUnitLeaders -> DeployAllUnits.");
+        }
+
+        /// <summary>
+        /// #458: with Leader-Based Melee on, a played game still finishes, and every melee that happens has
+        /// the WHOLE unit striking ("all models always count as being in range of the enemy").
+        /// </summary>
+        [TestCase(4560)]
+        [TestCase(4581)]
+        public async Task WithFastPlayMelee_EveryMeleeHasTheWholeUnitInRange(int seed)
+        {
+            List<string> log = await PlayAGame(seed, EGameSystem.GrimdarkFuture, fastPlayShooting: false,
+                fastPlayMelee: true);
+            Assert.That(LeadersWereSet(log), Is.True);
+
+            var rx = new System.Text.RegularExpressions.Regex(
+                @"Determine In Range (Attackers|Defenders): (\d+) of (\d+) living models in melee range");
+            int melees = 0;
+            foreach (string line in log)
+            {
+                var m = rx.Match(line);
+                if (!m.Success || m.Groups[2].Value == "0") continue;
+                melees++;
+                Assert.That(m.Groups[2].Value, Is.EqualTo(m.Groups[3].Value),
+                    $"Fast-Play melee: everyone in range, but the log says \"{line}\"");
+            }
+            Assert.That(melees, Is.GreaterThan(0), "this seed must actually produce a melee, or the test proves nothing");
         }
 
         [Test]

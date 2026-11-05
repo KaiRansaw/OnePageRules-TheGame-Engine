@@ -71,8 +71,13 @@ namespace FDG.Stages
             IReadOnlyList<DataBinding<ModelData>> chargingModels,
             IReadOnlyList<DataBinding<ModelData>> defendingModels,
             IEnumerable<ITerrain>? terrain,
-            IReadOnlyList<EnemyModelFootprint>? otherEnemyModels = null)
+            IReadOnlyList<EnemyModelFootprint>? otherEnemyModels = null,
+            float maxDistanceInches = MAX_PILE_IN_DISTANCE_INCHES,
+            ModelID? holdStill = null)
         {
+            // #458 Fast-Play: Leader-Based Melee moves models "in any way you like" - no 3" cap - and the
+            // charging unit's leader has already made its measured move, so it is held where it stands while
+            // the rest of its unit is placed around the enemy. Both default to the ordinary pile-in.
             // Enemy models the defender must not overlap while piling in, OTHER than the charging unit it is
             // moving toward (third-party enemy units, or a unit it is already engaged with). Without these a
             // defender piling toward its charger could plow straight through a different enemy's base (#159).
@@ -107,6 +112,7 @@ namespace FDG.Stages
                     out DataBinding<ModelData>? nearest);
                 if (nearest == null) continue;
                 if (b2b <= BTB_EPSILON_INCHES) continue;
+                if (holdStill is { } still && d.GetValue().ID.Equals(still)) continue;
                 candidates.Add((d, nearest, b2b));
             }
             candidates.Sort((a, b) => a.B2B.CompareTo(b.B2B));
@@ -117,7 +123,8 @@ namespace FDG.Stages
             // Slots depend on the defender's base shape + facing (a 4"-wide rectangle sits at a different
             // spot than a 25mm circle), so slot rings are computed once per distinct (shape, facing) group.
             List<DataBinding<ModelData>> slotAssigned = AssignDefendersToContactSlots(
-                candidates, liveChargers, liveDefenders, workingDefenderPositions, impassable, otherEnemies);
+                candidates, liveChargers, liveDefenders, workingDefenderPositions, impassable, otherEnemies,
+                maxDistanceInches);
             foreach (DataBinding<ModelData> d in slotAssigned) movedDefenders.Add(d);
 
             // --- Phase 2: fallback for defenders no slot could take — the pre-#330 straight-line step
@@ -139,7 +146,7 @@ namespace FDG.Stages
                 float dirZ = dz / centerDist;
 
                 // Cap: 3", or distance to BTB with target charger, whichever is smaller.
-                float step = MathF.Min(MAX_PILE_IN_DISTANCE_INCHES, currentB2B);
+                float step = MathF.Min(maxDistanceInches, currentB2B);
 
                 // Don't overlap other models. Target charger is exempt — we're moving toward it (we cap the
                 // step at contact with it via currentB2B). Every OTHER model — other chargers, unit-mates, and
@@ -234,7 +241,8 @@ namespace FDG.Stages
             List<DataBinding<ModelData>> liveDefenders,
             Dictionary<DataBinding<ModelData>, Position> workingDefenderPositions,
             List<ITerrain> impassable,
-            IReadOnlyList<EnemyModelFootprint> otherEnemies)
+            IReadOnlyList<EnemyModelFootprint> otherEnemies,
+            float maxDistanceInches)
         {
             var assigned = new List<DataBinding<ModelData>>();
             if (candidates.Count == 0) return assigned;
@@ -287,7 +295,7 @@ namespace FDG.Stages
                         float dx = slot.Pos.x - from.x;
                         float dz = slot.Pos.z - from.z;
                         float moveDist = MathF.Sqrt(dx * dx + dz * dz);
-                        if (moveDist > MAX_PILE_IN_DISTANCE_INCHES) continue;
+                        if (moveDist > maxDistanceInches) continue;
                         if (moveDist < MIN_MEANINGFUL_STEP_INCHES) continue; // standing in a slot means BTB already; not a candidate then.
 
                         if (!IsSlotEndStateFree(slot.Pos, dm, defender, liveChargers, liveDefenders,

@@ -89,6 +89,10 @@ namespace FDG.Stages
             return inRange;
         }
 
+        /// <summary>#458 Fast-Play: every living model of the unit, the whole unit counting as in range.</summary>
+        public static List<DataBinding<ModelData>> AllLiving(IReadOnlyList<DataBinding<ModelData>> models) =>
+            models.Where(b => ((IModel)b.GetValue()).GetIsAlive()).ToList();
+
         /// <summary>Flattens the live melee weapons carried by <paramref name="models"/> into one list,
         /// for building the in-range attack pool.</summary>
         public static List<Weapon> GetMeleeWeaponsFromModels(IReadOnlyList<DataBinding<ModelData>> models)

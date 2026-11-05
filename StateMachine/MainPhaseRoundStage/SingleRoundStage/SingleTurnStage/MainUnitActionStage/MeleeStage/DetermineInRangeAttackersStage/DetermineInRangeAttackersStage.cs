@@ -1,4 +1,4 @@
-﻿using FDG.Data;
+using FDG.Data;
 
 namespace FDG.Stages
 {
@@ -31,9 +31,14 @@ namespace FDG.Stages
             IReadOnlyList<DataBinding<ModelData>> defenderModels = context.DefendingUnit.GetValue().ModelBindings;
 
             List<DataBinding<ModelData>> inRange = MeleeRangeUtilities.GetModelsInMeleeRange(attackerModels, defenderModels);
+            // #458 Fast-Play: "When fighting in melee, all models always count as being in range of the enemy,
+            // regardless of their position, so everyone can always strike with all weapons." Only once the
+            // two units ARE in melee - a charge where nobody reached contact is still no melee.
+            if (inRange.Count > 0 && FastPlay.Melee(GameContext.Settings))
+                inRange = MeleeRangeUtilities.AllLiving(attackerModels);
             context.SetInRangeAttackers(inRange);
 
-            GameContext.Log($"Determine In Range Attackers: {inRange.Count} of {attackerModels.Count} models in melee range.");
+            GameContext.Log($"Determine In Range Attackers: {inRange.Count} of {MeleeRangeUtilities.AllLiving(attackerModels).Count} living models in melee range.");
 
             // No attacker can actually strike when the swing pool is empty — either no model is in melee
             // range, OR the in-range models carry no melee weapon (e.g. the melee-armed models died and only

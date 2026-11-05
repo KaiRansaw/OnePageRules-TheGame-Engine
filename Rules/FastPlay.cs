@@ -41,6 +41,12 @@ namespace FDG
         public static bool Melee(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlayMelee;
         public static bool Shooting(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlayShooting;
 
+        /// <summary>
+        /// How far a model the Fast-Play rules say is placed "in any way you like" - not measured - may be put.
+        /// Not infinite only so the placement search keeps finite numbers; no table is this long.
+        /// </summary>
+        public const float UnmeasuredMoveInches = 1000f;
+
         /// <summary>"All of them use Unit Leaders" - true when any Fast-Play rule is in play.</summary>
         public static bool UsesLeaders(GameSettings s) => Movement(s) || Melee(s) || Shooting(s);
 

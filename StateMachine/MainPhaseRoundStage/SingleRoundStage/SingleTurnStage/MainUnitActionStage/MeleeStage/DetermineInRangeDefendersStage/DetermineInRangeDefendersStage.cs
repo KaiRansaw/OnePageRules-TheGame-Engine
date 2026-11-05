@@ -1,4 +1,4 @@
-﻿using FDG.Data;
+using FDG.Data;
 
 namespace FDG.Stages
 {
@@ -31,9 +31,14 @@ namespace FDG.Stages
             IReadOnlyList<DataBinding<ModelData>> attackerModels = context.AttackingUnit.GetValue().ModelBindings;
 
             List<DataBinding<ModelData>> inRange = MeleeRangeUtilities.GetModelsInMeleeRange(defenderModels, attackerModels);
+            // #458 Fast-Play: "When fighting in melee, all models always count as being in range of the enemy,
+            // regardless of their position, so everyone can always strike with all weapons." Only once the
+            // two units ARE in melee - a charge where nobody reached contact is still no melee.
+            if (inRange.Count > 0 && FastPlay.Melee(GameContext.Settings))
+                inRange = MeleeRangeUtilities.AllLiving(defenderModels);
             context.SetInRangeDefenders(inRange);
 
-            GameContext.Log($"Determine In Range Defenders: {inRange.Count} of {defenderModels.Count} models in melee range.");
+            GameContext.Log($"Determine In Range Defenders: {inRange.Count} of {MeleeRangeUtilities.AllLiving(defenderModels).Count} living models in melee range.");
 
             // #355: nothing to swing - skip the weapon offer (and the extra-attack window before it, which
             // is an extra ATTACK for a unit making none) and let the defender strike back.
