@@ -61,7 +61,9 @@ namespace FDG.Stages
                     armorPenetration: metaData.WeaponType.ArmorPenetration,
                     weaponEffect: metaData.WeaponType.EffectKey,
                     hitCount: successfulResults.TotalRolls,
-                    attackCount: attacks));
+                    attackCount: attacks,
+                    attackerUnit: metaData.AttackingUnit.GetValue()?.ID,
+                    targetUnit: metaData.DefendingUnit.GetValue()?.ID));
             }
 
             GameContext.Log($"Rolled {successfulResults.TotalRolls} successful hits out of {attacks} total attacks.");

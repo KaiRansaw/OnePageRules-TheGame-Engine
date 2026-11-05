@@ -294,6 +294,26 @@ namespace FDG.Tests
             Assert.That(atk.WeaponEffect, Is.EqualTo("plasma-bolt"));
             Assert.That(atk.HitCount, Is.EqualTo(1.5f).Within(0.0001f));
             Assert.That(atk.AttackCount, Is.EqualTo(4f).Within(0.0001f));
+            Assert.That(atk.AttackerUnit, Is.Null, "a beat built without units round-trips as null");
+        }
+
+        /// <summary>
+        /// Kai, 2026-11-05: hovering a battle-report card highlights the two units. A networked client
+        /// gets the beat over the wire, so the units have to survive the trip or only the host's hover works.
+        /// </summary>
+        [Test]
+        public void AttackBeat_CarriesTheAttackerAndTargetUnits_OverTheWire()
+        {
+            var attacker = new UnitID(Guid.NewGuid());
+            var target = new UnitID(Guid.NewGuid());
+            var original = new AttackBeat(isMelee: true,
+                from: new List<Position> { new Position(1f, 1f) },
+                to: new List<Position> { new Position(2f, 1f) },
+                volleyCount: 1, armorPenetration: 0, attackerUnit: attacker, targetUnit: target);
+
+            var result = (AttackBeat)RoundTrip(original);
+            Assert.That(result.AttackerUnit, Is.EqualTo(attacker));
+            Assert.That(result.TargetUnit, Is.EqualTo(target));
         }
 
         [Test]

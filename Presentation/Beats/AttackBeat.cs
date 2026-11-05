@@ -39,10 +39,26 @@ namespace FDG.Presentation.Beats
         /// <inheritdoc cref="HitCount"/>
         public float AttackCount { get; }
 
+        /// <summary>
+        /// The attacking and attacked units (Kai, 2026-11-05: hovering a battle-report card should draw a
+        /// line between the units involved and highlight them). Carried by id rather than worked out from
+        /// <see cref="From"/>/<see cref="To"/>, because "the unit with a model nearest this point" is wrong
+        /// exactly where it matters - two units locked in melee, or a target standing beside a friend.
+        /// Null on a beat from an older save or host that predates the field: the front end falls back to
+        /// the positional guess.
+        /// </summary>
+        public UnitID? AttackerUnit { get; }
+
+        /// <inheritdoc cref="AttackerUnit"/>
+        public UnitID? TargetUnit { get; }
+
         public AttackBeat(bool isMelee, IReadOnlyList<Position> from, IReadOnlyList<Position> to,
             int volleyCount, int armorPenetration,
-            string? weaponEffect = null, float hitCount = 0f, float attackCount = 0f)
+            string? weaponEffect = null, float hitCount = 0f, float attackCount = 0f,
+            UnitID? attackerUnit = null, UnitID? targetUnit = null)
         {
+            AttackerUnit = attackerUnit;
+            TargetUnit = targetUnit;
             IsMelee = isMelee;
             From = from;
             To = to;
