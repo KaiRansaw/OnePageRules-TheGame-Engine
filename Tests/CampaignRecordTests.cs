@@ -45,8 +45,10 @@ namespace FDG.Tests
                 if (CampaignRules.Sheet(unit) is { } sheet)
                     results.Add(new CampaignUnitResult { Id = sheet.Id, Casualty = false });
 
-            List<string> log = CampaignRules.AfterGame(army, results, won, Gf, () => 4);
-            army.StrikeTeam!.History.AddRange(log);
+            // AfterGame writes the history line itself. #449: this helper used to ALSO add the raw log
+            // lines to the history, which the real game never does - and that is exactly why the
+            // backfill test passed while the backfill matched nothing in any real campaign file.
+            CampaignRules.AfterGame(army, results, won, Gf, () => 4);
         }
 
         [Test]
@@ -115,8 +117,52 @@ namespace FDG.Tests
             info.Wins = 0;
 
             Assert.That(CampaignRules.RecordOf(info), Is.EqualTo((2, 1)),
-                "the backfill must recover what AfterGame wrote. If this fails, the winning history "
-                + "line was reworded without updating CampaignRules.WonPrefix.");
+                "the backfill must recover what AfterGame wrote. If this fails, HistoryLine and "
+                + "IsWonHistoryLine have stopped agreeing.");
+        }
+
+        /// <summary>
+        /// #449 - a campaign file exactly as one sits on disk from before #446: no Wins field, and the
+        /// history in the format AfterGame has written since the first campaign code. Hand-written on
+        /// purpose, so this does not depend on today's writer at all.
+        /// </summary>
+        private static StrikeTeamInfo SavedBeforeWinsExisted() => new()
+        {
+            Name = "Iron Reavers",
+            Matches = 4,
+            Wins = 0,
+            History =
+            {
+                "Match 1: won - Warriors gains 1 XP. Won the mission on Normal: +2 VP, +150 pts.",
+                "Match 2: lost - Lost the mission: +300 pts.",
+                "Iron Reavers did not complete its special objective (Hexer): 1 spell cast.",
+                "Match 3: won - Won the mission: +2 VP, +150 pts.",
+                "Match 4: won - Won the mission on Hard: +3 VP, +225 pts.",
+            },
+        };
+
+        [Test]
+        public void ARealPreRecordCampaignFileRecoversItsWins()
+        {
+            Assert.That(CampaignRules.RecordOf(SavedBeforeWinsExisted()), Is.EqualTo((3, 1)),
+                "three 'Match N: won' lines; the special-objective line is not a match result.");
+        }
+
+        /// <summary>
+        /// #449 - the second half of the same bug. The first mission played under the new build made
+        /// Wins non-zero, the backfill stopped running, and the three earlier wins vanished.
+        /// </summary>
+        [Test]
+        public void AnOldCampaignKeepsItsWinsAfterItsNextMission()
+        {
+            var army = new ArmyListFile { Name = "Iron Reavers", StrikeTeam = SavedBeforeWinsExisted() };
+            army.Units.Add(new UnitFileEntry { Name = "Warriors", ModelCount = 5, PointCost = 100 });
+            CampaignRules.Save(army.Units[0], new StrikeUnit { TeamFile = "x.fdgarmy" });
+
+            PlayMission(army, won: true);
+
+            Assert.That(army.StrikeTeam!.Wins, Is.EqualTo(4), "the three recovered wins plus this one.");
+            Assert.That(CampaignRules.RecordOf(army.StrikeTeam), Is.EqualTo((4, 1)));
         }
 
         /// <summary>

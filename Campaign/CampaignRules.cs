@@ -108,12 +108,28 @@ namespace FDG.Campaign
         // -- The win/loss record --------------------------------------------------------------------
 
         /// <summary>
-        /// #446 - how a won mission opens its history line. Shared by <see cref="AfterGame"/>, which
-        /// writes it, and <see cref="RecordOf"/>, which reads it back off campaigns saved before
-        /// <see cref="StrikeTeamInfo.Wins"/> existed. A constant rather than the same literal twice,
-        /// because the two drifting apart would make the backfill silently return zero wins.
+        /// The one line <see cref="AfterGame"/> adds to <see cref="StrikeTeamInfo.History"/> per mission:
+        /// "Match 3: won - " followed by that mission's log. The format has not changed since the first
+        /// campaign code (2026-10-24), which is what makes <see cref="IsWonHistoryLine"/> safe to run on
+        /// every campaign file that exists.
         /// </summary>
-        internal const string WonPrefix = "Won the mission on ";
+        internal static string HistoryLine(int match, bool won, IEnumerable<string> log) =>
+            $"Match {match}: {(won ? "won" : "lost")} - " + string.Join(" ", log);
+
+        private static readonly System.Text.RegularExpressions.Regex WonHistoryLine =
+            new(@"^Match \d+: won - ", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// Whether a history line is <see cref="AfterGame"/>'s record of a WON mission. Paired with
+        /// <see cref="HistoryLine"/>, which writes it, so the reader and the writer live side by side.
+        /// <para>
+        /// #449 - this replaces #446's first version, which looked for lines starting "Won the mission
+        /// on". That is the start of a LOG line, and log lines are folded into the history after
+        /// "Match N: won - ", so it never matched a real file and every pre-#446 campaign recovered zero
+        /// wins. Its test passed because the test added the log lines to the history itself.
+        /// </para>
+        /// </summary>
+        internal static bool IsWonHistoryLine(string line) => WonHistoryLine.IsMatch(line);
 
         /// <summary>
         /// #446 - this army's win/loss record (campaign-flow-spec section 2).
@@ -129,17 +145,24 @@ namespace FDG.Campaign
         /// <para>
         /// Safe to run whenever <c>Wins</c> is zero, including for an army that genuinely has lost every
         /// mission - there are then no winning lines to find and the answer is zero either way.
-        /// <c>WonPrefix</c> is shared with the writer and
+        /// The history line is written by <see cref="HistoryLine"/> and recognised by
+        /// <see cref="IsWonHistoryLine"/>, side by side, and
         /// <c>CampaignRecordTests.AWinWrittenByAfterGameIsFoundByTheBackfill</c> drives a real
-        /// <c>AfterGame</c> and asserts the backfill recovers it, so a reworded log line fails a test
-        /// rather than quietly zeroing the record.
+        /// <c>AfterGame</c> - without touching the history itself - and asserts the backfill recovers it.
+        /// </para>
+        ///
+        /// <para>
+        /// #449 - <see cref="AfterGame"/> stamps this recovered count into <c>Wins</c> before it counts
+        /// the new mission. Without that, the first mission played under this build set <c>Wins</c> to
+        /// 1, the backfill stopped running (it only runs at zero), and a campaign that had won three
+        /// missions read as one win from then on.
         /// </para>
         /// </summary>
         public static (int Wins, int Losses) RecordOf(StrikeTeamInfo info)
         {
             int wins = info.Wins;
             if (wins == 0 && info.Matches > 0)
-                wins = info.History.Count(line => line.StartsWith(WonPrefix, StringComparison.Ordinal));
+                wins = info.History.Count(IsWonHistoryLine);
 
             wins = Math.Clamp(wins, 0, Math.Max(0, info.Matches));
             return (wins, Math.Max(0, info.Matches - wins));
@@ -215,6 +238,10 @@ namespace FDG.Campaign
             }
 
             StrikeTeamInfo info = army.StrikeTeam ??= new StrikeTeamInfo { Name = army.Name };
+            // #449 - a campaign saved before Wins existed carries its wins only in its history. Fold them
+            // into the counter now, while the backfill can still see them, because once this mission
+            // makes Wins non-zero RecordOf stops looking at the history at all.
+            info.Wins = RecordOf(info).Wins;
             info.Matches++;
             if (won)
             {
@@ -227,7 +254,7 @@ namespace FDG.Campaign
                 info.Vp += vp;
                 info.BankedPoints += points;
                 info.Wins++;   // #446 - the win half of the record; losses are Matches minus this.
-                log.Add($"{WonPrefix}{MissionDifficulty.Name(info.Difficulty)}: "
+                log.Add($"Won the mission on {MissionDifficulty.Name(info.Difficulty)}: "
                         + $"+{vp} VP, +{points} pts.");
             }
             else
@@ -250,7 +277,7 @@ namespace FDG.Campaign
                 log.Add($"Random events during the mission: +{eventVp} VP.");
             }
 
-            info.History.Add($"Match {info.Matches}: {(won ? "won" : "lost")} - " + string.Join(" ", log));
+            info.History.Add(HistoryLine(info.Matches, won, log));
             return log;
         }
 
