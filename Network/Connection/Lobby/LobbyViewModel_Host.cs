@@ -682,6 +682,17 @@ namespace FDG.Network.Connection.Lobby
         {
             Debug.WriteLine("TryLaunchGame.");
 
+            // One lobby, one game. A second LAUNCH click while the first game was still being built (the
+            // lobby stays on screen for a moment after the click, longer in a Debug build or with a big army)
+            // started a SECOND game on the same message bus: every bot request was answered twice, and the
+            // stray replies broke into the debugger as "trying to resolve task with ID that was not pending"
+            // (Kai, 2026-11-05 - it looked like Leader-Based Melee, which only made the window longer).
+            if (_isLaunched)
+            {
+                failReason = "The game has already been launched.";
+                return false;
+            }
+
             failReason = ValidateLaunchSettings();
             if (failReason != null)
                 return false;
@@ -758,6 +769,12 @@ namespace FDG.Network.Connection.Lobby
             if (!_isResume)
             {
                 failReason = "This lobby was not created from a saved game.";
+                return false;
+            }
+
+            if (_isLaunched)
+            {
+                failReason = "The game has already been launched.";
                 return false;
             }
 

@@ -80,6 +80,34 @@ namespace FDG.Tests
             Assert.That(host.BlockingLaunchProblems(), Is.Empty);
         }
 
+        /// <summary>
+        /// Kai, 2026-11-05: the game froze on "Received message trying to resolve task with ID that was not
+        /// pending". A second LAUNCH click started a second game on the same bus and every bot request was
+        /// answered twice. One lobby launches one game.
+        /// </summary>
+        [Test]
+        public async Task LaunchingTwice_IsRefused_AndOnlyOneGameStarts()
+        {
+            LobbyViewModel_Host host = NewHost();
+            host.AddAiPlayer(EAiProfile.SoloCoOp);
+            PlayerID seat1 = OwnSeat(host), seat2 = host.PlayerInfos[1].PlayerID;
+            host.UpdateArmyListFile(seat1, MakeArmy("First Guard"));
+            host.UpdateArmyListFile(seat2, MakeArmy("Second Guard"));
+            host.SetPlayerTeam(seat2, ETeamOption.Team2);
+            host.SetPlayerType(seat1, EPlayerType.AI, EAiProfile.SoloCoOp);
+
+            int launched = 0;
+            host.OnLaunched += _ => System.Threading.Interlocked.Increment(ref launched);
+
+            Assert.That(host.TryLaunchGame(out string? first), Is.True, first);
+            Assert.That(host.TryLaunchGame(out string? second), Is.False, "a second click must not start a second game");
+            Assert.That(second, Is.Not.Null.And.Not.Empty);
+
+            await WaitFor(() => launched > 0, "the first launch never reached the front end");
+            await Task.Delay(500);
+            Assert.That(launched, Is.EqualTo(1));
+        }
+
         [Test]
         public void TheHostsOwnSeatCanBeHandedToABot()
         {
