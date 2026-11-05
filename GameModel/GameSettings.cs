@@ -413,6 +413,23 @@ namespace FDG
         /// <summary>True for the Star Quest / Quest games: the local side plays a party of heroes.</summary>
         public static bool IsQuest(EGameSystem system) => system is EGameSystem.GFStarQuest or EGameSystem.AoFQuest;
 
+        /// <summary>
+        /// What a Quest system calls itself in game text: "Star Quest" (GF) or "Quest" (AoF: Quest). The Quest
+        /// modes were built for Star Quest first and their labels said "Star Quest" in AoF: Quest too (Kai,
+        /// 2026-11-05 screenshot: "AoF: Quest - Star Quest Horde").
+        /// </summary>
+        public static string QuestName(EGameSystem system) => system == EGameSystem.AoFQuest ? "Quest" : "Star Quest";
+
+        /// <summary>A game mode's name as the lobby and saves show it, worded for the system it is played in.</summary>
+        public static string ModeLabel(EGameMode mode, EGameSystem system) => mode switch
+        {
+            EGameMode.Standard => "Standard",
+            EGameMode.Horde => "Horde",
+            EGameMode.StarQuestHorde => $"{QuestName(system)} Horde",
+            EGameMode.StarQuestMission => $"{QuestName(system)} Mission",
+            _ => mode.ToString(),
+        };
+
         /// <summary>True for the skirmish games (GF: Firefight / AoF: Skirmish): 4' x 4' table, 6" coherency,
         /// army morale at the end of each round instead of morale from wounds and melee.</summary>
         public static bool IsSkirmish(EGameSystem system) => system is EGameSystem.GFFirefight or EGameSystem.AoFSkirmish;

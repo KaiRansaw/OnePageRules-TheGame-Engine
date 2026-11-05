@@ -18,6 +18,15 @@ namespace FDG.Quest
         /// <summary>AoF: Quest's party faction name (#418).</summary>
         public const string AoFPartyFaction = "AoF Quest Party";
 
+        /// <summary>
+        /// Whether an army is a hero party, of EITHER Quest system. Anything that asks "is this the party?"
+        /// must use this rather than comparing to <see cref="PartyFaction"/>: the lobby's launch gate did,
+        /// so an AoF: Quest party (faction "AoF Quest Party") never counted and AoF: Quest could not be
+        /// launched at all (Kai, 2026-11-05).
+        /// </summary>
+        public static bool IsPartyFaction(string? faction) =>
+            faction == PartyFaction || faction == AoFPartyFaction;
+
         /// <summary>The party faction name for a Quest system.</summary>
         public static string PartyFactionFor(EGameSystem system) =>
             system == EGameSystem.AoFQuest ? AoFPartyFaction : PartyFaction;

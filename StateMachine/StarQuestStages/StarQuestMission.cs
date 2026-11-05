@@ -98,7 +98,7 @@ namespace FDG.StateMachine
 
         public override async Task Enter(IGameContext context)
         {
-            await context.Announce("Star Quest Mission - Map Setup", tier: EBannerTier.Headline);
+            await context.Announce($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Mission - Map Setup", tier: EBannerTier.Headline);
             await base.Enter(context);
         }
 
@@ -171,7 +171,7 @@ namespace FDG.StateMachine
             GameProgressUtilities.SetQuestProgress(GameContext.GameDataStore, quest);
             await context.Announce($"{StarQuestMissionRules.DifficultyNames[difficulty]} mission - primary objective: {StarQuestMissionRules.PrimaryNames[quest.Primary]}",
                 new TextColor(255, 215, 0, 255), EBannerTier.Headline);
-            GameContext.Log($"Star Quest Mission: difficulty {difficulty}, primary {quest.Primary} ({StarQuestMissionRules.PrimaryNames[quest.Primary]}).");
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Mission: difficulty {difficulty}, primary {quest.Primary} ({StarQuestMissionRules.PrimaryNames[quest.Primary]}).");
             QuestMission.SetUpObjective(GameContext, quest.Primary, secondary: false, heroCorner: 0);
 
             // Search tokens: D3 + one per hero, half at quarter centres, half near corners.
@@ -190,7 +190,7 @@ namespace FDG.StateMachine
             // Sentries at the centre of random table quarters.
             int budget = StarQuestMissionRules.WaveBudget(difficulty, heroes.Sum(h => h.PointCost));
             List<UnitData> sentries = QuestMission.PickWave(GameContext, budget, salt: 0);
-            GameContext.Log($"Star Quest Mission: sentries ({sentries.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", sentries.Select(u => u.Name))}.");
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Mission: sentries ({sentries.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", sentries.Select(u => u.Name))}.");
             foreach (UnitData unit in sentries)
             {
                 if (QuestChallenges.HoldForAmbush(GameContext, unit)) continue;
@@ -207,7 +207,7 @@ namespace FDG.StateMachine
             int heroRoll = HordePlacement.RollD6(GameContext);
             int corner = heroRoll <= 4 || heroes.Count == 0 ? Math.Clamp(heroRoll, 1, 4)
                 : await QuestMission.AskArea(GameContext, heroes, $"Your heroes rolled a {heroRoll} - choose the corner they deploy in.", corner: true);
-            GameContext.Log($"Star Quest Mission: the heroes deploy in corner {corner} (rolled {heroRoll}).");
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Mission: the heroes deploy in corner {corner} (rolled {heroRoll}).");
             Position hc = StarQuestMissionRules.Corner(corner);
             string taskName = TacticianPlaceObjectsResolver<ModelData>.DeploymentTaskName;
             await HordePlacement.PlacePartyNear(GameContext, heroes,
@@ -363,7 +363,7 @@ namespace FDG.StateMachine
                     QuestMission.RecordCarryOver(hero, "failed");
                 }
             }
-            GameContext.Log("Star Quest Mission: " + message);
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Mission: " + message);
 
             var players = table.Players.Objects.Where(p => p.IsFilled).OrderBy(p => p.SlotID).ToList();
             int rounds = Math.Max(0, table.Progress.RoundCount ?? 0);

@@ -130,6 +130,25 @@ namespace FDG.Rules.Dispatch
         }
 
         /// <summary>
+        /// OPR's wording for <paramref name="ruleName"/> in <paramref name="systemSlug"/> ONLY - no fallback to
+        /// the parent system. For the Quest games, whose hero sheets must show the Quest book's wording and
+        /// never Grimdark Future's or Age of Fantasy's (Kai, 2026-11-05: "make sure the tooltips are showing
+        /// the correct AoFQ/GFSQ info, and not showing the other gamemodes info"). Every rule a shipped Quest
+        /// hero carries has its own entry, so for them the strict answer is also the complete one.
+        /// A trailing argument ("Tough(3)") is ignored for the lookup.
+        /// </summary>
+        public static string? OwnText(string? ruleName, string? systemSlug)
+        {
+            if (string.IsNullOrWhiteSpace(ruleName)) return null;
+            EnsureLoaded();
+            string name = ruleName.Trim();
+            int paren = name.IndexOf('(');
+            if (paren > 0) name = name[..paren].TrimEnd();
+            return _bySystem!.TryGetValue(GameSystems.Normalize(systemSlug), out Dictionary<string, string>? forSystem)
+                   && forSystem.TryGetValue(name, out string? text) ? text : null;
+        }
+
+        /// <summary>
         /// The text to show a player for a rule: OPR's wording where it exists, the authored
         /// description otherwise. <b>Every display site should call this rather than reading
         /// <see cref="SpecialRuleDefinition.Description"/> directly</b>, so there is one answer to

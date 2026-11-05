@@ -26,6 +26,25 @@ namespace FDG.Stages
         public const string Impaired = "Impaired";
         public const string ItemPrefix = "Item: ";
 
+        /// <summary>
+        /// What a status condition does, in the book's words for the system being played - for the hover on
+        /// a hero's conditions (Kai, 2026-11-05). GF: Star Quest Core Rules v2.1.0 "Status Conditions" and
+        /// AoF: Quest Beginners Guide v2.1.0 p15 "Status Conditions"; the two differ only in Star Quest's
+        /// "to remove status" against AoF: Quest's "to remove". Null for anything that is not a condition.
+        /// </summary>
+        public static string? ConditionText(string condition, EGameSystem system)
+        {
+            string remove = system == EGameSystem.AoFQuest ? "to remove" : "to remove status";
+            return condition switch
+            {
+                Afflicted => $"When activated, must pass a Str test {remove}. If failed, the model takes 1 wound.",
+                Crippled => $"When activated, must pass a Dex test {remove}. Crippled models halve their movement distance.",
+                Diseased => $"When activated, must pass a Wil test {remove}. Diseased models take as many wounds as Power they spend/lose.",
+                Impaired => $"When activated, may spend D3 Power {remove}. Impaired models get -1 to all stat rolls.",
+                _ => null,
+            };
+        }
+
         private static readonly TextColor Gold = new(255, 215, 0, 255);
         private static readonly TextColor Purple = new(200, 150, 255, 255);
         private static readonly TextColor Red = new(255, 120, 90, 255);

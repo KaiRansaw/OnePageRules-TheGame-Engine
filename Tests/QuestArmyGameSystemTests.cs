@@ -127,5 +127,13 @@ namespace FDG.Tests
             Assert.That(picked, Is.Not.Null, "a hero saved under the old faction name must still resolve");
             Assert.That(picked!.GameSystem, Is.EqualTo(GameSystems.GFStarQuest));
         }
+
+        [Test]
+        public void BothQuestSystemsParties_AreRecognisedAsParties()
+        {
+            Assert.That(QuestArmy.IsPartyFaction(QuestArmy.PartyFactionFor(EGameSystem.GFStarQuest)), Is.True);
+            Assert.That(QuestArmy.IsPartyFaction(QuestArmy.PartyFactionFor(EGameSystem.AoFQuest)), Is.True);
+            Assert.That(QuestArmy.IsPartyFaction("Orcs"), Is.False);
+        }
     }
 }

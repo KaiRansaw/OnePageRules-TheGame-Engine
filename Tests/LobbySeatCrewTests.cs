@@ -51,6 +51,35 @@ namespace FDG.Tests
             public void Stop() { }
         }
 
+        /// <summary>
+        /// Kai, 2026-11-05: AoF: Quest could not be launched at all - "Can't launch yet: Pick a party of 2-4
+        /// heroes for your row" with a two-hero party loaded. The gate looked for Star Quest's party faction
+        /// only. Asserted through the real gate with a real party, for both Quest systems.
+        /// </summary>
+        [TestCase(EGameSystem.GFStarQuest)]
+        [TestCase(EGameSystem.AoFQuest)]
+        public void AQuestLobby_WithAPartyAndAnEnemyArmy_CanLaunch(EGameSystem system)
+        {
+            LobbyViewModel_Host host = NewHost();
+            host.SetGameSystem(system);
+            host.SetGameMode(EGameMode.StarQuestHorde);
+            host.AddAiPlayer(EAiProfile.StarQuest);
+            PlayerID seat1 = OwnSeat(host), seat2 = host.PlayerInfos[1].PlayerID;
+
+            static Quest.QuestHero Hero(string name) => new Quest.QuestHero
+            {
+                Name = name, Faction = "Test", BaseHeroName = "Leader", BaseCost = 60, Class = "Soldier",
+                Quality = 4, Defense = 4, Tough = 6, Power = 4, Strength = 4,
+            };
+            host.UpdateArmyListFile(seat1, Quest.QuestArmy.Build(new[] { Hero("Ozlozk"), Hero("Ygloth") }, _ => null, system));
+            SaveLoad.ArmyListFile enemies = MakeArmy("Orcs");
+            enemies.GameSystem = GameSystemInfo.Slug(system);
+            host.UpdateArmyListFile(seat2, enemies);
+            host.SetPlayerTeam(seat2, ETeamOption.Team2);
+
+            Assert.That(host.BlockingLaunchProblems(), Is.Empty);
+        }
+
         [Test]
         public void TheHostsOwnSeatCanBeHandedToABot()
         {

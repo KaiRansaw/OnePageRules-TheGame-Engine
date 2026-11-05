@@ -1,4 +1,4 @@
-﻿using FDG.Ai;
+using FDG.Ai;
 using FDG.Data;
 using FDG.EngineInterface;
 using FDG.GameModel;
@@ -700,11 +700,11 @@ namespace FDG.Network.Connection.Lobby
             // Star Quest: no points limit (the enemy collection should be big), but a 2-4 hero party and an
             // enemy side are needed.
             var problems = ArmyBuilding.LaunchGate.BlockingProblems(LoadedArmies(), int.MaxValue, AllowedGameSystems).ToList();
-            var parties = LoadedArmies().Where(p => p.Army?.Faction == Quest.QuestArmy.PartyFaction).ToList();
+            var parties = LoadedArmies().Where(p => Quest.QuestArmy.IsPartyFaction(p.Army?.Faction)).ToList();
             if (parties.Count == 0) problems.Add("Pick a party of 2-4 heroes for your row.");
             foreach (var (name, army) in parties)
                 if (army!.Units.Count is < 2 or > 4) problems.Add($"{name}: a party needs 2-4 heroes (has {army.Units.Count}).");
-            if (LoadedArmies().All(p => p.Army == null || p.Army.Faction == Quest.QuestArmy.PartyFaction))
+            if (LoadedArmies().All(p => p.Army == null || Quest.QuestArmy.IsPartyFaction(p.Army.Faction)))
                 problems.Add("Add an AI player with an army for the enemies.");
             return problems;
         }
@@ -1439,7 +1439,8 @@ namespace FDG.Network.Connection.Lobby
             {
                 FDG.Ai.EAiProfile.Tactician => "Tactician Bot",
                 FDG.Ai.EAiProfile.Strategist => "Strategist Bot",
-                FDG.Ai.EAiProfile.StarQuest => "Star Quest AI",
+                // The Quest bot plays both Quest systems; name it for the one on the table.
+                FDG.Ai.EAiProfile.StarQuest => GameSystem == EGameSystem.AoFQuest ? "Quest AI" : "Star Quest AI",
                 _ => "DerpBot",
             };
             // #217: number by rank among same-profile bots (first Tactician Bot is "Tactician Bot 1"

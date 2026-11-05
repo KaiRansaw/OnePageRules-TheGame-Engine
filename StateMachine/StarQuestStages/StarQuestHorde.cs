@@ -115,7 +115,7 @@ namespace FDG.StateMachine
                 QuestTreasure.EditSheet(hero, s => s.Conditions.Clear());
             }
 
-            GameContext.Log("Star Quest Horde: the heroes deploy within 6\" of the table centre.");
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Horde: the heroes deploy within 6\" of the table centre.");
             string taskName = TacticianPlaceObjectsResolver<ModelData>.DeploymentTaskName;
             await HordePlacement.PlacePartyNear(GameContext, StarQuestHordeRules.Heroes(GameContext),
                 radius => new CircularZone(w / 2f, h / 2f, radius), taskName,
@@ -191,18 +191,18 @@ namespace FDG.StateMachine
                 .Any(u => u.GetIsAlive() && u.GetIsOnBattlefield());
             int gain = StarQuestHordeRules.AlertnessGain(enemiesOnTable) + QuestChallenges.ExtraAlertness(_gameContext);
             quest.Alertness = Math.Min(StarQuestHordeRules.AlertnessToEndWave, quest.Alertness + gain);
-            _gameContext.Log($"Star Quest Horde: alertness +{gain} ({quest.Alertness}/{StarQuestHordeRules.AlertnessToEndWave})" +
+            _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: alertness +{gain} ({quest.Alertness}/{StarQuestHordeRules.AlertnessToEndWave})" +
                 (enemiesOnTable ? "." : " - no enemies on the table."));
             Save(quest);
 
             if (AllHeroesDown())
             {
-                _gameContext.Log("Star Quest Horde: every hero is down.");
+                _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: every hero is down.");
                 return true;
             }
             if (!_gameContext.TableState.Objectives.Objects.Any())
             {
-                _gameContext.Log("Star Quest Horde: every objective marker is destroyed.");
+                _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: every objective marker is destroyed.");
                 return true;
             }
 
@@ -258,10 +258,10 @@ namespace FDG.StateMachine
                 new TextColor(255, 120, 80, 255), EBannerTier.Headline);
             if (chosen.Count == 0)
             {
-                _gameContext.Log($"Star Quest Horde: wave {wave} - the enemy collection is empty, nobody arrives.");
+                _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} - the enemy collection is empty, nobody arrives.");
                 return chosen;
             }
-            _gameContext.Log($"Star Quest Horde: wave {wave} ({spent}/{budget} pts): {string.Join(", ", chosen.Select(u => u.Name))}.");
+            _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} ({spent}/{budget} pts): {string.Join(", ", chosen.Select(u => u.Name))}.");
             foreach (UnitData unit in chosen)
             {
                 if (QuestChallenges.HoldForAmbush(_gameContext, unit)) continue;
@@ -307,7 +307,7 @@ namespace FDG.StateMachine
 
             string held = seized == 0 ? "no objectives held" : $"{seized} objective{(seized == 1 ? "" : "s")} held"
                 + (prioritySeized ? " incl. the priority" : "");
-            _gameContext.Log($"Star Quest Horde: wave {wave} complete - {held}: {xp} XP for the party.");
+            _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} complete - {held}: {xp} XP for the party.");
             await _gameContext.Announce($"Wave {wave} complete: +{xp} XP", new TextColor(255, 215, 0, 255), EBannerTier.Headline);
 
             List<UnitData> heroes = StarQuestHordeRules.Heroes(_gameContext);
@@ -461,7 +461,7 @@ namespace FDG.StateMachine
                 : heroesDown ? $"The heroes fell during wave {quest.Wave}."
                 : $"Every objective was destroyed during wave {quest.Wave}.";
             string message = $"{how} {quest.PartyXp} XP x {quest.WavesFinished} wave{(quest.WavesFinished == 1 ? "" : "s")} = high score {highScore}.";
-            GameContext.Log($"Star Quest Horde ended after round {rounds}: {message}");
+            GameContext.Log($"{GameSystemInfo.QuestName(GameContext.Settings.GameSystem)} Horde ended after round {rounds}: {message}");
 
             int? defendingTeam = HordeRules.DefendingTeamNumber(players);
             var heroesSide = players.Where(p => p.TeamNumber == defendingTeam).ToList();
