@@ -125,6 +125,15 @@ namespace FDG.Campaign
     public sealed class StrikeUnit
     {
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+        /// <summary>
+        /// #453 - what the unit IS in its book ("Assault Grunts"), kept so it can be shown small under the
+        /// player's own name for it ("Vargas Squad"). Set when the unit joins the campaign. Empty on units
+        /// from campaigns made before #453 - those had never been renamed, so their name is still their
+        /// type, which is what <see cref="CampaignRules.UnitTypeOf"/> falls back to.
+        /// </summary>
+        public string UnitType { get; set; } = "";
+
         public bool IsHero { get; set; }
         public int Xp { get; set; }
         public List<string> Traits { get; set; } = new();

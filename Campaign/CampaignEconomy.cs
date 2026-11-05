@@ -174,9 +174,11 @@ namespace FDG.Campaign
             if (price > info.BankedPoints)
                 return CampaignPurchase.No($"That costs {price} pts and the treasury holds {info.BankedPoints}.");
 
+            string type = unit.Name;
             unit.Name = UniqueName(army, unit.Name);
             var sheet = new StrikeUnit
             {
+                UnitType = type,   // #453: a recruit is renameable like any other unit
                 IsHero = CampaignRules.IsHero(unit),
                 TeamFile = army.Units.Select(u => CampaignRules.Sheet(u)?.TeamFile).FirstOrDefault(f => f != null),
             };

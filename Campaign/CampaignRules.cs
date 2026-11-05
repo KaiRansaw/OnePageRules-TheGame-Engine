@@ -91,11 +91,14 @@ namespace FDG.Campaign
             for (int index = 0; index < army.Units.Count; index++)
             {
                 UnitFileEntry unit = army.Units[index];
+                string bookName = unit.Name;
                 string name = unit.Name;
                 for (int i = 2; !names.Add(name); i++) name = $"{unit.Name} {i}";
                 unit.Name = name;
 
-                var sheet = new StrikeUnit { IsHero = IsHero(unit), TeamFile = armyFile };
+                // #453: the book's name for it is its TYPE, kept apart from its name so the player can
+                // rename it and still see what it is. Pre-filled names are the book's (Kai, 2026-11-03).
+                var sheet = new StrikeUnit { IsHero = IsHero(unit), TeamFile = armyFile, UnitType = bookName };
                 Save(unit, sheet);
 
                 ArmyBuilding.BuilderUnit? loadout = selections?.FirstOrDefault(
@@ -103,6 +106,57 @@ namespace FDG.Campaign
                 if (loadout == null && positional) loadout = selections![index];
                 if (loadout != null) CampaignEconomy.SaveLoadout(unit, loadout);
             }
+        }
+
+        // -- Unit names (#453) ---------------------------------------------------------------------
+
+        /// <summary>The longest name a unit may be given. Long enough for a proper name, short enough for a
+        /// roster row and a hover title.</summary>
+        public const int MaxUnitNameLength = 40;
+
+        /// <summary>
+        /// What a unit IS in its book, for showing under the player's name for it. In order: the type stored
+        /// on its sheet; for a unit from before #453, its loadout's roster entry in
+        /// <paramref name="book"/>; otherwise its current name, which for a unit nobody could rename yet is
+        /// exactly its type.
+        /// </summary>
+        public static string UnitTypeOf(UnitFileEntry unit, ArmyBuilding.BookFile? book)
+        {
+            if (Sheet(unit) is { UnitType.Length: > 0 } sheet) return sheet.UnitType;
+            if (book != null && CampaignEconomy.Loadout(unit) is { } loadout
+                && book.Units.FirstOrDefault(r => r.Id == loadout.RosterUnitId) is { } roster)
+                return roster.Name;
+            return unit.Name;
+        }
+
+        /// <summary>Whether the unit's name is not simply its type - renamed by the player, or a book name
+        /// made unique ("Troopers 2"). Either way the type is worth showing under it.</summary>
+        public static bool HasOwnName(UnitFileEntry unit, ArmyBuilding.BookFile? book) =>
+            !string.Equals(unit.Name, UnitTypeOf(unit, book), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// #453 - gives a campaign unit a name of its own. The book asks for it - "Each army and unit must
+        /// be given a unique name" - so a name must be non-empty and not used by another unit of the army.
+        /// Returns why not, or null when the unit was renamed.
+        /// <para>
+        /// The unit's type is fixed on its sheet first, so the rename can never lose what the unit is. The
+        /// name is cleaned like journal text (CampaignJournal.Clean): the game's font draws Basic Latin and
+        /// Latin-1 only, and this name is shown in every log line, hover and battle report.
+        /// </para>
+        /// </summary>
+        public static string? Rename(ArmyListFile army, UnitFileEntry unit, string? newName, ArmyBuilding.BookFile? book)
+        {
+            if (Sheet(unit) is not { } sheet) return "That unit has no campaign sheet.";
+            string name = CampaignJournal.Clean(newName).Replace('\n', ' ').Trim();
+            if (name.Length == 0) return "A unit needs a name.";
+            if (name.Length > MaxUnitNameLength) return $"Keep it to {MaxUnitNameLength} characters.";
+            if (army.Units.Any(u => !ReferenceEquals(u, unit) && string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase)))
+                return "Another unit in this army already has that name.";
+
+            if (sheet.UnitType.Length == 0) sheet.UnitType = UnitTypeOf(unit, book);
+            unit.Name = name;
+            Save(unit, sheet);
+            return null;
         }
 
         // -- The win/loss record --------------------------------------------------------------------
