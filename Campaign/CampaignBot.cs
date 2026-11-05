@@ -5,9 +5,18 @@ using FDG.SaveLoad;
 namespace FDG.Campaign
 {
     /// <summary>
+    /// <para>
+    /// <b>#455 (2026-11-05): the game no longer calls <see cref="BetweenMissions"/>.</b> Kai's call,
+    /// campaign-flow-spec section 4: "the bot never spends its own points" - the player runs the enemy's
+    /// economy on the campaign screen. The force-picking half of this class
+    /// (<c>PickWhatToBring</c>, used by Mission Setup) is still live. BetweenMissions is kept, with its tests,
+    /// in case a "the bot runs itself" option is ever asked for; it is not wired to anything.
+    /// </para>
+    /// <para>
     /// #428 - the bot's half of the campaign loop: the steps a human does on the campaign screen
     /// between missions (resolve the choices waiting on its sheets, pick what to bring, spend the
     /// treasury) done automatically for an army nobody is sitting in front of.
+    /// </para>
     ///
     /// <para>
     /// <b>Why this has to exist for the campaign to be a campaign.</b> Without it the enemy is a fresh
