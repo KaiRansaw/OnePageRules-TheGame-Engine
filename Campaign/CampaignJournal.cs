@@ -15,6 +15,18 @@ namespace FDG.Campaign
         public int Mission { get; set; }
 
         public string Text { get; set; } = "";
+
+        /// <summary>
+        /// #450 - the game's own account of the mission, written when its result comes in: who it was
+        /// fought against, the result and rewards, casualties, XP and level-ups, random events and the
+        /// special objective. Kai, 2026-11-05: yes to the game pre-filling the journal from what happened.
+        /// <para>
+        /// Kept apart from <see cref="Text"/> rather than pasted into it, so the game never overwrites what
+        /// the player wrote and the player cannot delete the record by clearing their own page. Empty for
+        /// a mission not yet played, and for missions played before #450.
+        /// </para>
+        /// </summary>
+        public List<string> Record { get; set; } = new();
     }
 
     /// <summary>
@@ -88,13 +100,59 @@ namespace FDG.Campaign
 
             if (clean.Length == 0)
             {
-                if (existing != null) notes.Remove(existing);
+                if (existing == null) return;
+                existing.Text = "";
+                // An entry that still carries the game's record stays: clearing the player's page must
+                // not take the account of the battle with it.
+                if (existing.Record is not { Count: > 0 }) notes.Remove(existing);
                 return;
             }
 
-            if (existing != null) existing.Text = clean;
-            else notes.Add(new CampaignMissionNote { Mission = mission, Text = clean });
+            Entry(info, mission).Text = clean;
+        }
+
+        /// <summary>The game's record of one mission, or an empty list.</summary>
+        public static IReadOnlyList<string> RecordFor(StrikeTeamInfo info, int mission) =>
+            Notes(info).FirstOrDefault(n => n.Mission == mission)?.Record ?? new List<string>();
+
+        /// <summary>
+        /// #450 - writes the game's record of a mission, replacing any record already there (a mission's
+        /// result arrives once). Lines are cleaned like everything else in the journal, and blank ones
+        /// dropped. Called by <see cref="CampaignRules.AfterGame"/>; the player has no way to call it.
+        /// </summary>
+        public static void SetRecord(StrikeTeamInfo info, int mission, IEnumerable<string> lines)
+        {
+            if (mission < 1) throw new ArgumentOutOfRangeException(nameof(mission), "Missions count from 1.");
+            Entry(info, mission).Record = lines.Select(Clean).Where(l => l.Length > 0).ToList();
+        }
+
+        /// <summary>
+        /// #450 - adds a line to a mission's record that only the caller knows - the opponent's name and
+        /// the special objective are worked out after <see cref="CampaignRules.AfterGame"/>, where every
+        /// army that played is in view. <paramref name="first"/> puts it at the top.
+        /// </summary>
+        public static void AddToRecord(StrikeTeamInfo info, int mission, string line, bool first = false)
+        {
+            if (mission < 1) throw new ArgumentOutOfRangeException(nameof(mission), "Missions count from 1.");
+            string clean = Clean(line);
+            if (clean.Length == 0) return;
+            CampaignMissionNote entry = Entry(info, mission);
+            entry.Record ??= new();
+            if (first) entry.Record.Insert(0, clean);
+            else entry.Record.Add(clean);
+        }
+
+        /// <summary>A mission's entry, created (in mission order) if it does not exist yet.</summary>
+        private static CampaignMissionNote Entry(StrikeTeamInfo info, int mission)
+        {
+            List<CampaignMissionNote> notes = Notes(info);
+            CampaignMissionNote? entry = notes.FirstOrDefault(n => n.Mission == mission);
+            if (entry != null) return entry;
+
+            entry = new CampaignMissionNote { Mission = mission };
+            notes.Add(entry);
             notes.Sort((a, b) => a.Mission.CompareTo(b.Mission));
+            return entry;
         }
 
         /// <summary>
@@ -118,6 +176,68 @@ namespace FDG.Campaign
         /// account.
         /// </summary>
         public static bool IsPlayed(StrikeTeamInfo info, int mission) => mission <= info.Matches;
+
+        /// <summary>
+        /// #450 - the whole journal as one plain-text document a person can read outside the game: the
+        /// campaign's name, score and record, its own page, then every mission that has anything on it,
+        /// with the game's record above the player's words. Kai, 2026-11-05: yes to an exportable log.
+        /// <para>
+        /// Plain text with simple underlined headings rather than any markup, so it reads the same in
+        /// Notepad, a phone, or pasted into a message.
+        /// </para>
+        /// </summary>
+        /// <param name="you">The player's campaign block, which owns the journal.</param>
+        /// <param name="rival">The standing enemy's block, or null when there is none.</param>
+        /// <param name="gameName">The game's display name, e.g. "Grimdark Future".</param>
+        public static string Export(StrikeTeamInfo you, StrikeTeamInfo? rival, string gameName)
+        {
+            var sb = new System.Text.StringBuilder();
+            void Heading(string text, char rule)
+            {
+                sb.AppendLine(text);
+                sb.AppendLine(new string(rule, text.Length));
+            }
+
+            Heading(rival != null ? $"{you.Name} vs {rival.Name}" : you.Name, '=');
+            CampaignPreGame.CampaignStanding standing = CampaignPreGame.Standing(you, rival);
+            (int wins, int losses) = CampaignRules.RecordOf(you);
+            sb.AppendLine($"{gameName} campaign - {standing.Describe()}");
+            sb.AppendLine($"{you.Name}: {standing.YourVp} VP, {wins} won / {losses} lost");
+            if (rival != null)
+            {
+                (int rw, int rl) = CampaignRules.RecordOf(rival);
+                sb.AppendLine($"{rival.Name}: {standing.RivalVp} VP, {rw} won / {rl} lost");
+            }
+            if (standing.IsOver)
+                sb.AppendLine(standing.Outcome switch
+                {
+                    ECampaignOutcome.YouWon => $"The campaign was won by {you.Name}.",
+                    ECampaignOutcome.RivalWon => $"The campaign was won by {rival?.Name ?? "the enemy"}.",
+                    _ => "The campaign ended in a draw.",
+                });
+
+            if (you.Journal.Length > 0)
+            {
+                sb.AppendLine();
+                Heading("The campaign", '-');
+                sb.AppendLine(you.Journal);
+            }
+
+            foreach (int mission in Missions(you))
+            {
+                IReadOnlyList<string> record = RecordFor(you, mission);
+                string note = NoteFor(you, mission);
+                if (record.Count == 0 && note.Length == 0) continue;
+
+                sb.AppendLine();
+                Heading($"Mission {mission}" + (IsPlayed(you, mission) ? "" : " (briefing - not yet played)"), '-');
+                foreach (string line in record) sb.AppendLine("  * " + line);
+                if (record.Count > 0 && note.Length > 0) sb.AppendLine();
+                if (note.Length > 0) sb.AppendLine(note);
+            }
+
+            return sb.ToString().Replace("\r\n", "\n");
+        }
 
         /// <summary>
         /// The note list, created if a file written before #448 - or by hand, with an explicit null -

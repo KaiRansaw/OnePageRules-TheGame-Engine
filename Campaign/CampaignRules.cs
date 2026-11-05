@@ -278,6 +278,9 @@ namespace FDG.Campaign
             }
 
             info.History.Add(HistoryLine(info.Matches, won, log));
+            // #450 - and the same account onto this mission's journal page, where the player reads it
+            // above their own writing. Separate from History, which is the game's log and is parsed.
+            CampaignJournal.SetRecord(info, info.Matches, log);
             return log;
         }
 
