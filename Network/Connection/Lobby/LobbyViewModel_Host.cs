@@ -465,13 +465,46 @@ namespace FDG.Network.Connection.Lobby
 
             //ArmyListSummary tempSummary = new ArmyListSummary("Knifeybois", "Alien Hives", 2000);
 
-            LobbyPlayerInfoFull newLobbyPlayerInfo = new LobbyPlayerInfoFull(greeting.PlayerName, null, FirstEmptyTeam(),
+            // A friend joining a solo host takes the seat the lobby filled with a bot on its own (and that
+            // bot's team), so the game is the friend against the host rather than a three-way free-for-all
+            // with a bot nobody asked for. A bot the host added or changed by hand stays.
+            ETeamOption team = FirstEmptyTeam();
+            if (TakeSeatFillerBot() is LobbyPlayerInfoFull filler)
+            {
+                team = filler.TeamNumber;
+                _ = _messageBus.SendCommandToAllAsync(new LobbyChatMessage("System",
+                    $"{greeting.PlayerName} takes {filler.PlayerName}'s seat."));
+            }
+
+            LobbyPlayerInfoFull newLobbyPlayerInfo = new LobbyPlayerInfoFull(greeting.PlayerName, null, team,
                 EPlayerType.Network, connectionID, newClientPlayerID);
             _playerInfosFull.Add(newClientPlayerID, newLobbyPlayerInfo);
             UpdateInfoSummariesFromFullList();
 
             LobbyGameSettingsUpdate gameSettingsUpdate = new LobbyGameSettingsUpdate(_gameSettings);
             _messageBus.SendCommandToAllAsync(gameSettingsUpdate);
+        }
+
+        /// <summary>The bot the lobby added by itself to give a solo host an opponent, while it is still
+        /// untouched. Cleared when the host edits that bot's seat or a friend takes it.</summary>
+        private PlayerID? _seatFillerBot;
+
+        /// <summary>Removes and returns the untouched seat-filler bot, or null if there is none.</summary>
+        private LobbyPlayerInfoFull? TakeSeatFillerBot()
+        {
+            if (_seatFillerBot is not PlayerID id) return null;
+            _seatFillerBot = null;
+            if (!_playerInfosFull.TryGetValue(id, out LobbyPlayerInfoFull? bot) || bot.PlayerType != EPlayerType.AI) return null;
+            _playerInfosFull.Remove(id);
+            return bot;
+        }
+
+        /// <summary>Whether <paramref name="id"/> is the lobby's own untouched seat-filler bot.</summary>
+        public bool IsSeatFillerBot(PlayerID id) => _seatFillerBot is PlayerID f && f.Equals(id);
+
+        private void TouchSeat(PlayerID id)
+        {
+            if (IsSeatFillerBot(id)) _seatFillerBot = null;
         }
 
         // Resume mode: assign the joining client to the next saved slot still marked AI (slot order),
@@ -570,6 +603,7 @@ namespace FDG.Network.Connection.Lobby
 
         public void SetPlayerColor(PlayerID playerId, int colorIndex)
         {
+            TouchSeat(playerId);
             if (_playerInfosFull.TryGetValue(playerId, out LobbyPlayerInfoFull? info) == false)
             {
                 Debug.WriteLine($"SetPlayerColor: couldn't find player {playerId}.");
@@ -621,6 +655,7 @@ namespace FDG.Network.Connection.Lobby
 
         public void SetPlayerTeam(PlayerID playerId, ETeamOption teamNumber)
         {
+            TouchSeat(playerId);
             // Resume lobbies keep their saved teams - editing them would desync the saved turn-order state.
             if (_isResume)
             {
@@ -847,6 +882,7 @@ namespace FDG.Network.Connection.Lobby
         public void SetPlayerType(PlayerID playerID, EPlayerType playerType,
             FDG.Ai.EAiProfile aiProfile = FDG.Ai.EAiProfile.SoloRules)
         {
+            TouchSeat(playerID);
             // Re-checked rather than trusting the caller, like RemovePlayer: the front end's button
             // state is a frame stale and this is the seam a networked caller would arrive through.
             if (!CheckCanSetPlayerType(playerID))
@@ -1459,7 +1495,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.SendCommandToAllAsync(gameSettingsUpdate);
         }
 
-        public void AddAiPlayer(FDG.Ai.EAiProfile profile)
+        public void AddAiPlayer(FDG.Ai.EAiProfile profile, bool seatFiller = false)
         {
             // #191 A6/B5: the profile is the product name in the lobby - every ladder rung is a
             // real, player-facing option (Chris, 2026-09-03). "DerpBot" is the legacy solo-rules
@@ -1493,6 +1529,7 @@ namespace FDG.Network.Connection.Lobby
                 FirstEmptyTeam(), EPlayerType.AI, new ConnectionID(Guid.Empty), newPlayerID,
                 profile);
             _playerInfosFull.Add(newPlayerID, newLobbyPlayerInfo);
+            if (seatFiller) _seatFillerBot = newPlayerID;
             UpdateInfoSummariesFromFullList();
 
             LobbyGameSettingsUpdate gameSettingsUpdate = new LobbyGameSettingsUpdate(_gameSettings);

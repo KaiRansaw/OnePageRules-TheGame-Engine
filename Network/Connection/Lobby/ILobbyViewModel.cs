@@ -160,7 +160,9 @@ namespace FDG.Network.Connection.Lobby
 
         /// <summary>Adds an AI slot playing as <paramref name="profile"/> (#191 A6): the
         /// profile decides the resolver registry at launch and the bot's display name.</summary>
-        void AddAiPlayer(EAiProfile profile);
+        /// <param name="seatFiller">The lobby added this bot on its own so a solo host has an opponent.
+        /// The first friend who joins takes its seat (and team) instead of landing in a seat of their own.</param>
+        void AddAiPlayer(EAiProfile profile, bool seatFiller = false);
 
         /// <summary>#405: may this machine drop <paramref name="playerID"/> from the roster entirely?
         /// The counterpart to <see cref="AddLocalPlayer"/> / <see cref="AddAiPlayer"/>, and the single

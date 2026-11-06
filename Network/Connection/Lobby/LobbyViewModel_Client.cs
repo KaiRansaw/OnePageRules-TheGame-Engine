@@ -254,7 +254,7 @@ namespace FDG.Network.Connection.Lobby
             throw new InvalidOperationException("Tried to add local player when not the host.");
         }
 
-        public void AddAiPlayer(FDG.Ai.EAiProfile profile)
+        public void AddAiPlayer(FDG.Ai.EAiProfile profile, bool seatFiller = false)
         {
             throw new InvalidOperationException("Tried to add AI player when not the host.");
         }
