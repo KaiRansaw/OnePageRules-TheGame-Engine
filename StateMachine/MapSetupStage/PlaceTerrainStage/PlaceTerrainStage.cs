@@ -254,12 +254,17 @@ namespace FDG.Stages
         // band of the top (z < deploy) or bottom (z > tableH - deploy) table edge.
         /// <summary>A layout made for the 6' x 4' table, played on a smaller one (Star Quest's 4' x 4'): only the
         /// pieces that lie on the smaller table are placed.</summary>
-        private static bool FitsTable(IZone shape)
+        private static bool FitsTable(IZone shape) =>
+            FitsTable(shape, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+
+        /// <summary>Whether an auto-layout piece lies wholly on a <paramref name="w"/> x <paramref name="h"/>
+        /// table - the pieces that don't are left out. Public so the lobby's map preview leaves out the same
+        /// ones (it drew them cut off at the table edge on the smaller tables).</summary>
+        public static bool FitsTable(IZone shape, float w, float h)
         {
-            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
             if (shape is IBoundedZone bounded)
                 return bounded.Bounds.Left >= 0f && bounded.Bounds.Right <= w && bounded.Bounds.Bottom >= 0f && bounded.Bounds.Top <= h;
-            if (shape is CompositeZone composite) return composite.Parts.All(FitsTable);
+            if (shape is CompositeZone composite) return composite.Parts.All(part => FitsTable(part, w, h));
             return true;
         }
 
