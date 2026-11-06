@@ -24,23 +24,18 @@ namespace FDG.Stages
     /// </para>
     ///
     /// <para>
-    /// <b>What is applied and what is not.</b> 29 of the 36 entries resolve fully here. Seven do not yet,
-    /// and each says so in the log rather than firing silently - an event that announces itself and then
-    /// does nothing is worse than one that admits it:
+    /// <b>What is applied and what is not.</b> 33 of the 36 entries resolve. Three do not yet, and each
+    /// says so in the log rather than firing silently:
     /// </para>
     /// <list type="bullet">
     ///   <item><b>Explosive Trap (12) and Solar Flare (32)</b> deal hits, which have to run the
-    ///   save-and-wound child pipeline. That pipeline only exists inside an attack stage
-    ///   (<c>BeforeAttackActionStage</c> seeds it); a round-start stage has no way to drive it.</item>
-    ///   <item><b>Thick Clouds (43)</b> halves weapon ranges. <c>Effect.RangeModifier</c> adds and
-    ///   subtracts inches; there is no multiplier, and inventing "-12 inches" instead would be a
-    ///   different rule.</item>
-    ///   <item><b>Psychic Pool (36), Shifting Illusions (45), Support Robots (46) and Psychic Fog
-    ///   (44)</b> are conditional on POSITION - "whilst any unit is within 3 inches of the marker" /
-    ///   "fully within the quarter". A grant handed out at round start would be wrong both ways: a unit
-    ///   that walks in later would not get it, and one that leaves would keep it. They need re-evaluating
-    ///   as each unit activates, which is its own slice.</item>
+    ///   save-and-wound child pipeline that only exists inside an attack stage.</item>
+    ///   <item><b>Thick Clouds (43)</b> halves weapon ranges, and the engine has no range multiplier.</item>
     /// </list>
+    /// <para>
+    /// The four "whilst a unit is inside an area" events (36, 44, 45, 46) are in
+    /// <see cref="CampaignEventAreas"/>, checked at the roll / activation they affect (2026-11-06).
+    /// </para>
     /// </summary>
     public static class CampaignEventRunner
     {
@@ -240,8 +235,7 @@ namespace FDG.Stages
 
                 case ECampaignEventKind.RollModifier:
                 case ECampaignEventKind.MovementChange:
-                    return "This event only applies while a unit is inside an area, which needs checking "
-                           + "as each unit activates. Not applied yet, so nothing happened.";
+                    return PlaceEffectArea(gameContext, fired, d6);
 
                 default:
                     return "That event is not implemented, so nothing happened.";
@@ -394,6 +388,52 @@ namespace FDG.Stages
         }
 
         /// <summary>
+        /// The four "whilst a unit is inside an area" events (36, 44, 45, 46): the area is picked now and the
+        /// bonus is checked where it matters - see <see cref="CampaignEventAreas"/>.
+        /// </summary>
+        private static string PlaceEffectArea(IGameContext gameContext, CampaignEvent fired, Func<int> d6)
+        {
+            if (CampaignEventAreas.EffectOf(fired) is not { } effect)
+                return "That event is not implemented, so nothing happened.";
+            ITableState table = gameContext.TableState;
+
+            string bonus = effect switch
+            {
+                CampaignEventAreas.EAreaEffect.DefenseBonus => $"{Signed(fired.Amount)} to Defense rolls",
+                CampaignEventAreas.EAreaEffect.MoraleBonus => $"{Signed(fired.Amount)} to Morale Test rolls",
+                _ => $"{Signed(fired.Amount)}\" on Advance and {Signed(fired.Amount * 2)}\" on Rush/Charge",
+            };
+
+            if (fired.Scope == ECampaignEventScope.NearRandomObjective)
+            {
+                IObjective? marker = CampaignEventTargeting.PickOne(CampaignEventTargeting.Objectives(table), d6);
+                if (marker == null) return "There were no objective markers, so nothing happened.";
+                CampaignEventAreas.Add(gameContext.GameDataStore, new CampaignEventAreas.Area(fired, effect,
+                    null, marker.Position, NearObjectiveInches));
+                int number = table.Objectives.Objects.ToList().IndexOf(marker) + 1;
+                return $"Units within 3\" of objective marker {number} get {bonus} until the end of the round.";
+            }
+
+            (float width, float height) = TableSize(gameContext);
+            TableQuarter quarter = CampaignEventTargeting.PickQuarter(width, height, d6);
+            CampaignEventAreas.Add(gameContext.GameDataStore, new CampaignEventAreas.Area(fired, effect,
+                quarter.Area, null, 0f));
+            string which = QuarterName(quarter.Index);
+            return effect == CampaignEventAreas.EAreaEffect.MoveBonusOnActivation
+                ? $"Units that activate fully within the {which} quarter move {bonus} this round."
+                : $"Units fully within the {which} quarter get {bonus} until the end of the round.";
+        }
+
+        /// <summary>A quarter by where it sits on the screen (the top of the table is its far edge, z high).</summary>
+        private static string QuarterName(int index) => index switch
+        {
+            0 => "bottom-left",
+            1 => "bottom-right",
+            2 => "top-left",
+            _ => "top-right",
+        };
+
+        /// <summary>
         /// Removes the terrain an event placed. Called at the end of the round, because the pieces are
         /// real terrain and nothing else would ever take them away - an event that said "until the end of
         /// the round" and then left a minefield on the table for the rest of the game would be worse than
@@ -407,6 +447,8 @@ namespace FDG.Stages
                 .ToList();
 
             foreach (DataReference reference in doomed) gameContext.GameDataStore.Destroy(reference);
+            // And the "whilst inside" areas (#432's deferred four), which are not terrain.
+            CampaignEventAreas.Clear(gameContext.GameDataStore);
             return doomed.Count;
         }
 

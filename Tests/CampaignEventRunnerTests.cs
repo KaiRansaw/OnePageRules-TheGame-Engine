@@ -545,13 +545,13 @@ namespace FDG.Tests
             Assert.That(_context.TableState.Terrain.Objects.Single().Name, Is.EqualTo("A real wood"));
         }
 
-        // -- The deferred seven ----------------------------------------------------------------------
+        // -- The deferred three ----------------------------------------------------------------------
 
         /// <summary>
-        /// Seven of the 36 are not applied yet, and each says so instead of firing silently: the two hit
-        /// events need the save-and-wound pipeline that only exists inside an attack, Thick Clouds needs
-        /// a range multiplier the engine does not have, and four are conditional on a unit's POSITION,
-        /// which needs re-checking as each unit activates.
+        /// Three of the 36 are not applied yet, and each says so instead of firing silently: the two hit
+        /// events need the save-and-wound pipeline that only exists inside an attack, and Thick Clouds
+        /// needs a range multiplier the engine does not have. (The four position-based events were the
+        /// other deferred four; they are applied since 2026-11-06 - see the area tests below.)
         /// <para>
         /// Pinned deliberately. When one is implemented this test fails, which is the reminder to come
         /// back and move it - far better than a silent inert branch nobody revisits.
@@ -560,11 +560,7 @@ namespace FDG.Tests
         [TestCase(12, TestName = "Explosive Trap (hits)")]
         [TestCase(32, TestName = "Solar Flare (hits)")]
         [TestCase(43, TestName = "Thick Clouds (halved ranges)")]
-        [TestCase(36, TestName = "Psychic Pool (area-conditional)")]
-        [TestCase(44, TestName = "Psychic Fog (area-conditional)")]
-        [TestCase(45, TestName = "Shifting Illusions (area-conditional)")]
-        [TestCase(46, TestName = "Support Robots (area-conditional)")]
-        public async Task TheSevenNotYetApplied_SaySoRatherThanFiringSilently(int code)
+        public async Task TheThreeNotYetApplied_SaySoRatherThanFiringSilently(int code)
         {
             Unit(_me, new Position(10f, 10f));
             Objective(new Position(20f, 20f), _me);
@@ -577,16 +573,123 @@ namespace FDG.Tests
         }
 
         /// <summary>
-        /// And the arithmetic of the split: 29 of the 36 resolve. Counted from the table rather than
+        /// And the arithmetic of the split: 33 of the 36 resolve. Counted from the table rather than
         /// written down, so adding an event or implementing a deferred one keeps it honest.
         /// </summary>
         [Test]
-        public void TwentyNineOfTheThirtySixAreApplied()
+        public void ThirtyThreeOfTheThirtySixAreApplied()
         {
-            int[] deferred = { 12, 32, 43, 36, 44, 45, 46 };
+            int[] deferred = { 12, 32, 43 };
 
             Assert.That(CampaignEvents.All.Count(), Is.EqualTo(36));
-            Assert.That(CampaignEvents.All.Count(e => !deferred.Contains(e.Code)), Is.EqualTo(29));
+            Assert.That(CampaignEvents.All.Count(e => !deferred.Contains(e.Code)), Is.EqualTo(33));
+        }
+
+        // -- The four "whilst inside an area" events (36, 44, 45, 46) ---------------------------------
+
+        /// <summary>The quarter a die of 1 picks on this game's table, and a point well inside it.</summary>
+        private (ZoneRect Quarter, Position Inside, Position Outside) QuarterForDieOne()
+        {
+            (float w, float h) = GameWideConstants.TableSizeFor(EGameSystem.GrimdarkFuture);
+            ZoneRect q = CampaignEventTargeting.PickQuarter(w, h, Dice(1)).Area;
+            var inside = new Position((q.Left + q.Right) / 2f - 1f, (q.Bottom + q.Top) / 2f);
+            float ox = q.Left < 1f ? q.Right + 6f : q.Left - 6f;
+            return (q, inside, new Position(ox, (q.Bottom + q.Top) / 2f));
+        }
+
+        private static int Net(DataBinding<UnitData> unit, ERollKind roll) =>
+            GrantedRollModifiers.PeekNet(unit.GetValue(), roll);
+
+        [Test]
+        public async Task SupportRobots_PlusOneDefense_OnlyWhilstFullyInsideTheQuarter()
+        {
+            var (_, inside, outside) = QuarterForDieOne();
+            DataBinding<UnitData> inUnit = Unit(_me, inside);
+            DataBinding<UnitData> outUnit = Unit(_them, outside);
+
+            string line = await Apply(46, Dice(1));
+            Assert.That(line, Does.Contain("quarter").And.Contain("+1 to Defense"));
+
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Save);
+            CampaignEventAreas.RefreshRollBonus(_context, outUnit.GetValue(), ERollKind.Save);
+            Assert.That(Net(inUnit, ERollKind.Save), Is.EqualTo(1));
+            Assert.That(Net(outUnit, ERollKind.Save), Is.EqualTo(0));
+
+            // It walks out: "whilst" - the bonus goes with it, and does not stack on a second check.
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Save);
+            Assert.That(Net(inUnit, ERollKind.Save), Is.EqualTo(1), "refreshing twice does not stack");
+            foreach (IModel m in inUnit.GetValue().Models) ((ModelData)m).SetPosition(outside);
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Save);
+            Assert.That(Net(inUnit, ERollKind.Save), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task ShiftingIllusions_PlusOneMorale_AndNotDefense()
+        {
+            var (_, inside, _) = QuarterForDieOne();
+            DataBinding<UnitData> inUnit = Unit(_me, inside);
+
+            await Apply(45, Dice(1));
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Morale);
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Save);
+            Assert.That(Net(inUnit, ERollKind.Morale), Is.EqualTo(1));
+            Assert.That(Net(inUnit, ERollKind.Save), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task PsychicPool_PlusOneDefense_WithinThreeInchesOfTheMarker()
+        {
+            Objective(new Position(20f, 20f), null);
+            DataBinding<UnitData> near = Unit(_me, new Position(21f, 20f));
+            DataBinding<UnitData> far = Unit(_them, new Position(40f, 40f));
+
+            string line = await Apply(36, Dice(1));
+            Assert.That(line, Does.Contain("objective marker 1"));
+
+            CampaignEventAreas.RefreshRollBonus(_context, near.GetValue(), ERollKind.Save);
+            CampaignEventAreas.RefreshRollBonus(_context, far.GetValue(), ERollKind.Save);
+            Assert.That(Net(near, ERollKind.Save), Is.EqualTo(1));
+            Assert.That(Net(far, ERollKind.Save), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task PsychicFog_FasterOnlyForAUnitThatActivatesInside()
+        {
+            var (_, inside, outside) = QuarterForDieOne();
+            DataBinding<UnitData> inUnit = Unit(_me, inside);
+            DataBinding<UnitData> outUnit = Unit(_them, outside);
+
+            await Apply(44, Dice(1));
+            CampaignEventAreas.OnActivationStart(_context, inUnit.GetValue());
+            CampaignEventAreas.OnActivationStart(_context, outUnit.GetValue());
+
+            Assert.That(GrantedRules(inUnit), Does.Contain(CampaignEventRuleCatalog.HastenedName));
+            Assert.That(GrantedRules(outUnit), Does.Not.Contain(CampaignEventRuleCatalog.HastenedName));
+        }
+
+        [Test]
+        public async Task TheAreasEndWithTheRound()
+        {
+            var (_, inside, _) = QuarterForDieOne();
+            DataBinding<UnitData> inUnit = Unit(_me, inside);
+            await Apply(46, Dice(1));
+
+            CampaignEventRunner.ClearTemporaryTerrain(_context);
+            CampaignEventAreas.RefreshRollBonus(_context, inUnit.GetValue(), ERollKind.Save);
+            Assert.That(Net(inUnit, ERollKind.Save), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task AHalfInsideUnit_IsNotFullyWithin()
+        {
+            var (q, _, _) = QuarterForDieOne();
+            // Three models in a row straddling the quarter's vertical edge.
+            float edgeX = q.Left < 1f ? q.Right : q.Left;
+            DataBinding<UnitData> straddler = Unit(_me, new Position(edgeX - 1.1f, (q.Bottom + q.Top) / 2f));
+
+            await Apply(46, Dice(1));
+            CampaignEventAreas.RefreshRollBonus(_context, straddler.GetValue(), ERollKind.Save);
+            Assert.That(Net(straddler, ERollKind.Save), Is.EqualTo(0));
         }
 
         // -- The round roll --------------------------------------------------------------------------

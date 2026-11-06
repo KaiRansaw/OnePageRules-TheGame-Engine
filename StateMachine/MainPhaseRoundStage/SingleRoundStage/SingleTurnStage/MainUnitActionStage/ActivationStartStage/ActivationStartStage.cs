@@ -63,6 +63,9 @@ namespace FDG.Stages
 
             ClearUntilNextActivationTokens(unit);
 
+            // Campaign event 44 (Psychic Fog): "any unit that activates whilst fully within" the quarter.
+            CampaignEventAreas.OnActivationStart(GameContext, unit);
+
             await ResolvePassiveEntries(context, unit);
 
             // Grouped by rule and kept in declaration order, so "pick one effect" means one pick per rule and

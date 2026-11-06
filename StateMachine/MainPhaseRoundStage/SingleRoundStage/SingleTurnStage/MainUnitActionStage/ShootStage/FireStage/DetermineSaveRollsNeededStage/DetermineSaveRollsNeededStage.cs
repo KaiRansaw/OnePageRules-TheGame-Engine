@@ -39,6 +39,8 @@ namespace FDG.Stages
             // same sign as cover; one-shot ("next time") grants are consumed by this attack's saves.
             // #407: ConsumeDetailed so each buff can name itself ("Protector +1") instead of all of them
             // collapsing into one "buff" chip. Read before the one-shot grants drain, as on the hit stage.
+            // Campaign events 36 / 46: +1 Defense "whilst" inside an area - checked now, where it stands.
+            CampaignEventAreas.RefreshRollBonus(GameContext, metaData.DefendingUnit.GetValue(), ERollKind.Save);
             (int grantedDefense, IReadOnlyList<GrantedModifier> grantedDetail) =
                 GrantedRollModifiers.ConsumeDetailed(metaData.DefendingUnit.GetValue(), ERollKind.Save);
 

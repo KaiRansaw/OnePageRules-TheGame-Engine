@@ -111,6 +111,8 @@ namespace FDG.Stages
             // sign; one-shot ("next time") grants are consumed by this test.
             // #407: itemised, so a morale buff/debuff names its source ("Fortitude +6", "Dazing Spores
             // -1") rather than showing as a bare "buff". Read before the one-shot grants drain.
+            // Campaign event 45: +1 to Morale "whilst" fully inside a quarter - checked now.
+            CampaignEventAreas.RefreshRollBonus(gameContext, testingUnit, ERollKind.Morale);
             (int grantedNet, IReadOnlyList<GrantedModifier> grantedDetail) =
                 GrantedRollModifiers.ConsumeDetailed(testingUnit, ERollKind.Morale);
             // #434: the campaign Underdog Bonus. The testing unit is the roller, so its owner gets +1 and
