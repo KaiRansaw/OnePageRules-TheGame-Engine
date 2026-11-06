@@ -33,6 +33,12 @@ namespace FDG
         /// </summary>
         public static bool IsBaseWithinZone(Position centre, float circumscribedRadiusInches, IBoundedZone zone)
         {
+            // A zone with a diagonal edge or a notch (PolygonZone, MultiRectZone) answers for the whole
+            // footprint itself - a centre-inside test lets a base hang over a slanted edge. For a plain
+            // rectangle ContainsFootprint IS the inset test below, so nothing changes there.
+            if (zone is RectangularZone rect)
+                return rect.ContainsFootprint(centre.x, centre.z, circumscribedRadiusInches, circumscribedRadiusInches);
+
             ZoneBounds b = zone.Bounds;
             return centre.x >= b.Left + circumscribedRadiusInches
                 && centre.x <= b.Right - circumscribedRadiusInches

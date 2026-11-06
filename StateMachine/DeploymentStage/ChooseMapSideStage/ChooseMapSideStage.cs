@@ -1,4 +1,4 @@
-﻿
+
 
 using FDG.BuiltInAssets;
 using FDG.Data;
@@ -26,7 +26,7 @@ namespace FDG.Stages
 
             List<ITeam> teamOrderedByRoll = context.MapSideRollOrder;
 
-            List<RectangularZone> zoneOptions = GetRectangularZones(teamOrderedByRoll.Count);
+            List<RectangularZone> zoneOptions = GetRectangularZones(teamOrderedByRoll.Count, context);
 
             List<DataBinding<RectangularZone>> zoneBindings = new List<DataBinding<RectangularZone>>(zoneOptions.Count);
 
@@ -156,7 +156,7 @@ namespace FDG.Stages
             return MultiRectZone.Of(parts);
         }
 
-        private List<RectangularZone> GetRectangularZones(int teamCount)
+        private List<RectangularZone> GetRectangularZones(int teamCount, IDeploymentContext context)
         {
             if(teamCount <= 0)
             {
@@ -167,6 +167,23 @@ namespace FDG.Stages
             var mapZones = CustomMapRules.DeploymentZones(GameContext.Settings);
             if (mapZones.Count >= teamCount && mapZones.Count >= 2)
                 return mapZones.Select(BuildMapZone).ToList();
+
+            // The Advanced Rulebooks' deployment styles (2026-11-05): two sides, a game whose pages are in,
+            // and something other than the core layout picked. A random style rolls one die here, on every
+            // machine in lockstep off the shared dice, so all of them land on the same style.
+            if (teamCount == 2 && AdvancedDeployment.Available(GameContext.Settings.GameSystem)
+                && GameContext.Settings.DeploymentStyle != EDeploymentStyle.Core)
+            {
+                EDeploymentStyle picked = GameContext.Settings.DeploymentStyle;
+                int rolled = 0;
+                EDeploymentStyle style = AdvancedDeployment.Resolve(picked, () => rolled = HordePlacement.RollD6(GameContext));
+                context.Log(rolled > 0
+                    ? $"Deployment style: rolled {rolled} - {AdvancedDeployment.Name(style)}."
+                    : $"Deployment style: {AdvancedDeployment.Name(style)}.");
+                (RectangularZone a, RectangularZone b) = AdvancedDeployment.Zones(style,
+                    GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
+                return new List<RectangularZone> { a, b };
+            }
 
             //We need to return equally-sized zones, and there are two sides to the table.
             //That means there will be an extra zone when the team number is odd.

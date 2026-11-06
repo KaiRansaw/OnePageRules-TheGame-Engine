@@ -62,7 +62,8 @@ namespace FDG.Tests
                 _inner.SendPlayerMessage(sendingPlayerName, messageType, message);
         }
 
-        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting, bool fastPlayMelee = false, bool fastPlayMovement = false)
+        private static async Task<List<string>> PlayAGame(int seed, EGameSystem system, bool fastPlayShooting, bool fastPlayMelee = false, bool fastPlayMovement = false,
+            EDeploymentStyle deploymentStyle = EDeploymentStyle.Core)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var bus = new InProcessBus();
@@ -86,6 +87,7 @@ namespace FDG.Tests
             settings.FastPlayShooting = fastPlayShooting;
             settings.FastPlayMelee = fastPlayMelee;
             settings.FastPlayMovement = fastPlayMovement;
+            settings.DeploymentStyle = deploymentStyle;
 
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
@@ -144,6 +146,32 @@ namespace FDG.Tests
             List<string> log = await PlayAGame(seed, system, fastPlayShooting: true, fastPlayMelee: true,
                 fastPlayMovement: true);
             Assert.That(LeadersWereSet(log), Is.True);
+        }
+
+        /// <summary>
+        /// The Advanced deployment styles (2026-11-05): a whole Firefight game deploys into every one of the 18
+        /// and plays to the end - the AI places its units inside triangles, wedges and rings without faulting.
+        /// </summary>
+        [TestCaseSource(nameof(EveryDeploymentStyle))]
+        public async Task EveryDeploymentStyle_DeploysAndPlaysToTheEnd(EDeploymentStyle style)
+        {
+            List<string> log = await PlayAGame(4600 + (int)style, EGameSystem.GFFirefight, fastPlayShooting: false,
+                deploymentStyle: style);
+            Assert.That(log.Any(l => l.Contains($"Deployment style: {AdvancedDeployment.Name(style)}", StringComparison.Ordinal)),
+                Is.True, "the style was never used");
+        }
+
+        private static IEnumerable<EDeploymentStyle> EveryDeploymentStyle() =>
+            AdvancedDeployment.InFamily(EDeploymentFamily.Standard)
+                .Concat(AdvancedDeployment.InFamily(EDeploymentFamily.Strategic))
+                .Concat(AdvancedDeployment.InFamily(EDeploymentFamily.Asymmetric));
+
+        [Test]
+        public async Task ARandomStyle_IsRolledAndAnnounced()
+        {
+            List<string> log = await PlayAGame(4620, EGameSystem.AoFSkirmish, fastPlayShooting: false,
+                deploymentStyle: EDeploymentStyle.RandomAsymmetric);
+            Assert.That(log.Any(l => l.Contains("Deployment style: rolled", StringComparison.Ordinal)), Is.True);
         }
 
         [Test]

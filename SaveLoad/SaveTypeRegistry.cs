@@ -55,6 +55,8 @@ namespace FDG.SaveLoad
             // stored wherever a deployment zone is and needs its own stable id or a saved game with an
             // L-shaped zone cannot be loaded back.
             Add(typeof(MultiRectZone), "multiRectZone");
+            // The Advanced Rulebooks' triangle and wedge deployment zones (2026-11-05) - same reason.
+            Add(typeof(PolygonZone), "polygonZone");
             Add(typeof(ObjectiveData), "objective");
             Add(typeof(PlayerID), "playerId");
             Add(typeof(GameProgressData), "gameProgress");

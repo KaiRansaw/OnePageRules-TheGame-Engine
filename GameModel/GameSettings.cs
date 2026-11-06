@@ -90,6 +90,13 @@ namespace FDG
         public bool FastPlayShooting;
 
         /// <summary>
+        /// The Advanced Rulebooks' deployment style (Kai, 2026-11-05). <see cref="EDeploymentStyle.Core"/> - the
+        /// core rules' 12" from your edge - by default. See <see cref="AdvancedDeployment"/>; only games whose
+        /// pages are in use it, and a custom map's own zones win over it.
+        /// </summary>
+        public EDeploymentStyle DeploymentStyle;
+
+        /// <summary>
         /// House rule (lobby toggle, default ON): when true, separate friendly units may end their
         /// move within 1" of each other, and may pass through each other's bases. Models still may
         /// not END overlapping another model, the enemy standoff is untouched, and within-unit

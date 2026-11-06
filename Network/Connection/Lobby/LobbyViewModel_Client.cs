@@ -1,4 +1,4 @@
-﻿using FDG.GameModel;
+using FDG.GameModel;
 using FDG;
 using FDG.Data;
 using FDG.EngineInterface;
@@ -109,6 +109,7 @@ namespace FDG.Network.Connection.Lobby
         // lobby reads them each frame.
         public bool FastPlayMovement { get; private set; }
         public bool FastPlayMelee { get; private set; }
+        public EDeploymentStyle DeploymentStyle { get; private set; }
         public bool FastPlayShooting { get; private set; }
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
@@ -437,6 +438,7 @@ namespace FDG.Network.Connection.Lobby
             }
             FastPlayMovement = gameSettingsUpdate.GameSettings.FastPlayMovement;
             FastPlayMelee = gameSettingsUpdate.GameSettings.FastPlayMelee;
+            DeploymentStyle = gameSettingsUpdate.GameSettings.DeploymentStyle;
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
             {
@@ -557,6 +559,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetUnlimitedSplitFire(bool enabled)
         {
             throw new InvalidOperationException("Tried to set unlimited split fire when not the host.");
+        }
+
+        public void SetDeploymentStyle(EDeploymentStyle style)
+        {
+            throw new InvalidOperationException("Tried to set the deployment style when not the host.");
         }
 
         public void SetFastPlay(bool movement, bool melee, bool shooting)

@@ -92,6 +92,7 @@ namespace FDG.Network.Connection.Lobby
         public bool UnlimitedSplitFire => _settings_UnlimitedSplitFire.Value;
         public bool FastPlayMovement => _gameSettings.FastPlayMovement;   // #456
         public bool FastPlayMelee => _gameSettings.FastPlayMelee;
+        public EDeploymentStyle DeploymentStyle => _gameSettings.DeploymentStyle;
         public bool FastPlayShooting => _gameSettings.FastPlayShooting;
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
@@ -1319,6 +1320,12 @@ namespace FDG.Network.Connection.Lobby
         {
             _settings_UnlimitedSplitFire.OnNext(enabled);
             _gameSettings.UnlimitedSplitFire = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetDeploymentStyle(EDeploymentStyle style)
+        {
+            _gameSettings.DeploymentStyle = style;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

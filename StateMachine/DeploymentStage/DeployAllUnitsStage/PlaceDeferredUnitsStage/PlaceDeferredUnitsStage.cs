@@ -125,6 +125,43 @@ namespace FDG.Stages
         /// The arithmetic of <see cref="BuildForwardZone"/>, with no table state - so the awkward zone
         /// shapes that broke it can be tested directly.
         /// </summary>
+        private static PolygonZone PushPolygonForward(PolygonZone zone, float rangeInches, float middleX, float middleZ)
+        {
+            var parts = new List<float[]>();
+            foreach (IReadOnlyList<Float2> part in zone.Vertices)
+            {
+                float cx = part.Average(v => v.X), cz = part.Average(v => v.Y);
+                float dx = middleX - cx, dz = middleZ - cz, len = MathF.Sqrt(dx * dx + dz * dz);
+                var pts = new List<Float2>(part);
+                if (len > 0.001f)
+                    foreach (Float2 v in part)
+                        pts.Add(new Float2(v.X + dx / len * MathF.Min(rangeInches, len),
+                                           v.Y + dz / len * MathF.Min(rangeInches, len)));
+                parts.Add(ConvexHull(pts).SelectMany(v => new[] { v.X, v.Y }).ToArray());
+            }
+            return new PolygonZone(parts);
+        }
+
+        /// <summary>Monotone-chain convex hull, counter-clockwise.</summary>
+        private static List<Float2> ConvexHull(List<Float2> pts)
+        {
+            var p = pts.OrderBy(v => v.X).ThenBy(v => v.Y).ToList();
+            if (p.Count < 3) return p;
+            float Cross(Float2 o, Float2 a, Float2 b) => (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
+            var hull = new List<Float2>();
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int start = hull.Count;
+                foreach (Float2 v in pass == 0 ? p : Enumerable.Reverse(p))
+                {
+                    while (hull.Count >= start + 2 && Cross(hull[^2], hull[^1], v) <= 0f) hull.RemoveAt(hull.Count - 1);
+                    hull.Add(v);
+                }
+                hull.RemoveAt(hull.Count - 1);
+            }
+            return hull;
+        }
+
         internal static RectangularZone ForwardZone(RectangularZone zone, float rangeInches,
                                                     float middleX, float middleZ)
         {
@@ -140,6 +177,12 @@ namespace FDG.Stages
                     pushed.Add(ForwardZone(part, rangeInches, middleX, middleZ));
                 return MultiRectZone.Of(pushed);
             }
+
+            // A triangle or wedge zone (Advanced deployment styles) is swept toward the middle as a whole:
+            // the convex hull of each part and the same part moved forward by the range - exactly the ground
+            // it passes over, never the empty corners of its bounding box.
+            if (zone is PolygonZone poly)
+                return PushPolygonForward(poly, rangeInches, middleX, middleZ);
 
             float left = zone.Left, right = zone.Right, bottom = zone.Bottom, top = zone.Top;
 

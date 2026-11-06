@@ -1,4 +1,4 @@
-﻿using FDG.Ai;
+using FDG.Ai;
 using FDG.EngineInterface;
 using FDG.Network.Messages;
 using FDG.Players;
@@ -242,6 +242,11 @@ namespace FDG.Network.Connection.Lobby
         /// three, because they are always drawn and changed as one group.
         /// </summary>
         void SetFastPlay(bool movement, bool melee, bool shooting);
+
+        /// <summary>The Advanced Rulebooks' deployment style - see <see cref="GameSettings.DeploymentStyle"/>.</summary>
+        EDeploymentStyle DeploymentStyle { get; }
+
+        void SetDeploymentStyle(EDeploymentStyle style);
 
         /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
         void SetFriendlyUnitsMayOverlap(bool enabled);
