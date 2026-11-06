@@ -367,7 +367,7 @@ namespace FDG.Missions
                 foreach (IPlayerSlotInfo seat in seats)
                 {
                     MissionCardSide side = state.Sides[seat.SlotID];
-                    var best = BestCard(side.Table, seat.SlotID, seat.SlotID, board, state);
+                    var best = await BestCard(seat, side.Table, seat.SlotID, board, state);
                     if (best != null)
                     {
                         await Score(state, seat, best.Value.Card, best.Value.Vp, best.Value.Why, roundJustFinished);
@@ -395,7 +395,7 @@ namespace FDG.Missions
                 var picks = new Dictionary<int, (int Card, int Vp, string Why)>();
                 foreach (IPlayerSlotInfo seat in seats)
                 {
-                    var best = BestCard(state.SharedTable, seat.SlotID, -1, board, state);
+                    var best = await BestCard(seat, state.SharedTable, -1, board, state);
                     if (best != null) picks[seat.SlotID] = best.Value;
                 }
 
@@ -444,17 +444,39 @@ namespace FDG.Missions
 
         private int HordeRulesLimit() => FDG.StateMachine.HordeRules.RoundLimit(_gameContext.Settings.GameMode);
 
-        private (int Card, int Vp, string Why)? BestCard(List<int> table, int slot, int prioritySlot, MissionBoard board,
-            MissionCardState state)
+        /// <summary>
+        /// The completed card worth most VP - "they must score the one worth most victory points". When two or
+        /// more are worth the same, the player picks which one scores (Kai, 2026-11-05: holding one back can
+        /// be an easy point next round); a bot takes the first.
+        /// </summary>
+        private async Task<(int Card, int Vp, string Why)?> BestCard(IPlayerSlotInfo seat, List<int> table,
+            int prioritySlot, MissionBoard board, MissionCardState state)
         {
-            (int Card, int Vp, string Why)? best = null;
+            var done = new List<(int Card, int Vp, string Why)>();
             foreach (int card in table)
             {
-                (int vp, string? why) = MissionCardRules.Evaluate(MissionCardCatalog.Card(System, card), slot, prioritySlot,
-                    board, state, System);
-                if (vp > 0 && (best == null || vp > best.Value.Vp)) best = (card, vp, why!);
+                (int vp, string? why) = MissionCardRules.Evaluate(MissionCardCatalog.Card(System, card), seat.SlotID,
+                    prioritySlot, board, state, System);
+                if (vp > 0) done.Add((card, vp, why!));
             }
-            return best;
+            if (done.Count == 0) return null;
+            int top = done.Max(d => d.Vp);
+            var tied = done.Where(d => d.Vp == top).ToList();
+            if (tied.Count == 1) return tied[0];
+
+            var options = new List<string>();
+            var descriptions = new Dictionary<string, string>();
+            foreach (var d in tied)
+            {
+                string label = $"Score {CardName(d.Card)} ({d.Vp} VP)";
+                options.Add(label);
+                descriptions[label] = $"Completed: {d.Why} The other card stays on the table.";
+            }
+            string picked = await Ask(seat,
+                $"You completed {tied.Count} mission cards worth {top} VP. Only one scores this round - pick which.",
+                options, descriptions, "Choosing which mission card to score");
+            int index = options.IndexOf(picked);
+            return tied[index >= 0 ? index : 0];
         }
 
         private async Task Score(MissionCardState state, IPlayerSlotInfo seat, int card, int vp, string why, int round)
