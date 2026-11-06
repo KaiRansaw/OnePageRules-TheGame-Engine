@@ -115,6 +115,12 @@ namespace FDG.Campaign
         /// <see cref="CampaignJournal.SetNote"/>.
         /// </summary>
         public List<CampaignMissionNote> MissionNotes { get; set; } = new();
+
+        /// <summary>
+        /// #465 - the campaign's mission plans, one per planned mission (played ones kept, so the campaign
+        /// can be saved as a script). See <see cref="CampaignMissionPlan"/>.
+        /// </summary>
+        public List<CampaignMissionPlan> Plans { get; set; } = new();
     }
 
     /// <summary>
