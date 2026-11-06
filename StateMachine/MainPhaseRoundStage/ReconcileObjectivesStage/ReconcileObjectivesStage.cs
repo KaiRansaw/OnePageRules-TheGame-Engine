@@ -133,6 +133,18 @@ namespace FDG.Stages
                 return;
             }
 
+            if (roundJustFinished >= roundLimit
+                && !gameMasterEnd
+                && CampaignMissionLength.PlaysOn(GameContext, roundJustFinished))
+            {
+                // #466: "if after 4 rounds there is no winner, the game continues onto the next round
+                // until there is one winner" - the campaign books' Mission Length.
+                await GameContext.Announce($"No winner after round {roundJustFinished} - the campaign mission "
+                    + "continues into another round.", new TextColor(255, 215, 0, 255), EBannerTier.Headline);
+                await ToReconcileEndOfTurn.Activate(context);
+                return;
+            }
+
             if (roundJustFinished >= roundLimit)
             {
                 GameContext.Log($"{roundLimit} rounds complete. Proceeding to victory calculation.");
@@ -184,6 +196,10 @@ namespace FDG.Stages
                 // A unit that arrived from reserve this round can neither seize nor contest — skip its
                 // models so it counts toward neither (the marker is cleared at this round's end below).
                 if (unit.Tokens.HasToken(TokenType.ArrivedFromReserve)) continue;
+
+                // Off the table altogether (#466: a conceded army is parked there): its models sit at the
+                // unplaced sentinel, which must never count as standing next to a marker.
+                if (unit.Tokens.HasToken(TokenType.InReserve)) continue;
 
                 // A Shaken unit can neither seize nor contest objectives (#008). Units that activated
                 // and recovered this round have already had the token cleared, so only those still

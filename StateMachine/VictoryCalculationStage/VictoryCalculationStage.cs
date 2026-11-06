@@ -22,6 +22,30 @@ namespace FDG.Stages
             IReadOnlyList<PlayerObjectiveScore> finalScores = GameContext.TableState.Progress.Scores;
             int roundsPlayed = GameContext.TableState.Progress.RoundCount ?? 0;
 
+            // #466: a campaign side that conceded has lost. When only one side is left it has won,
+            // whatever the objectives say - "the winning army" is the one still on the field.
+            var everyone = GameContext.TableState.Players.Objects.Where(p => p.IsFilled).ToList();
+            var stillIn = CampaignMissionLength.InPlayers(GameContext.TableState);
+            if (stillIn.Count < everyone.Count)
+            {
+                List<int> teams = CampaignMissionLength.TeamsStillIn(GameContext.TableState);
+                if (teams.Count == 1)
+                {
+                    var roster = stillIn.Where(p => p.TeamNumber == teams[0]).OrderBy(p => p.SlotID).ToList();
+                    GameResult conceded = GameResult.ForWin(roster.Select(p => p.PlayerID).ToList(),
+                        roster.Select(p => p.Name).ToList(), finalScores, roundsPlayed);
+                    await context.Announce($"{conceded.Message} (the other side conceded)",
+                        new TextColor(255, 215, 0, 255), EBannerTier.Headline);
+                    GameContext.NotifyGameCompleted(conceded);
+                    return;
+                }
+                if (teams.Count == 0)
+                {
+                    await AnnounceTie(context, finalScores, roundsPlayed);
+                    return;
+                }
+            }
+
             // Mission Cards: "the player that scored most victory points wins", after the final objectives'
             // 1 VP each. Teammates pool their points, as they pool objectives below.
             if (FDG.Missions.MissionCardRoundHooks.ScoreFinalObjectives(GameContext) is { } vp)
@@ -55,7 +79,9 @@ namespace FDG.Stages
             // their objectives. #331 moved that arithmetic into TeamScoreTally so the front end can colour
             // a victory celebration by the winning side using the SAME computation rather than a lookalike
             // - the structured result never crosses the wire, but the objectives and slots this reads do.
-            var players = GameContext.TableState.Players.Objects.ToList();
+            // #466: a player who conceded is out of the running (their markers went neutral when they left).
+            var players = GameContext.TableState.Players.Objects
+                .Where(p => !CampaignMissionLength.HasConceded(GameContext.TableState, p.PlayerID)).ToList();
             IReadOnlyList<TeamScore> teamScores = TeamScoreTally.Build(players, objectives);
 
             // Team tally lines only when a real multi-player team exists - keeps 1v1 logs unchanged.
@@ -105,7 +131,7 @@ namespace FDG.Stages
         private async Task AnnounceByVictoryPoints(IGameContext context, Dictionary<int, int> vpBySlot,
             IReadOnlyList<PlayerObjectiveScore> finalScores, int roundsPlayed)
         {
-            var players = GameContext.TableState.Players.Objects.Where(p => p.IsFilled).OrderBy(p => p.SlotID).ToList();
+            var players = CampaignMissionLength.InPlayers(GameContext.TableState).OrderBy(p => p.SlotID).ToList();
             foreach (var p in players)
                 GameContext.TextOutput.Log($"  {p.Name}: {(vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0)} VP");
 

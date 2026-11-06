@@ -21,6 +21,7 @@ public readonly record struct TokenType(string Id)
     public const string JOINS_ROUND_IN_PROGRESS_ID = "JoinsRoundInProgress";
     public const string REINFORCEMENT_SPENT_ID = "ReinforcementSpent";
     public const string PENDING_REINFORCEMENT_ARRIVAL_ID = "PendingReinforcementArrival";
+    public const string CONCEDED_ID = "Conceded";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -249,6 +250,14 @@ public readonly record struct TokenType(string Id)
     /// any table edge. Cleared on arrival. ManualOnly — it must survive the round-end sweep.
     /// </summary>
     public static readonly TokenType PendingReinforcementArrival = new(PENDING_REINFORCEMENT_ARRIVAL_ID);
+
+    /// <summary>
+    /// #466: a campaign unit whose player conceded the mission - "removing all of their units from the
+    /// table, which don't count as casualties" (all four 3.6.0 campaign books). Off the table for the rest
+    /// of the game (held in reserve, never to arrive), and alive, so the campaign's casualty check after
+    /// the game passes it over. ManualOnly - nothing ever clears it.
+    /// </summary>
+    public static readonly TokenType Conceded = new(CONCEDED_ID);
 
     /// <summary>
     /// Marks a unit that is currently embarked inside a Transport (#035). A <b>cross-unit</b> token:

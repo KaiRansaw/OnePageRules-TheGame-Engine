@@ -322,7 +322,6 @@ namespace FDG.Missions
 
         private async Task CustomRoundEnd(MissionCardState state, MissionBoard board, List<IPlayerSlotInfo> seats, int round)
         {
-            bool more = round < HordeRulesLimit();
             foreach (IPlayerSlotInfo seat in seats)
             {
                 MissionCardSide side = state.Sides[seat.SlotID];
@@ -335,7 +334,7 @@ namespace FDG.Missions
                     side.Hidden = side.Hidden.Where(c => c != best.Value.Card).ToList();
                 }
                 side.Vp = state.Vp[seat.SlotID];
-                if (!more) continue;
+                if (!MoreRoundsAfter(round)) continue;
 
                 // "After scoring cards, each player may discard one of their remaining cards."
                 int? dropped = await AskDiscardOne(seat, side.Table, seat.SlotID,

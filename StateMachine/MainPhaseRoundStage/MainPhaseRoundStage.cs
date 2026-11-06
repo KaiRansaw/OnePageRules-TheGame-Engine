@@ -75,6 +75,7 @@ namespace FDG.Stages
             playerTurn.OnRoundFinished.Bind(reconcileObjectives);
             reconcileObjectives.ToReconcileEndOfTurn.Bind(reconcileNewTurn);
             reconcileObjectives.ToVictoryCalculation.Bind(toVictoryCalculationEvent);
+            startOfTurnExtraActions.ToVictoryCalculation.Bind(toVictoryCalculationEvent);
 
             return dictionary;
         }

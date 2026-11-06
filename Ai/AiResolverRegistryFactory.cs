@@ -118,6 +118,7 @@ namespace FDG.Ai
                 .RegisterResolver(new AiPickCommandGroupUnitsResolver())
                 .RegisterResolver(new AiPickUnitLeadersResolver())   // #456
                 .RegisterResolver(new AiPickStringsResolver())       // #462
+                .RegisterResolver(new AiConcedeCheckResolver())      // #466
                 // #419: and moves to where that tree is heading, which for four of its five branches is an
                 // objective rather than an enemy.
                 .RegisterResolver(starQuest

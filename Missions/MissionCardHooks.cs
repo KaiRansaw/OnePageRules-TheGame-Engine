@@ -401,7 +401,7 @@ namespace FDG.Missions
                     side.Vp = state.Vp[seat.SlotID];
 
                     // "After scoring cards, each player may choose to discard one of their remaining cards."
-                    if (roundJustFinished < HordeRulesLimit())
+                    if (MoreRoundsAfter(roundJustFinished))
                     {
                         int? dropped = await AskDiscardOne(seat, side.Table, seat.SlotID,
                             "You may discard one of your remaining mission cards.");
@@ -444,7 +444,7 @@ namespace FDG.Missions
 
                 // "At the end of each round, the player with the lowest total score may discard one of the
                 // remaining cards." When two or more share the lowest score there is no such player.
-                if (roundJustFinished < HordeRulesLimit() && seats.Count > 0)
+                if (MoreRoundsAfter(roundJustFinished) && seats.Count > 0)
                 {
                     int low = seats.Min(s => state.Vp[s.SlotID]);
                     var lowest = seats.Where(s => state.Vp[s.SlotID] == low).ToList();
@@ -467,6 +467,14 @@ namespace FDG.Missions
         }
 
         private int HordeRulesLimit() => FDG.StateMachine.HordeRules.RoundLimit(_gameContext.Settings.GameMode);
+
+        /// <summary>
+        /// Whether another round follows <paramref name="round"/>: the end-of-round discards are skipped
+        /// after the last one. #466: a campaign mission plays on past its last round while there is no one
+        /// winner, so it asks the campaign rule (with this round's cards already scored).
+        /// </summary>
+        private bool MoreRoundsAfter(int round) =>
+            round < HordeRulesLimit() || FDG.Stages.CampaignMissionLength.PlaysOn(_gameContext, round);
 
         /// <summary>
         /// The completed card worth most VP - "they must score the one worth most victory points". When two or

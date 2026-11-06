@@ -14,9 +14,14 @@ namespace FDG.Stages
     public class StartOfRoundExtraActionStage : StageBase<IMainPhaseContext>
     {
         public StageBinding OnFinished;
+
+        /// <summary>#466: a campaign concession that leaves one side on the table ends the game here.</summary>
+        public StageBinding ToVictoryCalculation;
+
         public StartOfRoundExtraActionStage(IGameContext gameContext, IStateMachineLayer<IMainPhaseContext> parent) : base(gameContext, parent)
         {
             OnFinished = new StageBinding(this);
+            ToVictoryCalculation = new StageBinding(this);
         }
 
         public override async Task Enter(IMainPhaseContext context)
@@ -25,6 +30,15 @@ namespace FDG.Stages
 
             await context.Announce($"Round {context.RoundCount}", new TextColor(120, 200, 255, 255),
                 EBannerTier.Headline);
+
+            // #466: "At the beginning of any round players may concede" - first, before anything else the
+            // round does, so a conceding army takes no part in it. When only one side is left, that side
+            // has won and the game goes straight to the result.
+            if (await CampaignMissionLength.RunRoundStart(GameContext, context.RoundCount))
+            {
+                await ToVictoryCalculation.Activate(context);
+                return;
+            }
 
             // Caster units replenish their spell tokens at the top of every round (#033), including round 1;
             // so does any other rule with a round-start grant (Spell Accumulator's lending pool).
@@ -164,6 +178,7 @@ namespace FDG.Stages
                     UnitData u = binding.GetValue();
                     return u.GetIsAlive()
                         && ReserveRules.IsInReserve(u)
+                        && !u.Tokens.HasToken(TokenType.Conceded)
                         && TryGetLaterRoundDefer(u, out RuleOperation.DeferDeployment d, out _)
                         && roundCount >= d.MinArrivalRound;
                 })
@@ -179,6 +194,7 @@ namespace FDG.Stages
 
                 if (!unit.GetIsAlive()) continue;
                 if (!ReserveRules.IsInReserve(unit)) continue;
+                if (unit.Tokens.HasToken(TokenType.Conceded)) continue;
                 if (!TryGetLaterRoundDefer(unit, out RuleOperation.DeferDeployment defer,
                         out string reserveRuleName)) continue;
                 if (roundCount < defer.MinArrivalRound) continue;
@@ -279,6 +295,7 @@ namespace FDG.Stages
                     UnitData unit = unitBinding.GetValue();
                     if (!unit.GetIsAlive()) continue;
                     if (!unit.Tokens.HasToken(TokenType.OffTableFromForcedMove)) continue;
+                    if (unit.Tokens.HasToken(TokenType.Conceded)) continue;
 
                     // #309: OffTableFromForcedMove also gates GetIsOnBattlefield, so it must fall
                     // with the reserve clear - before the positions replicate, not after this call.
