@@ -22,6 +22,7 @@ public readonly record struct TokenType(string Id)
     public const string REINFORCEMENT_SPENT_ID = "ReinforcementSpent";
     public const string PENDING_REINFORCEMENT_ARRIVAL_ID = "PendingReinforcementArrival";
     public const string CONCEDED_ID = "Conceded";
+    public const string THICK_CLOUDS_ID = "ThickClouds";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -258,6 +259,13 @@ public readonly record struct TokenType(string Id)
     /// the game passes it over. ManualOnly - nothing ever clears it.
     /// </summary>
     public static readonly TokenType Conceded = new(CONCEDED_ID);
+
+    /// <summary>
+    /// Campaign event 43, Thick Clouds: "whilst any unit is fully within a random table quarter, it halves
+    /// its weapon ranges." Put on every unit for the round, its <see cref="Tokens.TokenPayload.TableArea"/>
+    /// holding the quarter, so the range check can test the shooter's position at the moment it shoots. Cleared at round end.
+    /// </summary>
+    public static readonly TokenType ThickClouds = new(THICK_CLOUDS_ID);
 
     /// <summary>
     /// Marks a unit that is currently embarked inside a Transport (#035). A <b>cross-unit</b> token:

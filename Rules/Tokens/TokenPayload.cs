@@ -88,4 +88,11 @@ public abstract record TokenPayload
     /// place payload equality is deliberately not the stacking key.</para>
     /// </summary>
     public sealed record Magnitude(float Value) : TokenPayload;
+
+    /// <summary>
+    /// A rectangle of the table, in inches - the quarter a Thick Clouds campaign event clouded (#432).
+    /// Carried on the token itself so the range check, which has no game to look anything up in, can test
+    /// the shooter's position against it.
+    /// </summary>
+    public sealed record TableArea(float Left, float Right, float Bottom, float Top) : TokenPayload;
 }

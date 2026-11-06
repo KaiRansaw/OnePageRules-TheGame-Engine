@@ -49,7 +49,34 @@ namespace FDG.Rules.Dispatch
                 if (markFloor > floor) floor = markFloor;
             }
 
-            return System.Math.Max(floor, weapon.RangeInches + delta);
+            float range = System.Math.Max(floor, weapon.RangeInches + delta);
+            // Campaign event 43, Thick Clouds: halved while the shooter stands fully inside the quarter.
+            return InThickClouds(attacker) ? range / 2f : range;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="unit"/> is fully within the quarter a Thick Clouds event clouded this
+        /// round (every living model's whole base inside it). The quarter is on the unit's own
+        /// <see cref="TokenType.ThickClouds"/> token.
+        /// </summary>
+        public static bool InThickClouds(IUnit unit)
+        {
+            foreach (Token token in unit.Tokens.GetAllTokens(TokenType.ThickClouds))
+            {
+                if (token.Payload is not TokenPayload.TableArea area) continue;
+                float left = area.Left, rightX = area.Right, bottom = area.Bottom, topZ = area.Top;
+                bool any = false, all = true;
+                foreach (IModel m in unit.Models)
+                {
+                    if (!m.GetIsAlive()) continue;
+                    any = true;
+                    float r = m.BaseRadiusInches;
+                    if (m.Position.x - r < left || m.Position.x + r > rightX || m.Position.z - r < bottom || m.Position.z + r > topZ)
+                    { all = false; break; }
+                }
+                if (any && all) return true;
+            }
+            return false;
         }
 
         /// <summary>

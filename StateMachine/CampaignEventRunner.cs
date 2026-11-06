@@ -24,17 +24,10 @@ namespace FDG.Stages
     /// </para>
     ///
     /// <para>
-    /// <b>What is applied and what is not.</b> 33 of the 36 entries resolve. Three do not yet, and each
-    /// says so in the log rather than firing silently:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item><b>Explosive Trap (12) and Solar Flare (32)</b> deal hits, which have to run the
-    ///   save-and-wound child pipeline that only exists inside an attack stage.</item>
-    ///   <item><b>Thick Clouds (43)</b> halves weapon ranges, and the engine has no range multiplier.</item>
-    /// </list>
-    /// <para>
-    /// The four "whilst a unit is inside an area" events (36, 44, 45, 46) are in
-    /// <see cref="CampaignEventAreas"/>, checked at the roll / activation they affect (2026-11-06).
+    /// <b>All 36 entries resolve</b> (2026-11-06). The hit events (12, 32) roll Defense per hit with no
+    /// attacker; Thick Clouds (43) marks every unit with the clouded quarter and the range check halves a
+    /// shooter's ranges while it stands fully inside; the four "whilst inside" events (36, 44, 45, 46) are
+    /// in <see cref="CampaignEventAreas"/>, checked at the roll or activation they affect.
     /// </para>
     /// </summary>
     public static class CampaignEventRunner
@@ -226,12 +219,25 @@ namespace FDG.Stages
                 }
 
                 case ECampaignEventKind.Hits:
-                    return "Hits from a random event are not applied yet: they need the save-and-wound "
-                           + "pipeline, which only exists inside an attack. Nothing happened.";
+                {
+                    IUnit? target = PickScopedUnit(table, fired.Scope, d6);
+                    if (target == null) return "No unit could be hit, so nothing happened.";
+                    int hits = CampaignEventTargeting.RollAmount(fired, d6);
+                    float wounds = await DealHits(gameContext, target, hits, fired.Name);
+                    return $"{target.Name} takes {hits} hit(s) and {Num(wounds)} wound(s) get through.";
+                }
 
                 case ECampaignEventKind.HalveRanges:
-                    return "Halved weapon ranges are not applied yet: the engine can add and subtract "
-                           + "inches but cannot halve a range. Nothing happened.";
+                {
+                    (float width, float height) = TableSize(gameContext);
+                    TableQuarter quarter = CampaignEventTargeting.PickQuarter(width, height, d6);
+                    foreach (IUnit unit in table.Units.Objects)
+                        unit.Tokens.AddToken(new Token(TokenType.ThickClouds, 1, new TokenClearTrigger.RoundEnd(),
+                            Payload: new TokenPayload.TableArea(quarter.Area.Left, quarter.Area.Right,
+                                quarter.Area.Bottom, quarter.Area.Top)));
+                    return $"Units fully within the {QuarterName(quarter.Index)} quarter halve their weapon "
+                           + "ranges until the end of the round.";
+                }
 
                 case ECampaignEventKind.RollModifier:
                 case ECampaignEventKind.MovementChange:
@@ -386,6 +392,30 @@ namespace FDG.Stages
                 name: TemporaryTerrainName(fired)));
             return $"The ground {where} counts as {typeName} terrain until the end of the round.";
         }
+
+        /// <summary>
+        /// "Takes X hits" from an event (12 Explosive Trap, 32 Solar Flare): no attacker, so no AP and no
+        /// weapon rules - the unit rolls Defense for each hit with its own Defense modifiers (the granted
+        /// ones, the area events' included), and each failure is a wound. The same shape the Quest games'
+        /// out-of-attack hits use (<c>QuestActions.DealHits</c>). Returns the wounds.
+        /// </summary>
+        private static async Task<float> DealHits(IGameContext gameContext, IUnit target, int hits, string source)
+        {
+            if (hits <= 0 || !target.GetIsAlive()) return 0f;
+            CampaignEventAreas.RefreshRollBonus(gameContext, target, ERollKind.Save);
+            int granted = GrantedRollModifiers.ConsumeNet(target, ERollKind.Save);
+            int needed = Math.Clamp(target.Defense - granted, 2, 6);
+            IDiceResults roll = gameContext.DiceRoller.Roll(6, hits);
+            float wounds = hits - roll.AtOrAbove(needed);
+            await gameContext.Presenter.Present(FDG.Presentation.Beats.DiceRolledBeat.From(roll, needed,
+                gameContext.Settings.RandomnessType, $"{target.Name} - Defense vs {source}",
+                $"{Num(wounds)} wound{(wounds == 1f ? "" : "s")}",
+                category: FDG.Presentation.Beats.ERollBeatCategory.Defense, context: source));
+            if (wounds > 0f) await CasualtyPresentation.ApplyUnitWounds(gameContext, target, wounds);
+            return wounds;
+        }
+
+        private static string Num(float v) => v.ToString("0.#");
 
         /// <summary>
         /// The four "whilst a unit is inside an area" events (36, 44, 45, 46): the area is picked now and the

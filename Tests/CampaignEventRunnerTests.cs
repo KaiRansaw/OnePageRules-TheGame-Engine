@@ -545,44 +545,72 @@ namespace FDG.Tests
             Assert.That(_context.TableState.Terrain.Objects.Single().Name, Is.EqualTo("A real wood"));
         }
 
-        // -- The deferred three ----------------------------------------------------------------------
+        // -- All 36 resolve (2026-11-06) ---------------------------------------------------------------
 
         /// <summary>
-        /// Three of the 36 are not applied yet, and each says so instead of firing silently: the two hit
-        /// events need the save-and-wound pipeline that only exists inside an attack, and Thick Clouds
-        /// needs a range multiplier the engine does not have. (The four position-based events were the
-        /// other deferred four; they are applied since 2026-11-06 - see the area tests below.)
-        /// <para>
-        /// Pinned deliberately. When one is implemented this test fails, which is the reminder to come
-        /// back and move it - far better than a silent inert branch nobody revisits.
-        /// </para>
+        /// Every entry of the table now does something. The last three - the two hit events and Thick
+        /// Clouds - were the "not applied yet" ones; nothing in the runner may say that any more.
         /// </summary>
-        [TestCase(12, TestName = "Explosive Trap (hits)")]
-        [TestCase(32, TestName = "Solar Flare (hits)")]
-        [TestCase(43, TestName = "Thick Clouds (halved ranges)")]
-        public async Task TheThreeNotYetApplied_SaySoRatherThanFiringSilently(int code)
+        [Test]
+        public async Task EveryEventResolves_NoneSayNotAppliedYet()
         {
             Unit(_me, new Position(10f, 10f));
             Objective(new Position(20f, 20f), _me);
-
-            string line = await Apply(code, Dice(1));
-
-            Assert.That(line, Does.Contain("not applied yet").IgnoreCase,
-                "an event that announces itself and then quietly does nothing is worse than one that "
-                + "admits it.");
+            Assert.That(CampaignEvents.All.Count(), Is.EqualTo(36));
+            foreach (CampaignEvent e in CampaignEvents.All)
+            {
+                string line = await CampaignEventRunner.Apply(_context, e, Dice(1));
+                Assert.That(line, Does.Not.Contain("not applied yet").IgnoreCase, $"event {e.Code}");
+                Assert.That(line, Does.Not.Contain("not implemented").IgnoreCase, $"event {e.Code}");
+            }
         }
 
-        /// <summary>
-        /// And the arithmetic of the split: 33 of the 36 resolve. Counted from the table rather than
-        /// written down, so adding an event or implementing a deferred one keeps it honest.
-        /// </summary>
         [Test]
-        public void ThirtyThreeOfTheThirtySixAreApplied()
+        public async Task ExplosiveTrap_HitsRollDefense_AndFailuresWound()
         {
-            int[] deferred = { 12, 32, 43 };
+            // Every die a 1: every Defense roll fails. 2D3 on 6s = 6 hits, three 1-wound models.
+            var always1 = new TestGameContext(_store, new FixedFaceDiceRoller(1),
+                ruleResolver: CoreRuleCatalog.CreateResolver());
+            DataBinding<UnitData> victim = Unit(_me, new Position(10f, 10f));
 
-            Assert.That(CampaignEvents.All.Count(), Is.EqualTo(36));
-            Assert.That(CampaignEvents.All.Count(e => !deferred.Contains(e.Code)), Is.EqualTo(33));
+            string line = await CampaignEventRunner.Apply(always1, CampaignEvents.ByCode(12), Dice(6));
+
+            Assert.That(line, Does.Contain("6 hit(s)"));
+            Assert.That(victim.GetValue().GetIsAlive(), Is.False);
+        }
+
+        [Test]
+        public async Task SolarFlare_OnlyHitsAUnitNearAnObjective()
+        {
+            var always6 = new TestGameContext(_store, new FixedFaceDiceRoller(6),
+                ruleResolver: CoreRuleCatalog.CreateResolver());
+            Objective(new Position(20f, 20f), null);
+            Unit(_me, new Position(50f, 40f));          // far from the marker
+            DataBinding<UnitData> near = Unit(_them, new Position(21f, 20f));
+
+            string line = await CampaignEventRunner.Apply(always6, CampaignEvents.ByCode(32), Dice(1));
+
+            Assert.That(line, Does.StartWith(near.GetValue().Name));
+            Assert.That(near.GetValue().GetIsAlive(), Is.True, "all sixes: every hit saved");
+        }
+
+        [Test]
+        public async Task ThickClouds_HalvesRange_OnlyWhilstFullyInsideTheQuarter()
+        {
+            var (_, inside, outside) = QuarterForDieOne();
+            DataBinding<UnitData> shooter = Unit(_me, inside);
+            DataBinding<UnitData> target = Unit(_them, outside);
+            var rifle = new Weapon("Rifle", 24f, 1, 0);
+
+            await Apply(43, Dice(1));
+            Assert.That(RangeRuleQueries.EffectiveRange(shooter.GetValue(), rifle, target.GetValue(), _context.RuleEvaluator),
+                Is.EqualTo(12f));
+            Assert.That(RangeRuleQueries.EffectiveRange(target.GetValue(), rifle, shooter.GetValue(), _context.RuleEvaluator),
+                Is.EqualTo(24f), "the unit outside shoots normally");
+
+            foreach (IModel m in shooter.GetValue().Models) ((ModelData)m).SetPosition(outside);
+            Assert.That(RangeRuleQueries.EffectiveRange(shooter.GetValue(), rifle, target.GetValue(), _context.RuleEvaluator),
+                Is.EqualTo(24f), "walking out: full range again");
         }
 
         // -- The four "whilst inside an area" events (36, 44, 45, 46) ---------------------------------

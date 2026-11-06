@@ -227,6 +227,9 @@ public static class TokenDefinitionCatalog
                 Description: "A fresh copy of this unit deploys within 12\" of any table edge at the start of the next round."),
 
             // #466 campaign concession: off the table for good, and not a casualty.
+            new(TokenType.THICK_CLOUDS_ID, "Thick Clouds", EValence.Neutral,
+                ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.RoundEnd(),
+                Description: "Campaign event: a unit fully within the clouded table quarter halves its weapon ranges this round."),
             new(TokenType.CONCEDED_ID, "Conceded", EValence.Neutral,
                 ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
                 Description: "This unit's player conceded the mission. It has left the table and does not count as a casualty."),
