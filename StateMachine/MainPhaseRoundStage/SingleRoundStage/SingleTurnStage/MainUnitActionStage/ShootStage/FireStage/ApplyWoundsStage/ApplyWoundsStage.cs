@@ -62,6 +62,7 @@ namespace FDG.Stages
                 if(model.GetIsDead())
                 {
                     modelsKilled++;
+                    FDG.Missions.MissionCardEvents.ModelKilled(GameContext, model, metaData.AttackingUnit.GetValue());
 
                     // Present the death where the model fell. State is already dead; the front-end
                     // plays the death animation over the beat's duration before dropping the model.

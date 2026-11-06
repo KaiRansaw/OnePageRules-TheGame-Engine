@@ -13,6 +13,20 @@ namespace FDG.Missions
         /// <summary>"Players compete in completing the same set of objective cards" - one shared deck, three
         /// cards on the table for everyone.</summary>
         TotalDomination,
+
+        // ── The custom-deck games: each player builds an 18-card deck, holds a hand of 5, plays 3 ──
+        /// <summary>"Each player must select one of their opponent's cards to be their challenge card" (+1 VP).</summary>
+        DirectChallenge,
+        /// <summary>The leader must reveal hidden cards, the player behind may hide any.</summary>
+        StrategicRuse,
+        /// <summary>Each player may send one of the opponent's cards back to their hand.</summary>
+        PlannedGambit,
+        /// <summary>Up to two discards shuffled back into the deck each round.</summary>
+        CoordinatedRecovery,
+        /// <summary>Whoever controls more objectives holds 6 cards instead of 5.</summary>
+        LogisticalSupremacy,
+        /// <summary>One card a round only units with a Hero may score, for +1 VP.</summary>
+        TacticalParagons,
     }
 
     /// <summary>One condition on a card and the victory points it is worth.</summary>
@@ -145,7 +159,30 @@ namespace FDG.Missions
             EMissionCardGame.Off => "Off (core rules)",
             EMissionCardGame.BattleOfWits => "Battle of Wits",
             EMissionCardGame.TotalDomination => "Total Domination",
+            EMissionCardGame.DirectChallenge => "Direct Challenge",
+            EMissionCardGame.StrategicRuse => "Strategic Ruse",
+            EMissionCardGame.PlannedGambit => "Planned Gambit",
+            EMissionCardGame.CoordinatedRecovery => "Coordinated Recovery",
+            EMissionCardGame.LogisticalSupremacy => "Logistical Supremacy",
+            EMissionCardGame.TacticalParagons => "Tactical Paragons",
             _ => game.ToString(),
+        };
+
+        /// <summary>The six games played with an 18-card deck each player builds (Custom Deck Rules).</summary>
+        public static bool IsCustom(EMissionCardGame game) => game >= EMissionCardGame.DirectChallenge;
+
+        /// <summary>"After deployment, each player must put together a deck of 18 unique cards."</summary>
+        public const int CustomDeckSize = 18;
+        public const int HandSize = 5;
+        public const int SupremacyHandSize = 6;
+
+        /// <summary>
+        /// The deck the game suggests (and a bot builds): both Seize sets plus the cards an army scores by just
+        /// playing - moving out, getting stuck in, killing things, holding ground.
+        /// </summary>
+        public static readonly IReadOnlyList<int> SuggestedDeck = new[]
+        {
+            11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25, 26, 41, 42, 45, 51, 52, 53,
         };
     }
 
@@ -158,6 +195,18 @@ namespace FDG.Missions
         public List<int> Deck { get; set; } = new();
         public List<int> Table { get; set; } = new();
         public List<int> Discard { get; set; } = new();
+
+        // ── Custom decks ──
+        /// <summary>The cards in hand (custom-deck games). The table is <see cref="Table"/>.</summary>
+        public List<int> Hand { get; set; } = new();
+        /// <summary>Cards on the table that are face down - hidden from the other players.</summary>
+        public List<int> Hidden { get; set; } = new();
+        public bool DeckBuilt { get; set; }
+        /// <summary>Direct Challenge: the card on THIS player's table their opponent picked as the challenge (0 = none).</summary>
+        public int Challenge { get; set; }
+        /// <summary>Tactical Paragons: this player's paragon card this round (0 = none).</summary>
+        public int Paragon { get; set; }
+
         /// <summary>Victory points so far - cards, and at the end of the game the final objectives.</summary>
         public int Vp { get; set; }
     }
@@ -172,6 +221,8 @@ namespace FDG.Missions
         /// <summary>"shooting", "melee", "spell" or "other".</summary>
         public string Cause { get; set; } = "other";
         public bool Flying { get; set; }
+        /// <summary>The killing unit contained a Hero (Tactical Paragons).</summary>
+        public bool KillerHero { get; set; }
     }
 
     /// <summary>A model that died in a round, found by comparing who was alive at its start.</summary>
@@ -183,6 +234,10 @@ namespace FDG.Missions
         public bool Hero { get; set; }
         public bool Caster { get; set; }
         public int Tough { get; set; }
+        /// <summary>Who killed it, when an attack did (-1 otherwise).</summary>
+        public int KillerSlot { get; set; } = -1;
+        /// <summary>The killing unit contained a Hero (Tactical Paragons).</summary>
+        public bool KillerHero { get; set; }
     }
 
     /// <summary>A scored card, for the report and the end of the game.</summary>
@@ -226,10 +281,12 @@ namespace FDG.Missions
         public List<MissionModelDeath> ModelDeaths { get; set; } = new();
         /// <summary>[round, slot of the unit that failed]</summary>
         public List<int[]> MoraleFails { get; set; } = new();
-        /// <summary>[round, slot of the caster]</summary>
+        /// <summary>[round, slot of the caster, 1 when the caster's unit contains a Hero]</summary>
         public List<int[]> SpellsCast { get; set; } = new();
-        /// <summary>[round, winner slot, margin in wounds]</summary>
+        /// <summary>[round, winner slot, margin in wounds, 1 when the winning unit contains a Hero]</summary>
         public List<int[]> MeleeWins { get; set; } = new();
+        /// <summary>Model id -> [killer slot, 1 when the killing unit contains a Hero], from the attack that killed it.</summary>
+        public Dictionary<string, int[]> ModelKillers { get; set; } = new();
 
         /// <summary>Objective number (1-based) -> owner slot at the start of this round, -1 for nobody.</summary>
         public Dictionary<int, int> OwnersAtRoundStart { get; set; } = new();

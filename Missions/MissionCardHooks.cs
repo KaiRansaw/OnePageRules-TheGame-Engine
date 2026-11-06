@@ -3,6 +3,7 @@ using FDG.Players;
 using FDG.Presentation.Beats;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Tokens;
+using FDG.Rules.Foundation;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
 using FDG.Utilities;
@@ -65,6 +66,10 @@ namespace FDG.Missions
             HasRule(model.RuleDefinitions, "Caster")
             || (HasRule(unit.RuleDefinitions, "Caster") && unit.Models.Count > 0 && ReferenceEquals(unit.Models[0], model));
 
+        /// <summary>The unit contains a living Hero (Tactical Paragons: "units containing a Hero").</summary>
+        internal static bool UnitHasHero(IUnit? unit) =>
+            unit != null && unit.Models.Any(m => m.GetIsAlive() && IsHeroModel(unit, m));
+
         internal static int HeroCost(IUnit unit, IModel model) =>
             unit is UnitData data
                 ? data.JoinedHeroModelId is ModelID joined && joined.Equals(model.ID) && data.HeroAttachment != null
@@ -100,7 +105,18 @@ namespace FDG.Missions
                 },
                 Flying = MissionCardGame.HasRule(dead.RuleDefinitions, "Flying")
                          || dead.Models.Any(m => MissionCardGame.HasRule(m.RuleDefinitions, "Flying")),
+                KillerHero = MissionCardGame.UnitHasHero(killer),
             });
+        }
+
+        /// <summary>A model killed by an attack, and by whom - read when the round's deaths are counted.</summary>
+        public static void ModelKilled(IGameContext gameContext, IModel model, IUnit? attacker)
+        {
+            if (attacker == null || StateOf(gameContext) is not { } state) return;
+            state.ModelKillers[model.ID.ID.ToString()] = new[]
+            {
+                MissionCardGame.SlotOf(gameContext, attacker), MissionCardGame.UnitHasHero(attacker) ? 1 : 0,
+            };
         }
 
         public static void MoraleFailed(IGameContext gameContext, IUnit unit)
@@ -112,14 +128,14 @@ namespace FDG.Missions
         public static void SpellCast(IGameContext gameContext, IUnit caster)
         {
             if (StateOf(gameContext) is not { } state) return;
-            state.SpellsCast.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, caster) });
+            state.SpellsCast.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, caster), MissionCardGame.UnitHasHero(caster) ? 1 : 0 });
         }
 
         public static void MeleeWon(IGameContext gameContext, IUnit winner, float winnerWounds, float loserWounds)
         {
             if (StateOf(gameContext) is not { } state) return;
             int margin = (int)MathF.Floor(winnerWounds - loserWounds + 0.001f);
-            state.MeleeWins.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, winner), margin });
+            state.MeleeWins.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, winner), margin, MissionCardGame.UnitHasHero(winner) ? 1 : 0 });
         }
     }
 
@@ -129,7 +145,7 @@ namespace FDG.Missions
     /// Bots score their cards like anyone, but do not play towards them (Kai, 2026-11-05) - their only
     /// decisions here are to keep what they drew.
     /// </summary>
-    public sealed class MissionCardRoundHooks : IRoundHooks
+    public sealed partial class MissionCardRoundHooks : IRoundHooks
     {
         private static readonly TextColor CardColor = new TextColor(140, 210, 255, 255);
         private const string KeepAll = "Keep these cards";
@@ -159,7 +175,11 @@ namespace FDG.Missions
             state.OwnersAtRoundStart = OwnersNow();
             state.AliveAtRoundStart = AliveModels();
 
-            if (state.Game == EMissionCardGame.BattleOfWits)
+            if (MissionCardCatalog.IsCustom(state.Game))
+            {
+                await CustomRoundStart(state, round);
+            }
+            else if (state.Game == EMissionCardGame.BattleOfWits)
             {
                 foreach (IPlayerSlotInfo seat in MissionCardGame.Seats(_gameContext))
                 {
@@ -362,7 +382,11 @@ namespace FDG.Missions
             MissionBoard board = Board(roundJustFinished);
             List<IPlayerSlotInfo> seats = MissionCardGame.Seats(_gameContext);
 
-            if (state.Game == EMissionCardGame.BattleOfWits)
+            if (MissionCardCatalog.IsCustom(state.Game))
+            {
+                await CustomRoundEnd(state, board, seats, roundJustFinished);
+            }
+            else if (state.Game == EMissionCardGame.BattleOfWits)
             {
                 foreach (IPlayerSlotInfo seat in seats)
                 {
@@ -450,14 +474,21 @@ namespace FDG.Missions
         /// be an easy point next round); a bot takes the first.
         /// </summary>
         private async Task<(int Card, int Vp, string Why)?> BestCard(IPlayerSlotInfo seat, List<int> table,
-            int prioritySlot, MissionBoard board, MissionCardState state)
+            int prioritySlot, MissionBoard board, MissionCardState state, MissionCardSide? custom = null)
         {
             var done = new List<(int Card, int Vp, string Why)>();
             foreach (int card in table)
             {
+                // Tactical Paragons: "Paragon cards may only be scored by units containing a Hero, and the player
+                // gets +1 VP for it." Direct Challenge: "When a challenge card is scored, the player gets +1 VP."
+                // The bonus counts towards "the one worth most victory points".
+                bool paragon = custom != null && custom.Paragon == card;
                 (int vp, string? why) = MissionCardRules.Evaluate(MissionCardCatalog.Card(System, card), seat.SlotID,
-                    prioritySlot, board, state, System);
-                if (vp > 0) done.Add((card, vp, why!));
+                    prioritySlot, board, state, System, heroOnly: paragon);
+                if (vp <= 0) continue;
+                if (paragon) { vp += 1; why += " (paragon, +1 VP)"; }
+                if (custom != null && custom.Challenge == card) { vp += 1; why += " (challenge, +1 VP)"; }
+                done.Add((card, vp, why!));
             }
             if (done.Count == 0) return null;
             int top = done.Max(d => d.Vp);
@@ -533,10 +564,12 @@ namespace FDG.Missions
             foreach (MissionModelSnapshot was in state.AliveAtRoundStart)
             {
                 if (aliveNow.Contains(was.ModelId)) continue;
+                int[]? killer = state.ModelKillers.TryGetValue(was.ModelId, out int[]? k) ? k : null;
                 state.ModelDeaths.Add(new MissionModelDeath
                 {
                     Round = round, VictimSlot = was.Slot, ModelId = was.ModelId,
                     Hero = was.Hero, Caster = was.Caster, Tough = was.Tough,
+                    KillerSlot = killer?[0] ?? -1, KillerHero = killer != null && killer.Length > 1 && killer[1] == 1,
                 });
             }
         }
@@ -549,6 +582,8 @@ namespace FDG.Missions
                 GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES / 2f);
 
             var units = new List<BoardUnit>();
+            var objectives = _gameContext.TableState.Objectives.Objects.ToList();
+            var heroNear = new Dictionary<int, List<int>>();
             foreach (IUnit unit in _gameContext.TableState.Units.Objects)
             {
                 if (!unit.GetIsAlive() || ReserveRules.IsInReserve(unit)) continue;
@@ -559,10 +594,24 @@ namespace FDG.Missions
                 float centreDistance = living.Count == 0
                     ? float.MaxValue
                     : living.Min(m => BaseShapeGeometry.SurfaceDistanceToPoint2D(m.BaseShape, m.Position, m.Facing, centre));
-                units.Add(new BoardUnit(slot, inZones, centreDistance));
+                bool hero = MissionCardGame.UnitHasHero(unit);
+                units.Add(new BoardUnit(slot, inZones, centreDistance, hero));
+
+                // Tactical Paragons: which objectives a Hero's unit is holding (within 3", able to seize).
+                if (hero && !unit.Tokens.HasToken(TokenType.Shaken))
+                {
+                    for (int i = 0; i < objectives.Count; i++)
+                    {
+                        Position at = objectives[i].Position;
+                        if (!living.Any(m => BaseShapeGeometry.SurfaceDistanceToPoint2D(m.BaseShape, m.Position, m.Facing, at) <= 3f))
+                            continue;
+                        if (!heroNear.TryGetValue(i + 1, out List<int>? list)) heroNear[i + 1] = list = new List<int>();
+                        list.Add(slot);
+                    }
+                }
             }
 
-            return new MissionBoard { Round = round, TeamOf = teamOf, OwnersNow = OwnersNow(), Units = units };
+            return new MissionBoard { Round = round, TeamOf = teamOf, OwnersNow = OwnersNow(), Units = units, HeroUnitsNear = heroNear };
         }
 
         // ── End of the game ──────────────────────────────────────────────────────────────────────

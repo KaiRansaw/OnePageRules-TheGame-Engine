@@ -117,6 +117,7 @@ namespace FDG.Ai
                 // units get my banner" is a multi-select, and no other request in the engine is one.
                 .RegisterResolver(new AiPickCommandGroupUnitsResolver())
                 .RegisterResolver(new AiPickUnitLeadersResolver())   // #456
+                .RegisterResolver(new AiPickStringsResolver())       // #462
                 // #419: and moves to where that tree is heading, which for four of its five branches is an
                 // objective rather than an enemy.
                 .RegisterResolver(starQuest

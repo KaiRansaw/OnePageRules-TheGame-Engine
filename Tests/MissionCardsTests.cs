@@ -226,6 +226,52 @@ namespace FDG.Tests
             Assert.That(Vp(66, board, state), Is.EqualTo(2));
         }
 
+        // ── Custom decks ─────────────────────────────────────────────────────────────────────────
+
+        [Test]
+        public void Paragon_OnlyWhatHeroUnitsDid()
+        {
+            var state = new MissionCardState();
+            state.Kills.Add(Kill(2, Them, Me, "shooting"));
+            var board = Board(round: 2, owners: Owned((3, Me)));
+            MissionCardDef fire = MissionCardCatalog.Card(EGameSystem.GrimdarkFuture, 51);
+            Assert.That(MissionCardRules.Evaluate(fire, Me, Me, board, state, EGameSystem.GrimdarkFuture, heroOnly: true).Vp,
+                Is.EqualTo(0), "the shooter had no Hero");
+            state.Kills.Add(new MissionKill { Round = 2, VictimSlot = Them, KillerSlot = Me, Cause = "shooting", KillerHero = true });
+            Assert.That(MissionCardRules.Evaluate(fire, Me, Me, board, state, EGameSystem.GrimdarkFuture, heroOnly: true).Vp,
+                Is.EqualTo(1));
+
+            MissionCardDef seize = MissionCardCatalog.Card(EGameSystem.GrimdarkFuture, 13);
+            Assert.That(MissionCardRules.Evaluate(seize, Me, Me, board, state, EGameSystem.GrimdarkFuture, heroOnly: true).Vp,
+                Is.EqualTo(0), "held, but no Hero unit there");
+            var withHero = new MissionBoard
+            {
+                Round = 2, TeamOf = board.TeamOf, OwnersNow = board.OwnersNow,
+                HeroUnitsNear = new Dictionary<int, List<int>> { [3] = new List<int> { Me } },
+            };
+            Assert.That(MissionCardRules.Evaluate(seize, Me, Me, withHero, state, EGameSystem.GrimdarkFuture, heroOnly: true).Vp,
+                Is.EqualTo(1));
+        }
+
+        [Test]
+        public void PickStrings_OnlyLegalAnswersGetThrough()
+        {
+            var request = new FDG.StageResolution.Requests.PickStringsRequest(new PlayerID(Guid.NewGuid()), "pick",
+                new[] { "a", "b", "c" }, 2, 2, new[] { "a", "c" });
+            Assert.That(request.Sanitise(new List<string> { "b", "c" }), Is.EqualTo(new[] { "b", "c" }));
+            Assert.That(request.Sanitise(new List<string> { "b" }), Is.EqualTo(new[] { "a", "c" }), "too few - the suggestion");
+            Assert.That(request.Sanitise(new List<string> { "b", "b" }), Is.EqualTo(new[] { "a", "c" }), "repeats");
+            Assert.That(request.Sanitise(new List<string> { "b", "z" }), Is.EqualTo(new[] { "a", "c" }), "unknown");
+        }
+
+        [Test]
+        public void TheSuggestedDeck_IsEighteenUniqueCards()
+        {
+            Assert.That(MissionCardCatalog.SuggestedDeck.Distinct().Count(), Is.EqualTo(MissionCardCatalog.CustomDeckSize));
+            var numbers = MissionCardCatalog.All(EGameSystem.GrimdarkFuture).Select(c => c.Number).ToHashSet();
+            Assert.That(MissionCardCatalog.SuggestedDeck.All(numbers.Contains), Is.True);
+        }
+
         // ── Played to the end ────────────────────────────────────────────────────────────────────
 
         private sealed class LogCapturingController : IPlayerController
@@ -281,6 +327,12 @@ namespace FDG.Tests
         [TestCase(EGameSystem.GFFirefight, EMissionCardGame.TotalDomination, 4621)]
         [TestCase(EGameSystem.AgeOfFantasy, EMissionCardGame.TotalDomination, 4622)]
         [TestCase(EGameSystem.AoFSkirmish, EMissionCardGame.BattleOfWits, 4623)]
+        [TestCase(EGameSystem.GrimdarkFuture, EMissionCardGame.DirectChallenge, 4624)]
+        [TestCase(EGameSystem.GFFirefight, EMissionCardGame.StrategicRuse, 4625)]
+        [TestCase(EGameSystem.AgeOfFantasy, EMissionCardGame.PlannedGambit, 4626)]
+        [TestCase(EGameSystem.AoFSkirmish, EMissionCardGame.CoordinatedRecovery, 4627)]
+        [TestCase(EGameSystem.GrimdarkFuture, EMissionCardGame.LogisticalSupremacy, 4628)]
+        [TestCase(EGameSystem.GFFirefight, EMissionCardGame.TacticalParagons, 4629)]
         public async Task APlayedGame_DealsSixObjectives_ScoresCards_AndIsWonOnVictoryPoints(EGameSystem system,
             EMissionCardGame game, int seed)
         {
@@ -291,7 +343,7 @@ namespace FDG.Tests
             Assert.That(state!.Game, Is.EqualTo(game));
             Assert.That(state.FinalObjectivesScored, Is.True, "the final objectives were added");
             Assert.That(log.Count(l => l.StartsWith("Mission cards (", StringComparison.Ordinal)),
-                Is.GreaterThanOrEqualTo(game == EMissionCardGame.BattleOfWits ? 8 : 4), "dealt every round");
+                Is.GreaterThanOrEqualTo(game == EMissionCardGame.TotalDomination ? 4 : 8), "dealt every round");
             Assert.That(log.Any(l => l.StartsWith("Victory points:", StringComparison.Ordinal)), Is.True);
 
             foreach (string line in log.Where(l => l.Contains("mission card", StringComparison.OrdinalIgnoreCase)
@@ -301,11 +353,25 @@ namespace FDG.Tests
             // The card arithmetic adds up: VP = scored cards + final objectives.
             int cardVp = state.Scored.Sum(s => s.Vp);
             Assert.That(state.Vp.Values.Sum(), Is.GreaterThanOrEqualTo(cardVp));
-            if (game == EMissionCardGame.BattleOfWits)
+            if (game == EMissionCardGame.TotalDomination)
+                Assert.That(state.SharedTable.Count, Is.LessThanOrEqualTo(3));
+            else
                 foreach (MissionCardSide side in state.Sides.Values)
                     Assert.That(side.Table.Count, Is.LessThanOrEqualTo(3));
-            else
-                Assert.That(state.SharedTable.Count, Is.LessThanOrEqualTo(3));
+
+            if (MissionCardCatalog.IsCustom(game))
+            {
+                Assert.That(log.Count(l => l.Contains("builds a 18-card mission deck")), Is.GreaterThanOrEqualTo(2),
+                    "each player built an 18-card deck after deployment");
+                foreach (MissionCardSide side in state.Sides.Values)
+                {
+                    var all = side.Deck.Concat(side.Hand).Concat(side.Table).Concat(side.Discard).ToList();
+                    Assert.That(all.Distinct().Count(), Is.EqualTo(18), "the 18 cards are all still somewhere, once each");
+                    Assert.That(side.Hand.Count, Is.LessThanOrEqualTo(MissionCardCatalog.SupremacyHandSize));
+                }
+            }
+            if (game == EMissionCardGame.DirectChallenge)
+                Assert.That(log.Any(l => l.StartsWith("Direct Challenge:", StringComparison.Ordinal)), Is.True);
 
             int top = state.Vp.Values.Max();
             bool tie = state.Vp.Values.Count(v => v == top) > 1;
