@@ -176,6 +176,58 @@ namespace FDG.Tests
         }
 
         /// <summary>
+        /// Kai, 2026-11-05: playing with friends over Tailscale. The features built since the last networked
+        /// run - Mission Cards (fixed and custom decks, whose card choices are new request types), an
+        /// Advanced deployment style (polygon zones), Fast-Play Leader-Based Melee and Movement - each played
+        /// host vs client over a real socket to a result. Nothing here is Tailscale-specific: Tailscale only
+        /// carries the same TCP connection.
+        /// </summary>
+        [TestCase("BattleOfWits")]
+        [TestCase("TotalDomination")]
+        [TestCase("DirectChallenge")]
+        [TestCase("TacticalParagons")]
+        [TestCase("Spearhead+FastPlay")]
+        [CancelAfter(420_000)]
+        public async Task HostAndClient_PlayTheNewFeatures_ToAResult(string feature)
+        {
+            int port = FreeLoopbackPort();
+            var host = new FDGHost(port: port);
+            _hosts.Add(host);
+            Task listening = host.StartAsync();
+            Assert.That(listening.IsFaulted, Is.False);
+
+            var hostVm = new LobbyViewModel_Host("Mr. Host", "Two Machines", "", host);
+            _disposables.Add(hostVm);
+            PlayerID hostPlayerID = hostVm.PlayerInfos.Single().PlayerID;
+            LobbyViewModel_Client clientVm = await JoinAsync("Mrs. Client", port);
+            PlayerID clientPlayerID = await WaitForNetworkSlot(hostVm, hostPlayerID);
+
+            hostVm.UpdateArmyListFile(hostPlayerID, MakeArmy("Host Guard"));
+            hostVm.UpdateArmyListFile(clientPlayerID, MakeArmy("Client Guard"));
+            hostVm.SetPlayerTeam(clientPlayerID, ETeamOption.Team2);
+            if (feature == "Spearhead+FastPlay")
+            {
+                hostVm.SetDeploymentStyle(EDeploymentStyle.Spearhead);
+                hostVm.SetFastPlay(movement: true, melee: true, shooting: false);
+            }
+            else
+            {
+                hostVm.SetMissionCardGame(Enum.Parse<FDG.Missions.EMissionCardGame>(feature));
+            }
+            Assert.That(hostVm.BlockingLaunchProblems(), Is.Empty);
+
+            var watch = new TableProgressWatch();
+            hostVm.OnLaunched += game => AttachAi(game, slotID: 0, watch);
+            clientVm.OnLaunched += game => AttachAi(game, slotID: 1, watch);
+            var ended = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            hostVm.OnGameEnded += result => ended.TrySetResult(result);
+
+            Assert.That(hostVm.TryLaunchGame(out string? failReason), Is.True, $"the host refused to launch: {failReason}");
+            string gameResult = await AwaitGameEnd(ended.Task, watch, $"the networked {feature} game never reached a result");
+            Assert.That(gameResult, Is.Not.Null.And.Not.Empty);
+        }
+
+        /// <summary>
         /// The "more chairs" question, which decides how much of multiplayer is actually left: a host and
         /// TWO joined clients, three armies, three deployment zones, played to a result. Nothing in the
         /// engine is written for exactly two players - <see cref="LobbyViewModel_Host"/> builds a
