@@ -86,6 +86,9 @@ namespace FDG
         /// whether to offer a spend at all.
         /// </summary>
         IReadOnlyDictionary<int, int> UnderdogPoints => new Dictionary<int, int>();
+
+        /// <summary>The Mission Cards' decks, cards and victory points, or null in a game without them.</summary>
+        FDG.Missions.MissionCardState? MissionCards => null;
     }
 
     /// <summary>
@@ -123,6 +126,8 @@ namespace FDG
             ?? GameProgressUtilities.PendingQuestFor(_store);
 
         public IReadOnlyDictionary<int, int> UnderdogPoints => GameProgressUtilities.UnderdogPool(_store);
+
+        public FDG.Missions.MissionCardState? MissionCards => GameProgressUtilities.MissionCards(_store);
 
         public IReadOnlyList<IUnit> UnactivatedUnits
         {

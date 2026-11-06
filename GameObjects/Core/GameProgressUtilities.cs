@@ -65,6 +65,15 @@ namespace FDG
                 progress.Underdog = new Dictionary<int, int>(pool);
             PendingUnderdog.Remove(store);
 
+            // Mission Cards: the same two hops. The decks are dealt at the start of round 1, which can run
+            // before the first progress record of the game is written.
+            if (progress.MissionCards == null)
+                progress.MissionCards = TryGetProgress(store)?.MissionCards;
+            if (progress.MissionCards == null
+                && PendingMissionCards.TryGetValue(store, out FDG.Missions.MissionCardState? cards))
+                progress.MissionCards = cards;
+            PendingMissionCards.Remove(store);
+
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {
                 store.SetValue(existing, progress);
@@ -98,6 +107,30 @@ namespace FDG
 
         /// <summary>#434 - the underdog pool written at mission setup, waiting for the first progress record.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, int>> PendingUnderdog = new();
+
+        /// <summary>The Mission Cards' state written before the first progress record exists.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.MissionCardState> PendingMissionCards = new();
+
+        /// <summary>
+        /// The game's Mission Cards state - the live object, which the mission stages change in place on every
+        /// machine in lockstep - or null when the game has none (yet).
+        /// </summary>
+        public static FDG.Missions.MissionCardState? MissionCards(IReadableGameDataStore store) =>
+            TryGetProgress(store)?.MissionCards
+            ?? (PendingMissionCards.TryGetValue(store, out FDG.Missions.MissionCardState? pending) ? pending : null);
+
+        /// <summary>Stores the Mission Cards state, on the progress record or waiting for it.</summary>
+        public static void SetMissionCards(IReadWriteableGameDataStore store, FDG.Missions.MissionCardState state)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress != null)
+            {
+                progress.MissionCards = state;
+                return;
+            }
+            PendingMissionCards.Remove(store);
+            PendingMissionCards.Add(store, state);
+        }
 
         /// <summary>
         /// #434 - writes this mission's underdog pool (slot id -> points). Call once at mission setup,

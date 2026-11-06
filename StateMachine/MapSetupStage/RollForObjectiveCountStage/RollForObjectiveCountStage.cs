@@ -27,6 +27,17 @@ namespace FDG.Stages
                 return;
             }
 
+            // Mission Cards: "Place 6 objective markers." - no roll.
+            if (FDG.Missions.MissionCardGame.IsOn(context.GameContext))
+            {
+                int six = FDG.Missions.MissionCardGame.ObjectiveCount;
+                context.Log($"Mission Cards: {six} objectives, no objective roll.");
+                await context.Announce($"{six} Objectives", new TextColor(255, 210, 80, 255));
+                context.SetObjectiveCount(six);
+                await OnRollComplete.Activate(context);
+                return;
+            }
+
             // D3+2 gives 3–5 objectives. Roll a real, decisive D3 (RollDecisive resolves one concrete
             // face even under the probabilistic roller; a plain Roll would spread to an expected value).
             // Rolling a genuine 3-sided die — rather than a d6 then halving — lets the front-end show a

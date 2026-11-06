@@ -97,6 +97,13 @@ namespace FDG
         public EDeploymentStyle DeploymentStyle;
 
         /// <summary>
+        /// The Mission Cards (Mission Cards v3.6.0, Kai 2026-11-05) - Battle of Wits or Total Domination, or
+        /// <see cref="FDG.Missions.EMissionCardGame.Off"/> (the default, and every older save) for the core
+        /// rules' objectives. Only a standard game in GF, GF: Firefight, AoF or AoF: Skirmish uses it.
+        /// </summary>
+        public FDG.Missions.EMissionCardGame MissionCardGame;
+
+        /// <summary>
         /// House rule (lobby toggle, default ON): when true, separate friendly units may end their
         /// move within 1" of each other, and may pass through each other's bases. Models still may
         /// not END overlapping another model, the enemy standoff is untouched, and within-unit

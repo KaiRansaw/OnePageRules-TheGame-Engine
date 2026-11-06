@@ -96,6 +96,7 @@ namespace FDG.Stages
                     return new MoraleTestOutcome(passed: true, baseRollNeeded, passedViaReroll: false,
                         passedViaConversion: true);
                 }
+                FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
                 return new MoraleTestOutcome(passed: false, baseRollNeeded, passedViaReroll: false);
             }
 
@@ -199,6 +200,7 @@ namespace FDG.Stages
                     passedViaConversion: true);
             }
 
+            FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
             return new MoraleTestOutcome(passed: false, rollNeeded, passedViaReroll: false);
         }
 
@@ -539,8 +541,9 @@ namespace FDG.Stages
 
             // A routed unit is destroyed: its cross-unit OwnerDestroyed marks clear. No killer is passed —
             // whether a rout counts as "destroyed by" the melee winner is an open rules question, so the
-            // unit-destroyed hook deliberately does not fire here (see UnitDestructionNotifier).
-            await UnitDestructionNotifier.NotifyUnitDestroyed(gameContext, unit, killer: null);
+            // unit-destroyed hook deliberately does not fire here (see UnitDestructionNotifier). Only a lost
+            // melee routs, so for the Mission Cards it is a unit destroyed in melee.
+            await UnitDestructionNotifier.NotifyUnitDestroyed(gameContext, unit, killer: null, FDG.Missions.EKillCause.Melee);
         }
     }
 }

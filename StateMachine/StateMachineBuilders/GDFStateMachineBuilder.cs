@@ -11,6 +11,9 @@ namespace FDG.StateMachine.StateMachineBuilders
             MapSetupStage mapSetupStage = new MapSetupStage(gameContext, stateMachine);
             DeploymentStage deploymentStage = new DeploymentStage(gameContext, stateMachine);
             MainPhaseRoundStage mainPhaseRoundStage = new MainPhaseRoundStage(gameContext, stateMachine);
+            // Mission Cards (Kai, 2026-11-05): dealt and scored round by round.
+            if (FDG.Missions.MissionCardGame.IsOn(gameContext))
+                mainPhaseRoundStage.RoundHooks = new FDG.Missions.MissionCardRoundHooks(gameContext);
             VictoryCalculationStage victoryCalculationStage = new VictoryCalculationStage(gameContext, stateMachine);
 
             mapSetupStage.ToDeployment.Bind(deploymentStage);

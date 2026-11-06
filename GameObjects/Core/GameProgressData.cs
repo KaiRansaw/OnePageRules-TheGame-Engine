@@ -121,6 +121,14 @@ namespace FDG
         /// </summary>
         public Dictionary<int, int>? Underdog { get; set; }
 
+        /// <summary>
+        /// The Mission Cards (Mission Cards v3.6.0, Kai 2026-11-05): decks, cards on the table, victory
+        /// points and the events the cards ask about. Null in a game played without them and in every older
+        /// save. Carried forward and pending-hopped by <c>GameProgressUtilities.WriteProgress</c> like
+        /// <see cref="Underdog"/>.
+        /// </summary>
+        public FDG.Missions.MissionCardState? MissionCards { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,
@@ -169,14 +177,37 @@ namespace FDG
             Top = top;
         }
 
-        public static ZoneRect From(RectangularZone zone) =>
-            new(zone.Left, zone.Right, zone.Bottom, zone.Top);
+        /// <summary>
+        /// The zone's real shape when it is not a plain rectangle (2026-11-05, for the mission cards that ask
+        /// what stands "within your deployment zone"): each part as a convex polygon, x0, z0, x1, z1, ... An
+        /// L-shaped map zone or an Advanced deployment style's triangles would otherwise be judged by their
+        /// bounding box. Null for a plain rectangle and in every older save - <see cref="Contains"/> then
+        /// uses the four edges, exactly as before.
+        /// </summary>
+        public List<float[]>? Parts { get; set; }
+
+        public static ZoneRect From(RectangularZone zone)
+        {
+            var rect = new ZoneRect(zone.Left, zone.Right, zone.Bottom, zone.Top);
+            if (zone is PolygonZone poly)
+                rect.Parts = poly.Polygons.Select(p => p.ToArray()).ToList();
+            else if (zone is MultiRectZone multi)
+                rect.Parts = multi.Parts.Select(r => new[] { r.Left, r.Bottom, r.Right, r.Bottom, r.Right, r.Top, r.Left, r.Top }).ToList();
+            return rect;
+        }
 
         /// <summary>Whether a point is inside the zone. Edges count as inside, as they do for deployment.</summary>
-        public bool Contains(Position point) =>
-            point.x >= Left && point.x <= Right && point.z >= Bottom && point.z <= Top;
+        public bool Contains(Position point)
+        {
+            if (!(point.x >= Left && point.x <= Right && point.z >= Bottom && point.z <= Top)) return false;
+            if (Parts is not { Count: > 0 }) return true;
+            foreach (float[] part in Parts)
+                if (part.Length >= 6 && new PolygonZone(new[] { part }).IsPointWithinZone(new Float2(point.x, point.z)))
+                    return true;
+            return false;
+        }
 
-        public ZoneRect Clone() => new(Left, Right, Bottom, Top);
+        public ZoneRect Clone() => new(Left, Right, Bottom, Top) { Parts = Parts?.Select(p => p.ToArray()).ToList() };
     }
 
     /// <summary>

@@ -328,6 +328,7 @@ namespace FDG.Stages
             }
 
             await GameContext.Announce($"{caster.Name} cast {chosen.Name}: {rollDesc}.", CastSuccessColor);
+            FDG.Missions.MissionCardEvents.SpellCast(GameContext, caster);
             // #430: the campaign's Hexer objective asks for four or more spells SUCCESSFULLY cast by
             // the end of the game, and a resolved cast leaves no trace - so it is counted here, at the
             // one point that knows the cast succeeded, on the caster's own campaign sheet.

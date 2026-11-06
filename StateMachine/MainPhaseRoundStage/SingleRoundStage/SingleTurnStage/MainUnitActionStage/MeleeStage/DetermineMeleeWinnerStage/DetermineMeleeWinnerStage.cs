@@ -88,12 +88,14 @@ namespace FDG.Stages
             {
                 GameContext.Log($"Attackers won melee {attackerWoundsDealt} vs. {defenderWoundsDealt}.");
                 context.AddResult(new DetermineMeleeWinnerResults(DetermineMeleeWinnerResults.EMeleeWinnerResult.AttackerWon));
+                FDG.Missions.MissionCardEvents.MeleeWon(GameContext, attacker, attackerWoundsDealt, defenderWoundsDealt);
                 await OnNeedsRollToDecide.Activate(context);
             }
             else
             {
                 GameContext.Log($"Defenders won melee {defenderWoundsDealt} vs. {attackerWoundsDealt}.");
                 context.AddResult(new DetermineMeleeWinnerResults(DetermineMeleeWinnerResults.EMeleeWinnerResult.DefenderWon));
+                FDG.Missions.MissionCardEvents.MeleeWon(GameContext, defender, defenderWoundsDealt, attackerWoundsDealt);
                 await OnNeedsRollToDecide.Activate(context);
             }
         }

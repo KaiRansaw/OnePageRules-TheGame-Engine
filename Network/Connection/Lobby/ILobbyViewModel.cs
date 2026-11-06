@@ -248,6 +248,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetDeploymentStyle(EDeploymentStyle style);
 
+        /// <summary>The Mission Cards - see <see cref="GameSettings.MissionCardGame"/>.</summary>
+        FDG.Missions.EMissionCardGame MissionCardGame { get; }
+
+        void SetMissionCardGame(FDG.Missions.EMissionCardGame game);
+
         /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>
         void SetFriendlyUnitsMayOverlap(bool enabled);
 

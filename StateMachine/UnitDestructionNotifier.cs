@@ -27,8 +27,12 @@ namespace FDG.Stages
     /// </summary>
     public static class UnitDestructionNotifier
     {
-        public static async Task NotifyUnitDestroyed(IGameContext gameContext, IUnit dead, IUnit? killer)
+        public static async Task NotifyUnitDestroyed(IGameContext gameContext, IUnit dead, IUnit? killer,
+            FDG.Missions.EKillCause cause = FDG.Missions.EKillCause.Other)
         {
+            // Mission Cards: every destroyed unit, with or without a killer, and how it died.
+            FDG.Missions.MissionCardEvents.UnitDestroyed(gameContext, dead, killer, cause);
+
             // #169: spill a destroyed transport's occupants before anything else — including the
             // killer-less (Rout) path, which previously bypassed spillout entirely.
             await SpilloutExecutor.SpillIfDestroyedTransport(gameContext, dead);

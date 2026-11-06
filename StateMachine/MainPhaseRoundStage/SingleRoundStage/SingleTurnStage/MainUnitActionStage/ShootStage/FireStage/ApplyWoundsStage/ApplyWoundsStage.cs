@@ -90,7 +90,10 @@ namespace FDG.Stages
                 if (defenderWasAlive)
                 {
                     await UnitDestructionNotifier.NotifyUnitDestroyed(GameContext, defendingUnit,
-                        metaData.AttackingUnit.GetValue());
+                        metaData.AttackingUnit.GetValue(),
+                        metaData.IsSpell ? FDG.Missions.EKillCause.Spell
+                            : metaData.IsMelee ? FDG.Missions.EKillCause.Melee
+                            : FDG.Missions.EKillCause.Shooting);
                 }
             }
 

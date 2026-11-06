@@ -22,6 +22,14 @@ namespace FDG.Stages
             IReadOnlyList<PlayerObjectiveScore> finalScores = GameContext.TableState.Progress.Scores;
             int roundsPlayed = GameContext.TableState.Progress.RoundCount ?? 0;
 
+            // Mission Cards: "the player that scored most victory points wins", after the final objectives'
+            // 1 VP each. Teammates pool their points, as they pool objectives below.
+            if (FDG.Missions.MissionCardRoundHooks.ScoreFinalObjectives(GameContext) is { } vp)
+            {
+                await AnnounceByVictoryPoints(context, vp, finalScores, roundsPlayed);
+                return;
+            }
+
             if (objectives.Count == 0)
             {
                 await AnnounceTie(context, finalScores, roundsPlayed);
@@ -92,6 +100,31 @@ namespace FDG.Stages
                     EBannerTier.Headline);
                 GameContext.NotifyGameCompleted(result);
             }
+        }
+
+        private async Task AnnounceByVictoryPoints(IGameContext context, Dictionary<int, int> vpBySlot,
+            IReadOnlyList<PlayerObjectiveScore> finalScores, int roundsPlayed)
+        {
+            var players = GameContext.TableState.Players.Objects.Where(p => p.IsFilled).OrderBy(p => p.SlotID).ToList();
+            foreach (var p in players)
+                GameContext.TextOutput.Log($"  {p.Name}: {(vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0)} VP");
+
+            var byTeam = players.GroupBy(p => p.TeamNumber)
+                .Select(g => (Team: g.Key, Vp: g.Sum(p => vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0),
+                    Roster: g.OrderBy(p => p.SlotID).ToList()))
+                .OrderByDescending(t => t.Vp).ToList();
+            if (byTeam.Count == 0 || (byTeam.Count > 1 && byTeam[0].Vp == byTeam[1].Vp))
+            {
+                await AnnounceTie(context, finalScores, roundsPlayed);
+                return;
+            }
+
+            var winners = byTeam[0].Roster;
+            GameResult result = GameResult.ForWin(winners.Select(p => p.PlayerID).ToList(),
+                winners.Select(p => p.Name).ToList(), finalScores, roundsPlayed);
+            await context.Announce($"{result.Message} ({byTeam[0].Vp} VP)", new TextColor(255, 215, 0, 255),
+                EBannerTier.Headline);
+            GameContext.NotifyGameCompleted(result);
         }
 
         private async Task AnnounceTie(IGameContext context, IReadOnlyList<PlayerObjectiveScore> finalScores,

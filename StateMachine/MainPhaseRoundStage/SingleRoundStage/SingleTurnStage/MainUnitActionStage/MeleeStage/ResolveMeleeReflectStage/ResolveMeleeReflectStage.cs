@@ -137,7 +137,7 @@ namespace FDG.Stages
             if (killedAny && wasAlive && !bearer.GetIsAlive())
             {
                 GameContext.Log($"{bearer.Name} self-destructs.");
-                await UnitDestructionNotifier.NotifyUnitDestroyed(GameContext, bearer, enemyBinding.GetValue());
+                await UnitDestructionNotifier.NotifyUnitDestroyed(GameContext, bearer, enemyBinding.GetValue(), FDG.Missions.EKillCause.Melee);
             }
         }
 

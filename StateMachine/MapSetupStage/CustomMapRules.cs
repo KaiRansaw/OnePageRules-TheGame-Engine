@@ -22,7 +22,14 @@ namespace FDG.Stages
         }
 
         public static IReadOnlyList<MapObjectiveEntry> FixedObjectives(GameSettings settings)
-            => (IReadOnlyList<MapObjectiveEntry>?)ActiveMap(settings)?.Objectives ?? NoObjectives;
+        {
+            IReadOnlyList<MapObjectiveEntry> spots =
+                (IReadOnlyList<MapObjectiveEntry>?)ActiveMap(settings)?.Objectives ?? NoObjectives;
+            // Mission Cards: "Place 6 objective markers" - a map with some other number is placed as usual.
+            if (FDG.Missions.MissionCardGame.IsOn(settings) && spots.Count != FDG.Missions.MissionCardGame.ObjectiveCount)
+                return NoObjectives;
+            return spots;
+        }
 
         public static IReadOnlyList<MapDeploymentZoneEntry> DeploymentZones(GameSettings settings)
             => (IReadOnlyList<MapDeploymentZoneEntry>?)ActiveMap(settings)?.DeploymentZones ?? NoZones;
