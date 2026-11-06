@@ -38,7 +38,9 @@ namespace FDG.Rules.Dispatch
         int MaxTargetsPerShootAction,
         bool StrikeBackIsMandatory,
         int CommandGroupExtraPicks,
-        bool CommandGroupCapIsPerArmy)
+        bool CommandGroupCapIsPerArmy,
+        bool FlyingKeepsTerrainItStartsIn = false,
+        bool HordeEliteIsPerRound = false)
     {
         /// <summary>
         /// The Command Group upgrades that confer on the picked units: <b>Banner</b> and <b>Musician</b>.
@@ -125,7 +127,13 @@ namespace FDG.Rules.Dispatch
             // section, and Army Forge's one-line summaries carry no cap either way - so there is NO
             // source for an army-wide cap in Firefight. Reading AoFS's clause across to it because both
             // are skirmish games is the mistake CLAUDE.md names as the easiest one to make here.
-            CommandGroupCapIsPerArmy: false);
+            CommandGroupCapIsPerArmy: false,
+            // #463: Flying "ignores the effects of Difficult and Dangerous terrain IT DOESN'T START ITS MOVE
+            // IN" (+ jumping, which the engine does not model) - GFF/AoFS/both Quest. GF and AoF waive all.
+            FlyingKeepsTerrainItStartsIn: true,
+            // #463: Horde's Elite trait - "May re-roll one roll of any kind once per ROUND" in GFF and AoFS
+            // (Army Forge), against GF/AoF's once per game.
+            HordeEliteIsPerRound: true);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -173,7 +181,9 @@ namespace FDG.Rules.Dispatch
             // picks freely here.
             CommandGroupExtraPicks: 2,
             // No Quest book prints a Command Groups cap, so the book data's per-unit maxPicks stands.
-            CommandGroupCapIsPerArmy: false);
+            CommandGroupCapIsPerArmy: false,
+            // #463: the skirmish Flying wording, in both Quest systems too.
+            FlyingKeepsTerrainItStartsIn: true);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same ways as Star Quest. Checked line by line, originally against

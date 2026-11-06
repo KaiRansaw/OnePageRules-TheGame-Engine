@@ -173,10 +173,12 @@ namespace FDG.Stages
                 && await gameContext.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(
                     testingUnit.PlayerID,
                     $"{testingUnit.Name} failed its morale test. Use Elite to re-roll it? "
-                    + "Elite is once per game.",
+                    + (FDG.Rules.Dispatch.CoreRulesProfile.For(gameContext).HordeEliteIsPerRound
+                        ? "Elite is once per round." : "Elite is once per game."),
                     displayName: $"{testingUnit.Name}: use Elite?")))
             {
-                FDG.StateMachine.HordeExperience.SpendElite(testingUnit);
+                FDG.StateMachine.HordeExperience.SpendElite(testingUnit,
+                    FDG.Rules.Dispatch.CoreRulesProfile.For(gameContext).HordeEliteIsPerRound);
                 IDiceResults eliteReroll = gameContext.DiceRoller.RollDecisive();
                 bool passedElite = eliteReroll.AtOrAbove(rollNeeded) >= 1f;
                 gameContext.Log($"{testingUnit.Name} uses Elite to re-roll its failed morale test - " +

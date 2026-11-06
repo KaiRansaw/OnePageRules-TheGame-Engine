@@ -364,8 +364,17 @@ namespace FDG.Stages
                 return false;
             }
 
-            // Flying ignores Dangerous terrain too (same AllTerrain scope as the impassible waiver above).
-            dangerResult = Commit(gameContext, paths, relevantTerrain, unit.GetValue(), ignoresDangerousTerrain: ignoresAllTerrain);
+            // Flying ignores Dangerous terrain too (same AllTerrain scope as the impassible waiver above) -
+            // #463: except, in the skirmish and Quest games, terrain it starts its move in.
+            IEnumerable<ITerrain> dangerTerrain = relevantTerrain;
+            bool ignoresDangerous = ignoresAllTerrain;
+            if (ignoresDangerous && Rules.Dispatch.MovementRuleQueries.DangerousTerrainFlyingStillFeels(
+                    gameContext, unit.GetValue(), relevantTerrain) is { } startedIn)
+            {
+                ignoresDangerous = false;
+                dangerTerrain = startedIn;
+            }
+            dangerResult = Commit(gameContext, paths, dangerTerrain, unit.GetValue(), ignoresDangerousTerrain: ignoresDangerous);
             return true;
         }
     }

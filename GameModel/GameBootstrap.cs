@@ -56,9 +56,11 @@ namespace FDG.GameModel
         /// The evaluator needs it to read granted-rule tokens back to their definitions (auras /
         /// "gains rule X" buffs).
         /// </summary>
-        public static RuleResolver BuildRuleResolver(PlayerSlot[] playerSlots)
+        public static RuleResolver BuildRuleResolver(PlayerSlot[] playerSlots,
+            EGameSystem system = EGameSystem.GrimdarkFuture)
         {
-            RuleResolver ruleResolver = CoreRuleCatalog.CreateResolver();
+            // #463: the game's own system, so its rule variants replace Grimdark Future's wording.
+            RuleResolver ruleResolver = CoreRuleCatalog.CreateResolver(system);
 
             for (int i = 0; i < playerSlots.Length; i++)
             {

@@ -63,13 +63,27 @@ public static class CoreRuleCatalog
     /// <summary>
     /// A fresh <see cref="RuleResolver"/> with every catalog rule registered under
     /// its canonical name. Built once at army-load.
+    /// <para>
+    /// #463: <paramref name="system"/> is the game being played. The catalog is Grimdark Future's wording;
+    /// the handful of rules another system defines differently (<see cref="SystemRuleVariants"/>) replace
+    /// it by name, so a Firefight army's Slayer is Firefight's Slayer. Omitted, it is Grimdark Future -
+    /// right for the army builder and importer, which only ask which names are core rules.
+    /// </para>
     /// </summary>
-    public static RuleResolver CreateResolver()
+    public static RuleResolver CreateResolver(EGameSystem system = EGameSystem.GrimdarkFuture)
     {
         RuleResolver resolver = new RuleResolver();
         foreach (SpecialRuleDefinition definition in All)
         {
             resolver.Register(definition);
+        }
+        foreach (SpecialRuleDefinition helper in SystemRuleVariants.Helpers)
+        {
+            resolver.RegisterOrReplace(helper);
+        }
+        foreach (SpecialRuleDefinition variant in SystemRuleVariants.For(system))
+        {
+            resolver.RegisterOrReplace(variant);
         }
         return resolver;
     }
@@ -802,15 +816,19 @@ public static class CoreRuleCatalog
     public static SpecialRuleDefinition CounterAttack { get; } = new SpecialRuleDefinition("Counter-Attack",
         new[]
         {
+            // #463: "May strike first when charged, unless this unit is Fatigued." - AoF: Skirmish and AoF:
+            // Quest, the only two systems whose Army Forge text has Counter-Attack. The Fatigue clause is
+            // the same 3.6.0 change Counter got, and was missing here.
             new HookEntry(EHookID.Melee_OnCounterTrigger,
-                new Condition.AllModelsHaveThisRule(),
+                new Condition.And(new Condition.AllModelsHaveThisRule(),
+                    new Condition.Not(new Condition.TokenPresent(TokenType.Fatigued))),
                 new Effect.StrikeFirst(),
                 ELifetime.ThisActivation,
                 ERuleSeat.Subject),
         },
         Array.Empty<ActivatedAbility>(),
         Valence: EValence.Positive,
-        Description: "When charged, this unit strikes first.");
+        Description: "When charged, this unit strikes first, unless it is Fatigued.");
 
     // Melee-resolution (DetermineMeleeWinnerStage) -------------------------------
 

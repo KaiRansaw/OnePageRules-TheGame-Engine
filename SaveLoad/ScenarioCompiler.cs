@@ -83,7 +83,7 @@ namespace FDG.SaveLoad
             }
 
             GameBootstrap.AddTeams(slots, store);
-            RuleResolver ruleResolver = GameBootstrap.BuildRuleResolver(slots);
+            RuleResolver ruleResolver = GameBootstrap.BuildRuleResolver(slots, settings.GameSystem);
             foreach (PlayerSlot slot in slots)
             {
                 GameBootstrap.CreateArmy(slot.PlayerID, slot.ArmyListFile, store, ruleResolver);

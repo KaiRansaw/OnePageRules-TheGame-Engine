@@ -244,7 +244,9 @@ namespace FDG.StateMachine
             !unit.Tokens.HasToken(TokenType.HordeEliteUsed) && OwnedTraits(unit).Contains(Elite);
 
         /// <summary>Marks Elite spent. Only call after the player has agreed to use it.</summary>
-        public static void SpendElite(IUnit unit) =>
-            unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HordeEliteUsed));
+        public static void SpendElite(IUnit unit, bool perRound = false) =>
+            // #463: once per ROUND in Firefight and Skirmish - the same marker, swept at round end.
+            unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HordeEliteUsed,
+                clearOverride: perRound ? new TokenClearTrigger.RoundEnd() : null));
     }
 }

@@ -137,6 +137,11 @@ namespace FDG.Stages
         {
             bool ignoresDangerousTerrain = MovementRuleQueries.IgnoresAllTerrain(
                 unit, GameContext.RuleEvaluator);
+            // #463: a skirmish/Quest flyer is not waived for terrain it starts in - which is exactly the
+            // terrain it activates in.
+            if (ignoresDangerousTerrain && MovementRuleQueries.DangerousTerrainFlyingStillFeels(GameContext, unit,
+                    GameContext.TableState.Terrain.Objects) is not null)
+                ignoresDangerousTerrain = false;
 
             MovementExecutor.DangerousTerrainResult result =
                 MovementExecutor.RollActivationDangerousTerrain(GameContext, unit,

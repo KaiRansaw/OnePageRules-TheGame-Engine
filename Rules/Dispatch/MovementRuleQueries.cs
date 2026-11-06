@@ -57,6 +57,39 @@ namespace FDG.Rules.Dispatch
         /// the difficult-terrain cap. Strider (<see cref="ETerrainIgnoreScope.DifficultOnly"/>) returns false
         /// here. Non-logging — safe to call per-frame while building UI.
         /// </summary>
+        /// <summary>
+        /// #463: whether the unit's all-terrain waiver comes from Flying alone (not Explorer or another
+        /// grant) - the case the skirmish and Quest books narrow to terrain "it doesn't start its move in".
+        /// </summary>
+        public static bool AllTerrainOnlyFromFlying(IUnit unit, RuleEvaluator evaluator)
+        {
+            bool any = false;
+            foreach ((RuleOperation op, string name) in evaluator.EvaluateAllNamed(
+                         new MoveThroughTerrainContext(unit), RuleParticipant.Actor(unit)))
+            {
+                if (op is not RuleOperation.IgnoreTerrainEffects { Scope: ETerrainIgnoreScope.AllTerrain }) continue;
+                any = true;
+                if (name != "Flying") return false;
+            }
+            return any;
+        }
+
+        /// <summary>
+        /// #463 - the Dangerous-terrain waiver for this game. GF and AoF: Flying "ignores the effects of
+        /// Difficult and Dangerous terrain". GFF, AoFS and both Quest systems: "...terrain IT DOESN'T START
+        /// ITS MOVE IN". Returns the pieces the unit's own waiver does NOT cover: null when it waives
+        /// everything (or has no waiver), otherwise the Dangerous pieces any of its living models stands in.
+        /// </summary>
+        public static IReadOnlyList<ITerrain>? DangerousTerrainFlyingStillFeels(IGameContext gameContext, IUnit unit,
+            IEnumerable<ITerrain> terrain)
+        {
+            if (!CoreRulesProfile.For(gameContext).FlyingKeepsTerrainItStartsIn) return null;
+            if (!AllTerrainOnlyFromFlying(unit, gameContext.RuleEvaluator)) return null;
+            var dangerous = terrain.Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous)).ToList();
+            return dangerous.Where(piece => unit.Models.Any(m => m.GetIsAlive()
+                && TerrainProximityQueries.IsModelWithinInches(m, new[] { piece }, 0f))).ToList();
+        }
+
         public static bool IgnoresAllTerrain(IUnit unit, RuleEvaluator evaluator)
         {
             foreach ((RuleOperation op, string _) in evaluator.EvaluateAllNamed(

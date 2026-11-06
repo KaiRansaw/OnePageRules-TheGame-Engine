@@ -99,6 +99,7 @@ namespace FDG.GameModel
 
             GameBootstrap.AddTeams(playerSlots, gameDataStore);
 
+            _gameSystem = gameSettings.GameSystem;
             CreateArmies(playerSlots, gameDataStore);
 
             BuildContextAndLaunch(gameSettings, applyCreationRules: true, resumeProgress: null);
@@ -152,6 +153,7 @@ namespace FDG.GameModel
             // No re-grant is needed: the tokens themselves survive (re-applying creation rules would both
             // double the grants and reset Tough wounds, which is why the resume path skips that pass).
             var __gSrvResolver = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
+            _gameSystem = progress.Settings.GameSystem;
             RuleResolver ruleResolver = BuildRuleResolver(playerSlots);
             global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.SrvResolver, __gSrvResolver);
 
@@ -309,9 +311,12 @@ namespace FDG.GameModel
         /// the loaded store), so this pass registers little beyond the core catalog there —
         /// <see cref="GameBootstrap.RestoreArmyRuleData"/> supplies the embedded definitions from the save.
         /// </summary>
+        /// <summary>#463: the game system, set before either path builds the resolver.</summary>
+        private EGameSystem _gameSystem = EGameSystem.GrimdarkFuture;
+
         private RuleResolver BuildRuleResolver(PlayerSlot[] playerSlots)
         {
-            RuleResolver ruleResolver = GameBootstrap.BuildRuleResolver(playerSlots);
+            RuleResolver ruleResolver = GameBootstrap.BuildRuleResolver(playerSlots, _gameSystem);
             _ruleResolver = ruleResolver; // #101: shared in-game for granted-rule projection (auras / buffs)
             return ruleResolver;
         }
