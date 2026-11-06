@@ -412,6 +412,11 @@ namespace FDG.Stages
         public static Task Toast(IGameContext context, string text) =>
             context.Announce(text, Blue, EBannerTier.Toast);
 
+        /// <summary>#464: a toast with hover words and a hover breakdown.</summary>
+        public static Task Toast(IGameContext context, string text, IReadOnlyList<ReportTerm>? terms,
+            IReadOnlyList<string>? details = null, IReadOnlyList<string>? rules = null) =>
+            context.Announce(text, Blue, EBannerTier.Toast, referencedRules: rules, terms: terms, details: details);
+
         // ── Skill choices ────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The skills the hero can use right now, with a reason for the ones it can't.</summary>

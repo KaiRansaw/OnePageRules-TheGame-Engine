@@ -38,6 +38,15 @@ namespace FDG.Presentation.Beats
     /// the regular log. How prominently the front-end flashes it, and whether the engine waits for it,
     /// come from <see cref="Tier"/>.
     /// </summary>
+    /// <summary>
+    /// A word in a battle-report line that explains itself on hover (Kai's Battle Report rework, #464):
+    /// an item's name and what it does, a random event's name and its effect. Unlike
+    /// <see cref="PresentationBeat.ReferencedRules"/>, whose hover is looked up from the books, the text
+    /// travels with the beat - items and events are not special rules.
+    /// </summary>
+    [Serializable]
+    public sealed record ReportTerm(string Name, string Text);
+
     [Serializable]
     public sealed class BannerBeat : PresentationBeat
     {
@@ -50,13 +59,25 @@ namespace FDG.Presentation.Beats
         /// <inheritdoc cref="PresentationBeat.ReferencedRules"/>
         public override IReadOnlyList<string> ReferencedRules { get; }
 
+        /// <summary>#464: words in the text with their own hover (items, events). See <see cref="ReportTerm"/>.</summary>
+        public IReadOnlyList<ReportTerm> Terms { get; }
+
+        /// <summary>
+        /// #464: what the line's hover shows - the rolls behind it, what caused it, the models lost. The
+        /// text itself says what HAPPENED in plain words (Kai, QA 3.19); the mechanism lives here.
+        /// </summary>
+        public IReadOnlyList<string> Details { get; }
+
         public BannerBeat(string bannerText, TextColor color, EBannerTier tier = EBannerTier.Headline,
-            IReadOnlyList<string>? referencedRules = null)
+            IReadOnlyList<string>? referencedRules = null, IReadOnlyList<ReportTerm>? terms = null,
+            IReadOnlyList<string>? details = null)
         {
             BannerText = bannerText;
             Color = color;
             Tier = tier;
             ReferencedRules = referencedRules ?? Array.Empty<string>();
+            Terms = terms ?? Array.Empty<ReportTerm>();
+            Details = details ?? Array.Empty<string>();
         }
 
         /// <summary>

@@ -493,6 +493,14 @@ namespace FDG.Stages
             [65] = "gets a {item:Med Kit}", [66] = "gets D3 XP",
         };
 
+        private static readonly string[] Flavours =
+        {
+            "Surprise surprise!", "Out of nowhere:", "Heads up!", "Something stirs:", "Without warning:", "All of a sudden:",
+        };
+
+        /// <summary>#464: the report's lead-in for a random event, fixed per event so one always reads the same.</summary>
+        public static string EventFlavour(int n) => Flavours[((n / 10) + (n % 10)) % Flavours.Length];
+
         /// <summary>Rolls two dice (tens, then ones) and resolves that random event.</summary>
         /// <param name="forced">Game Master: this event (11-66) instead of a roll, even with Random Events off.</param>
         public static async Task RollRandomEvent(IGameContext context, int? forced = null)
@@ -514,8 +522,13 @@ namespace FDG.Stages
             string text = heroEvent && hero != null ? $"{hero.Name} {effect}" : effect;
             if (n is 31 or 34) text += $" (quarter {q.EventQuarter}: {HordeRules.CornerName(q.EventQuarter)})";
             context.Log($"Quest: random event {n} - {EventName(n, context.Settings.GameSystem)}: {text}.");
-            await context.Announce($"Event {n} - {EventName(n, context.Settings.GameSystem)}: {text}",
-                new TextColor(220, 160, 255, 255), EBannerTier.Notice);
+            // #464 (Kai): a flavour line in the report - "Surprise surprise! Dazing Spores!" - with what the
+            // event does on the name's hover and the roll on the line's.
+            string eventName = EventName(n, context.Settings.GameSystem);
+            await context.Announce($"{EventFlavour(n)} {eventName}!",
+                new TextColor(220, 160, 255, 255), EBannerTier.Notice,
+                terms: new[] { new FDG.Presentation.Beats.ReportTerm(eventName, text.EndsWith('.') ? text : text + ".") },
+                details: new[] { $"Random event: rolled {tens} then {ones} - event {n}." });
             int d3 = (HordePlacement.RollD6(context) + 1) / 2;
 
             if (hero != null)

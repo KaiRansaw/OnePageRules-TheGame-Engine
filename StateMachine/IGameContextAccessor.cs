@@ -49,14 +49,17 @@ namespace FDG
         /// and explain on hover - see <see cref="PresentationBeat.ReferencedRules"/>. The logged copy is
         /// unaffected: a log line is plain text wherever it ends up.
         /// </param>
+        /// <param name="terms">#464: words in the text that explain themselves on hover (items, events).</param>
+        /// <param name="details">#464: the line's hover - rolls, causes, models lost.</param>
         public static Task Announce(this IGameContextAccessor contextAccessor, string text,
             TextColor? color = null, EBannerTier tier = EBannerTier.Notice, CancellationToken ct = default,
-            IReadOnlyList<string>? referencedRules = null)
+            IReadOnlyList<string>? referencedRules = null, IReadOnlyList<ReportTerm>? terms = null,
+            IReadOnlyList<string>? details = null)
         {
             TextColor resolved = color ?? TextColor.White;
             contextAccessor.Log(text, resolved);
             return contextAccessor.GameContext.Presenter.Present(
-                new BannerBeat(text, resolved, tier, referencedRules), ct);
+                new BannerBeat(text, resolved, tier, referencedRules, terms, details), ct);
         }
 
         public static ITextOutput TextOutput(this IGameContextAccessor contextAccessor)

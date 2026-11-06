@@ -266,8 +266,12 @@ namespace FDG.Stages
                 {
                     1 => Afflicted, 2 => Diseased, 3 => Impaired, 4 => Crippled, _ => null,
                 } : null;
-                await context.Announce($"{token.Label}: a hazard!" + (condition != null ? $" {hero.Name} is {condition}." : ""),
-                    Red, EBannerTier.Notice);
+                // #464: no "Search token X:" prefix; the roll and the condition's effect on the hover.
+                await context.Announce("A hazard!" + (condition != null ? $" {hero.Name} is {condition}." : ""),
+                    Red, EBannerTier.Notice,
+                    terms: condition != null ? new[] { new ReportTerm(condition, ConditionText(condition, context.Settings.GameSystem)) } : null,
+                    details: new[] { $"{hero.Name} searched: rolled {roll}" + (result != roll ? $", changed to {result}" : "") + " - 1-2 is a hazard.",
+                        condition != null ? $"Close enough to be caught: {condition}." : "Searched from a distance - nothing caught." });
                 if (condition != null) AddCondition(hero, condition);
                 return;
             }
@@ -288,7 +292,10 @@ namespace FDG.Stages
             // by which token it came out of.
             if (!close)
             {
-                await context.Announce($"{string.Join(" + ", contents)} has been discovered.", Gold, EBannerTier.Notice);
+                await context.Announce($"{string.Join(" + ", contents)} has been discovered.", Gold, EBannerTier.Notice,
+                    terms: ItemTerms(contents),
+                    details: new[] { $"{hero.Name} searched from a distance: rolled {roll}" + (result != roll ? $", changed to {result}" : "") + ".",
+                        "It stays on the table - move within 1\" and Discover to pick it up." });
             }
 
             if (close)
@@ -367,7 +374,8 @@ namespace FDG.Stages
                     else s.Items.Add(c);
                 }
             });
-            await context.Announce($"{hero.Name} picked up {string.Join(" + ", list)}.", Gold, EBannerTier.Toast);
+            await context.Announce($"{hero.Name} picked up {string.Join(" + ", list)}.", Gold, EBannerTier.Toast,
+                terms: ItemTerms(list));
         }
 
         // ── Status conditions ────────────────────────────────────────────────────────────────────────────
@@ -544,10 +552,21 @@ namespace FDG.Stages
         {
             int dice = u.Models.Where(m => m.GetIsAlive()).Sum(m => Math.Max(1, (int)MathF.Round(m.TotalWounds - m.WoundsDealt)));
             int ones = 0;
-            for (int i = 0; i < dice; i++) if (HordePlacement.RollD6(c) == 1) ones++;
+            var rolls = new List<int>();
+            for (int i = 0; i < dice; i++) { int r = HordePlacement.RollD6(c); rolls.Add(r); if (r == 1) ones++; }
             if (ones == 0) return;
-            await QuestActions.Toast(c, $"{source}: {u.Name} takes {ones} wound{(ones == 1 ? "" : "s")}.");
+            int before = Living(u);
             await CasualtyPresentation.ApplyUnitWounds(c, u, ones);
+            // #464 (Kai): "Unit burns in flames" - the hover says what burned them, the dice, the cost.
+            bool fire = source == "Fire";
+            var details = new List<string>
+            {
+                fire ? "Started its activation within 3\" of a fire marker (dangerous terrain)." : $"{source}: dangerous terrain.",
+                $"Rolled {dice} dice ({string.Join(" ", rolls)}): each 1 is a wound - {ones}.",
+                Lost(before, u),
+            };
+            await QuestActions.Toast(c, fire ? $"{u.Name} burns in flames." : $"{source}: {u.Name} takes {ones} wound{(ones == 1 ? "" : "s")}.",
+                null, details);
         }
 
         /// <summary>A unit activating in dangerous terrain (a fire marker; a Bio-Trap for enemies) takes a test.</summary>
@@ -653,6 +672,10 @@ namespace FDG.Stages
             RefreshSmoke(c);
             // Say which one, and say it even when several go at once - a marker quietly disappearing from
             // the table with no line in the report is indistinguishable from a bug.
+            // #464 (Kai): a fire going out reads as one, separately from the other markers.
+            int fires = gone.Count(k => k == "fire");
+            for (int i = 0; i < fires; i++) await QuestActions.Toast(c, "The flames die out.");
+            gone.RemoveAll(k => k == "fire");
             if (gone.Count > 0)
                 await QuestActions.Toast(c, gone.Count == 1
                     ? $"The {MarkerName(gone[0])} marker wears off."
@@ -699,17 +722,22 @@ namespace FDG.Stages
             QuestMarker? poison = q.Markers.FirstOrDefault(m => m.Kind == "poison" && m.OnUnit == unit.ID.ID.ToString());
             if (poison == null) return;
             int roll = HordePlacement.RollD6(c);
+            // #464: what Poison is, on the word itself; the roll and the cost on the line's hover.
+            var poisonTerm = new[] { new ReportTerm("Poison", "A poison marker: when the unit activates it rolls one die. On a 4+ it takes 1 wound and the poison stays; otherwise the poison wears off.") };
             if (roll >= 4)
             {
                 // Kai, QA 3.19: say what HAPPENED, not the mechanism. The roll itself is on the
                 // hover, where it belongs.
-                await QuestActions.Toast(c, $"{unit.Name} fails to fight off Poison.");
+                int before = Living(unit);
                 await CasualtyPresentation.ApplyUnitWounds(c, unit, 1f);
+                await QuestActions.Toast(c, $"{unit.Name} fails to fight off Poison.", poisonTerm,
+                    new[] { $"Rolled {roll} - 4+ needed for the poison to bite.", "Takes 1 wound; the poison stays.", Lost(before, unit) });
                 return;
             }
             q.Markers.Remove(poison);
             GameProgressUtilities.SetQuestProgress(c.GameDataStore, q);
-            await QuestActions.Toast(c, $"{unit.Name} fights off Poison.");
+            await QuestActions.Toast(c, $"{unit.Name} fights off Poison.", poisonTerm,
+                new[] { $"Rolled {roll} - 4+ needed for the poison to bite.", "The poison wears off." });
         }
 
         /// <summary>Any activation ends: Adrenaline heroes shed fatigue; a Frenzy hero that destroyed an enemy
@@ -794,6 +822,20 @@ namespace FDG.Stages
             return picks.Count > 0 ? picks[0] : null;
         }
 
+        /// <summary>#464: hover words for item names - what each item does, from the item list.</summary>
+        public static IReadOnlyList<ReportTerm> ItemTerms(IEnumerable<string> names) =>
+            names.Distinct()
+                .Select(n => QuestItems.Find(n) is { } item ? new ReportTerm(n, item.Description) : null)
+                .Where(t => t != null).Select(t => t!).ToList();
+
+        private static int Living(UnitData u) => u.Models.Count(m => m.GetIsAlive());
+
+        private static string Lost(int before, UnitData u)
+        {
+            int lost = before - Living(u);
+            return lost <= 0 ? "No models lost." : $"{lost} model{(lost == 1 ? "" : "s")} lost{(u.GetIsAlive() ? "" : " - the unit is destroyed")}.";
+        }
+
         /// <summary>Items a hero lobs rather than applies - they read as "throws", not "uses".</summary>
         private static bool IsThrown(string name) => name.EndsWith("Grenade", StringComparison.Ordinal);
 
@@ -808,7 +850,8 @@ namespace FDG.Stages
                 // Toast, not Log: Log goes to the debug channel, so this line never reached the
                 // Battle Report - the only thing a player saw when throwing a grenade was the
                 // marker line that follows it.
-                await QuestActions.Toast(c, IsThrown(name) ? $"{h.Name} throws {name}!" : $"{h.Name} uses {name}.");
+                await QuestActions.Toast(c, IsThrown(name) ? $"{h.Name} throws {name}!" : $"{h.Name} uses {name}.",
+                    ItemTerms(new[] { name }));
                 await use(c, h);
             });
 

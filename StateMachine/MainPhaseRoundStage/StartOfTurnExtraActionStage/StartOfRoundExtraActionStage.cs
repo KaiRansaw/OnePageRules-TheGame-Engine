@@ -65,9 +65,26 @@ namespace FDG.Stages
         /// </summary>
         private async Task RollCampaignEvents()
         {
+            var color = new TextColor(230, 180, 255, 255);
             foreach (string line in await CampaignEventRunner.RollForRound(GameContext))
             {
-                await GameContext.Announce(line, new TextColor(230, 180, 255, 255));
+                // #464 (Kai): the event's header reads as a flavour line - "Surprise surprise! Dazing
+                // Spores!" - with the event's effect on the name's hover and its number on the line's.
+                // The runner's own line stays the plain record (the log keeps it; tests read it).
+                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line,
+                    @"^Campaign event (\d+): (.+?)\. (.*)$");
+                if (m.Success && int.TryParse(m.Groups[1].Value, out int code))
+                {
+                    string name = m.Groups[2].Value;
+                    GameContext.Log(line, color);
+                    await GameContext.Presenter.Present(new FDG.Presentation.Beats.BannerBeat(
+                        $"{FDG.Stages.QuestChallenges.EventFlavour(code)} {name}!", color,
+                        FDG.Presentation.Beats.EBannerTier.Notice, null,
+                        new[] { new FDG.Presentation.Beats.ReportTerm(name, m.Groups[3].Value) },
+                        new[] { $"Campaign random event {code}." }));
+                    continue;
+                }
+                await GameContext.Announce(line, color);
             }
         }
 

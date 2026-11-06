@@ -335,6 +335,11 @@ namespace FDG.Stages
         /// Extra wounds from Star Quest skills once an attack's wounds are known: Reckless (dealt and taken),
         /// Blood Frenzy (next charge: +2) and Spiteful Vow (next wound from the hero's side: +1).
         /// </summary>
+        private static IReadOnlyList<FDG.Presentation.Beats.ReportTerm> RecklessTerm =>
+            QuestSkill.All.FirstOrDefault(s => s.Name == Reckless) is { } skill
+                ? new[] { new FDG.Presentation.Beats.ReportTerm(Reckless, skill.Description) }
+                : Array.Empty<FDG.Presentation.Beats.ReportTerm>();
+
         public static float ExtraWounds(IGameContext c, IUnit attacker, IUnit defender, bool melee, bool charging,
             bool spell, float distance, float wounds)
         {
@@ -345,12 +350,15 @@ namespace FDG.Stages
             if (!spell && (melee || distance <= 12f) && Has(q, attacker, Reckless))
             {
                 extra += 1f;
-                c.Log($"Reckless: {attacker.Name} deals one extra wound.");
+                // #464 (Kai): "Soldier: Reckless - ..." in the report, the skill's text on hover.
+                _ = c.Announce($"{attacker.Name}: Reckless - deals +1 wound.", new TextColor(130, 200, 255, 255),
+                    FDG.Presentation.Beats.EBannerTier.Toast, terms: RecklessTerm);
             }
             if (Has(q, defender, Reckless))
             {
                 extra += 1f;
-                c.Log($"Reckless: {defender.Name} takes one extra wound.");
+                _ = c.Announce($"{defender.Name}: Reckless - takes +1 wound.", new TextColor(130, 200, 255, 255),
+                    FDG.Presentation.Beats.EBannerTier.Toast, terms: RecklessTerm);
             }
             if (melee && charging && Take(c, attacker, BloodFrenzy) != null)
             {
