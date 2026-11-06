@@ -166,6 +166,16 @@ namespace FDG.Tests
                 .Concat(AdvancedDeployment.InFamily(EDeploymentFamily.Strategic))
                 .Concat(AdvancedDeployment.InFamily(EDeploymentFamily.Asymmetric));
 
+        /// <summary>Grimdark Future's own long-table layouts, all 18, played out.</summary>
+        [TestCaseSource(nameof(EveryDeploymentStyle))]
+        public async Task EveryDeploymentStyle_OnGrimdarkFuturesLongTable_DeploysAndPlaysToTheEnd(EDeploymentStyle style)
+        {
+            List<string> log = await PlayAGame(4700 + (int)style, EGameSystem.GrimdarkFuture, fastPlayShooting: false,
+                deploymentStyle: style);
+            Assert.That(log.Any(l => l.Contains($"Deployment style: {AdvancedDeployment.Name(style)}", StringComparison.Ordinal)),
+                Is.True, "the style was never used");
+        }
+
         [Test]
         public async Task ARandomStyle_IsRolledAndAnnounced()
         {

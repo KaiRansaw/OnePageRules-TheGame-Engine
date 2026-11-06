@@ -121,8 +121,59 @@ namespace FDG.Tests
         {
             Assert.That(AdvancedDeployment.Available(EGameSystem.GFFirefight), Is.True);
             Assert.That(AdvancedDeployment.Available(EGameSystem.AoFSkirmish), Is.True);
-            Assert.That(AdvancedDeployment.Available(EGameSystem.GrimdarkFuture), Is.False, "GF's own pages are still to come");
-            Assert.That(AdvancedDeployment.Available(EGameSystem.AgeOfFantasy), Is.False);
+            Assert.That(AdvancedDeployment.Available(EGameSystem.GrimdarkFuture), Is.True);
+            Assert.That(AdvancedDeployment.Available(EGameSystem.AgeOfFantasy), Is.True);
+            Assert.That(AdvancedDeployment.Available(EGameSystem.GFStarQuest), Is.False, "the Quest games have no Advanced book");
+            Assert.That(AdvancedDeployment.UsesLongTable(EGameSystem.GrimdarkFuture), Is.True);
+            Assert.That(AdvancedDeployment.UsesLongTable(EGameSystem.GFFirefight), Is.False);
         }
-    }
+    
+        // ── Grimdark Future / Age of Fantasy: their own pages, 6'x4' ─────────────────────────────────────
+
+        private static float LongArea(RectangularZone z)
+        {
+            int n = 0;
+            for (float x = 0.25f; x < 72f; x += 0.5f)
+                for (float y = 0.25f; y < 48f; y += 0.5f)
+                    if (In(z, x, y)) n++;
+            return n * 0.25f;
+        }
+
+        [TestCaseSource(nameof(AllStyles))]
+        public void LongTable_TheTwoZonesNeverOverlap(EDeploymentStyle style)
+        {
+            var (a, b) = AdvancedDeployment.Zones(style, EGameSystem.GrimdarkFuture, 72f, 48f);
+            Assert.That(LongArea(a), Is.GreaterThan(100f));
+            Assert.That(LongArea(b), Is.GreaterThan(100f));
+            for (float x = 0.25f; x < 72f; x += 0.5f)
+                for (float y = 0.25f; y < 48f; y += 0.5f)
+                    Assert.That(In(a, x, y) && In(b, x, y), Is.False, $"{style}: ({x}, {y}) is in both zones");
+        }
+
+        [TestCaseSource(nameof(BalancedStyles))]
+        public void LongTable_BalancedStylesGiveBothSidesTheSameArea(EDeploymentStyle style)
+        {
+            var (a, b) = AdvancedDeployment.Zones(style, EGameSystem.AgeOfFantasy, 72f, 48f);
+            Assert.That(LongArea(a), Is.EqualTo(LongArea(b)).Within(1f));
+        }
+
+        [Test]
+        public void LongTable_FrontLineIsTheCoreTwelveInches_AndShapesAreTheirOwn()
+        {
+            var fl = AdvancedDeployment.Zones(EDeploymentStyle.FrontLine, EGameSystem.GrimdarkFuture, 72, 48);
+            Assert.That(LongArea(fl.A), Is.EqualTo(72f * 12f).Within(1f));
+
+            // Not stretched copies of the square pages: Ground War is two side columns here...
+            var gw = AdvancedDeployment.Zones(EDeploymentStyle.GroundWar, EGameSystem.GrimdarkFuture, 72, 48);
+            Assert.That(In(gw.A, 10, 5) && In(gw.A, 10, 45) && !In(gw.A, 30, 24) && In(gw.B, 60, 24), Is.True, "Ground War");
+            // ...Spearhead points in from the short edges...
+            var sp = AdvancedDeployment.Zones(EDeploymentStyle.Spearhead, EGameSystem.GrimdarkFuture, 72, 48);
+            Assert.That(In(sp.A, 22, 24) && !In(sp.A, 26, 24) && In(sp.B, 50, 24) && !In(sp.B, 46, 24), Is.True, "Spearhead");
+            // ...and Lightning Strike's arrow runs sideways, B the big one.
+            var ls = AdvancedDeployment.Zones(EDeploymentStyle.LightningStrike, EGameSystem.GrimdarkFuture, 72, 48);
+            Assert.That(In(ls.A, 2, 46) && In(ls.A, 2, 2) && !In(ls.A, 20, 24) && In(ls.B, 30, 24) && In(ls.B, 70, 2), Is.True, "Lightning Strike");
+            var bel = AdvancedDeployment.Zones(EDeploymentStyle.BehindEnemyLines, EGameSystem.GrimdarkFuture, 72, 48);
+            Assert.That(In(bel.A, 20, 24) && !In(bel.A, 50, 24) && In(bel.B, 66, 24) && In(bel.B, 30, 3), Is.True, "Behind Enemy Lines");
+        }
+}
 }

@@ -180,7 +180,7 @@ namespace FDG.Stages
                 context.Log(rolled > 0
                     ? $"Deployment style: rolled {rolled} - {AdvancedDeployment.Name(style)}."
                     : $"Deployment style: {AdvancedDeployment.Name(style)}.");
-                (RectangularZone a, RectangularZone b) = AdvancedDeployment.Zones(style,
+                (RectangularZone a, RectangularZone b) = AdvancedDeployment.Zones(style, GameContext.Settings.GameSystem,
                     GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
                 return new List<RectangularZone> { a, b };
             }
