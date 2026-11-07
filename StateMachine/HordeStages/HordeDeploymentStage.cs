@@ -11,8 +11,14 @@ namespace FDG.Stages
     /// Horde Mode deployment (OPR v3.6.0): the defenders place every unit within 9" of the table centre,
     /// then each enemy unit rolls a die and is placed within 9" of that table corner (1-4), or of a
     /// corner the defenders pick (5-6). Defenders take the first activation of round 1.
-    /// <para>Version 1 simplifications: no Ambush/Scout/transport deployment choices - every unit is
-    /// placed directly - and the defenders' 5-6 corner pick is made automatically.</para>
+    /// <para>
+    /// Ambush and Scout (Kai's rulings, 2026-11-06, claude/house-rules.md): the defenders deploy as the book
+    /// says, "all their units within 9\" of the table centre" - their Ambush and Scout do nothing at set-up.
+    /// Enemy units with Ambush follow the Solo &amp; Co-Op rules the Horde books hand the AI to ("must always
+    /// be kept in reserve, and must always deploy at the start of the second round"): they are held back here
+    /// and arrive at round 2 at a random corner, like any wave unit (<see cref="HordeRoundHooks"/>). Enemy
+    /// Scout only orders deployment ("deployed after all other units"), which corner placement makes moot.
+    /// </para>
     /// </summary>
     public class HordeDeploymentStage : StageBase<IGameContext>
     {
@@ -40,6 +46,7 @@ namespace FDG.Stages
             GameContext.Log("Horde Mode: wave 1 arrives at random table corners.");
             foreach (UnitData unit in units.Where(u => !defenders.Contains(u.PlayerID)))
             {
+                if (HordeAmbush.HoldBack(GameContext, unit)) continue;
                 await HordePlacement.PlaceAtRandomCorner(GameContext, unit, "wave 1");
             }
 

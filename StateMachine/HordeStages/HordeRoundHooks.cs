@@ -39,6 +39,9 @@ namespace FDG.Stages
 
             if (HordeRules.IsWaveRound(round))
                 await DeployWave(HordeRules.WaveOfRound(round));
+
+            if (round == HordeAmbush.ArrivalRound)
+                await HordeAmbush.Arrive(_gameContext);
         }
 
         public async Task<bool> OnRoundEnd(IMainPhaseContext context, int roundJustFinished)
@@ -117,14 +120,17 @@ namespace FDG.Stages
                 .Where(u => !u.GetIsAlive() || u.Tokens.HasToken(TokenType.Shaken))
                 .ToList();
 
-            await _gameContext.Announce($"Wave {wave} incoming!", new TextColor(255, 120, 80, 255),
-                EBannerTier.Headline);
-
             if (returning.Count == 0)
             {
+                // Said plainly, rather than a "Wave N incoming!" splash that nothing follows (QA 5.2).
+                await _gameContext.Announce($"Wave {wave}: no enemies to send back.", new TextColor(255, 120, 80, 255),
+                    EBannerTier.Headline);
                 _gameContext.Log($"Horde Mode: wave {wave} - no destroyed or Shaken enemies to return.");
                 return;
             }
+
+            await _gameContext.Announce($"Wave {wave} incoming!", new TextColor(255, 120, 80, 255),
+                EBannerTier.Headline);
 
             _gameContext.Log($"Horde Mode: wave {wave} - {returning.Count} enemy unit(s) return at random corners.");
             foreach (UnitData unit in returning)
