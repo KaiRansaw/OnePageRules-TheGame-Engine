@@ -59,6 +59,8 @@ namespace FDG.Stages
             Rules.Dispatch.QuestRulesProfile.For(context);
 
         public const string RestOption = "Rest";
+        /// <summary>QA 9.16: Hold as the hero's action without shooting - the Skill action is still to come.</summary>
+        public const string HoldWithoutShootingOption = "Hold, don't shoot";
         public const string SkillOption = "Skill";
         public static readonly string ExtraActionOption = $"Extra Action ({ExtraActionPower} power)";
         public const string FreeActionOption = "Free Action";
@@ -1058,6 +1060,15 @@ namespace FDG.Stages
                 await GameContext.Announce($"{hero.Name} rests and restores all power ({hero.QuestPower}).",
                     new TextColor(130, 200, 255, 255), EBannerTier.Toast);
                 await ToEndActivation.Activate(context);
+                return;
+            }
+
+            if (action == QuestActions.HoldWithoutShootingOption)
+            {
+                context.RegisterQuestHoldWithoutShooting();
+                context.MarkIrreversibleAction();
+                GameContext.Log($"{hero.Name} holds without shooting.");
+                await OnFinished.Activate(context);
                 return;
             }
 

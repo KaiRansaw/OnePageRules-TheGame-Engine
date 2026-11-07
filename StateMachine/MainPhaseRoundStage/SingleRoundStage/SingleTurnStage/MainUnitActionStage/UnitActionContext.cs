@@ -133,6 +133,15 @@ namespace FDG.Stages
         public bool QuestExtraUsed { get; set; }
         /// <summary>Star Quest: power bought another action - the move/attack slots open up again.</summary>
         public void BeginQuestExtraAction();
+        /// <summary>
+        /// Star Quest: the hero used its action to Hold without shooting. The action is spent (no move, no
+        /// attack this action) but nothing was attacked, so the casting window stays open and the hero
+        /// still has its Skill action - "any one action plus one Skill action (in any order)".
+        /// </summary>
+        public void RegisterQuestHoldWithoutShooting();
+        /// <summary>Star Quest: set by <see cref="RegisterQuestHoldWithoutShooting"/> until an extra action
+        /// is bought; the action menu offers no shot or charge while it is set.</summary>
+        public bool QuestHeldWithoutShooting { get; }
         /// <summary>Star Quest: a hero Rallied - it no longer has to stay idle this activation.</summary>
         public void ClearStartedActivationShaken();
         /// <summary>Star Quest: the "when activated" condition checks have run this activation.</summary>
@@ -229,6 +238,7 @@ namespace FDG.Stages
 
         public void BeginQuestExtraAction()
         {
+            QuestHeldWithoutShooting = false;
             HasMoved = false;
             MoveDistance = 0f;
             MoveShootAllowance = 0f;
@@ -238,6 +248,19 @@ namespace FDG.Stages
             // buys another action, not another activation, and Caster(X) is "once per activation".
         }
 
+        public void RegisterQuestHoldWithoutShooting()
+        {
+            // HasMoved closes the move (and makes the activation non-fresh); the shot and charge are closed by
+            // QuestHeldWithoutShooting. HasAttacked stays false and CastingWindowClosed is untouched - holding
+            // is not attacking, so the hero may still cast.
+            HasMoved = true;
+            MoveDistance = 0f;
+            MoveShootAllowance = 0f;
+            QuestHeldWithoutShooting = true;
+        }
+
+        public bool QuestHeldWithoutShooting { get; private set; }
+
         public void ClearStartedActivationShaken() => StartedActivationShaken = false;
 
         public void Reset(DataBinding<UnitData> activatingUnit)
@@ -245,6 +268,7 @@ namespace FDG.Stages
             PendingQuestAction = null;
             QuestSkillsUsed = 0;
             QuestExtraUsed = false;
+            QuestHeldWithoutShooting = false;
             QuestActivationChecked = false;
             CampaignActivationChecked = false;
             ActivatingUnit = activatingUnit;

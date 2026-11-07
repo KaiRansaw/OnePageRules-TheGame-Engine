@@ -236,6 +236,7 @@ namespace FDG.Ai.Solo
             || option == Rules.Dispatch.CoreRuleCatalog.DisembarkRuleName   // handled above, first
             || option == Rules.Dispatch.CoreRuleCatalog.EmbarkRuleName      // see remarks
             || option == QuestActions.SkillOption
+            || option == QuestActions.HoldWithoutShootingOption
             || option == QuestActions.EndActivationOption;
 
         /// <summary>

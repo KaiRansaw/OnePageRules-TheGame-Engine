@@ -581,6 +581,12 @@ namespace FDG.Stages
                 if (fresh)
                     AddQuest(QuestActions.RestOption,
                         $"Restore all power ({questHero.QuestPower}/{maxPower}). The hero stays idle for the rest of its activation.");
+                // QA 9.16: "any one action plus one Skill action (in any order)" - standing still is the
+                // hero's action, and it must not end the activation while the Skill action is unused.
+                // Offered only then; with the skill already used, Pass does the same job.
+                if (!context.HasMoved && !context.HasAttacked && context.QuestSkillsUsed < 1)
+                    AddQuest(QuestActions.HoldWithoutShootingOption,
+                        "Stay in place and fire nothing. The hero can still use its Skill action.");
                 if (context.QuestSkillsUsed < 1)
                     AddQuest(QuestActions.SkillOption, $"Use a skill: Discover a search token, Push, Scurry, revive a hero, a class skill, or an item. Power: {questHero.QuestPower}/{maxPower}.");
                 // Star Quest free actions (Surge Charge, Surge Shot, Sweeping / Relentless Attack, Volley, Stalker's Flurry).
@@ -725,6 +731,12 @@ namespace FDG.Stages
 
         private bool GetCanCharge(IUnitActionContext context, out string reasonIfCant)
         {
+            if (context.QuestHeldWithoutShooting)
+            {
+                reasonIfCant = $"{context.ActivatingUnit.GetValue().Name} used its action to Hold.";
+                return false;
+            }
+
             if (TransportUtilities.IsEmbarked(context.ActivatingUnit.GetValue()))
             {
                 reasonIfCant = "Embarked; disembark first.";
@@ -932,6 +944,12 @@ namespace FDG.Stages
         public static bool GetCanShoot(IGameContext gameContext, IUnitActionContext context,
             out string reasonIfCant)
         {
+            if (context.QuestHeldWithoutShooting)
+            {
+                reasonIfCant = $"{context.ActivatingUnit.GetValue().Name} used its action to Hold.";
+                return false;
+            }
+
             if (TransportUtilities.IsEmbarked(context.ActivatingUnit.GetValue()))
             {
                 reasonIfCant = "Embarked; disembark first.";
