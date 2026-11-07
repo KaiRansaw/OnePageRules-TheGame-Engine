@@ -60,6 +60,31 @@ namespace FDG.Stages
         /// friendly or an enemy roll for each seat holding points.</param>
         public static async Task<int> ConsumeNet(IGameContext gameContext, ERollKind roll, IUnit rollingUnit)
         {
+            if (rollingUnit == null) return 0;
+            // King of the Hill's combat bonus point is a different rule from the Underdog Bonus and stacks
+            // with it: "once per activation, players may spend one point to add +1 to the result of all dice
+            // in a single roll" - offered on the spender's own rolls.
+            int kingBonus = await ConsumeCombatBonus(gameContext, roll, rollingUnit);
+            return kingBonus + await ConsumeUnderdog(gameContext, roll, rollingUnit);
+        }
+
+        private static async Task<int> ConsumeCombatBonus(IGameContext gameContext, ERollKind roll, IUnit rollingUnit)
+        {
+            (int points, bool canSpend) = KingOfTheHill.Status(gameContext, rollingUnit.PlayerID);
+            if (!canSpend) return 0;
+            var options = new List<string> { "Don't spend", $"Spend 1 combat bonus point: +1 to {rollingUnit.Name}'s {Describe(roll)}" };
+            var request = new StringSelectionRequest(rollingUnit.PlayerID,
+                $"{rollingUnit.Name} is about to make a {Describe(roll)}. Spend a combat bonus point? ({points} left, "
+                + "one per activation)", options, new List<StringSelectionRequest.InvalidOption>(),
+                displayName: "King of the Hill");
+            string choice = await gameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
+            if (choice != options[1] || !KingOfTheHill.TrySpend(gameContext, rollingUnit.PlayerID)) return 0;
+            gameContext.Log($"Combat bonus point spent: {Describe(roll)} +1 for {rollingUnit.Name} ({points - 1} left).");
+            return 1;
+        }
+
+        private static async Task<int> ConsumeUnderdog(IGameContext gameContext, ERollKind roll, IUnit rollingUnit)
+        {
             // The cheap guard first: in a standard game, and in a campaign mission where the player is
             // not behind or has spent everything, this is the whole cost of calling us.
             if (rollingUnit == null || !UnderdogPool.AnyRemaining(gameContext)) return 0;

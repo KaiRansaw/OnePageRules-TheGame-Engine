@@ -33,17 +33,33 @@ namespace FDG.Stages
         /// shot counts as coming from the leader's position. Null: from every living attacker, as usual.</param>
         public static Result Evaluate(DataBinding<UnitData> attackingUnit,
             DataBinding<UnitData> defendingUnit, IReadOnlyList<ITerrain> terrain,
-            bool applyProximityExceptions, ModelID? measureFromOnly = null)
+            bool applyProximityExceptions, ModelID? measureFromOnly = null, bool simplifiedTerrain = false)
             => Evaluate((IUnit)attackingUnit.GetValue(), (IUnit)defendingUnit.GetValue(), terrain,
-                applyProximityExceptions, measureFromOnly);
+                applyProximityExceptions, measureFromOnly, simplifiedTerrain);
 
         /// <summary>
         /// The same computation on read-only units, so the official bot can rank its targets by the cover
         /// the roll will actually apply rather than a footprint guess (bot shooting audit, 2026-11-07).
         /// </summary>
+        /// <param name="simplifiedTerrain">Fast-Play Simplified Terrain: "the only way for units to get Cover is
+        /// by entering a piece of terrain" - a model counts only when it stands inside a piece (any piece it can
+        /// be inside, so not Impassable); being behind a wall or another unit gives nothing.</param>
         public static Result Evaluate(IUnit attackingUnit, IUnit defendingUnit, IReadOnlyList<ITerrain> terrain,
-            bool applyProximityExceptions, ModelID? measureFromOnly = null)
+            bool applyProximityExceptions, ModelID? measureFromOnly = null, bool simplifiedTerrain = false)
         {
+            if (simplifiedTerrain)
+            {
+                List<IModel> living = defendingUnit.Models.Where(m => m.GetIsAlive()).ToList();
+                // A piece a model can stand in: not Impassable, and a real piece of ground (Cover, Difficult
+                // or Dangerous) - which also leaves out the sight-blocker footprints the shooting stage adds
+                // for other units' models, typed Blocking only.
+                const ETerrainType Enterable = ETerrainType.Cover | ETerrainType.Difficult | ETerrainType.Dangerous;
+                int inside = living.Count(m => terrain.Any(t => (t.TerrainType & Enterable) != 0
+                    && !t.TerrainType.HasFlag(ETerrainType.Impassible)
+                    && t.Shape.IsPointWithinZone(new Float2(m.Position.x, m.Position.z))));
+                return new Result(inside, living.Count);
+            }
+
             List<IModel> attackers = attackingUnit.Models
                 .Where(model => model.GetIsAlive()
                                 && (measureFromOnly is not { } only || model.ID.Equals(only)))

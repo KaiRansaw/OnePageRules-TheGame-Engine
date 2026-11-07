@@ -34,6 +34,35 @@ namespace FDG.ArmyBuilding
         /// so about, and blocking it would reject a 1000-pt list in a 2000-pt lobby that both players
         /// agreed to.
         /// </summary>
+        /// <summary>
+        /// The same checks with teams known. Team games (Advanced Rulebooks 3.6.0, Multiplayer Games): "you must
+        /// split the amount of points that each team is allowed to take between its players ... the amount of
+        /// points that each player is allowed to take within a team doesn't have to be equal". So on a side with
+        /// two or more players the lobby limit is the SIDE's, split however they like; a side of one is
+        /// checked as before.
+        /// </summary>
+        public static IReadOnlyList<string> BlockingProblems(
+            IEnumerable<(int Team, string PlayerName, ArmyListFile? Army)> players,
+            int lobbyPointsLimit, EAllowedGameSystems allowedSystems)
+        {
+            var list = players.ToList();
+            var problems = new List<string>();
+            foreach (var side in list.GroupBy(p => p.Team))
+            {
+                if (side.Count() < 2)
+                {
+                    problems.AddRange(BlockingProblems(side.Select(p => (p.PlayerName, p.Army)), lobbyPointsLimit, allowedSystems));
+                    continue;
+                }
+                problems.AddRange(BlockingProblems(side.Select(p => (p.PlayerName, p.Army)), int.MaxValue, allowedSystems));
+                int total = side.Sum(p => p.Army?.TotalPoints ?? 0);
+                if (total > lobbyPointsLimit)
+                    problems.Add($"{string.Join(" + ", side.Select(p => p.PlayerName))}: the team's armies are "
+                        + $"{total} pts together, over the {lobbyPointsLimit} pt limit for a side (split it between you).");
+            }
+            return problems;
+        }
+
         public static IReadOnlyList<string> BlockingProblems(
             IEnumerable<(string PlayerName, ArmyListFile? Army)> players,
             int lobbyPointsLimit, EAllowedGameSystems allowedSystems)

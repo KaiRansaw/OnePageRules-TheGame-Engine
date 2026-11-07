@@ -185,6 +185,26 @@ namespace FDG.Stages
                 return new List<RectangularZone> { a, b };
             }
 
+            // Three or four sides: the Advanced Rulebooks' Free-for-All (3.6.0, Multiplayer Games) - "players
+            // alternate in picking a table corner and deploying one unit each within a 2'x1' area" (1'x1' in
+            // GF: Firefight and AoF: Skirmish), in roll order, which the zone choice below already is. The
+            // long side of the 2'x1' runs along the long table edge. Before this, three or four sides split
+            // the long edges into strips - a layout no book prints.
+            if (teamCount is 3 or 4 && !GameSystemInfo.IsQuest(GameContext.Settings.GameSystem))
+            {
+                float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+                bool skirmish = GameSystemInfo.IsSkirmish(GameContext.Settings.GameSystem);
+                float along = skirmish ? 12f : 24f, deep = 12f;
+                context.Log("Free-for-all: each side deploys in a table corner.");
+                return new List<RectangularZone>
+                {
+                    new RectangularZone(0f, along, 0f, deep),
+                    new RectangularZone(w - along, w, 0f, deep),
+                    new RectangularZone(0f, along, h - deep, h),
+                    new RectangularZone(w - along, w, h - deep, h),
+                };
+            }
+
             //We need to return equally-sized zones, and there are two sides to the table.
             //That means there will be an extra zone when the team number is odd.
 

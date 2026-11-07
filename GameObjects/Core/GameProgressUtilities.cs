@@ -76,6 +76,10 @@ namespace FDG
 
             if (progress.RoundSummaries == null)
                 progress.RoundSummaries = TryGetProgress(store)?.RoundSummaries;
+            if (progress.CombatBonus == null)
+                progress.CombatBonus = TryGetProgress(store)?.CombatBonus;
+            if (progress.CombatBonusSpentIn == null)
+                progress.CombatBonusSpentIn = TryGetProgress(store)?.CombatBonusSpentIn;
 
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {

@@ -245,6 +245,21 @@ namespace FDG.Network.Connection.Lobby
         /// </summary>
         void SetFastPlay(bool movement, bool melee, bool shooting);
 
+        /// <summary>A standard game's length in rounds, null = the books' 4 - see <see cref="GameSettings.NumberOfRounds"/>.</summary>
+        int? NumberOfRounds { get; }
+
+        void SetNumberOfRounds(int? rounds);
+
+        /// <summary>Fast-Play Simplified Terrain - see <see cref="GameSettings.FastPlaySimplifiedTerrain"/>.</summary>
+        bool FastPlaySimplifiedTerrain { get; }
+
+        void SetFastPlaySimplifiedTerrain(bool enabled);
+
+        /// <summary>Multiplayer King of the Hill - see <see cref="GameSettings.KingOfTheHill"/>.</summary>
+        bool KingOfTheHill { get; }
+
+        void SetKingOfTheHill(bool enabled);
+
         /// <summary>The Advanced Rulebooks' deployment style - see <see cref="GameSettings.DeploymentStyle"/>.</summary>
         EDeploymentStyle DeploymentStyle { get; }
 

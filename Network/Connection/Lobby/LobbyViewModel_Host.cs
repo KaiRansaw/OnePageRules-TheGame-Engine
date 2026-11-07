@@ -95,6 +95,9 @@ namespace FDG.Network.Connection.Lobby
         public EDeploymentStyle DeploymentStyle => _gameSettings.DeploymentStyle;
         public FDG.Missions.EMissionCardGame MissionCardGame => _gameSettings.MissionCardGame;
         public bool FastPlayShooting => _gameSettings.FastPlayShooting;
+        public int? NumberOfRounds => _gameSettings.NumberOfRounds;
+        public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;
+        public bool KingOfTheHill => _gameSettings.KingOfTheHill;
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -347,6 +350,8 @@ namespace FDG.Network.Connection.Lobby
 
                 LobbyPlayerInfoFull info = new LobbyPlayerInfoFull(name, null, (ETeamOption)slot.TeamNumber,
                     type, new ConnectionID(Guid.Empty), slot.PlayerID);
+                if (_gameSettings.SlotColors != null && _gameSettings.SlotColors.TryGetValue(slot.SlotID, out int color))
+                    info.ColorIndex = color;
                 _playerInfosFull[slot.PlayerID] = info;
             }
         }
@@ -743,7 +748,9 @@ namespace FDG.Network.Connection.Lobby
         public IReadOnlyList<string> BlockingLaunchProblems()
         {
             if (!GameSystemInfo.IsQuest(GameSystem))
-                return ArmyBuilding.LaunchGate.BlockingProblems(LoadedArmies(), ArmyPoints, AllowedGameSystems);
+                return ArmyBuilding.LaunchGate.BlockingProblems(
+                    _playerInfosFull.Values.Select(info => ((int)info.TeamNumber, info.PlayerName, info.ArmyListFile)),
+                    ArmyPoints, AllowedGameSystems);
 
             // Star Quest: no points limit (the enemy collection should be big), but a 2-4 hero party and an
             // enemy side are needed.
@@ -968,6 +975,10 @@ namespace FDG.Network.Connection.Lobby
             // presentation beats play at a presentable tempo (without it the beats run instantly).
             // #265: the save owns the settings on resume, except the few a resume lobby may re-pick
             // (the table background) - see GameSettings.WithResumeOverridesFrom.
+            // A colour changed in the resume lobby is the one the next save should remember.
+            _gameSettings.SlotColors = infos.Select((info, i) => (info, i)).Where(x => x.info.ColorIndex >= 0)
+                .ToDictionary(x => playerSlots[x.i].SlotID, x => x.info.ColorIndex);
+
             FDGServer server = new FDGServer(_gameDataStore, _messageBus, playerSlots,
                 new RealtimePresentationClock(), _gameSettings);
             server.OnGameEnded += HandleServerGameEnded;
@@ -1127,6 +1138,11 @@ namespace FDG.Network.Connection.Lobby
             // The GUI host self-paces presentation in real time so the battle unfolds at a
             // presentable tempo; clients receive beats already spaced by this clock. (Headless play
             // goes through CliApp, which leaves FDGServer's default instant clock.)
+            // Colours chosen in the lobby travel with the save, so a resumed game looks the same.
+            _gameSettings.SlotColors = Enumerable.Range(0, lobbyPlayerInfosArray.Length)
+                .Where(i => lobbyPlayerInfosArray[i].ColorIndex >= 0)
+                .ToDictionary(i => i, i => lobbyPlayerInfosArray[i].ColorIndex);
+
             FDGServer server = new FDGServer(_gameDataStore, _messageBus, _gameSettings, playerSlots,
                 new RealtimePresentationClock());
             server.OnGameEnded += HandleServerGameEnded;
@@ -1369,6 +1385,24 @@ namespace FDG.Network.Connection.Lobby
         public void SetDeploymentStyle(EDeploymentStyle style)
         {
             _gameSettings.DeploymentStyle = style;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetKingOfTheHill(bool enabled)
+        {
+            _gameSettings.KingOfTheHill = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetFastPlaySimplifiedTerrain(bool enabled)
+        {
+            _gameSettings.FastPlaySimplifiedTerrain = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetNumberOfRounds(int? rounds)
+        {
+            _gameSettings.NumberOfRounds = rounds is > 0 && rounds != GameWideConstants.NUMBER_OF_ROUNDS ? rounds : null;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

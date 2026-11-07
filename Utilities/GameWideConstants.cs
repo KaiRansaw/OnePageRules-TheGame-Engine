@@ -141,10 +141,19 @@ namespace FDG
         /// <summary>Sets the table for the game about to be played. Called when a game (or a saved game) starts.</summary>
         /// <param name="friendlyUnitsMayOverlap">The lobby's house-rule toggle. Defaults to false so
         /// every existing caller (tests included) keeps the rules-correct behaviour.</param>
-        public static void ConfigureTable(EGameSystem system, bool friendlyUnitsMayOverlap = false)
+        /// <summary>The whole table configuration from a game's settings - system, overlap house rule and any
+        /// table size the settings name. Host and joined players both call this, so both measure the same table.</summary>
+        public static void ConfigureTable(GameSettings settings) =>
+            ConfigureTable(settings.GameSystem, settings.FriendlyUnitsMayOverlap,
+                settings.TableWidthInches, settings.TableHeightInches);
+
+        public static void ConfigureTable(EGameSystem system, bool friendlyUnitsMayOverlap = false,
+            float? tableWidthInches = null, float? tableHeightInches = null)
         {
             FRIENDLY_UNITS_MAY_OVERLAP = friendlyUnitsMayOverlap;
             (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);
+            if (tableWidthInches is > 0f && tableHeightInches is > 0f)
+                (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = (tableWidthInches.Value, tableHeightInches.Value);
             FDG.StateMachine.HordeRules.Configure(system);
             // #437: three bands now, not two - 3" for the Quest systems' AI groups, 6" for the skirmish
             // games, 9" for the full-scale ones. Each is its own book's number.

@@ -133,6 +133,13 @@ namespace FDG
         /// <c>GameProgressUtilities.WriteProgress</c>; null in older saves.</summary>
         public List<RoundSummary>? RoundSummaries { get; set; }
 
+        /// <summary>King of the Hill: each seat's combat bonus points (slot id -> points). Null outside it.</summary>
+        public Dictionary<int, int>? CombatBonus { get; set; }
+
+        /// <summary>King of the Hill: the activation each seat last spent a point in ("round:unit"), for the
+        /// book's "once per activation".</summary>
+        public Dictionary<int, string>? CombatBonusSpentIn { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,

@@ -259,7 +259,11 @@ namespace FDG.Stages
             // both modes - it is what the NEXT offer reads for "start aimed where the last one fired".
             context.SetAttackWeaponAtTarget(chosenWeapon, targetUnit, out int weaponCount);
             context.SetDefender(targetUnit);
+            // King of the Hill: a combat bonus point the first time this action picks a king's unit.
+            bool newTarget = !context.AttackedDefenders.Any(a => a.Defender.Reference.Equals(targetUnit.Reference));
             context.RegisterAttackedDefender(targetUnit);
+            if (newTarget)
+                KingOfTheHill.OnTargetPicked(GameContext, context.AttackingUnit.PlayerID(), targetUnit.GetValue());
             GameContext.Log($"Chose weapon: {chosenWeapon.Name}. Count: {weaponCount}.");
 
             // #340: a weapon whose attack re-scopes to a single chosen model (Takedown / Sniper) is aimed
@@ -800,7 +804,8 @@ namespace FDG.Stages
             var originSight = new bool?[enemyUnit.GetValue().Models.Count];
 
             bool hasCover = wantCover && CoverMajority.Evaluate(attackingUnit, enemyUnit, allTerrain,
-                gameContext.Settings.CoverProximityExceptionsEnabled, origin).HasCover;
+                gameContext.Settings.CoverProximityExceptionsEnabled, origin,
+                FastPlay.SimplifiedTerrain(gameContext.Settings)).HasCover;
 
             foreach (string weaponProfileKey in weaponProfileKeys)
             {

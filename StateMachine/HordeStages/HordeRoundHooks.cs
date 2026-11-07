@@ -68,7 +68,7 @@ namespace FDG.Stages
 
             // The shop opens after the wave's points, unless the mission is over (after round 12 there is
             // nothing left to spend them on).
-            if (rewardRound && roundJustFinished < HordeRules.RoundLimit(_gameContext.Settings.GameMode))
+            if (rewardRound && roundJustFinished < HordeRules.RoundLimit(_gameContext.Settings))
                 await HordeShop.Run(_gameContext, seized, HordeRules.WaveOfRound(roundJustFinished));
 
             return false;

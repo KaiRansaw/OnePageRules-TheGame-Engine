@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Newtonsoft.Json;
 
@@ -124,6 +125,40 @@ namespace FDG
         /// </para>
         /// </summary>
         public bool FriendlyUnitsMayOverlap;
+
+        /// <summary>
+        /// The table, in inches, when it is not the game system's own (6'x4', or 4'x4' for the skirmish and
+        /// Quest games). Null = the system's table, which is every game until Kai settles the bigger-table
+        /// question. <see cref="Utilities.GameWideConstants.ConfigureTable(GameSettings)"/> reads it.
+        /// </summary>
+        public float? TableWidthInches;
+        public float? TableHeightInches;
+
+        /// <summary>
+        /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games
+        /// keep their own lengths. A house rule when set (see claude/house-rules.md).
+        /// </summary>
+        public int? NumberOfRounds;
+
+        /// <summary>
+        /// Fast-Play: Simplified Terrain (GF / AoF Advanced Rulebook 3.6.0, p17): "all pieces of terrain must be
+        /// treated like solid buildings, with clearly defined areas that can be entered and exited ... the
+        /// only way for units to get Cover is by entering a piece of terrain." Off by default.
+        /// </summary>
+        public bool FastPlaySimplifiedTerrain;
+
+        /// <summary>
+        /// Multiplayer: King of the Hill (Advanced Rulebooks 3.6.0, Multiplayer Games). A free-for-all where
+        /// attacking the king - the player whose army is worth the most - earns combat bonus points, each
+        /// spendable once per activation for +1 to all dice in one roll. Only plays with three or more sides.
+        /// </summary>
+        public bool KingOfTheHill;
+
+        /// <summary>
+        /// Each seat's lobby colour pick (slot id -> colour index), recorded at launch so a resumed game
+        /// gives everyone back the colour they chose. Seats left on automatic are absent. Null in older saves.
+        /// </summary>
+        public Dictionary<int, int>? SlotColors;
 
         public int TerrainPieceCount;
 

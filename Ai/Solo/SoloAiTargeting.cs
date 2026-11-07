@@ -1,3 +1,4 @@
+using FDG.Rules;
 using FDG.Stages;
 using FDG.Rules.Foundation;
 
@@ -93,7 +94,8 @@ namespace FDG.Ai.Solo
         /// </summary>
         public static bool InCoverFrom(ITableState table, IUnit shooter, IUnit target) =>
             CoverMajority.Evaluate(shooter, target, SightBlockers(table, shooter, target),
-                Settings(table)?.CoverProximityExceptionsEnabled ?? true).HasCover;
+                Settings(table)?.CoverProximityExceptionsEnabled ?? true, null,
+                Settings(table) is { } s && FastPlay.SimplifiedTerrain(s)).HasCover;
 
         /// <summary>
         /// Whether any of the shooter's models can see the target once other units' models are counted as

@@ -117,6 +117,7 @@ namespace FDG.Stages
             {
                 //Set the defender on the context.
                 GameContext.Log($"Chose {defender.GetValue().Name} as defender.");
+                KingOfTheHill.OnTargetPicked(GameContext, attackingPlayer, defender.GetValue());
                 context.SetDefender(defender);
                 await OnDefenderChosen.Activate(context);
             }

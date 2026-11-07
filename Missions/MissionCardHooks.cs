@@ -466,7 +466,7 @@ namespace FDG.Missions
             return false;
         }
 
-        private int HordeRulesLimit() => FDG.StateMachine.HordeRules.RoundLimit(_gameContext.Settings.GameMode);
+        private int HordeRulesLimit() => FDG.StateMachine.HordeRules.RoundLimit(_gameContext.Settings);
 
         /// <summary>
         /// Whether another round follows <paramref name="round"/>: the end-of-round discards are skipped

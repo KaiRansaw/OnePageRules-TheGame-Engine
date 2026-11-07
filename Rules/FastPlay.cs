@@ -40,6 +40,7 @@ namespace FDG
         public static bool Movement(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlayMovement;
         public static bool Melee(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlayMelee;
         public static bool Shooting(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlayShooting;
+        public static bool SimplifiedTerrain(GameSettings s) => BooksHaveIt(s.GameSystem) && s.FastPlaySimplifiedTerrain;
 
         /// <summary>
         /// How far a model the Fast-Play rules say is placed "in any way you like" - not measured - may be put.
@@ -48,7 +49,9 @@ namespace FDG
         public const float UnmeasuredMoveInches = 1000f;
 
         /// <summary>"All of them use Unit Leaders" - true when any Fast-Play rule is in play.</summary>
-        public static bool UsesLeaders(GameSettings s) => Movement(s) || Melee(s) || Shooting(s);
+        // "No matter which combination of Fast-Play rules you choose to use, all of them use Unit Leaders" -
+        // Simplified Terrain included, where the leader matters only as the last model to die.
+        public static bool UsesLeaders(GameSettings s) => Movement(s) || Melee(s) || Shooting(s) || SimplifiedTerrain(s);
 
         /// <summary>
         /// The leader the game picks for a unit, which the player may change before the game (Kai,

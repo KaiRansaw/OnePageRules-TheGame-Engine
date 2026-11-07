@@ -112,6 +112,9 @@ namespace FDG.Network.Connection.Lobby
         public EDeploymentStyle DeploymentStyle { get; private set; }
         public FDG.Missions.EMissionCardGame MissionCardGame { get; private set; }
         public bool FastPlayShooting { get; private set; }
+        public int? NumberOfRounds { get; private set; }
+        public bool FastPlaySimplifiedTerrain { get; private set; }
+        public bool KingOfTheHill { get; private set; }
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -371,8 +374,11 @@ namespace FDG.Network.Connection.Lobby
             _playerInfos.OnNext(playerListUpdate.PlayerInfoList);
         }
 
+        private GameSettings? _lastSettings;
+
         private void OnGameSettingsUpdateReceived(LobbyGameSettingsUpdate gameSettingsUpdate)
         {
+            _lastSettings = gameSettingsUpdate.GameSettings;
             if (_settings_ArmyPoints.Value != gameSettingsUpdate.GameSettings.ArmyPoints)
             {
                 _settings_ArmyPoints.OnNext(gameSettingsUpdate.GameSettings.ArmyPoints);
@@ -442,6 +448,9 @@ namespace FDG.Network.Connection.Lobby
             DeploymentStyle = gameSettingsUpdate.GameSettings.DeploymentStyle;
             MissionCardGame = gameSettingsUpdate.GameSettings.MissionCardGame;
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
+            NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;
+            FastPlaySimplifiedTerrain = gameSettingsUpdate.GameSettings.FastPlaySimplifiedTerrain;
+            KingOfTheHill = gameSettingsUpdate.GameSettings.KingOfTheHill;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
             {
                 _settings_UnlimitedSplitFire.OnNext(gameSettingsUpdate.GameSettings.UnlimitedSplitFire);
@@ -464,6 +473,11 @@ namespace FDG.Network.Connection.Lobby
             {
                 throw new InvalidOperationException("Tried to launch game without a PlayerID being assigned.");
             }
+
+            // A joined player measures the same table as the host: the system's size (4'x4' for the skirmish
+            // and Quest games), coherency, melee reach and the overlap house rule. Only the host's FDGServer
+            // used to set these, so a client of a Firefight game drew and previewed a 6'x4' Grimdark table.
+            if (_lastSettings is { } hostSettings) GameWideConstants.ConfigureTable(hostSettings);
 
             FDGGame_AsClient fdgGame = new FDGGame_AsClient(_gameDataStore, _messageBusClient, _thisPlayerID.Value);
 
@@ -571,6 +585,21 @@ namespace FDG.Network.Connection.Lobby
         public void SetDeploymentStyle(EDeploymentStyle style)
         {
             throw new InvalidOperationException("Tried to set the deployment style when not the host.");
+        }
+
+        public void SetKingOfTheHill(bool enabled)
+        {
+            throw new InvalidOperationException("Tried to set King of the Hill when not the host.");
+        }
+
+        public void SetFastPlaySimplifiedTerrain(bool enabled)
+        {
+            throw new InvalidOperationException("Tried to set the Fast-Play rules when not the host.");
+        }
+
+        public void SetNumberOfRounds(int? rounds)
+        {
+            throw new InvalidOperationException("Tried to set the game length when not the host.");
         }
 
         public void SetFastPlay(bool movement, bool melee, bool shooting)

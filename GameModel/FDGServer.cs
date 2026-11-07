@@ -182,7 +182,7 @@ namespace FDG.GameModel
         private void BuildContextAndLaunch(GameSettings gameSettings, bool applyCreationRules, GameProgressData? resumeProgress)
         {
             // Star Quest plays on a 4' x 4' table; everything else on 6' x 4'.
-            GameWideConstants.ConfigureTable(gameSettings.GameSystem, gameSettings.FriendlyUnitsMayOverlap);
+            GameWideConstants.ConfigureTable(gameSettings);
 
             LogAndChatMessageRelayer chatMessageRelayer = new LogAndChatMessageRelayer(_playerSlotManager);
 

@@ -29,7 +29,7 @@ namespace FDG.Stages
             GameContext.GameMaster?.OnRoundStart();
             if (GameContext.GameMaster?.ConsumeJumpToRound() is int jumpTo)
             {
-                int limit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings.GameMode);
+                int limit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings);
                 context.SetRoundCount(Math.Min(jumpTo, limit));
                 context.Log($"Game Master: this is now round {context.RoundCount}.");
             }

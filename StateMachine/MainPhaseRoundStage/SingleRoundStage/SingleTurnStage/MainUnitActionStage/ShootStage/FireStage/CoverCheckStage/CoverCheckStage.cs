@@ -27,7 +27,8 @@ namespace FDG.Stages
             CoverMajority.Result majority = CoverMajority.Evaluate(
                 metaData.AttackingUnit, metaData.DefendingUnit, terrain,
                 GameContext.Settings.CoverProximityExceptionsEnabled,
-                FastPlay.ShootingOrigin(metaData.AttackingUnit.GetValue(), GameContext.Settings));
+                FastPlay.ShootingOrigin(metaData.AttackingUnit.GetValue(), GameContext.Settings),
+                FastPlay.SimplifiedTerrain(GameContext.Settings));
 
             // Majority rule: more than half of the living defending models in cover → +1 defense bonus.
             int bonus = majority.HasCover ? 1 : 0;

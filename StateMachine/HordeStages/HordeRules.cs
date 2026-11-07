@@ -19,6 +19,13 @@ namespace FDG.StateMachine
             _ => GameWideConstants.NUMBER_OF_ROUNDS,
         };
 
+        /// <summary>The game's length with its settings: a standard game's round count can be set (house rule).</summary>
+        public static int RoundLimit(GameSettings settings)
+        {
+            int limit = RoundLimit(settings.GameMode);
+            return limit == GameWideConstants.NUMBER_OF_ROUNDS && settings.NumberOfRounds is int n && n > 0 ? n : limit;
+        }
+
         /// <summary>1-based wave a round belongs to: rounds 1-3 are wave 1, 4-6 wave 2, and so on.</summary>
         public static int WaveOfRound(int round) => ((round - 1) / GameWideConstants.HORDE_ROUNDS_PER_WAVE) + 1;
 

@@ -105,8 +105,9 @@ namespace FDG
 
         public GameProgress(IReadableGameDataStore store) => _store = store;
 
-        public int TotalRounds => StateMachine.HordeRules.RoundLimit(
-            GameProgressUtilities.TryGetProgress(_store)?.Settings.GameMode ?? EGameMode.Standard);
+        public int TotalRounds => GameProgressUtilities.TryGetProgress(_store)?.Settings is { } settings
+            ? StateMachine.HordeRules.RoundLimit(settings)
+            : StateMachine.HordeRules.RoundLimit(EGameMode.Standard);
 
         public int? RoundCount => GameProgressUtilities.TryGetProgress(_store)?.RoundCount;
 
