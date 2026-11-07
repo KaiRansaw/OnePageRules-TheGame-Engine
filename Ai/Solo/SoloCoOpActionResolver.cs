@@ -112,6 +112,15 @@ namespace FDG.Ai.Solo
             if (SoloAiSpecialRuleClauses.MustHoldAndShoot(_table, _me, unit)
                 && Has(ChooseActionStage.SHOOT_CHOICE_NAME) is { } holdAndShoot)
             {
+                // A Hold is a non-move, so a caster that must Hold and shoot has already "moved" for the
+                // Caster clause - cast first, or the shot closes the casting window and the spell is lost
+                // every activation (bot audit, 2026-11-07).
+                if (TryCast(Has) is { } holdCast)
+                {
+                    ClauseTrace?.Invoke(unit, $"cast while holding ({holdCast})");
+                    return Task.FromResult(holdCast);
+                }
+                ClauseTrace?.Invoke(unit, "hold and shoot (Indirect/Relentless in range)");
                 return Task.FromResult(holdAndShoot);
             }
 
@@ -131,13 +140,27 @@ namespace FDG.Ai.Solo
                 && plan.Kind != ESoloAiMove.Hold
                 && ((!_triedMove && options.Contains(ChooseActionStage.MOVEMENT_CHOICE_NAME))
                     || (!_triedCharge && options.Contains(ChooseActionStage.CHARGE_CHOICE_NAME)));
-            if (!moveStillToCome && TryCast(Has) is { } cast) return Task.FromResult(cast);
+            if (!moveStillToCome && TryCast(Has) is { } cast)
+            {
+                ClauseTrace?.Invoke(unit, $"cast after moving ({cast})");
+                return Task.FromResult(cast);
+            }
 
             string? pick = null;
 
             switch (plan.Kind)
             {
                 case ESoloAiMove.Charge:
+                    // A Charge is the move AND the attack in one action, so there is no "after moving"
+                    // moment before the attack closes the casting window. The book is silent on this; the
+                    // reading that keeps the clause alive is to cast just before charging (house-rules.md).
+                    // Before, a caster that charged never cast (bot audit, 2026-11-07).
+                    if (!movementDeclined && !_triedCharge && Has(ChooseActionStage.CHARGE_CHOICE_NAME) != null
+                        && TryCast(Has) is { } castBeforeCharge)
+                    {
+                        ClauseTrace?.Invoke(unit, $"cast before charging ({castBeforeCharge})");
+                        return Task.FromResult(castBeforeCharge);
+                    }
                     pick = TryCharge(Has, movementDeclined) ?? TryMove(Has, movementDeclined);
                     break;
 
@@ -147,6 +170,13 @@ namespace FDG.Ai.Solo
                     // the open for no gain - the book's own step 2 holds position for the same reason.
                     bool inRange = plan.Target != null && plan.Range > 0f
                         && AiCombatMath.Distance(unit, plan.Target) <= plan.Range;
+                    // Shooting from here IS the unit's whole action - no move is coming - so cast first; the
+                    // window check above assumed a move was still to come (bot audit, 2026-11-07).
+                    if (inRange && Has(ChooseActionStage.SHOOT_CHOICE_NAME) != null && TryCast(Has) is { } castInPlace)
+                    {
+                        ClauseTrace?.Invoke(unit, $"cast before shooting in place ({castInPlace})");
+                        return Task.FromResult(castInPlace);
+                    }
                     pick = inRange
                         ? Has(ChooseActionStage.SHOOT_CHOICE_NAME) ?? TryMove(Has, movementDeclined)
                         : TryMove(Has, movementDeclined) ?? Has(ChooseActionStage.SHOOT_CHOICE_NAME);
@@ -171,6 +201,9 @@ namespace FDG.Ai.Solo
             pick ??= Has(ChooseActionStage.PASS_CHOICE_NAME) ?? options[0];
             return Task.FromResult(pick);
         }
+
+        /// <summary>Test hook for the bot audit: which book clause decided an action. Null in play.</summary>
+        internal static Action<IUnit, string>? ClauseTrace;
 
         /// <summary>Resets the per-activation latches when a different unit (or round) starts acting.</summary>
         private void BeginActivationIfNew(UnitID activating)

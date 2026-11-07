@@ -281,6 +281,28 @@ namespace FDG.Tests
                 "the clause is \"after moving\", so a unit with a move still to come takes it first.");
         }
 
+        // A Charge is move and attack in one action, so there is no moment "after moving" before the attack
+        // closes the casting window. Read literally the charging caster never casts (bot audit, 2026-11-07:
+        // 11 lost casts in 4 games); the bot casts first, then charges (house-rules.md). The second ask must
+        // still be the Charge - casting may not eat the charge latch.
+        [Test]
+        public async Task AChargingCaster_CastsFirst_ThenCharges()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Warlock", 24f, 24f, rangeInches: 0f);
+            Unit(_player, "Troops", 30f, 24f);
+
+            SoloCoOpActionResolver resolver = NewActionResolver();
+            string[] menu = { FullMenu[0], FullMenu[1], ChooseActionStage.CAST_CHOICE_NAME, FullMenu[3] };
+            string first = await resolver.Resolve(Menu(ai, menu));
+            string second = await resolver.Resolve(Menu(ai, FullMenu[0], FullMenu[1], FullMenu[3]));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(first, Is.EqualTo(ChooseActionStage.CAST_CHOICE_NAME));
+                Assert.That(second, Is.EqualTo(ChooseActionStage.CHARGE_CHOICE_NAME));
+            });
+        }
+
         // A unit the tree is holding never moves, and a holding caster that never cast would be the
         // clause read backwards. Hold is a non-move, not a non-action.
         [Test]

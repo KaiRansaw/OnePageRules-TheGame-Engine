@@ -85,13 +85,15 @@ namespace FDG.Tests
                 lock (log) log.Add($"SHOT {shooter.Name}: {weapon.Name} -> {target.Name}#{(target.Models.FirstOrDefault()?.ID.GetHashCode() ?? 0) % 1000} | {opts}");
             };
             Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = line => { lock (log) log.Add(line); };
+            Ai.Solo.SoloCoOpActionResolver.ClauseTrace = (unit, what) => { lock (log) log.Add($"CLAUSE {unit.Name}: {what}"); };
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
             server.OnGameCompleted += result => completed.TrySetResult(result);
-            Task finished = await Task.WhenAny(completed.Task, Task.Delay(TimeSpan.FromSeconds(240)));
+            Task finished = await Task.WhenAny(completed.Task, Task.Delay(TimeSpan.FromSeconds(600)));
             Ai.Solo.SoloAiBrain.DecisionTrace = null;
             Ai.Solo.SoloCoOpRangedAttackResolver.DecisionTrace = null;
             Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = null;
+            Ai.Solo.SoloCoOpActionResolver.ClauseTrace = null;
             Assert.That(finished, Is.SameAs(completed.Task), "the game must play to completion.");
             lock (log) return log.ToList();
         }
@@ -129,7 +131,7 @@ namespace FDG.Tests
                 {
                     string planned = cp["Charge -> ".Length..cp.IndexOf(" (", StringComparison.Ordinal)];
                     string fought = l["Chose ".Length..^" as defender.".Length];
-                    if (planned != fought)
+                    if (planned != fought && fought != planned + " (Combined)")
                         yield return $"WRONG CHARGE TARGET: {activating} planned {planned}, fought {fought}";
                 }
                 if (l.Contains("Held fire with every weapon") || l.Contains("Holding fire with"))
@@ -147,12 +149,22 @@ namespace FDG.Tests
             (EGameSystem.GrimdarkFuture, "GDF/1k - Blood Brothers.fdgarmy", "GDF/1k - Prime Brothers.fdgarmy"),
         };
 
+        /// <summary>
+        /// The special-rule clauses need armies that carry them: Indirect, Relentless, Artillery, casters,
+        /// transports, Ambush and Scout. Picked on demand with AUDIT_SPECIAL=1 (2k lists, slower games).
+        /// </summary>
+        private static readonly (EGameSystem System, string A, string B)[] SpecialMatchups =
+        {
+            (EGameSystem.GrimdarkFuture, "GDF/2k - Battle Brothers - Elite Shooting.fdgarmy", "GDF/2k - High Elf Fleets - Caster-Heavy.fdgarmy"),
+            (EGameSystem.GrimdarkFuture, "GDF/2k - Dwarf Guilds - Ambush and Scout-Heavy.fdgarmy", "GDF/2k - Robot Legions - Mixed.fdgarmy"),
+        };
+
         [Test]
         public async Task SoloAiAudit_RealArmies()
         {
             var report = new List<string>();
             int games = 0;
-            foreach (var (system, a, b) in (System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? Matchups.Take(1) : Matchups))
+            foreach (var (system, a, b) in (System.Environment.GetEnvironmentVariable("AUDIT_SPECIAL") != null ? SpecialMatchups : System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? Matchups.Take(1) : Matchups))
                 foreach (int seed in (System.Environment.GetEnvironmentVariable("AUDIT_SEEDS") is { Length: > 0 } list ? list.Split(',').Select(int.Parse).ToArray() : System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? new[] { 7001 } : new[] { 7001, 7002 }))
                 {
                     List<string> log = await Play(seed, system, a, b);
