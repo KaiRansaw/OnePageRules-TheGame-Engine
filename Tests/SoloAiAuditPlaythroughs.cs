@@ -138,7 +138,7 @@ namespace FDG.Tests
             var report = new List<string>();
             int games = 0;
             foreach (var (system, a, b) in (System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? Matchups.Take(1) : Matchups))
-                foreach (int seed in (System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? new[] { 7001 } : new[] { 7001, 7002 }))
+                foreach (int seed in (System.Environment.GetEnvironmentVariable("AUDIT_SEEDS") is { Length: > 0 } list ? list.Split(',').Select(int.Parse).ToArray() : System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? new[] { 7001 } : new[] { 7001, 7002 }))
                 {
                     List<string> log = await Play(seed, system, a, b);
                     games++;

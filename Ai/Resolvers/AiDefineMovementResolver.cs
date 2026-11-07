@@ -142,6 +142,32 @@ namespace FDG.Ai.Resolvers
             // to the standoff line.
             float leadRadius = living.Max(mb => mb.GetValue().BaseRadiusInches);
             float contactDistance = leadRadius + nearest.BaseRadiusInches;
+
+            // A named charge target: the charge is legal when the unit's FRONT model can reach, and the
+            // centre-to-centre measure below undercounts by half the unit's depth. Keep the centre's
+            // direction (changing it re-aims the formation into worse paths - tried in the bot audit,
+            // 2026-11-07) but take the gap the slide has to close from the closest pair of models.
+            if (chargeTarget != null)
+            {
+                float best = float.MaxValue;
+                foreach (var mb in living)
+                {
+                    ModelData m = mb.GetValue();
+                    foreach (EnemyModelFootprint f in pool)
+                    {
+                        // Distance the slide along (ndx, ndz) needs before these two bases touch.
+                        float rx = f.Center.x - m.Position.x, rz = f.Center.z - m.Position.z;
+                        float along = rx * ndx + rz * ndz;
+                        float across = MathF.Abs(rx * -ndz + rz * ndx);
+                        float reach = m.BaseRadiusInches + f.BaseRadiusInches;
+                        if (along <= 0f || across >= reach) continue;
+                        float need = along - MathF.Sqrt(reach * reach - across * across);
+                        if (need < best) best = need;
+                    }
+                }
+                if (best < float.MaxValue && best < dist - contactDistance)
+                    dist = best + contactDistance;
+            }
             // #355: an impact-only unit (Impact/Ravage, no melee weapon) closes to contact when it can
             // reach - that IS its melee attack. Its ARCHETYPE stays Shooting on purpose: a tank's guns are
             // its output, and Hybrid would make it rush (forfeiting the shot) across the whole table

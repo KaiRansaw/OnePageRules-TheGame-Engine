@@ -1086,6 +1086,18 @@ namespace FDG.Ai.Tactician
             Position[] starts = packed.Select(e => e.Model.GetValue().Position).ToArray();
             Position[] slots = packed.Select(e => e.Positions[^1]).ToArray();
 
+            // Slots were laid out for the model packed into each one (its own base half-extents), so a
+            // swap is only safe between two models with the same footprint. Swapping a big base into a
+            // small model's slot overlaps its neighbour, the engine rejects the move as "ended on own unit
+            // model", and the ladder backs off to a stand-still - which is how a mixed unit (a champion or
+            // a joined hero on a bigger base) failed its charges (bot audit, 2026-11-07).
+            (float, float)[] extents = packed.Select(e =>
+            {
+                var m = e.Model.GetValue();
+                (float hx, float hz) = BaseShapeGeometry.FootprintHalfExtents(m.BaseShape, m.Facing);
+                return (MathF.Round(hx, 3), MathF.Round(hz, 3));
+            }).ToArray();
+
             const float eps = 1e-4f;
             bool improved = true;
             for (int pass = 0; pass < 32 && improved; pass++)
@@ -1095,6 +1107,7 @@ namespace FDG.Ai.Tactician
                 {
                     for (int j = i + 1; j < slots.Length; j++)
                     {
+                        if (extents[i] != extents[j]) continue;
                         float di = Dist(starts[i], slots[i]), dj = Dist(starts[j], slots[j]);
                         float si = Dist(starts[i], slots[j]), sj = Dist(starts[j], slots[i]);
                         float keptMax = Math.Max(di, dj), swappedMax = Math.Max(si, sj);

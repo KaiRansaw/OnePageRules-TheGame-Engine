@@ -87,6 +87,35 @@ namespace FDG.Tests
             Assert.That(CohesiveFormation.IsCohesive(models), Is.True);
         }
 
+        // Bot audit, 2026-11-07: the formation packer re-paired models with slots to shorten their walks,
+        // without checking that the two models had the same base - a big base dropped into a small model's
+        // slot overlapped its neighbour, the engine rejected the move ("ended on own unit model") and the
+        // unit stood still. A unit with one big-based model failed its charges this way.
+        [Test]
+        public void BuildCandidate_MixedBases_NeverStacksItsOwnModels()
+        {
+            var models = MakeModels(9, baseRadius: 0.5f);
+            // One model on a much bigger base, in a corner, so the shortest-walk pairing wants to move it.
+            var big = new ModelData(baseRadiusInches: 1.25f, weapons: new List<Weapon>(),
+                initialPosition: new Position(17f, 22f), gameDataStore: _store);
+            models.Add(_store.GetDataBinding<ModelData>(_store.Create(big)));
+            DataBinding<UnitData> unit = MakeUnit(models);
+            (float cx, float cz) = Centroid(models);
+
+            for (int dir = 0; dir < 8; dir++)
+            {
+                float a = dir * MathF.PI / 4f;
+                List<ModelMoveEntry> move = MovementPlanner.BuildCandidate(unit, models,
+                    cx, cz, MathF.Cos(a), MathF.Sin(a), step: 6f, maxDistanceInches: 12f);
+                var faults = MovementUtilities.ValidatePathsForPlanning(move, e => new ModelMoveBudget(12f, 12f),
+                    new List<EnemyModelFootprint>(), false, false, false, new List<ITerrain>(), null,
+                    lenientCoherency: true);
+                Assert.That(faults & MovementUtilities.EMoveFaultKinds.EndedOnOwnUnitModel,
+                    Is.EqualTo(MovementUtilities.EMoveFaultKinds.None),
+                    $"direction {dir}: no two of the unit's own bases may end on top of each other");
+            }
+        }
+
         [Test]
         public void BuildPathCandidate_BigUnit_AdvancesMostOfItsBudget()
         {
