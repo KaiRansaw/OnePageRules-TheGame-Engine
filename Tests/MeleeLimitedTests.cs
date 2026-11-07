@@ -114,9 +114,10 @@ namespace FDG.Tests
                 "declining is not attacking.");
             Assert.That(combatCtx.AlreadyUsedWeapons.Keys.Any(w => w.Name == "Blade"), Is.True,
                 "the unit still attacks with its other weapon.");
-            Assert.That(requests, Has.Count.EqualTo(2), "holding back re-offers the remaining weapons.");
-            Assert.That(requests[1].ValidOptions.Any(o => o.Contains("Demo Charge")), Is.False,
-                "the held-back weapon is not offered again this melee.");
+            // Holding back re-runs the offer; with only the Blade left there is nothing to choose, so it
+            // swings without a second prompt (2026-11-06) - and the held-back weapon never comes back.
+            Assert.That(requests, Has.Count.EqualTo(1),
+                "the one remaining weapon swings without being asked about.");
         }
 
         // The melee twin of #319's headline case: a Deadly+Limited weapon gates the unit's ordinary ones,
@@ -146,10 +147,10 @@ namespace FDG.Tests
 
             Assert.That(requests[0].InvalidOptions.Any(o => o.Option.Contains("Blade")), Is.True,
                 "test setup: the Deadly spike gates the blade while it is on offer.");
-            Assert.That(requests[1].ValidOptions.Any(o =>
-                    o.Contains("Blade") && !ChooseMeleeWeaponStage.IsHoldBackChoice(o)), Is.True,
+            // A declined resolve-first weapon must stop demanding to be resolved first: the Blade, gated on
+            // the first pass, swings (on its own, without a prompt, being the only weapon left).
+            Assert.That(combatCtx.AlreadyUsedWeapons.Keys.Any(w => w.Name == "Blade"), Is.True,
                 "a declined resolve-first weapon must stop demanding to be resolved first.");
-            Assert.That(combatCtx.AlreadyUsedWeapons.Keys.Any(w => w.Name == "Blade"), Is.True);
             Assert.That(LimitedRules.IsSpent(attacker.GetValue(), spike), Is.False);
         }
 

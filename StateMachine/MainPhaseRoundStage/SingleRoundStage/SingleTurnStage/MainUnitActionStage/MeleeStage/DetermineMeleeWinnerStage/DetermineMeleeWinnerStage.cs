@@ -1,3 +1,4 @@
+using FDG.Presentation.Beats;
 ﻿
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -81,12 +82,14 @@ namespace FDG.Stages
             if (attackerWoundsDealt == defenderWoundsDealt)
             {
                 GameContext.Log($"Attackers and defenders tied: {attackerWoundsDealt} vs. {defenderWoundsDealt}.");
+                await AnnounceResult($"The melee is a tie - {attackerWoundsDealt:0.#} wounds each.");
                 context.AddResult(new DetermineMeleeWinnerResults(DetermineMeleeWinnerResults.EMeleeWinnerResult.Tie));
                 await OnDoesntNeedRollToDecide.Activate(context);
             }
             else if (attackerWoundsDealt > defenderWoundsDealt)
             {
                 GameContext.Log($"Attackers won melee {attackerWoundsDealt} vs. {defenderWoundsDealt}.");
+                await AnnounceResult($"Melee won by {attacker.Name}, {attackerWoundsDealt:0.#} wounds to {defenderWoundsDealt:0.#}.");
                 context.AddResult(new DetermineMeleeWinnerResults(DetermineMeleeWinnerResults.EMeleeWinnerResult.AttackerWon));
                 FDG.Missions.MissionCardEvents.MeleeWon(GameContext, attacker, attackerWoundsDealt, defenderWoundsDealt);
                 await OnNeedsRollToDecide.Activate(context);
@@ -94,11 +97,17 @@ namespace FDG.Stages
             else
             {
                 GameContext.Log($"Defenders won melee {defenderWoundsDealt} vs. {attackerWoundsDealt}.");
+                await AnnounceResult($"Melee won by {defender.Name}, {defenderWoundsDealt:0.#} wounds to {attackerWoundsDealt:0.#}.");
                 context.AddResult(new DetermineMeleeWinnerResults(DetermineMeleeWinnerResults.EMeleeWinnerResult.DefenderWon));
                 FDG.Missions.MissionCardEvents.MeleeWon(GameContext, defender, defenderWoundsDealt, attackerWoundsDealt);
                 await OnNeedsRollToDecide.Activate(context);
             }
         }
+
+        // Who won, by name, in the Battle Report. The log line above says "Attackers"/"Defenders", which a
+        // Counter swap turns upside down (the charged unit is the "attacker" then) and which never reached
+        // the player anyway - a lost melee was only visible as a Morale test (look pass, 2026-11-06).
+        private Task AnnounceResult(string text) => GameContext.Announce(text, tier: EBannerTier.Toast);
 
         // Sum the extra melee wounds (Fear) the actor contributes to its own who-won total. The actor
         // sits in the Actor seat (Fear's default), so only its rules fire; the opponent's Fear is summed

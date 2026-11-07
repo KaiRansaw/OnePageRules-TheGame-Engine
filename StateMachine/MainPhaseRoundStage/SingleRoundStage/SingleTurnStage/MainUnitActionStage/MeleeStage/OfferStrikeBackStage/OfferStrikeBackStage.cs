@@ -28,6 +28,20 @@ namespace FDG.Stages
                 return;
             }
 
+            // Counter swapped the roles: the "defender" being offered a strike back is the unit that CHARGED,
+            // and its swing is the charge's own attack, not a strike back. The books: "the charging unit
+            // attacks first, then the defenders may strike back" - Counter only moves the defender's swing
+            // ahead of the charger's ("May strike first with this weapon when charged"). The charger never
+            // had a choice about attacking, so it is not asked (look pass, 2026-11-06: an AoF charge into
+            // Counter spears asked the charging player "Strike back?").
+            if (context.ChargingUnit is { } charger && ReferenceEquals(charger, context.DefendingUnit))
+            {
+                GameContext.Log($"{context.DefendingUnit.Name()} attacks (its charge, after the counter).");
+                await GameContext.Announce($"{context.DefendingUnit.Name()} attacks!", tier: EBannerTier.Toast);
+                await MoveToStrikingBack(context);
+                return;
+            }
+
             // #437: whether striking back is a CHOICE is a per-system question.
             //   Full-scale and skirmish books: "Then defenders MAY CHOOSE to strike back, but don't have to."
             //   GFSQ Core v2.1.0:  "Then defenders MUST strike back"
@@ -48,7 +62,10 @@ namespace FDG.Stages
             GameContext.Log("Offering strikeback.");
 
             //TODO: Indicate if they have struck back yet.
-            YesNoRequest yesNoRequest = new YesNoRequest(context.DefendingUnit.PlayerID(), "Strike back?",
+            YesNoRequest yesNoRequest = new YesNoRequest(context.DefendingUnit.PlayerID(),
+                // Who and at whom: a bare "Strike back?" in an otherwise empty panel did not say which of your
+                // units was being asked (look pass, 2026-11-06).
+                $"{context.DefendingUnit.Name()}: strike back at {context.AttackingUnit.Name()}?",
                 defaultAnswer: true, displayName: "Deciding Whether to Strike Back");
 
             Task<bool> task = GameContext.PlayerRequester

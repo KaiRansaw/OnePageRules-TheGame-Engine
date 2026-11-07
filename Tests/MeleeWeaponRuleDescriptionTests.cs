@@ -27,7 +27,7 @@ namespace FDG.Tests
         {
             StringSelectionRequest request = await MeleeMenuFor(DeadlyWeapon("Axe", x: 3));
 
-            string label = request.ValidOptions.Single();
+            string label = TheWeapon(request);
             Assert.That(request.OptionRules, Is.Not.Null);
             Assert.That(request.OptionRules!.ContainsKey(label), Is.True,
                 "the Deadly weapon's option must carry its rules");
@@ -46,7 +46,7 @@ namespace FDG.Tests
         {
             StringSelectionRequest request = await MeleeMenuFor(DeadlyWeapon("Axe", x: 3));
 
-            string label = request.ValidOptions.Single();
+            string label = TheWeapon(request);
             Assert.That(label, Does.Contain(request.OptionRules![label].Single().Name));
         }
 
@@ -59,7 +59,7 @@ namespace FDG.Tests
             StringSelectionRequest request = await MeleeMenuFor(weapon);
 
             List<StringSelectionRequest.OptionRule> rules =
-                request.OptionRules![request.ValidOptions.Single()];
+                request.OptionRules![TheWeapon(request)];
             Assert.That(rules.Select(r => r.Name), Is.EqualTo(new[] { "Deadly", "Rending" }),
                 "attachment order, which is also the order the label appended the names in");
             Assert.That(rules.All(r => !string.IsNullOrEmpty(r.Description)), Is.True);
@@ -88,7 +88,7 @@ namespace FDG.Tests
             StringSelectionRequest request = await MeleeMenuFor(weapon);
 
             StringSelectionRequest.OptionRule rule =
-                request.OptionRules![request.ValidOptions.Single()].Single();
+                request.OptionRules![TheWeapon(request)].Single();
             Assert.That(rule.Name, Is.EqualTo("Mysterious"));
             Assert.That(rule.Description, Is.Null,
                 "null, not empty - the front end shows the not-enforced note in its place");
@@ -138,6 +138,12 @@ namespace FDG.Tests
 
         // --- fixtures ---
 
+        private const string Companion = "Zz Companion Club";
+
+        /// <summary>The option under test - the one that is not the companion added by <see cref="MeleeMenuFor"/>.</summary>
+        private static string TheWeapon(StringSelectionRequest request) =>
+            request.ValidOptions.Single(o => !o.Contains(Companion));
+
         private static Weapon DeadlyWeapon(string name, int x)
         {
             var weapon = new Weapon(name, rangeInches: 0f, attacks: 1, armorPenetration: 0);
@@ -152,7 +158,11 @@ namespace FDG.Tests
             var requester = new DeadlyWeaponPriorityTests.CapturingStringSelectionRequester();
             var ctx = new ChooseRangedAttackStageTests.TestGameContextWithRequester(store, requester);
 
-            var model = new ModelData(baseRadiusInches: 0.5f, weapons: weapons.ToList(),
+            // A lone weapon is swung without asking (nothing to choose - all melee weapons strike), so a
+            // plain companion keeps the menu on screen for the test to read.
+            var all = weapons.ToList();
+            if (all.Count == 1) all.Add(new Weapon(Companion, 0f, 1, 0));
+            var model = new ModelData(baseRadiusInches: 0.5f, weapons: all,
                 initialPosition: new Position(0, 0, 0), gameDataStore: store);
             var modelBinding = store.GetDataBinding<ModelData>(store.Create(model));
             var unit = new UnitData(new PlayerID(Guid.NewGuid()), "Attacker", quality: 4, defense: 4,

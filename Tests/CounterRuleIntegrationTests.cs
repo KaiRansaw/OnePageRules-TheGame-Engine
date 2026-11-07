@@ -101,6 +101,49 @@ namespace FDG.Tests
             Assert.That(StrikeFirstBanner(), Is.Not.Null, "Counter-Attack also announces the strike-first with a banner.");
         }
 
+        // Look pass 2026-11-06: after a Counter swap the CHARGER sits in the defender's seat, and the
+        // strike-back offer asked the charging player "Strike back?" - making the charge's own attack
+        // optional. The books: the charging unit attacks; only the defenders "may" strike back. Counter just
+        // moves the defender's swing first. The requester here throws on any YesNo request, so being asked
+        // fails the test.
+        [Test]
+        public async Task AfterCounter_ChargerAttacksWithoutBeingAsked()
+        {
+            DataBinding<UnitData> charger = MakeUnit(modelCount: 3);
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+            AttachCounter(defender);
+
+            var context = await RunStage(charger, defender);
+            Assert.That(context.DefendingUnit.GetValue(), Is.SameAs(charger.GetValue()));
+
+            var offer = new OfferStrikeBackStage(_ctx, new NoOpLayer<ICombatActionContext>());
+            offer.OnOfferAccepted.Bind("accepted");
+            offer.OnOfferRejected.Bind("rejected");
+            context.SetInRangeAttackers(defender.GetValue().ModelBindings.ToList());
+            context.SetInRangeDefenders(charger.GetValue().ModelBindings.ToList());
+
+            Assert.DoesNotThrowAsync(() => offer.Enter(context), "the charger is not asked whether to attack");
+            Assert.That(_presenter.Beats.OfType<BannerBeat>().Any(b => b.BannerText.Contains("attacks!")), Is.True,
+                "the charger's swing is announced instead");
+        }
+
+        [Test]
+        public async Task WithoutCounter_DefenderIsStillAskedToStrikeBack()
+        {
+            DataBinding<UnitData> charger = MakeUnit(modelCount: 3);
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+            var context = await RunStage(charger, defender);
+
+            var offer = new OfferStrikeBackStage(_ctx, new NoOpLayer<ICombatActionContext>());
+            offer.OnOfferAccepted.Bind("accepted");
+            offer.OnOfferRejected.Bind("rejected");
+            context.SetInRangeAttackers(charger.GetValue().ModelBindings.ToList());
+            context.SetInRangeDefenders(defender.GetValue().ModelBindings.ToList());
+
+            Assert.ThrowsAsync<System.InvalidOperationException>(() => offer.Enter(context),
+                "a real defender still gets the choice (the requester throws on the Yes/No it receives)");
+        }
+
         private async Task<CombatActionContext> RunStage(DataBinding<UnitData> charger, DataBinding<UnitData> defender)
         {
             var stage = new DetermineStrikeOrderStage(_ctx, new NoOpLayer<ICombatActionContext>());

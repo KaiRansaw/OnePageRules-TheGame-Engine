@@ -209,8 +209,13 @@ namespace FDG.Stages
                 displayName: "Choosing a Melee Weapon",
                 optionRules: BuildOptionRules(weaponByLabel));
 
-            string chosenWeaponStatsName = await GameContext.PlayerRequester
-                .RequestDecision<StringSelectionRequest, string>(request);
+            // One weapon, nothing to decline, nothing greyed: the rule is "strike with all melee weapons", so
+            // there is no decision here - only a click (look pass, 2026-11-06: every one-weapon melee stopped to
+            // ask "Choose weapon:" with a single row). Multi-weapon units are still asked, because the order
+            // they swing in is theirs to pick.
+            string chosenWeaponStatsName = validOptions.Count == 1 && invalidOptions.Count == 0
+                ? validOptions[0].Label
+                : await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
 
             // Labels are unique by construction (#306), so this maps back to exactly one option.
             (string _, Weapon chosenWeapon, bool holdBack) =
