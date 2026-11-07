@@ -35,6 +35,9 @@ namespace FDG.Ai.Solo
         /// </summary>
         private SoloCoOpProfile Profile => SoloCoOpProfile.For(_tableState.Progress.GameSystem);
 
+        /// <summary>Test hook for the bot audit: how each marker's spot was found. Null in play.</summary>
+        internal static Action<string>? PlacementTrace;
+
         public Task<Position> Resolve(PlaceObjectiveRequest request)
         {
             var existing = _tableState.Objectives.Objects.ToList();
@@ -55,7 +58,14 @@ namespace FDG.Ai.Solo
             // The squares rule can genuinely run out of room - a mission with a tight separation and a band
             // full of terrain. Falling back to the engine's own placer is better than faulting the game
             // over a marker, and it is the same helper the non-AI auto-placement path uses.
-            if (IsLegal(chosen)) return Task.FromResult(chosen);
+            bool atCentre = SoloCoOpObjectivePlacer.CellCentres(request.LegalBand, Profile.ObjectiveSquares)
+                .Any(c => Position.GetDistance2D(c, chosen) < 0.01f);
+            if (IsLegal(chosen))
+            {
+                PlacementTrace?.Invoke(atCentre ? "square centre" : "moved toward another square");
+                return Task.FromResult(chosen);
+            }
+            PlacementTrace?.Invoke("FELL BACK to the engine's auto-placer (no square worked)");
 
             if (ObjectiveAutoPlacer.TryChoosePlacement(
                     request.LegalBand, request.MinSeparationInches,

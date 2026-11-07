@@ -31,7 +31,8 @@ namespace FDG.Tests
         {
             private readonly IPlayerController _inner;
             private readonly List<string> _lines;
-            internal LogTap(IPlayerController inner, List<string> lines) { _inner = inner; _lines = lines; }
+            private readonly Action<string>? _hook;
+            internal LogTap(IPlayerController inner, List<string> lines, Action<string>? hook = null) { _inner = inner; _lines = lines; _hook = hook; }
             public string Name => _inner.Name;
             public PlayerID ID => _inner.ID;
             public bool IsReady => _inner.IsReady;
@@ -39,7 +40,7 @@ namespace FDG.Tests
             public event Action<bool> OnReadyStateChanged { add => _inner.OnReadyStateChanged += value; remove => _inner.OnReadyStateChanged -= value; }
             public event Action<PlayerID, EChatMessageType, string> OnMessageSentByPlayer { add => _inner.OnMessageSentByPlayer += value; remove => _inner.OnMessageSentByPlayer -= value; }
             public Task WaitUntilReadyAsync() => _inner.WaitUntilReadyAsync();
-            public void SendLogMessage(string logMessage, TextColor color) { lock (_lines) _lines.Add(logMessage); _inner.SendLogMessage(logMessage, color); }
+            public void SendLogMessage(string logMessage, TextColor color) { _hook?.Invoke(logMessage); lock (_lines) _lines.Add(logMessage); _inner.SendLogMessage(logMessage, color); }
             public void SendPlayerMessage(string n, EChatMessageType t, string m) => _inner.SendPlayerMessage(n, t, m);
         }
 
@@ -59,6 +60,8 @@ namespace FDG.Tests
             var bus = new InProcessBus();
             var log = new List<string>();
             var slots = new PlayerSlot[2];
+            var table = new TableState(store);
+            Action<string> hook = line => SetupAndOrderChecks(table, line, log);
             string[] armies = { armyA, armyB };
             for (int i = 0; i < 2; i++)
             {
@@ -68,12 +71,17 @@ namespace FDG.Tests
                 var registry = AiProfileFactory.BuildRegistry(EAiProfile.SoloCoOp, aiGame.TableState,
                     slots[i].PlayerID, seed, slots[i].SlotID);
                 IPlayerController ai = new ComputerPlayerController($"AI {i}", slots[i].PlayerID, aiGame, registry);
-                slots[i].AssignPlayerController(i == 0 ? new LogTap(ai, log) : ai);
+                slots[i].AssignPlayerController(i == 0 ? new LogTap(ai, log, hook) : ai);
             }
             GameSettings settings = GameSettings.GetDefault();
             settings.RandomnessType = ERandomnessType.Probabilistic;
             settings.DiceSeed = seed;
             settings.GameSystem = system;
+            // The book's objective clause only runs when players place the markers; the lobby default is
+            // the engine's auto-placement. AUDIT_PLACED=1 plays the placed version.
+            if (System.Environment.GetEnvironmentVariable("AUDIT_PLACED") != null)
+                settings.ObjectivePlacementMode = EObjectivePlacementMode.PlayerPlaced;
+            Ai.Solo.SoloCoOpObjectiveResolver.PlacementTrace = what => { lock (log) log.Add("OBJECTIVE " + what); };
             Ai.Solo.SoloAiBrain.DecisionTrace = (unit, plan) =>
             {
                 lock (log) log.Add($"PLAN {unit.Name}: {plan.Kind} -> {plan.Target?.Name ?? "-"} ({plan.Why})");
@@ -85,6 +93,18 @@ namespace FDG.Tests
                 lock (log) log.Add($"SHOT {shooter.Name}: {weapon.Name} -> {target.Name}#{(target.Models.FirstOrDefault()?.ID.GetHashCode() ?? 0) % 1000} | {opts}");
             };
             Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = line => { lock (log) log.Add(line); };
+            var deploySections = new Dictionary<PlayerID, HashSet<int>>();
+            var deployCount = new Dictionary<PlayerID, int>();
+            Ai.Solo.SoloCoOpPlaceObjectsResolver<ModelData>.DeployTrace = (player, section, aim) =>
+            {
+                lock (log)
+                {
+                    if (!deploySections.TryGetValue(player, out var set)) deploySections[player] = set = new HashSet<int>();
+                    set.Add(section);
+                    deployCount[player] = deployCount.GetValueOrDefault(player) + 1;
+                    log.Add($"DEPLOY section {section} aim {aim.x:0},{aim.z:0}");
+                }
+            };
             Ai.Solo.SoloCoOpActionResolver.ClauseTrace = (unit, what) => { lock (log) log.Add($"CLAUSE {unit.Name}: {what}"); };
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
@@ -94,8 +114,67 @@ namespace FDG.Tests
             Ai.Solo.SoloCoOpRangedAttackResolver.DecisionTrace = null;
             Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = null;
             Ai.Solo.SoloCoOpActionResolver.ClauseTrace = null;
+            Ai.Solo.SoloCoOpObjectiveResolver.PlacementTrace = null;
+            Ai.Solo.SoloCoOpPlaceObjectsResolver<ModelData>.DeployTrace = null;
+            lock (log)
+                foreach (var (player, set) in deploySections)
+                    if (set.Count < 2 && deployCount[player] >= 3) log.Add($"CHECK ALL GROUPS IN ONE SECTION ({set.Single()})");
             Assert.That(finished, Is.SameAs(completed.Task), "the game must play to completion.");
             lock (log) return log.ToList();
+        }
+
+        /// <summary>
+        /// The book's set-up and activation clauses, checked against the table itself as the game runs:
+        /// "deploy ... outside of Difficult and Dangerous terrain (unless the unit has either Strider or
+        /// Flying)", "re-rolling if all 3 groups would deploy in the same section", and "Shaken AI units only
+        /// activate after all non-shaken AI units have activated". Findings go in the log as CHECK lines.
+        /// </summary>
+        private static void SetupAndOrderChecks(ITableState table, string line, List<string> log)
+        {
+            void Report(string what) { lock (log) log.Add("CHECK " + what); }
+            try
+            {
+                if (line == "Round 1")
+                {
+                    foreach (IGrouping<PlayerID, IUnit> side in table.Units.Objects
+                                 .Where(u => u.GetIsAlive() && u.GetIsOnBattlefield()).GroupBy(u => u.PlayerID))
+                    {
+                        var sections = side.Select(u => Ai.Solo.SoloAiActivationOrder.SectionOf(
+                            u.Models.First(m => m.GetIsAlive()).Position,
+                            GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES))
+                            .Distinct().Count();
+                        lock (log) log.Add($"SETUP {side.Count()} units in {sections} section(s): " + string.Join(", ", side.Select(u =>
+                            $"{u.Name}@{u.Models.First(m => m.GetIsAlive()).Position.x:0},{u.Models.First(m => m.GetIsAlive()).Position.z:0}")));
+
+                        foreach (IUnit u in side)
+                        {
+                            bool ignores = u.RuleDefinitions.Concat(u.Models.SelectMany(m => m.RuleDefinitions))
+                                .Any(r => r.Definition == Rules.Dispatch.CoreRuleCatalog.Strider
+                                          || r.Definition == Rules.Dispatch.CoreRuleCatalog.Flying);
+                            if (ignores) continue;
+                            int inBad = u.Models.Count(m => m.GetIsAlive() && table.Terrain.Objects.Any(t =>
+                                (t.TerrainType.HasFlag(ETerrainType.Difficult) || t.TerrainType.HasFlag(ETerrainType.Dangerous))
+                                && t.Shape.IsPointWithinZone(new Float2(m.Position.x, m.Position.z))));
+                            if (inBad > 0) Report($"DEPLOYED IN BAD GROUND: {u.Name} ({inBad} model(s))");
+                        }
+                    }
+                }
+
+                if (line.StartsWith("Activating: ", StringComparison.Ordinal))
+                {
+                    string name = line["Activating: ".Length..].TrimEnd('.');
+                    // Logged just before the engine records the choice, so find it among the units still to go.
+                    var named = table.Progress.UnactivatedUnits.Where(u => u.Name == name).ToList();
+                    if (named.Count == 0 || named.Any(u => !u.Tokens.HasToken(Rules.Foundation.TokenType.Shaken))) return;
+                    IUnit unit = named[0];
+                    IUnit? waiting = table.Progress.UnactivatedUnits
+                        .Where(u => u.PlayerID == unit.PlayerID && u.GetIsAlive() && u.GetIsOnBattlefield() && u != unit)
+                        .FirstOrDefault(u => !u.Tokens.HasToken(Rules.Foundation.TokenType.Shaken));
+                    if (waiting != null) Report($"SHAKEN FIRST: {name} activated before {waiting.Name}");
+                    else lock (log) log.Add($"ORDER Shaken {name} activated last, as the book says");
+                }
+            }
+            catch (Exception ex) { Report("check threw: " + ex.Message); }
         }
 
         /// <summary>Lines the books forbid for the official bot, with what each one breaks.</summary>
@@ -134,6 +213,8 @@ namespace FDG.Tests
                     if (planned != fought && fought != planned + " (Combined)")
                         yield return $"WRONG CHARGE TARGET: {activating} planned {planned}, fought {fought}";
                 }
+                if (l.StartsWith("CHECK ", StringComparison.Ordinal)) yield return l["CHECK ".Length..];
+                if (l.StartsWith("OBJECTIVE FELL BACK", StringComparison.Ordinal)) yield return l;
                 if (l.Contains("Held fire with every weapon") || l.Contains("Holding fire with"))
                     yield return "HELD FIRE (bots never decline a shot): " + l;
                 if (l.Contains("declined to strike back") || l.Contains("does not strike back"))

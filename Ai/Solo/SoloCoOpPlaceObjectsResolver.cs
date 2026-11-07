@@ -71,8 +71,23 @@ namespace FDG.Ai.Solo
             // Nudged along the section, not across it, so the unit stays in the third its group was given.
             if (!IgnoresBadGround(request)) aimX = SlideClearOfBadGround(aimX, aimZ, sectionLeft, sectionRight);
 
+            DeployTrace?.Invoke(request.TargetPlayerID, section, new Position(aimX, aimZ));
             return new Position(aimX, aimZ);
         }
+
+        /// <summary>Test hook for the bot audit: the section each deployment was given and where it aimed.</summary>
+        internal static Action<PlayerID, int, Position>? DeployTrace;
+
+        /// <summary>
+        /// "outside of Difficult and Dangerous terrain (unless the unit has either Strider or Flying)" for every
+        /// MODEL, not just the aim point - the block is packed round the aim, so its outer models could still
+        /// land in a wood the aim missed (bot audit, 2026-11-07: 5 units in 12 games). Weighted well below
+        /// leaving the zone or standing in a building, so a zone that is all bad ground still deploys.
+        /// </summary>
+        protected override float ExtraModelPenalty(PlaceObjectsRequest<T> request, Position modelCentre, float radius)
+            => IgnoresBadGround(request) || IsClear(modelCentre.x, modelCentre.z) ? 0f : BadGroundPenalty;
+
+        private const float BadGroundPenalty = 50f;
 
         private Position? NearestObjective(Position from)
         {

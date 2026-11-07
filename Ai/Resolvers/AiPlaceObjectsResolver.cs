@@ -174,6 +174,13 @@ namespace FDG.Ai.Resolvers
         /// objectives, #191 A4b); the caller clamps the result into the zone and spiral-searches
         /// around it for a legal block, so an override can return a raw aim point safely.
         /// </summary>
+        /// <summary>
+        /// A subclass's own reason to avoid a spot for one model, added to the legality penalty so the sweep
+        /// keeps looking for a spot without it and falls back to the least-bad one. Zero in the base, so the
+        /// baseline bot and the Tactician are unchanged (plan D1).
+        /// </summary>
+        protected virtual float ExtraModelPenalty(PlaceObjectsRequest<T> request, Position modelCentre, float radius) => 0f;
+
         protected virtual Position PreferredBlockCenter(PlaceObjectsRequest<T> request, ZoneBounds bounds,
             int deployIndex, float maxRadius, float gridWidth, float gridHeight, float spacingX)
         {
@@ -366,6 +373,7 @@ namespace FDG.Ai.Resolvers
                 if (!PlacementUtilities.IsBaseWithinZone(p, radius, zone)) penalty += OutOfZonePenalty;
                 penalty += OverlapDepth(p, radius, existing);
                 if (PlacementUtilities.OverlapsImpassibleTerrain(p, radius, _impassibleTerrain)) penalty += TerrainPenalty;
+                if (_activeRequest != null) penalty += ExtraModelPenalty(_activeRequest, p, radius);
                 // #197 P22: the one enemy-distance read — flat min-distance, Repel keep-out discs and
                 // Beacon waivers judged together by the shared authority.
                 if (_activeRequest != null

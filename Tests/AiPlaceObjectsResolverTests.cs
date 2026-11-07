@@ -664,6 +664,40 @@ namespace FDG.Tests
         }
 
         // The AI resolver never cancels a placement.
+        /// <summary>
+        /// Solo &amp; Co-Op: the official bot deploys "outside of Difficult and Dangerous terrain (unless the
+        /// unit has either Strider or Flying)" - every model, not just the aim point. The block is packed
+        /// round the aim, so its outer models used to land in a wood the aim had slid clear of (bot audit,
+        /// 2026-11-07: 5 units in 12 games).
+        /// </summary>
+        [Test]
+        public async Task SoloCoOp_KeepsEveryModelOutOfDifficultGround()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var me = new PlayerID(System.Guid.NewGuid());
+            store.Create(new ObjectiveData(new Position(36f, 24f), store));
+            var wood = new CircularZone(new Float2(36f, 6f), 4f);
+            store.Create(new TerrainData(ETerrainType.Difficult | ETerrainType.Cover, wood));
+
+            var placing = new List<DataBinding<ModelData>>();
+            for (int i = 0; i < 10; i++)
+                placing.Add(store.GetDataBinding<ModelData>(store.Create(
+                    new ModelData(0.5f, new List<Weapon>(), new Position(0f, 0f), store))));
+            store.Create(new UnitData(me, "Infantry", 4, 4, placing));
+
+            // Every group rolls section 2, the middle third - where the wood sits on the line to the objective.
+            var plan = new FDG.Ai.Solo.SoloCoOpDeploymentPlan(_ => 2);
+            var resolver = new FDG.Ai.Solo.SoloCoOpPlaceObjectsResolver<ModelData>(new TableState(store), plan);
+            var zone = new RectangularZone(0f, GameWideConstants.STANDARD_TABLE_WIDTH_INCHES, 0f, 12f);
+            var request = new PlaceObjectsRequest<ModelData>(me, "Deploy", zone, placing);
+
+            List<PlacedObjectEntry<ModelData>> result = Unwrap(await resolver.Resolve(request));
+
+            Assert.That(result, Has.Count.EqualTo(10));
+            Assert.That(result.Count(e => wood.IsPointWithinZone(new Float2(e.Position.x, e.Position.z))), Is.Zero,
+                "no model deploys in the wood");
+        }
+
         private static List<PlacedObjectEntry<ModelData>> Unwrap(
             CancellableResult<List<PlacedObjectEntry<ModelData>>> result)
         {
