@@ -89,6 +89,9 @@ namespace FDG
 
         /// <summary>The Mission Cards' decks, cards and victory points, or null in a game without them.</summary>
         FDG.Missions.MissionCardState? MissionCards => null;
+
+        /// <summary>Every finished round's summary, oldest first (the round summary card).</summary>
+        IReadOnlyList<RoundSummary> RoundSummaries => System.Array.Empty<RoundSummary>();
     }
 
     /// <summary>
@@ -128,6 +131,10 @@ namespace FDG
         public IReadOnlyDictionary<int, int> UnderdogPoints => GameProgressUtilities.UnderdogPool(_store);
 
         public FDG.Missions.MissionCardState? MissionCards => GameProgressUtilities.MissionCards(_store);
+
+        public IReadOnlyList<RoundSummary> RoundSummaries =>
+            (IReadOnlyList<RoundSummary>?)GameProgressUtilities.TryGetProgress(_store)?.RoundSummaries
+            ?? System.Array.Empty<RoundSummary>();
 
         public IReadOnlyList<IUnit> UnactivatedUnits
         {

@@ -83,6 +83,9 @@ namespace FDG.Stages
             bool roundHooksEndGame = gameMasterEnd || (roundHooks != null
                 && await roundHooks.OnRoundEnd(context, roundJustFinished));
 
+            // The round summary card: objectives and the mode's scoring are settled now.
+            RoundSummaryRecorder.Finish(GameContext, roundJustFinished);
+
             // #100 #13: fire round-end rules for every living unit BEFORE the token sweep below, so
             // tokens that clear at round end are still visible to them and the ManualOnly markers they
             // grant (Fortified Growth's accumulation) survive the sweep. Mirror of the round-start loop

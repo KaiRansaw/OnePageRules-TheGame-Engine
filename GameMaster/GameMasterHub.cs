@@ -88,7 +88,36 @@ namespace FDG.GameMasterTools
         /// leftover one (pressed during deployment, or after the round had already finished) is dropped
         /// rather than ending the fresh round on its first turn.
         /// </summary>
-        internal void OnRoundStart() => _endRoundRequested = false;
+        internal void OnRoundStart()
+        {
+            _endRoundRequested = false;
+            // Like an end-round request, a "not activated yet" belongs to the round it was made in.
+            while (_reactivate.TryDequeue(out _)) { }
+        }
+
+        private readonly ConcurrentQueue<UnitID> _reactivate = new();
+
+        /// <summary>
+        /// Puts a unit that has already activated back on this round's list, so it can be picked again - for
+        /// fixing a misclick. Applied between activations (the round's list is the state machine's, so it is
+        /// changed where the round itself changes it); a unit that has not activated yet is left alone.
+        /// </summary>
+        public void MarkNotActivated(UnitID unitID)
+        {
+            _reactivate.Enqueue(unitID);
+            Post("Not activated yet", ctx =>
+            {
+                ctx.Log($"Game Master: {FindUnit(ctx, unitID)?.Name ?? "unit"} will be able to activate again this round.");
+                return Task.CompletedTask;
+            });
+        }
+
+        internal List<UnitID> ConsumeReactivations()
+        {
+            var ids = new List<UnitID>();
+            while (_reactivate.TryDequeue(out UnitID id)) ids.Add(id);
+            return ids;
+        }
 
         internal int? ConsumeJumpToRound()
         {

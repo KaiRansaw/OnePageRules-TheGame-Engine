@@ -41,6 +41,9 @@ namespace FDG.Stages
                 await roundHooks.OnRoundStart(context);
             }
 
+            // The round summary card's "before" picture, after this round's arrivals.
+            RoundSummaryRecorder.Begin(GameContext, context.RoundCount);
+
             await ToStartExtraActions.Activate(context);
         }
 

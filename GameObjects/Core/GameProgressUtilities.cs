@@ -74,6 +74,9 @@ namespace FDG
                 progress.MissionCards = cards;
             PendingMissionCards.Remove(store);
 
+            if (progress.RoundSummaries == null)
+                progress.RoundSummaries = TryGetProgress(store)?.RoundSummaries;
+
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {
                 store.SetValue(existing, progress);
@@ -118,6 +121,18 @@ namespace FDG
         public static FDG.Missions.MissionCardState? MissionCards(IReadableGameDataStore store) =>
             TryGetProgress(store)?.MissionCards
             ?? (PendingMissionCards.TryGetValue(store, out FDG.Missions.MissionCardState? pending) ? pending : null);
+
+        /// <summary>Appends a finished round's summary to the progress record (written through, so a joined
+        /// player sees it). A no-op before the progress record exists - no round can have finished then.</summary>
+        public static void AddRoundSummary(IReadWriteableGameDataStore store, RoundSummary summary)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress == null) return;
+            progress.RoundSummaries ??= new List<RoundSummary>();
+            progress.RoundSummaries.RemoveAll(s => s.Round == summary.Round);
+            progress.RoundSummaries.Add(summary);
+            WriteProgress(store, progress);
+        }
 
         /// <summary>Stores the Mission Cards state, on the progress record or waiting for it.</summary>
         public static void SetMissionCards(IReadWriteableGameDataStore store, FDG.Missions.MissionCardState state)

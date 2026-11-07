@@ -88,6 +88,24 @@ namespace FDG.Tests
             Assert.That(_store.GetAllValues<ObjectiveData>(), Is.Empty, "three damage destroys it");
         }
 
+        /// <summary>
+        /// "Not activated yet" (2026-11-07): queued for the round stage to apply between activations, and -
+        /// like an end-round request - dropped if the round finishes first.
+        /// </summary>
+        [Test]
+        public async Task NotActivatedYet_IsHandedToTheRound_AndDroppedAtANewRound()
+        {
+            UnitData unit = MakeUnit(new Position(10f, 10f));
+            _hub.MarkNotActivated(unit.ID);
+            await _hub.DrainAsync();
+            Assert.That(_hub.ConsumeReactivations(), Is.EqualTo(new[] { unit.ID }));
+            Assert.That(_hub.ConsumeReactivations(), Is.Empty, "consumed once");
+
+            _hub.MarkNotActivated(unit.ID);
+            _hub.OnRoundStart();
+            Assert.That(_hub.ConsumeReactivations(), Is.Empty, "a request from a finished round never carries over");
+        }
+
         [Test]
         public void RoundControl_EndRequestIsDroppedWhenANewRoundStarts_JumpIsConsumedOnce()
         {

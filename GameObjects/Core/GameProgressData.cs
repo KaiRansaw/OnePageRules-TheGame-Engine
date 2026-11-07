@@ -129,6 +129,10 @@ namespace FDG
         /// </summary>
         public FDG.Missions.MissionCardState? MissionCards { get; set; }
 
+        /// <summary>One entry per finished round, oldest first (the round summary card). Carried forward by
+        /// <c>GameProgressUtilities.WriteProgress</c>; null in older saves.</summary>
+        public List<RoundSummary>? RoundSummaries { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,

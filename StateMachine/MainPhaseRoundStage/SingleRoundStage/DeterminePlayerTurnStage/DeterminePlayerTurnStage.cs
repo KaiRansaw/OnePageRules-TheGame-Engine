@@ -54,6 +54,20 @@ namespace FDG.Stages
                 return;
             }
 
+            // Game Master "not activated yet": back on this round's list, the way Martial Prowess reinstates a unit.
+            if (GameContext.GameMaster?.ConsumeReactivations() is { Count: > 0 } reactivate)
+            {
+                foreach (UnitID id in reactivate)
+                {
+                    DataBinding<UnitData>? binding = GameContext.GameDataStore.GetAllDataBindings<UnitData>()
+                        .FirstOrDefault(b => b.GetValue().ID.Equals(id));
+                    if (binding == null || !binding.GetValue().GetIsAlive()) continue;
+                    if (!binding.GetValue().Tokens.HasToken(TokenType.ActivatedThisRound)) continue;
+                    context.ReinstateUnitForActivation(binding);
+                    context.Log($"Game Master: {binding.GetValue().Name} has not activated yet this round.");
+                }
+            }
+
             // #197 P19 turn-order override: a unit flagged to take the next activation displaces the normal
             // alternation, and the cursor goes to ITS OWNER - who may be an ally, so that player resolves
             // the activation with their own controller rather than the granting player driving it.
