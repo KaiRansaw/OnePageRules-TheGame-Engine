@@ -117,7 +117,7 @@ namespace FDG.Ai.Solo
         /// </param>
         public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null)
         {
-            float reach = ChargeReach(unit);
+            float reach = ChargeReach(unit, table);
             var candidates = AiCombatMath.Enemies(table, me)
                 .Where(e => AiCombatMath.Distance(unit, e) <= reach)
                 .Where(e => stayNear is not { } at
@@ -127,25 +127,24 @@ namespace FDG.Ai.Solo
         }
 
         // Read-only and non-logging: the movement queries ask the rule graph what Fast, Slow, Rapid Advance
-        // and the like do to this unit's moves. No movement rule rolls dice.
-        private static readonly Rules.Dispatch.RuleEvaluator MoveEvaluator =
-            new(new ProbabilisticDiceRoller(), ruleResolver: Rules.Dispatch.CoreRuleCatalog.CreateResolver());
+        // and the like do to this unit's moves. No movement rule rolls dice. The table's evaluator, so an
+        // aura-granted army rule (Highborn Boost) counts too - the core catalog alone cannot resolve one.
 
         /// <summary>
         /// The unit's own Advance, with its rules. The tree asks "if you move towards the objective, will any
         /// enemy be in range" - a Fast unit reaches further than 6" and a Slow one less, and planning on a
         /// flat 6" sent Slow units to advance-and-shoot at targets they could not reach (bot audit, 2026-11-07).
         /// </summary>
-        public static float AdvanceReach(IUnit unit)
+        public static float AdvanceReach(IUnit unit, ITableState? table = null)
         {
-            try { return Rules.Dispatch.MovementRuleQueries.EffectiveMoveShootDistance(unit, MoveEvaluator); }
+            try { return Rules.Dispatch.MovementRuleQueries.EffectiveMoveShootDistance(unit, Rules.Dispatch.ReadOnlyRuleEvaluators.For(table)); }
             catch (InvalidOperationException) { return GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES; }
         }
 
         /// <summary>The unit's own Charge distance, with its rules (see <see cref="AdvanceReach"/>).</summary>
-        public static float ChargeReach(IUnit unit)
+        public static float ChargeReach(IUnit unit, ITableState? table = null)
         {
-            try { return Rules.Dispatch.MovementRuleQueries.EffectiveChargeDistance(unit, MoveEvaluator); }
+            try { return Rules.Dispatch.MovementRuleQueries.EffectiveChargeDistance(unit, Rules.Dispatch.ReadOnlyRuleEvaluators.For(table)); }
             catch (InvalidOperationException) { return GameWideConstants.CHARGE_DISTANCE_INCHES; }
         }
 
@@ -168,7 +167,7 @@ namespace FDG.Ai.Solo
             if (!unit.Models.Any(m => m.GetIsAlive()))
                 return new SoloAiPlan(ESoloAiMove.Hold, null, null, 0f, "no living models");
 
-            float advance = AdvanceReach(unit);
+            float advance = AdvanceReach(unit, table);
             float range = AiCombatMath.MaxRange(unit);
             List<IObjective> contested = Contested(table, me);
 
