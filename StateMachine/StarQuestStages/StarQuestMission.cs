@@ -803,15 +803,11 @@ namespace FDG.Stages
                 q.WatchedWave = wave.Select(u => u.ID.ID.ToString()).ToList();
             Save(context, q);
             if (boss) QuestChallenges.StartBossWave(context, wave);
-            await context.Announce(boss ? "Boss fight! A double wave arrives!" : $"Reinforcements arrive! (wave {q.Reinforcements})",
+            await context.Announce(wave.Count == 0 ? $"Reinforcements (wave {q.Reinforcements}): no enemies are left to send."
+                    : boss ? "Boss fight! A double wave arrives!" : $"Reinforcements arrive! (wave {q.Reinforcements})",
                 new TextColor(255, 120, 80, 255), EBannerTier.Headline);
             context.Log($"Star Quest Mission: reinforcements {q.Reinforcements} ({wave.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", wave.Select(u => u.Name))}.");
-            foreach (UnitData unit in wave)
-            {
-                if (QuestChallenges.HoldForAmbush(context, unit)) continue;
-                HordePlacement.Revive(unit);
-                await HordePlacement.PlaceAtRandomCorner(context, unit, $"reinforcements {q.Reinforcements}", StarQuestMissionRules.EnemyRadii);
-            }
+            await HordePlacement.PlaceWaveAtCorners(context, wave, $"reinforcements {q.Reinforcements}", StarQuestMissionRules.EnemyRadii);
             await QuestChallenges.AdvanceTimeAndWeather(context);
             await QuestChallenges.RollRandomEvent(context);
         }

@@ -326,17 +326,39 @@ namespace FDG.Stages
             dx = dx / len * inches;
             dz = dz / len * inches;
 
+            // QA 9.15: the unit moves as one block and stops where its first model's base meets the table
+            // edge. Clamping each model on its own kept every base on the table, but squashed a unit pushed
+            // into an edge or corner into a pile of overlapping models, which then spread back out the next
+            // time it moved - it read as "pushed off the map, then walked back on".
             float w = HordePlacement.TableWidth, h = HordePlacement.TableHeight;
-            foreach (IModel model in target.Models)
+            List<ModelData> living = target.Models.OfType<ModelData>().Where(m => m.GetIsAlive()).ToList();
+            float t = 1f;
+            foreach (ModelData m in living)
             {
-                if (model is not ModelData m || !m.GetIsAlive()) continue;
                 float r = m.BaseShape.CircumscribedRadiusInches;
-                m.SetPosition(new Position(
-                    Math.Clamp(m.Position.x + dx, r, MathF.Max(r, w - r)),
-                    Math.Clamp(m.Position.z + dz, r, MathF.Max(r, h - r))));
+                t = MathF.Min(t, Reach(m.Position.x, dx, r, w - r));
+                t = MathF.Min(t, Reach(m.Position.z, dz, r, h - r));
             }
+            t = MathF.Max(0f, t);
+            foreach (ModelData m in living)
+                m.SetPosition(new Position(m.Position.x + dx * t, m.Position.z + dz * t));
 
-            await Toast(context, $"{target.Name} is pushed {inches:0.#}\" {(away ? "away from" : "toward")} {pusher.Name}.");
+            float moved = inches * t;
+            string how = away ? "away from" : "toward";
+            await Toast(context, moved >= inches - 0.05f
+                ? $"{target.Name} is pushed {inches:0.#}\" {how} {pusher.Name}."
+                : $"{target.Name} is pushed {moved:0.#}\" {how} {pusher.Name} and stops at the table edge.");
+        }
+
+        /// <summary>
+        /// How much of a move of <paramref name="d"/> from <paramref name="at"/> fits inside [min, max], as a
+        /// fraction 0..1. A model already outside on that side cannot move further out, but may move back in.
+        /// </summary>
+        private static float Reach(float at, float d, float min, float max)
+        {
+            if (d > 0f) return at >= max ? 0f : MathF.Min(1f, (max - at) / d);
+            if (d < 0f) return at <= min ? 0f : MathF.Min(1f, (min - at) / d);
+            return 1f;
         }
 
         /// <summary>The average position of a unit's living models.</summary>

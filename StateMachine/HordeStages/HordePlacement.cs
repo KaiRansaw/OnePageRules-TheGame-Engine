@@ -1,5 +1,6 @@
 using FDG.Data;
 using FDG.Players;
+using FDG.Presentation.Beats;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
 using FDG.StageResolution;
@@ -234,6 +235,27 @@ namespace FDG.Stages
                 radius => new TableCornerZone(new Float2(c.x, c.z), radius, TableWidth, TableHeight),
                 WaveTaskName, $"Deploying {unit.Name}", radii: radii);
             return corner;
+        }
+
+        /// <summary>
+        /// Star Quest / AoF: Quest waves and reinforcements: each unit rolls its own corner (Ambush units are held
+        /// back instead), and then one banner says who came in where - a single model dropped in a far corner
+        /// is easy to miss on the table, and QA 5.2 read exactly that as "nobody arrived".
+        /// </summary>
+        public static async Task PlaceWaveAtCorners(IGameContext gameContext, IReadOnlyList<UnitData> units,
+            string reason, float[]? radii)
+        {
+            var arrived = new List<string>();
+            foreach (UnitData unit in units)
+            {
+                if (QuestChallenges.HoldForAmbush(gameContext, unit)) continue;
+                Revive(unit);
+                int corner = await PlaceAtRandomCorner(gameContext, unit, reason, radii);
+                if (unit.GetIsOnBattlefield()) arrived.Add($"{unit.Name} ({HordeRules.CornerName(corner)})");
+            }
+            if (arrived.Count > 0)
+                await gameContext.Announce($"Arrived: {string.Join(", ", arrived)}", new TextColor(255, 150, 110, 255),
+                    EBannerTier.Notice);
         }
 
         /// <summary>

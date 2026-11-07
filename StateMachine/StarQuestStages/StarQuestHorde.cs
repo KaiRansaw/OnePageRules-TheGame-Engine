@@ -254,20 +254,18 @@ namespace FDG.StateMachine
                 spent = cheapest.PointCost;
             }
 
-            await _gameContext.Announce(multiplier > 1 ? $"Boss fight! Wave {wave} incoming!" : $"Wave {wave} incoming!",
-                new TextColor(255, 120, 80, 255), EBannerTier.Headline);
             if (chosen.Count == 0)
             {
-                _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} - the enemy collection is empty, nobody arrives.");
+                // QA 5.2: say so, rather than a "Wave N incoming!" splash that nothing follows.
+                await _gameContext.Announce($"Wave {wave}: no enemies are left to send.",
+                    new TextColor(255, 120, 80, 255), EBannerTier.Headline);
+                _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} - every enemy in the collection is already on the table, nobody new arrives.");
                 return chosen;
             }
+            await _gameContext.Announce(multiplier > 1 ? $"Boss fight! Wave {wave} incoming!" : $"Wave {wave} incoming!",
+                new TextColor(255, 120, 80, 255), EBannerTier.Headline);
             _gameContext.Log($"{GameSystemInfo.QuestName(_gameContext.Settings.GameSystem)} Horde: wave {wave} ({spent}/{budget} pts): {string.Join(", ", chosen.Select(u => u.Name))}.");
-            foreach (UnitData unit in chosen)
-            {
-                if (QuestChallenges.HoldForAmbush(_gameContext, unit)) continue;
-                HordePlacement.Revive(unit);
-                await HordePlacement.PlaceAtRandomCorner(_gameContext, unit, $"wave {wave}", StarQuestHordeRules.WaveCornerRadii);
-            }
+            await HordePlacement.PlaceWaveAtCorners(_gameContext, chosen, $"wave {wave}", StarQuestHordeRules.WaveCornerRadii);
             return chosen;
         }
 
