@@ -27,6 +27,21 @@ namespace FDG.StateMachine
         }
 
         /// <summary>1-based wave a round belongs to: rounds 1-3 are wave 1, 4-6 wave 2, and so on.</summary>
+        /// <summary>
+        /// The army size each Horde book prints - "The Defenders: ... totalling 2000pts across all armies.
+        /// The Enemies: ... one 2000pts army" (GF); 1500 (AoF), 800 (GF: Firefight), 600 (AoF: Skirmish).
+        /// Null for the Quest systems, whose Horde games are built differently. The lobby sets its points
+        /// limit to this when a Horde game is picked; the player can still change it.
+        /// </summary>
+        public static int? BookArmyPoints(EGameSystem system) => system switch
+        {
+            EGameSystem.GrimdarkFuture => 2000,
+            EGameSystem.AgeOfFantasy => 1500,
+            EGameSystem.GFFirefight => 800,
+            EGameSystem.AoFSkirmish => 600,
+            _ => null,
+        };
+
         public static int WaveOfRound(int round) => ((round - 1) / GameWideConstants.HORDE_ROUNDS_PER_WAVE) + 1;
 
         /// <summary>

@@ -6,6 +6,13 @@ namespace FDG.Tests
     [TestFixture]
     public class HordeRulesTests
     {
+        [TestCase(EGameSystem.GrimdarkFuture, 2000)]
+        [TestCase(EGameSystem.AgeOfFantasy, 1500)]
+        [TestCase(EGameSystem.GFFirefight, 800)]
+        [TestCase(EGameSystem.AoFSkirmish, 600)]
+        public void BookArmyPoints_AreTheHordeBooks(EGameSystem system, int points) =>
+            Assert.That(FDG.StateMachine.HordeRules.BookArmyPoints(system), Is.EqualTo(points));
+
         [Test]
         public void RoundLimit_IsTwelveForHordeAndFourForStandard()
         {
