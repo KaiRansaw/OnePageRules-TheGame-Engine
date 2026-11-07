@@ -1,3 +1,4 @@
+using FDG.Stages;
 using FDG.Rules.Foundation;
 
 namespace FDG.Ai.Solo
@@ -50,10 +51,28 @@ namespace FDG.Ai.Solo
         /// </summary>
         public static IUnit? PickShootTarget(ITableState table, IUnit shooter, IReadOnlyList<IUnit> candidates) =>
             candidates
-                .OrderBy(e => InCover(table, e) ? 1 : 0)
+                .OrderBy(e => SeenPastOtherUnits(table, shooter, e) ? 0 : 1)
+                .ThenBy(e => PlanningBand(table, shooter, e))
+                .ThenBy(e => InCoverFrom(table, shooter, e) ? 1 : 0)
                 .ThenBy(e => HasActivated(e) ? 1 : 0)
                 .ThenBy(e => AiCombatMath.Distance(shooter, e))
                 .FirstOrDefault();
+
+        /// <summary>
+        /// The Blast / Deadly band the shot will be ranked by (<see cref="SoloAiSpecialRuleClauses.TargetBand"/>),
+        /// when the tree can know it before a weapon is chosen: every ranged weapon the unit carries falls
+        /// in the same band for this target. A Flamer-only APC goes for the squad, not the closer monster -
+        /// and so does its move. With mixed weapons the shot is decided per weapon later, so 0.
+        /// </summary>
+        private static int PlanningBand(ITableState table, IUnit shooter, IUnit target)
+        {
+            List<IWeapon> ranged = shooter.Models.Where(m => m.GetIsAlive())
+                .SelectMany(m => m.Weapons).Where(w => w.RangeInches > 0f).Cast<IWeapon>().ToList();
+            if (ranged.Count == 0) return 0;
+            SoloCoOpProfile profile = SoloCoOpProfile.For(table.Progress.GameSystem);
+            List<int> bands = ranged.Select(w => SoloAiSpecialRuleClauses.TargetBand(profile, w, target)).Distinct().ToList();
+            return bands.Count == 1 ? bands[0] : 0;
+        }
 
         /// <summary>
         /// The melee pick: not-yet-activated before activated, then closest. Cover does not appear - the
@@ -64,6 +83,39 @@ namespace FDG.Ai.Solo
                 .OrderBy(e => HasActivated(e) ? 1 : 0)
                 .ThenBy(e => AiCombatMath.Distance(charger, e))
                 .FirstOrDefault();
+
+        /// <summary>
+        /// Whether the shot from <paramref name="shooter"/> where it stands now would give
+        /// <paramref name="target"/> the Cover bonus - the engine's own majority test (<see cref="CoverMajority"/>),
+        /// so "behind" cover counts as well as "in" it, as the 3.6.0 core book says. The bot audit
+        /// (2026-11-07) found the footprint guess below disagreeing with the engine on about a third of
+        /// planned shots: the tree would move to shoot one unit and the shot would go elsewhere.
+        /// </summary>
+        public static bool InCoverFrom(ITableState table, IUnit shooter, IUnit target) =>
+            CoverMajority.Evaluate(shooter, target, SightBlockers(table, shooter, target),
+                Settings(table)?.CoverProximityExceptionsEnabled ?? true).HasCover;
+
+        /// <summary>
+        /// Whether any of the shooter's models can see the target once other units' models are counted as
+        /// sight blockers, as the shooting stage counts them. A unit hidden behind another unit is not a
+        /// target the shot can take, so it ranks last - and must not read as "in the open" just because
+        /// its sight lines are blocked rather than covered.
+        /// </summary>
+        public static bool SeenPastOtherUnits(ITableState table, IUnit shooter, IUnit target)
+        {
+            List<ITerrain> terrain = SightBlockers(table, shooter, target);
+            return shooter.Models.Where(m => m.GetIsAlive()).Any(a => target.Models.Where(m => m.GetIsAlive())
+                .Any(d => LineOfSightUtilities.HasLineOfSight(a.Position, d.Position, terrain)));
+        }
+
+        private static GameSettings? Settings(ITableState table) =>
+            GameProgressUtilities.TryGetProgress(table.DataStore)?.Settings;
+
+        private static List<ITerrain> SightBlockers(ITableState table, IUnit shooter, IUnit target) =>
+            table.Terrain.Objects
+                .Concat(LineOfSightUtilities.BuildModelBlockers(table, shooter, target,
+                    Settings(table)?.SeeThroughFriendlyUnits ?? false))
+                .ToList();
 
         /// <summary>
         /// Whether the unit is in Cover terrain. Deliberately the unit's own footing rather than a

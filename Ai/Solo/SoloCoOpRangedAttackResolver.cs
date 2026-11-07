@@ -42,6 +42,12 @@ namespace FDG.Ai.Solo
         /// </param>
         public SoloCoOpRangedAttackResolver(ITableState? table = null) => _table = table;
 
+        /// <summary>
+        /// Test hook for the bot audit: the pick and every option it was chosen from (weapon, target, the
+        /// engine's cover call, distance). Null in play.
+        /// </summary>
+        internal static Action<IUnit, Weapon, IUnit, IReadOnlyList<(Weapon Weapon, IUnit Target, bool Cover, float Distance)>>? DecisionTrace;
+
         public Task<CancellableResult<RangedAttackChoice>> Resolve(ChooseRangedAttackRequest request)
         {
             // Prefer options where at least one model has LOS and is in range.
@@ -73,6 +79,10 @@ namespace FDG.Ai.Solo
                 .ThenBy(o => AiCombatMath.Distance(shooter, o.Stats.TargetUnit.GetValue()))
                 .ThenByDescending(o => o.Stats.modelsThatCanShoot.Count)
                 .First();
+
+            DecisionTrace?.Invoke(shooter, best.Weapon, best.Stats.TargetUnit.GetValue(), options.Select(o =>
+                (o.Weapon, (IUnit)o.Stats.TargetUnit.GetValue(), o.Stats.HasCover,
+                 AiCombatMath.Distance(shooter, o.Stats.TargetUnit.GetValue()))).ToList());
 
             CancellableResult<RangedAttackChoice> result =
                 new Selected<RangedAttackChoice>(new RangedAttackChoice(best.Weapon, best.Stats.TargetUnit));

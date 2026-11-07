@@ -87,7 +87,7 @@ namespace FDG.Tests
             // enemy a whole activation, shooting one that has already gone costs them nothing this round.
             DataBinding<UnitData> shooter = Unit(_ai, "Raiders", 10f, 10f);
             DataBinding<UnitData> nearButSpent = Unit(_player, "Spent", 14f, 10f);
-            DataBinding<UnitData> fartherAndFresh = Unit(_player, "Fresh", 22f, 10f);
+            DataBinding<UnitData> fartherAndFresh = Unit(_player, "Fresh", 22f, 18f);
             MarkActivated(nearButSpent);
 
             IUnit? pick = SoloAiTargeting.PickShootTarget(Table, shooter.GetValue(),
@@ -103,7 +103,7 @@ namespace FDG.Tests
             // prioritize the target in the open" - an explicit override of closest, so Cover sorts first.
             DataBinding<UnitData> shooter = Unit(_ai, "Raiders", 10f, 10f);
             DataBinding<UnitData> nearInCover = Unit(_player, "Hidden", 15f, 10f);
-            DataBinding<UnitData> farInOpen = Unit(_player, "Exposed", 24f, 10f);
+            DataBinding<UnitData> farInOpen = Unit(_player, "Exposed", 16f, 24f);
             CoverAt(15f, 10f);
 
             IUnit? pick = SoloAiTargeting.PickShootTarget(Table, shooter.GetValue(),
@@ -117,9 +117,9 @@ namespace FDG.Tests
         {
             DataBinding<UnitData> shooter = Unit(_ai, "Raiders", 10f, 10f);
             DataBinding<UnitData> near = Unit(_player, "Near", 15f, 10f);
-            DataBinding<UnitData> far = Unit(_player, "Far", 24f, 10f);
+            DataBinding<UnitData> far = Unit(_player, "Far", 10f, 24f);
             CoverAt(15f, 10f);
-            CoverAt(24f, 10f);
+            CoverAt(10f, 24f);
 
             IUnit? pick = SoloAiTargeting.PickShootTarget(Table, shooter.GetValue(),
                 new[] { far.GetValue(), near.GetValue() });
@@ -176,6 +176,50 @@ namespace FDG.Tests
 
             Assert.That(SoloAiTargeting.InCover(Table, inside.GetValue()), Is.True);
             Assert.That(SoloAiTargeting.InCover(Table, outside.GetValue()), Is.False);
+        }
+
+        /// <summary>
+        /// Cover is judged the way the shot will roll it, from where the shooter stands - so a unit standing
+        /// BEHIND a cover piece counts as in Cover, not only one standing inside it. The footprint guess
+        /// missed this, and the tree planned shots the engine then sent elsewhere (bot audit, 2026-11-07).
+        /// </summary>
+        [Test]
+        public void Shooting_TargetBehindCover_RanksAfterOneInTheOpen()
+        {
+            DataBinding<UnitData> shooter = Unit(_ai, "Raiders", 10f, 10f);
+            DataBinding<UnitData> behind = Unit(_player, "Behind", 22f, 10f);
+            DataBinding<UnitData> open = Unit(_player, "Open", 10f, 24f);
+            CoverAt(17f, 10f, radius: 2f);
+
+            Assert.That(SoloAiTargeting.InCover(Table, behind.GetValue()), Is.False, "test setup: not standing in it");
+            IUnit? pick = SoloAiTargeting.PickShootTarget(Table, shooter.GetValue(),
+                new IUnit[] { behind.GetValue(), open.GetValue() });
+            Assert.That(pick?.Name, Is.EqualTo("Open"));
+        }
+
+        /// <summary>
+        /// A unit whose every gun is a Blast weapon plans its shot by the Blast clause too (GF: multi-model
+        /// units without Tough first), so it moves toward the squad it will actually fire at.
+        /// </summary>
+        [Test]
+        public void Shooting_AllBlastWeapons_PlansForTheSquad()
+        {
+            var flamer = new Weapon("Flamer", 12f, 1, 0);
+            flamer.AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule("Blast(3)", FDG.Rules.Dispatch.CoreRuleCatalog.Blast));
+            var model = new ModelData(0.5f, new List<Weapon> { flamer }, new Position(10f, 10f), _store);
+            var unit = new UnitData(_ai, "APC", quality: 4, defense: 4,
+                modelBindings: new List<DataBinding<ModelData>> { _store.GetDataBinding<ModelData>(_store.Create(model)) });
+            DataBinding<UnitData> shooter = _store.GetDataBinding<UnitData>(_store.Create(unit));
+
+            DataBinding<UnitData> single = Unit(_player, "Lone", 14f, 10f);
+            var squadModels = Enumerable.Range(0, 3).Select(i => _store.GetDataBinding<ModelData>(_store.Create(
+                new ModelData(0.5f, new List<Weapon>(), new Position(20f + i, 16f), _store)))).ToList();
+            DataBinding<UnitData> squad = _store.GetDataBinding<UnitData>(_store.Create(
+                new UnitData(_player, "Squad", quality: 4, defense: 4, modelBindings: squadModels)));
+
+            IUnit? pick = SoloAiTargeting.PickShootTarget(Table, shooter.GetValue(),
+                new IUnit[] { single.GetValue(), squad.GetValue() });
+            Assert.That(pick?.Name, Is.EqualTo("Squad"));
         }
     }
 }

@@ -220,6 +220,33 @@ namespace FDG.Ai.Resolvers
                 (s, lat) => MovementPlanner.BuildCandidate(unitBinding, living, cx, cz, ndx, ndz, s,
                     request.MaxDistanceInches, lateralOffsetInches: lat));
 
+            // The official bot's named charge that the straight lane did not land: route it. The lane above is
+            // one straight slide (skirting Impassible by angle only), so a charge with Difficult ground, a
+            // friendly or a bystander in the way stopped short - capped at 6" by the swamp, or backed off the
+            // friend - when a path around existed. Solo & Co-Op v3.6.0: AI units move "around Difficult and
+            // Dangerous terrain". The router detours both (#281), and the result is kept only if it actually
+            // reaches the TARGET; otherwise the straight attempt stands. Baseline/Tactician never pass a
+            // named target, so they are unchanged (plan D1). Bot audit, 2026-11-07.
+            if (chargeTarget != null && wantsCharge
+                && MovementPlanner.MinEnemyGap(candidate, MovementPlanner.UnitFootprints(chargeTarget)) > RoutedChargeContactInches)
+            {
+                (List<ModelMoveEntry>? routed, List<ModelMoveEntry>? closer) = RoutedCharge(request, unitBinding,
+                    living, chargeTarget, budgetFor, enemyFootprints, allTerrain, cx, cz);
+                if (routed != null) candidate = routed;
+                // No way in this turn: at least take the route's approach when the straight lane went
+                // nowhere (a wall in the way left the unit standing still - audit, 2026-11-07), so next
+                // turn's charge starts closer.
+                else if (closer != null
+                         && MovementPlanner.MinEnemyGap(closer, MovementPlanner.UnitFootprints(chargeTarget))
+                            < MovementPlanner.MinEnemyGap(candidate, MovementPlanner.UnitFootprints(chargeTarget)) - 1f)
+                    candidate = closer;
+                ChargeTrace?.Invoke($"CHARGE {unit.Name} -> {chargeTarget.Name}: start gap {AiCombatMath.Distance(unit, chargeTarget):0.00}, reach {request.MaxDistanceInches:0.0}, straight step {step:0.00}, routed {(routed != null ? "landed" : "failed")}, final gap {MovementPlanner.MinEnemyGap(candidate, MovementPlanner.UnitFootprints(chargeTarget)):0.00}, any-enemy gap {MovementPlanner.MinEnemyGap(candidate, enemyFootprints):0.00}, difficult on lane {CentroidCrossesTerrain(allTerrain, ETerrainType.Difficult, cx, cz, ndx, ndz, dist, baseRadius)}, full-step faults {MovementUtilities.ValidatePathsForPlanning(MovementPlanner.BuildCandidate(unitBinding, living, cx, cz, ndx, ndz, step, request.MaxDistanceInches), budgetFor, enemyFootprints, request.CanMoveThroughEnemies, request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain, allTerrain, friendlyFootprints, lenientCoherency: false)}");
+            }
+            else if (chargeTarget != null && wantsCharge)
+                ChargeTrace?.Invoke($"CHARGE {unit.Name} -> {chargeTarget.Name}: straight landed");
+            else if (chargeTarget != null)
+                ChargeTrace?.Invoke($"CHARGE {unit.Name} -> {chargeTarget.Name}: out of reach (gap {AiCombatMath.Distance(unit, chargeTarget):0.00}, centre-gap {dist - contactDistance:0.00}, move {moveDistance:0.00})");
+
             // The ladder's last resort (hold exact positions) can bottom out at a cohesion-breaking hold when
             // the living models are already spread >1" apart - a unit intermingled with the enemy after melee
             // that cannot re-pack without a model crossing an enemy base. #159 made DefinePathStage lenient so
@@ -239,6 +266,68 @@ namespace FDG.Ai.Resolvers
 
             return Task.FromResult<List<ModelMoveEntry>?>(candidate);
         }
+
+        /// <summary>Test hook for the bot audit: how each named charge went. Null in play.</summary>
+        internal static Action<string>? ChargeTrace;
+
+        /// <summary>A routed charge counts only if it ends this close to its target - the engine's contact tolerance.</summary>
+        private const float RoutedChargeContactInches = 0.1f;
+
+        private (List<ModelMoveEntry>? Landed, List<ModelMoveEntry>? Closest) RoutedCharge(DefineMovementPathRequest request, DataBinding<UnitData> unitBinding,
+            List<DataBinding<ModelData>> living, IUnit target, Func<ModelMoveEntry, ModelMoveBudget> budgetFor,
+            List<EnemyModelFootprint> enemyFootprints, List<ITerrain> terrain, float cx, float cz)
+        {
+            var start = new Position(cx, cz);
+            var friendlies = MovementPlanner.LiveFriendlyFootprints(_tableState, _playerID, unitBinding.GetValue().ID);
+            float clearance = MovementPlanner.TerrainClearanceRadius(living);
+            float reach = request.MaxDistanceInches;
+
+            // Contact spots all round each of the target's models, nearest first. The commonest reason the
+            // straight lane missed (bot audit, 2026-11-07: 15 of 25) is that it ENDS on a friendly - another
+            // of the bot's units already fighting the target on that side - so the charge has to come in on
+            // a free face, not the nearest one. Spots stacked on another base are skipped up front.
+            var spots = new List<Position>();
+            foreach (IModel m in target.Models.Where(m => m.GetIsAlive()))
+            {
+                // As the Tactician's routed charge (#361): circumscribed radii so a rectangular base never
+                // lands inside the target; NudgeToContact closes the last fraction.
+                float contact = clearance + m.BaseShape.CircumscribedRadiusInches + MovementPlanner.ChargeContactTargetGapInches;
+                for (int i = 0; i < RoutedChargeDirections; i++)
+                {
+                    float a = i * MathF.PI * 2f / RoutedChargeDirections;
+                    var spot = new Position(m.Position.x + MathF.Cos(a) * contact, m.Position.z + MathF.Sin(a) * contact);
+                    if (Position.GetDistance2D(spot, start) > reach + clearance) continue;
+                    if (enemyFootprints.Concat(friendlies).Any(f =>
+                            Position.GetDistance2D(f.Center, spot) < f.BaseRadiusInches + clearance - 0.01f))
+                        continue;
+                    spots.Add(spot);
+                }
+            }
+
+            List<ModelMoveEntry>? closest = null;
+            float closestGap = float.MaxValue;
+            foreach (Position goal in spots.OrderBy(p => Position.GetDistance2D(p, start)).Take(RoutedChargeAttempts))
+            {
+                List<ModelMoveEntry> move = MovementPlanner.PlanMoveToward(unitBinding, living, _tableState, goal,
+                    reach, reach, budgetFor, request.CanMoveThroughEnemies, request.IgnoresDifficultTerrain,
+                    request.IgnoresImpassibleTerrain);
+                move = MovementPlanner.NudgeToContact(move, unitBinding, living, _tableState, target, budgetFor,
+                    enemyFootprints, request.CanMoveThroughEnemies, request.IgnoresDifficultTerrain,
+                    request.IgnoresImpassibleTerrain, terrain);
+
+                if (!MovementUtilities.ValidatePaths(move, budgetFor, enemyFootprints, request.CanMoveThroughEnemies,
+                        request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain, terrain, out _, friendlies))
+                    continue;
+                float gap = MovementPlanner.MinEnemyGap(move, MovementPlanner.UnitFootprints(target));
+                if (gap <= RoutedChargeContactInches) return (move, null);
+                if (gap < closestGap) { closestGap = gap; closest = move; }
+            }
+            return (null, closest);
+        }
+
+        /// <summary>Directions sampled round each target model, and how many of the nearest spots to route to.</summary>
+        private const int RoutedChargeDirections = 12;
+        private const int RoutedChargeAttempts = 8;
 
         private static float Dist(float ax, float az, float bx, float bz)
         {

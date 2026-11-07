@@ -78,11 +78,20 @@ namespace FDG.Tests
             {
                 lock (log) log.Add($"PLAN {unit.Name}: {plan.Kind} -> {plan.Target?.Name ?? "-"} ({plan.Why})");
             };
+            Ai.Solo.SoloCoOpRangedAttackResolver.DecisionTrace = (shooter, weapon, target, options) =>
+            {
+                string opts = string.Join("; ", options.Select(o =>
+                    $"{o.Weapon.Name}>{o.Target.Name}#{(o.Target.Models.FirstOrDefault()?.ID.GetHashCode() ?? 0) % 1000}[{(o.Cover ? "cover" : "open")},{(Ai.Solo.SoloAiTargeting.HasActivated(o.Target) ? "act" : "fresh")},{o.Distance:0.0},{o.Target.Models.Count(m => m.GetIsAlive())}m]"));
+                lock (log) log.Add($"SHOT {shooter.Name}: {weapon.Name} -> {target.Name}#{(target.Models.FirstOrDefault()?.ID.GetHashCode() ?? 0) % 1000} | {opts}");
+            };
+            Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = line => { lock (log) log.Add(line); };
             var completed = new TaskCompletionSource<GameResult>();
             var server = new FDGServer(store, bus, settings, slots);
             server.OnGameCompleted += result => completed.TrySetResult(result);
             Task finished = await Task.WhenAny(completed.Task, Task.Delay(TimeSpan.FromSeconds(240)));
             Ai.Solo.SoloAiBrain.DecisionTrace = null;
+            Ai.Solo.SoloCoOpRangedAttackResolver.DecisionTrace = null;
+            Ai.Resolvers.AiDefineMovementResolver.ChargeTrace = null;
             Assert.That(finished, Is.SameAs(completed.Task), "the game must play to completion.");
             lock (log) return log.ToList();
         }
@@ -96,11 +105,17 @@ namespace FDG.Tests
             {
                 if (l.StartsWith("PLAN ", StringComparison.Ordinal))
                 {
+                    // The plan the activation STARTED with: the tree is asked again after the move (and then
+                    // sees the unit already in contact), so a later line is a re-read, not the decision.
                     int colon = l.IndexOf(": ", StringComparison.Ordinal);
-                    lastPlan[l[5..colon]] = l[(colon + 2)..];
+                    lastPlan.TryAdd(l[5..colon], l[(colon + 2)..]);
                     continue;
                 }
-                if (l.StartsWith("Activating: ", StringComparison.Ordinal)) activating = l["Activating: ".Length..].TrimEnd('.');
+                if (l.StartsWith("Activating: ", StringComparison.Ordinal))
+                {
+                    activating = l["Activating: ".Length..].TrimEnd('.');
+                    lastPlan.Remove(activating);
+                }
 
                 // A move the tree meant as an Advance (to shoot after) that ran past it: the shot is lost.
                 if (l.Contains("[Shoot: Moved ") && l.Contains("when max to move and shoot")

@@ -34,19 +34,26 @@ namespace FDG.Stages
         public static Result Evaluate(DataBinding<UnitData> attackingUnit,
             DataBinding<UnitData> defendingUnit, IReadOnlyList<ITerrain> terrain,
             bool applyProximityExceptions, ModelID? measureFromOnly = null)
+            => Evaluate((IUnit)attackingUnit.GetValue(), (IUnit)defendingUnit.GetValue(), terrain,
+                applyProximityExceptions, measureFromOnly);
+
+        /// <summary>
+        /// The same computation on read-only units, so the official bot can rank its targets by the cover
+        /// the roll will actually apply rather than a footprint guess (bot shooting audit, 2026-11-07).
+        /// </summary>
+        public static Result Evaluate(IUnit attackingUnit, IUnit defendingUnit, IReadOnlyList<ITerrain> terrain,
+            bool applyProximityExceptions, ModelID? measureFromOnly = null)
         {
-            List<DataBinding<ModelData>> attackers = attackingUnit.ModelBindings()
+            List<IModel> attackers = attackingUnit.Models
                 .Where(model => model.GetIsAlive()
-                                && (measureFromOnly is not { } only || model.GetValue().ID.Equals(only)))
+                                && (measureFromOnly is not { } only || model.ID.Equals(only)))
                 .ToList();
-            List<DataBinding<ModelData>> defenders = defendingUnit.ModelBindings()
-                .Where(model => model.GetIsAlive()).ToList();
+            List<IModel> defenders = defendingUnit.Models.Where(model => model.GetIsAlive()).ToList();
 
             int modelsInCover = 0;
-            foreach (DataBinding<ModelData> defender in defenders)
+            foreach (IModel defModel in defenders)
             {
-                ModelData defModel = defender.GetValue();
-                Position defPos = defModel.PositionBinding.GetValue();
+                Position defPos = defModel.Position;
                 // Star Quest Smoke Grenade: within 3" of a smoke marker counts as being in cover.
                 Position[] smoke = QuestTreasure.SmokeSpots;
                 if (smoke.Length > 0 && smoke.Any(s => Position.GetDistance2D(s, defPos) - defModel.BaseRadiusInches <= 3f))
@@ -54,11 +61,10 @@ namespace FDG.Stages
                     modelsInCover++;
                     continue;
                 }
-                foreach (DataBinding<ModelData> attacker in attackers)
+                foreach (IModel atkModel in attackers)
                 {
-                    ModelData atkModel = attacker.GetValue();
                     ESightLineEffect effect = LineOfSightUtilities.EvaluateSightLine(
-                        atkModel.PositionBinding.GetValue(), defPos, terrain,
+                        atkModel.Position, defPos, terrain,
                         CoverContext.ForModels(atkModel, defModel), applyProximityExceptions);
                     if (effect == ESightLineEffect.Cover)
                     {

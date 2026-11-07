@@ -548,6 +548,45 @@ namespace FDG.Tests
         // The AI answers a stand-still as a zero-length path, not a Cancelled - EXCEPT when the request is
         // cancellable (an optional triggered move) AND no legal path exists, where it declines (#208). None
         // of the requests these tests build set AllowCancel, so here the AI must always supply a path.
+
+        /// <summary>
+        /// The official bot's charge at a named target that a friendly is already fighting on the near
+        /// side: the straight lane ends on the friend, so the charge must come in on a free face. Before,
+        /// the backoff ladder stopped it short (bot audit, 2026-11-07: the commonest reason a planned charge
+        /// never reached combat).
+        /// </summary>
+        [Test]
+        public async Task ResolveToward_NamedTargetWithAFriendOnTheNearFace_ChargesInOnAFreeFace()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var me = new PlayerID(System.Guid.NewGuid());
+            var them = new PlayerID(System.Guid.NewGuid());
+            store.Create(new TeamData(0, new List<PlayerID> { me }));
+            store.Create(new TeamData(1, new List<PlayerID> { them }));
+
+            DataBinding<UnitData> Unit(PlayerID owner, string name, Position at, List<Weapon> weapons)
+            {
+                var m = store.GetDataBinding<ModelData>(store.Create(new ModelData(0.5f, weapons, at, store)));
+                return store.GetDataBinding<UnitData>(store.Create(
+                    new UnitData(owner, name, 4, 4, new List<DataBinding<ModelData>> { m })));
+            }
+            var blade = new List<Weapon> { new Weapon("Blade", 0f, 2, 0) };
+            DataBinding<UnitData> charger = Unit(me, "Chargers", new Position(10f, 10f), blade);
+            DataBinding<UnitData> target = Unit(them, "Target", new Position(10f, 20f), new List<Weapon>());
+            Unit(me, "Already Fighting", new Position(10f, 18.95f), blade);
+
+            var tableState = new TableState(store);
+            var resolver = new AiDefineMovementResolver(tableState, me);
+            var request = new DefineMovementPathRequest(me, "Charge", charger,
+                maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f);
+
+            List<ModelMoveEntry> move = Unwrap(await resolver.ResolveToward(request, target.GetValue()));
+
+            float gap = Ai.Tactician.MovementPlanner.MinEnemyGap(move,
+                Ai.Tactician.MovementPlanner.UnitFootprints(target.GetValue()));
+            Assert.That(gap, Is.LessThanOrEqualTo(0.1f), "the charge reaches its target");
+        }
+
         private static List<ModelMoveEntry> Unwrap(CancellableResult<List<ModelMoveEntry>> result)
         {
             Assert.That(result, Is.InstanceOf<Selected<List<ModelMoveEntry>>>(),
