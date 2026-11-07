@@ -65,5 +65,29 @@ namespace FDG.Tests
             await QuestActions.Shove(new TestGameContext(store, new FixedDiceRoller(4)), hero, enemy, 6f);
             Assert.That(enemy.Models[0].Position.x, Is.EqualTo(30f).Within(0.001f));
         }
+
+        [Test]
+        public async Task APush_StopsInBaseContact_WithAnotherUnit()
+        {
+            GameWideConstants.ConfigureTable(EGameSystem.GFStarQuest);
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            UnitData hero = Unit(store, new PlayerID(Guid.NewGuid()), new Position(20f, 24f));
+            UnitData enemy = Unit(store, new PlayerID(Guid.NewGuid()), new Position(22f, 24f));
+            Unit(store, new PlayerID(Guid.NewGuid()), new Position(26f, 24f));   // 4" behind it
+            await QuestActions.Shove(new TestGameContext(store, new FixedDiceRoller(4)), hero, enemy, 6f);
+            Assert.That(enemy.Models[0].Position.x, Is.EqualTo(25f).Within(0.08f), "stops with the bases touching (0.5\" + 0.5\")");
+        }
+
+        [Test]
+        public async Task APush_StopsAtABuilding()
+        {
+            GameWideConstants.ConfigureTable(EGameSystem.GFStarQuest);
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            store.Create(new TerrainData(ETerrainType.Impassible, new RectangularZone(26f, 30f, 20f, 28f)));
+            UnitData hero = Unit(store, new PlayerID(Guid.NewGuid()), new Position(20f, 24f));
+            UnitData enemy = Unit(store, new PlayerID(Guid.NewGuid()), new Position(22f, 24f));
+            await QuestActions.Shove(new TestGameContext(store, new FixedDiceRoller(4)), hero, enemy, 6f);
+            Assert.That(enemy.Models[0].Position.x, Is.EqualTo(25.5f).Within(0.08f), "base edge against the wall at x=26");
+        }
     }
 }

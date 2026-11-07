@@ -342,14 +342,70 @@ namespace FDG.Stages
                 t = MathF.Min(t, Reach(m.Position.z, dz, r, h - r));
             }
             t = MathF.Max(0f, t);
+            float edgeT = t;
+
+            // Kai, 2026-11-06: a push also stops when the unit meets a building (impassable terrain) or
+            // another unit's base - bases may touch, never overlap. Walked in small steps along the line;
+            // a model that already overlaps something at the start is only stopped by something new.
+            t = MathF.Min(t, FreeTravel(context, target, living, dx, dz, t, inches));
+
             foreach (ModelData m in living)
                 m.SetPosition(new Position(m.Position.x + dx * t, m.Position.z + dz * t));
 
             float moved = inches * t;
             string how = away ? "away from" : "toward";
+            string stop = t >= edgeT - 0.0001f ? "the table edge" : "an obstacle";
             await Toast(context, moved >= inches - 0.05f
                 ? $"{target.Name} is pushed {inches:0.#}\" {how} {pusher.Name}."
-                : $"{target.Name} is pushed {moved:0.#}\" {how} {pusher.Name} and stops at the table edge.");
+                : moved < 0.05f
+                    ? $"{target.Name} can't be pushed {how} {pusher.Name} - it is up against {stop}."
+                    : $"{target.Name} is pushed {moved:0.#}\" {how} {pusher.Name} and stops at {stop}.");
+        }
+
+        /// <summary>
+        /// The largest fraction (up to <paramref name="maxT"/>) of the push (<paramref name="dx"/>,
+        /// <paramref name="dz"/>) the unit can travel before any of its models would newly overlap impassable
+        /// terrain or another unit's model base.
+        /// </summary>
+        private static float FreeTravel(IGameContext context, IUnit target, List<ModelData> living,
+            float dx, float dz, float maxT, float inches)
+        {
+            if (maxT <= 0f || living.Count == 0) return 0f;
+            var others = context.TableState.Units.Objects
+                .Where(u => !ReferenceEquals(u, target) && !u.ID.Equals(target.ID))
+                .SelectMany(u => u.Models)
+                .Where(m => m.GetIsAlive() && (m.Position.x != 0f || m.Position.z != 0f))
+                .Select(m => (m.Position, R: (m as ModelData)?.BaseShape.CircumscribedRadiusInches ?? m.BaseRadiusInches))
+                .ToList();
+            var walls = context.TableState.Terrain.Objects
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible)).ToList();
+
+            bool Hits(ModelData m, float t, bool baseline)
+            {
+                float r = m.BaseShape.CircumscribedRadiusInches;
+                var at = new Float2(m.Position.x + dx * t, m.Position.z + dz * t);
+                foreach (var (p, rr) in others)
+                {
+                    float ox = at.X - p.x, oz = at.Y - p.z;
+                    if (ox * ox + oz * oz < (r + rr - 0.01f) * (r + rr - 0.01f)) return true;
+                }
+                foreach (ITerrain wall in walls)
+                    if (wall.DoesPathIntersectZone(at, at, r)) return true;
+                return false;
+            }
+
+            // What each model already touches at the start does not stop it (it was put there by something
+            // else); only a new contact does.
+            var startsClear = living.ToDictionary(m => m, m => !Hits(m, 0f, true));
+            float step = MathF.Min(maxT, 0.05f / MathF.Max(0.01f, inches));
+            float ok = 0f;
+            for (float t = step; t <= maxT + 1e-6f; t += step)
+            {
+                float tt = MathF.Min(t, maxT);
+                if (living.Any(m => startsClear[m] && Hits(m, tt, false))) return ok;
+                ok = tt;
+            }
+            return maxT;
         }
 
         /// <summary>
