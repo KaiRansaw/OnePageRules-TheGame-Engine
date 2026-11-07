@@ -174,6 +174,17 @@ namespace FDG.SaveLoad
                 }
                 settings.TableBackground = background;
             }
+            if (!string.IsNullOrWhiteSpace(scenarioSettings.GameSystem))
+            {
+                if (!Enum.TryParse(scenarioSettings.GameSystem.Trim(), ignoreCase: true, out EGameSystem system)
+                    || !Enum.IsDefined(system))
+                {
+                    throw new ScenarioCompileException(
+                        $"Unknown game system '{scenarioSettings.GameSystem}' (use " +
+                        $"{string.Join(", ", Enum.GetNames<EGameSystem>())}).");
+                }
+                settings.GameSystem = system;
+            }
             return settings;
         }
 

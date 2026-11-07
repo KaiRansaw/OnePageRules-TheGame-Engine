@@ -92,6 +92,12 @@ namespace FDG.SaveLoad
         /// Matches the lobby's Battlefield dropdown; no rule reads it.
         /// </summary>
         public string? Background { get; set; }
+
+        /// <summary>
+        /// Optional game system, by its enum name (GrimdarkFuture default, GFFirefight, AgeOfFantasy,
+        /// AoFSkirmish, GFStarQuest, AoFQuest). Sets the table size and the rules wording the game reads.
+        /// </summary>
+        public string? GameSystem { get; set; }
     }
 
     public class ScenarioPlayer
