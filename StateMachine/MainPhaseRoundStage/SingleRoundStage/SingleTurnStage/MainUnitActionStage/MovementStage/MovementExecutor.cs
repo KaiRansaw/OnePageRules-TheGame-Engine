@@ -163,16 +163,21 @@ namespace FDG.Stages
                 .ToList();
             if (dangerous.Count == 0) return DangerousTerrainResult.None;
 
-            bool standingInIt = false;
+            ITerrain? standingIn = null;
             foreach (IModel model in unit.Models)
             {
                 if (!model.GetIsAlive()) continue;
-                if (!Rules.Definitions.TerrainProximityQueries.IsModelWithinInches(model, dangerous, 0f))
-                    continue;
-                standingInIt = true;
-                break;
+                standingIn = dangerous.FirstOrDefault(t =>
+                    Rules.Definitions.TerrainProximityQueries.IsModelWithinInches(model, new[] { t }, 0f));
+                if (standingIn != null) break;
             }
-            if (!standingInIt) return DangerousTerrainResult.None;
+            if (standingIn == null) return DangerousTerrainResult.None;
+
+            // Say why: "activates in it" catches a unit that did not move, and a base merely touching the
+            // edge of the piece counts (QA 2026-11-06: "why did the Marksmen take a test? they didn't move").
+            string piece = string.IsNullOrWhiteSpace(standingIn.Name) ? "Dangerous terrain" : $"{standingIn.Name} (Dangerous terrain)";
+            gameContext.Log($"{unit.Name} activates with a model in {piece} - the rule tests a unit that moves "
+                + "across it OR activates in it.");
 
             return RollBatch(gameContext, UnitTesters(unit), unit);
         }
