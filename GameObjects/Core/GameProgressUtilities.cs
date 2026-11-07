@@ -126,6 +126,10 @@ namespace FDG
             if (progress != null)
             {
                 progress.MissionCards = state;
+                // Written through, so a change made after the last per-turn snapshot - the final
+                // objective VP at game end - reaches a joined player too (network play-through,
+                // 2026-11-06: the client's Game Over card showed the winner on 0 VP).
+                WriteProgress(store, progress);
                 return;
             }
             PendingMissionCards.Remove(store);

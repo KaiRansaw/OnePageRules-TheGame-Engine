@@ -645,6 +645,10 @@ namespace FDG.Missions
                 foreach (MissionCardSide side in state.Sides.Values)
                     side.Vp = state.Vp.TryGetValue(side.Slot, out int vp) ? vp : 0;
                 gameContext.Log("Final objectives: +1 VP for each objective controlled.");
+                // Written back, so the final VP reach every screen. Mutating the state in place only
+                // changed the host's copy: a joined player's Game Over card showed the winner on 0 VP
+                // (network play-through, 2026-11-06).
+                GameProgressUtilities.SetMissionCards(gameContext.GameDataStore, state);
             }
             return new Dictionary<int, int>(state.Vp);
         }

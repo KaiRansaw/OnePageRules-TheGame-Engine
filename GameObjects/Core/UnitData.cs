@@ -469,6 +469,15 @@ namespace FDG
             }
         }
 
+        // A unit (or model) that crossed a network hop arrived with an empty rule list and only the blob:
+        // the catch-up snapshot rehydrates (StoreReplay), but every later single update did not, so on a
+        // client a unit lost all its special rules the first time it moved or took a wound - the card went
+        // blank, Fast stopped counting, rule hovers vanished (network play-through, 2026-11-06). Same fix
+        // the weapon got in #325: restore the invariant at the deserialization boundary.
+        [System.Runtime.Serialization.OnDeserialized]
+        private void OnDeserializedRehydrate(System.Runtime.Serialization.StreamingContext context)
+            => RehydrateRules();
+
         /// <summary>
         /// Merges a Hero into this unit (#006): adds the hero's model binding(s) to this unit's model
         /// list (wiring wound aggregation), and records the <see cref="HeroAttachment"/>. After this the
