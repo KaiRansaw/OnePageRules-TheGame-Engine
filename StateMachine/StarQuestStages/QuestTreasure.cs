@@ -598,7 +598,10 @@ namespace FDG.Stages
             float w = HordePlacement.TableWidth, ht = HordePlacement.TableHeight;
             var band = new RectangularZone(Math.Max(0.5f, at.x - range), Math.Min(w - 0.5f, at.x + range),
                 Math.Max(0.5f, at.z - range), Math.Min(ht - 0.5f, at.z + range));
-            var request = new PlaceObjectiveRequest(h.PlayerID, $"Marker: {label} (within {range:0}\" of {h.Name})", 1, 0, band, 0f);
+            // "Within X\"" is a circle round the hero (QA 3.11/3.12/3.17-3.20: it used to be offered as the square
+            // around it, and a click in a corner of the square was quietly pulled back to the circle).
+            var reach = new CircularZone(at.x, at.z, range);
+            var request = new PlaceObjectiveRequest(h.PlayerID, $"Marker: {label} (within {range:0}\" of {h.Name})", 1, 0, band, 0f, reach);
             Position p = await c.PlayerRequester.RequestDecision<PlaceObjectiveRequest, Position>(request);
             float dx = p.x - at.x, dz = p.z - at.z, d = MathF.Sqrt(dx * dx + dz * dz);
             if (d > range && d > 0f) p = new Position(at.x + dx / d * range, at.z + dz / d * range);

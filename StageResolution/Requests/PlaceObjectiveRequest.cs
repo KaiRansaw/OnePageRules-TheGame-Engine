@@ -30,9 +30,25 @@ namespace FDG.StageResolution.Requests
         /// <summary>Minimum center-to-center separation from previously-placed markers.</summary>
         public float MinSeparationInches { get; }
 
+        /// <summary>
+        /// Optional true shape of the legal area, inside <see cref="LegalBand"/> - a circle for "within X\" of
+        /// this hero" (Star Quest grenades, Fog Cloud, Trickster; QA 3.11/3.12/3.17-3.20). The band stays its
+        /// bounding box, clipped to the table, so resolvers that scan a rectangle keep working; a point is
+        /// legal only when it is inside both. Null for ordinary objective placement.
+        /// </summary>
+        public IBoundedZone? Reach { get; }
+
+        /// <summary>Whether <paramref name="p"/> is inside the band and, when there is one, the reach.</summary>
+        public bool IsInLegalArea(Position p)
+        {
+            var at = new Float2(p.x, p.z);
+            return LegalBand.IsPointWithinZone(at) && (Reach == null || Reach.IsPointWithinZone(at));
+        }
+
         [JsonConstructor]
         public PlaceObjectiveRequest(PlayerID targetPlayerID, TaskID taskID, string taskName,
-            int markerIndex, int totalMarkers, RectangularZone legalBand, float minSeparationInches)
+            int markerIndex, int totalMarkers, RectangularZone legalBand, float minSeparationInches,
+            IBoundedZone? reach = null)
         {
             TargetPlayerID = targetPlayerID;
             TaskID = taskID;
@@ -41,12 +57,14 @@ namespace FDG.StageResolution.Requests
             TotalMarkers = totalMarkers;
             LegalBand = legalBand;
             MinSeparationInches = minSeparationInches;
+            Reach = reach;
         }
 
         public PlaceObjectiveRequest(PlayerID targetPlayerID, string taskName,
-            int markerIndex, int totalMarkers, RectangularZone legalBand, float minSeparationInches)
+            int markerIndex, int totalMarkers, RectangularZone legalBand, float minSeparationInches,
+            IBoundedZone? reach = null)
             : this(targetPlayerID, new TaskID(Guid.NewGuid()), taskName,
-                   markerIndex, totalMarkers, legalBand, minSeparationInches)
+                   markerIndex, totalMarkers, legalBand, minSeparationInches, reach)
         { }
 
         public Task<Position> Resolve(Position resolution) => Task.FromResult(resolution);
