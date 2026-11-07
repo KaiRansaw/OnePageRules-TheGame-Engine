@@ -63,7 +63,9 @@ namespace FDG.Stages
                     hitCount: successfulResults.TotalRolls,
                     attackCount: attacks,
                     attackerUnit: metaData.AttackingUnit.GetValue()?.ID,
-                    targetUnit: metaData.DefendingUnit.GetValue()?.ID));
+                    targetUnit: metaData.DefendingUnit.GetValue()?.ID,
+                    weaponName: metaData.WeaponType.Name,
+                    weaponCount: metaData.WeaponCount));
             }
 
             GameContext.Log($"Rolled {successfulResults.TotalRolls} successful hits out of {attacks} total attacks.");

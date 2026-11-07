@@ -66,6 +66,25 @@ namespace FDG.Ai
                 goal, budget, request.MaxDistanceInches, budgetFor, request.CanMoveThroughEnemies,
                 request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain);
 
+            // The budget above is how far the unit's CENTRE travels; a model that has to route round a
+            // friend or a piece of terrain walks further than that. When the cap is the Advance distance
+            // that matters: the engine measures the longest model's walk, and 6.1" on a 6" Advance reads
+            // as a Rush - so the unit loses the shot the move was made for (found playing a full AoF game,
+            // 2026-11-06: the bot's Marksmen advanced 6.1" and 6.7" and never fired). Shrink the centre's
+            // travel until the longest walk fits, a few tries at most.
+            if (cap < request.MaxDistanceInches - 0.01f)
+            {
+                for (int attempt = 0; attempt < 4; attempt++)
+                {
+                    float walked = MovementUtilities.GetMaxMoveDistance(move);
+                    if (walked <= cap || budget <= 0.01f) break;
+                    budget = Math.Max(0f, budget * (cap / walked) - 0.05f);
+                    move = MovementPlanner.PlanMoveToward(request.UnitDataBinding, living, table,
+                        goal, budget, request.MaxDistanceInches, budgetFor, request.CanMoveThroughEnemies,
+                        request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain);
+                }
+            }
+
             var terrain = table.Terrain.Objects.ToList();
             var enemyFootprints = MovementPlanner.LiveEnemyFootprints(table, me);
             var friendlyFootprints = MovementPlanner.LiveFriendlyFootprints(table, me,

@@ -70,7 +70,7 @@ namespace FDG.Stages
                     // exactly what the old per-player branch did for a solely-held marker, so 1v1
                     // logs (and anything keying on them) are bit-identical.
                     objective.SetOwner(resolved.Value);
-                    GameContext.Log($"  Objective seized by player {resolved.Value.ID}.");
+                    GameContext.Log($"  Objective seized by {GameContext.GetPlayerName(resolved.Value)}.");
                 }
             }
 

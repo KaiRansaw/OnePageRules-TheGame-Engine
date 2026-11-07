@@ -52,11 +52,24 @@ namespace FDG.Presentation.Beats
         /// <inheritdoc cref="AttackerUnit"/>
         public UnitID? TargetUnit { get; }
 
+        /// <summary>
+        /// The weapon this beat fires and how many models fire it - "10x Juggler Bombs". The battle report
+        /// used to list every ranged weapon the unit owns, so a unit with one weapon in range read as having
+        /// fired everything (found playing a full AoF game, 2026-11-06). Null from an older host or save.
+        /// </summary>
+        public string? WeaponName { get; }
+
+        /// <inheritdoc cref="WeaponName"/>
+        public int WeaponCount { get; }
+
         public AttackBeat(bool isMelee, IReadOnlyList<Position> from, IReadOnlyList<Position> to,
             int volleyCount, int armorPenetration,
             string? weaponEffect = null, float hitCount = 0f, float attackCount = 0f,
-            UnitID? attackerUnit = null, UnitID? targetUnit = null)
+            UnitID? attackerUnit = null, UnitID? targetUnit = null,
+            string? weaponName = null, int weaponCount = 0)
         {
+            WeaponName = weaponName;
+            WeaponCount = weaponCount;
             AttackerUnit = attackerUnit;
             TargetUnit = targetUnit;
             IsMelee = isMelee;
