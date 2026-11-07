@@ -272,6 +272,45 @@ namespace FDG.Rules.Dispatch
             finally { global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.MoveQuery, __probe); }
         }
 
+        /// <summary>
+        /// The unit's Charge allowance with its movement rules, the same accumulation as
+        /// <see cref="EffectiveMoveShootDistance"/>. Read-only; for display (the Actions window's Charge label).
+        /// </summary>
+        public static float EffectiveChargeDistance(IUnit unit, RuleEvaluator evaluator,
+            IReadOnlyList<ITerrain>? terrain = null)
+        {
+            MovementModifierSink sink = new MovementModifierSink();
+            AccumulateMovementRules(unit, evaluator, EActionType.Advance, GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES, sink, terrain);
+            AccumulateMovementRules(unit, evaluator, EActionType.Rush, GameWideConstants.RUSH_DISTANCE_INCHES, sink, terrain);
+            AccumulateMovementRules(unit, evaluator, EActionType.Charge, GameWideConstants.CHARGE_DISTANCE_INCHES, sink, terrain);
+            return GameWideConstants.CHARGE_DISTANCE_INCHES + sink.Net(EActionType.Charge);
+        }
+
+        /// <summary>
+        /// The names of the rules that change this unit's move distances (Fast, Slow, Rapid Advance...), in the
+        /// order they answered. For the unit card's "Move changed by" line, which used to guess "Fast" from the
+        /// numbers alone - and so named Fast for a Rapid Advance unit (Kai, 2026-11-06). Read-only.
+        /// </summary>
+        public static IReadOnlyList<string> MovementModifierRuleNames(IUnit unit, RuleEvaluator evaluator)
+        {
+            var names = new List<string>();
+            foreach ((EActionType action, float baseDistance) in new[]
+            {
+                (EActionType.Advance, GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES),
+                (EActionType.Rush, GameWideConstants.RUSH_DISTANCE_INCHES),
+                (EActionType.Charge, GameWideConstants.CHARGE_DISTANCE_INCHES),
+            })
+            {
+                foreach ((RuleOperation op, string ruleName) in evaluator.EvaluateAllNamed(
+                    new MoveActionDeclaredContext(unit, action, baseDistance, null), RuleParticipant.Actor(unit)))
+                {
+                    if (op is not SinkOperation<IMovementModifierSink>) continue;
+                    if (!names.Contains(ruleName)) names.Add(ruleName);
+                }
+            }
+            return names;
+        }
+
         private static void AccumulateMovementRules(IUnit unit, RuleEvaluator evaluator, EActionType action,
             float baseDistance, MovementModifierSink sink, IReadOnlyList<ITerrain>? terrain)
         {

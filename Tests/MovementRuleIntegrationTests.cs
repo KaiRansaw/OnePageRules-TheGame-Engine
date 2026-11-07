@@ -173,6 +173,34 @@ namespace FDG.Tests
                 "a unit with no movement rules advances-and-shoots the base distance");
         }
 
+        // Kai, 2026-11-06: a Rapid Advance unit's card said "Move changed by: Fast" (guessed from the numbers)
+        // and its Actions window said Advance (6") (the GetMobility stub). Both now ask the rules.
+        [Test]
+        public void MovementModifierRuleNames_RapidAdvance_NamesTheRuleNotFast()
+        {
+            DataBinding<UnitData> unit = MakeUnit();
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule("Rapid Advance", CoreRuleCatalog.RapidAdvance));
+
+            var names = MovementRuleQueries.MovementModifierRuleNames(unit.GetValue(), _ctx.RuleEvaluator);
+            Assert.That(names, Is.EquivalentTo(new[] { "Rapid Advance" }));
+            Assert.That(MovementRuleQueries.EffectiveMoveShootDistance(unit.GetValue(), _ctx.RuleEvaluator),
+                Is.EqualTo(GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES + 4f).Within(0.001f));
+            Assert.That(MovementRuleQueries.EffectiveChargeDistance(unit.GetValue(), _ctx.RuleEvaluator),
+                Is.EqualTo(GameWideConstants.CHARGE_DISTANCE_INCHES).Within(0.001f),
+                "Rapid Advance is Advance-only");
+        }
+
+        [Test]
+        public void EffectiveChargeDistance_MatchesMoveResolverCharge()
+        {
+            DataBinding<UnitData> fast = MakeUnit();
+            AttachFast(fast);
+            Assert.That(MovementRuleQueries.EffectiveChargeDistance(fast.GetValue(), _ctx.RuleEvaluator),
+                Is.EqualTo(new MovementActionContext(_ctx, fast).MaxChargeDistance).Within(0.001f));
+            Assert.That(MovementRuleQueries.MovementModifierRuleNames(MakeUnit().GetValue(), _ctx.RuleEvaluator),
+                Is.Empty, "no movement rules, nothing named");
+        }
+
         [Test]
         public void EffectiveMoveShootDistance_FastUnit_MatchesMoveResolverAdvance()
         {
