@@ -129,7 +129,7 @@ namespace FDG.Stages
                 context.AttackerMoved);
 
             ApplyTargetGating(weaponOptions, context.AttackingUnit, context.GameContext,
-                context.MarkedTargetsOnly);
+                context.MarkedTargetsOnly, context.OnlyTargetUnit);
 
             if (!HasAnyFireableOption(weaponOptions))
             {
@@ -374,11 +374,31 @@ namespace FDG.Stages
         /// priority weapon that locks out the unit's other weapons ("fire the empty rocket first").
         /// </summary>
         private static void ApplyTargetGating(List<WeaponOption> weaponOptions,
-            DataBinding<UnitData> attackingUnit, IGameContext gameContext, bool markedTargetsOnly)
+            DataBinding<UnitData> attackingUnit, IGameContext gameContext, bool markedTargetsOnly,
+            UnitID? onlyTarget = null)
         {
             // #032 Limited: a weapon may only be fired once per game. Exclude any Limited weapon whose
             // every living carrier has already fired it (per-model token), so it's no longer offered.
             ApplyLimitedSpentGating(weaponOptions, attackingUnit);
+
+            // Extra Actions - Overwatch: the reaction shot is at one enemy, the one that moved or shot. Before
+            // the resolve-first gate, for the same reason as Limited: a Deadly weapon that cannot reach the
+            // one legal target must not lock out the weapons that can.
+            if (onlyTarget is { } only)
+            {
+                foreach (WeaponOption option in weaponOptions)
+                {
+                    for (int i = 0; i < option.WeaponTargetStats.Count; i++)
+                    {
+                        WeaponTargetStats stats = option.WeaponTargetStats[i];
+                        if (stats.UnselectableReason != null || stats.TargetUnit.GetValue().ID.Equals(only)) continue;
+                        option.WeaponTargetStats[i] = stats with
+                        {
+                            UnselectableReason = "Overwatch - may only shoot at the unit it reacted to.",
+                        };
+                    }
+                }
+            }
 
             // #028/#314: resolve-first weapons must be fired before the unit's other weapons - Deadly
             // (a clump removes whole models before normal wounds spread) and Takedown ("Takedown attacks
@@ -639,7 +659,7 @@ namespace FDG.Stages
         /// Shoot when there is nothing to shoot at.
         /// </summary>
         public static bool HasAnyFireableTarget(DataBinding<UnitData> attackingUnit, IGameContext gameContext,
-            bool markedTargetsOnly = false)
+            bool markedTargetsOnly = false, UnitID? onlyTarget = null)
         {
             UnitData unitValue = attackingUnit.GetValue();
             List<Weapon> rangedWeapons = unitValue.GetRangedWeapons();
@@ -659,7 +679,7 @@ namespace FDG.Stages
 
             // The stage's own gating pipeline, verbatim (#200): the gate must answer exactly what the
             // stage will conclude, or a deterministic AI ping-pongs between Choose Action and Shoot.
-            ApplyTargetGating(options, attackingUnit, gameContext, markedTargetsOnly);
+            ApplyTargetGating(options, attackingUnit, gameContext, markedTargetsOnly, onlyTarget);
             return HasAnyFireableOption(options);
         }
 

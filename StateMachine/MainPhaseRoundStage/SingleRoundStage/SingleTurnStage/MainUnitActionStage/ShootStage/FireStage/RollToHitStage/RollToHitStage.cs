@@ -132,6 +132,32 @@ namespace FDG.Stages
                     modifierTags: hitRollResults.ThresholdTags,
                     procTags: procTags.Count > 0 ? procTags : null));
 
+            // Extra Actions - Covering Fire: "Then, roll one die per hit, and if you roll at least one 4+, then
+            // the target must take a Morale Test (regardless of casualties). All hits are then discarded as
+            // misses." The test itself is taken once per target, after the shooting (ResolveRangedMoraleStage),
+            // so a unit firing several weapons at one target does not test it once per weapon.
+            if (!metaData.IsMelee && attacker.Tokens.HasToken(TokenType.CoveringFire))
+            {
+                int suppressDice = (int)Math.Round(successfulResults.TotalRolls);
+                var faces = new List<int>();
+                for (int i = 0; i < suppressDice; i++) faces.Add(GameContext.DiceRoller.RollDecisiveFace());
+                bool suppressed = faces.Any(face => face >= 4);
+                string rolled = faces.Count == 0 ? "no hits" : string.Join(", ", faces);
+                GameContext.Log($"Covering Fire: {suppressDice} suppression dice ({rolled}) - "
+                    + (suppressed ? $"{defender.Name} must take a Morale Test." : "no effect."));
+                if (suppressed)
+                {
+                    ExtraActions.Mark(defender, TokenType.Suppressed);
+                    await GameContext.Announce($"{defender.Name} is pinned by Covering Fire!", tier: EBannerTier.Toast);
+                }
+
+                RollToHitResults suppression = new RollToHitResults(new List<SuccessfulHitInfo>(),
+                    new List<FailedHitInfo>() { new FailedHitInfo(rollToHitResults) });
+                suppression.SelfWounds = operations.OfType<RuleOperation.InflictSelfWounds>().Sum(op => op.Wounds);
+                await onFinished(suppression);
+                return;
+            }
+
             // #032 per-hit AP (Rending/Crack on an unmodified 6): split the rolled successes so only the
             // matching-face hits carry the raised save threshold; the rest stay at base AP. With no such
             // rule the splitter returns a single group — identical to the old one-group behaviour. The named

@@ -98,6 +98,12 @@ namespace FDG.SaveLoad
         /// AoFSkirmish, GFStarQuest, AoFQuest). Sets the table size and the rules wording the game reads.
         /// </summary>
         public string? GameSystem { get; set; }
+
+        /// <summary>
+        /// Optional Extra Actions (Advanced Rulebooks 3.6.0) to play with, by name ("Overwatch", "Hunker Down",
+        /// ...) or "All". None by default, like the lobby.
+        /// </summary>
+        public List<string>? ExtraActions { get; set; }
     }
 
     public class ScenarioPlayer

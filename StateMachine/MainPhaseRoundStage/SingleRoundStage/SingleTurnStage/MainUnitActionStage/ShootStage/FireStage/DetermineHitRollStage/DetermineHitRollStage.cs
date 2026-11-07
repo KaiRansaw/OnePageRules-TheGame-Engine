@@ -188,6 +188,22 @@ namespace FDG.Stages
                 }
             }
 
+            // Extra Actions (Advanced Rulebooks 3.6.0): Last Stand -1, Focused Fire +1 within 12", Heavy Charge
+            // +1 in melee, Overwatch -1, and the target's Stealth Move -1 from over 12". Named on the chips.
+            bool coveringFire = !metaData.IsMelee && attacker.Tokens.HasToken(Rules.Foundation.TokenType.CoveringFire);
+            if (!fatiguedInMelee && !coveringFire)
+            {
+                float extraDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _,
+                    includeVertical: true);
+                IReadOnlyList<GrantedModifier> extra = ExtraActions.HitModifiers(attacker, defender,
+                    metaData.IsMelee, metaData.IsSpell, extraDistance);
+                if (extra.Count > 0)
+                {
+                    results.HitRollNeeded -= ExtraActions.Net(extra);
+                    grantedDetail = grantedDetail.Concat(extra).ToList();
+                }
+            }
+
             GameContext.Log($"Base hit roll required is {results.HitRollNeeded} based on attacker's quality.");
 
             // Override the computed threshold rather than stacking a modifier; the d6 comparison in
@@ -196,6 +212,13 @@ namespace FDG.Stages
             {
                 results.HitRollNeeded = 6;
                 GameContext.Log($"{attacker.Name} is fatigued - hits only on unmodified 6s in melee.");
+            }
+
+            // Covering Fire: "only hits on unmodified results of 6" - the same override as Fatigue.
+            if (coveringFire)
+            {
+                results.HitRollNeeded = 6;
+                GameContext.Log($"{attacker.Name} lays down Covering Fire - hits only on unmodified 6s.");
             }
 
             results.ThresholdTags = ComposeThresholdTags(baseQuality, named, grantedNet, fatiguedInMelee,

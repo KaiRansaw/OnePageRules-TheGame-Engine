@@ -98,6 +98,7 @@ namespace FDG.Network.Connection.Lobby
         public int? NumberOfRounds => _gameSettings.NumberOfRounds;
         public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;
         public bool KingOfTheHill => _gameSettings.KingOfTheHill;
+        public EExtraActions ExtraActions => _gameSettings.ExtraActions;
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -1391,6 +1392,12 @@ namespace FDG.Network.Connection.Lobby
         public void SetKingOfTheHill(bool enabled)
         {
             _gameSettings.KingOfTheHill = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetExtraActions(EExtraActions actions)
+        {
+            _gameSettings.ExtraActions = actions & EExtraActions.All;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

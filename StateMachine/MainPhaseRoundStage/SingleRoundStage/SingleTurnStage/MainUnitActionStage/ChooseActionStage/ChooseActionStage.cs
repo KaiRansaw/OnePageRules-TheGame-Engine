@@ -114,6 +114,14 @@ namespace FDG.Stages
                 }
             }
 
+            // Extra Actions: a Shaken unit may still use Last Stand, Hunker Down or Defensive Stance. Asked once,
+            // on the first visit (nothing has happened yet); "Pass" is the ordinary idle-and-recover.
+            if (context.StartedActivationShaken && !context.HasMoved && context.ExtraAction == null)
+            {
+                bool routedByExtraAction = await OfferShakenExtraActions(context);
+                if (routedByExtraAction) return;
+            }
+
             if (context.StartedActivationShaken)
             {
                 IUnit activatingUnit = context.ActivatingUnit.GetValue();
@@ -179,6 +187,40 @@ namespace FDG.Stages
             string cantCastReason = null;
             bool canCast = isCaster && GetCanCast(context, out cantCastReason);
             global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.GateCast, __gGateCast);
+
+            // Extra Actions: a declaration that never happened (the player backed out of the shot or the move
+            // it led to) is withdrawn, so the menu is the pristine one again.
+            RevertAbandonedExtraAction(context);
+
+            // Extra Actions: what the declared action still allows.
+            switch (context.ExtraAction)
+            {
+                case ExtraActions.FocusedFire:
+                case ExtraActions.CoveringFire:
+                    if (canMove) { canMove = false; cantMoveReason = $"{context.ExtraAction} is a Hold action."; }
+                    if (canCharge) { canCharge = false; cantChargeReason = $"{context.ExtraAction} is a Hold action."; }
+                    break;
+                case ExtraActions.StealthMove:
+                    if (canShoot) { canShoot = false; cantShootReason = "Stealth Move - may not shoot."; }
+                    if (canCharge) { canCharge = false; cantChargeReason = "Stealth Move is an Advance."; }
+                    break;
+                case ExtraActions.HeavyCharge:
+                    if (canShoot) { canShoot = false; cantShootReason = "Heavy Charge is a Charge action."; }
+                    if (canCharge && !InContactWithHeavyChargeTarget(context))
+                    {
+                        canCharge = false;
+                        cantChargeReason = "Heavy Charge - not in contact with an enemy that was 3\" to 6\" away.";
+                    }
+                    break;
+            }
+
+            // Last Stand: "can't use any special rules that require picking a target (ex.: Caster)".
+            bool lastStand = ExtraActions.InLastStand(context.ActivatingUnit.GetValue());
+            if (lastStand && canCast)
+            {
+                canCast = false;
+                cantCastReason = "Last Stand - can't use rules that pick a target.";
+            }
 
             // #100 — RestrictActions (Immobile, Artillery's Hold-only facet): a passive rule at this hook may
             // limit which action types the unit can declare. The Move menu option covers Advance/Rush, Charge
@@ -273,6 +315,10 @@ namespace FDG.Stages
                 ? Array.Empty<AbilityOffer>()
                 : GameContext.RuleEvaluator.GatherOffers(
                     new ActionChoiceContext(context.ActivatingUnit.GetValue()));
+            if (lastStand)
+            {
+                customActionOffers = customActionOffers.Where(o => !ExtraActions.PicksATarget(o)).ToList();
+            }
             global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.GateOffers, __gGateOffers);
 
             List<string> validOptions = new List<string>();
@@ -518,6 +564,8 @@ namespace FDG.Stages
 
                 foreach (AbilityOffer offer in beforeAttackOffers)
                 {
+                    if (lastStand && ExtraActions.PicksATarget(offer)) continue;
+
                     if (AbilityTargeting.EligibleTargets(context.ActivatingUnit, offer.Ability.TargetSelector,
                             GameContext).Count < offer.Ability.TargetSelector.MinCount)
                     {
@@ -605,6 +653,9 @@ namespace FDG.Stages
                 }
             }
 
+            AddExtraActionOptions(context, validOptions, invalidOptions, outcomes, optionDescriptions,
+                canMove, canShoot, canPass, cantPassReason, compelledToAttackNow);
+
             if (validOptions.Count == 0)
             {
                 // #401: say WHY - a silent pass reads as the AI idling, and the reasons are already in hand.
@@ -661,6 +712,202 @@ namespace FDG.Stages
             await outcomes[choice].Invoke();
         }
 
+
+        // ---- Extra Actions (Advanced Rulebooks 3.6.0) ------------------------------------------------------
+
+        /// <summary>
+        /// A Shaken unit's choice: Pass (idle and recover - the normal rule), or one of the Extra Actions the
+        /// book lets a Shaken unit take. True when an Extra Action took over the activation's routing.
+        /// </summary>
+        private async Task<bool> OfferShakenExtraActions(IUnitActionContext context)
+        {
+            UnitData unit = context.ActivatingUnit.GetValue();
+            if (QuestActions.IsQuestGame(GameContext) || AircraftRules.IsAircraft(unit)) return false;
+
+            var options = new List<string>();
+            var descriptions = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string name in new[] { ExtraActions.LastStand, ExtraActions.HunkerDown, ExtraActions.DefensiveStance })
+            {
+                if (!ExtraActions.IsOn(GameContext, ExtraActions.FlagOf(name))) continue;
+                options.Add(name);
+                descriptions[name] = ExtraActions.Describe(name);
+            }
+            if (options.Count == 0) return false;
+
+            // Pass first: it is the ordinary rule, and the default a front end with no answer falls back to.
+            options.Insert(0, PASS_CHOICE_NAME);
+            descriptions[PASS_CHOICE_NAME] = "Stay idle this activation and recover from Shaken.";
+
+            string choice = await GameContext.PlayerRequester.RequestDecision<ChooseActionRequest, string>(
+                new ChooseActionRequest(context.ActivatingPlayer(), unit.ID, options,
+                    new List<StringSelectionRequest.InvalidOption>(), optionDescriptions: descriptions,
+                    allowCancel: false, displayName: $"{unit.Name} is Shaken"));
+
+            if (choice == null || choice == PASS_CHOICE_NAME || !options.Contains(choice)) return false;
+
+            unit.Tokens.RemoveTokens(TokenType.Shaken);
+            context.ExtraAction = choice;
+            context.ClearStartedActivationShaken();
+
+            switch (choice)
+            {
+                case ExtraActions.LastStand:
+                    ExtraActions.Mark(unit, TokenType.LastStand);
+                    // Shaken is already gone - the activation can no longer be handed back.
+                    context.MarkIrreversibleAction();
+                    await GameContext.Announce($"{unit.Name} makes a Last Stand!", ShakenRecoveryBannerColor, EBannerTier.Toast);
+                    return false; // the regular menu follows, with the Last Stand penalties on
+                case ExtraActions.HunkerDown:
+                    ExtraActions.Mark(unit, TokenType.HunkerDown);
+                    break;
+                case ExtraActions.DefensiveStance:
+                    ExtraActions.Mark(unit, TokenType.DefensiveStance);
+                    break;
+            }
+
+            await GameContext.Announce($"{unit.Name} recovers and takes a {choice}.", ShakenRecoveryBannerColor, EBannerTier.Toast);
+            await ToReconcileEndOfActivation.Activate(context);
+            return true;
+        }
+
+        /// <summary>
+        /// The Extra Actions on a pristine activation's menu, each a declaration made before anything else
+        /// happens. Last Stand is not here: an unshaken unit gains nothing from it, so it is only offered to
+        /// Shaken units (<see cref="OfferShakenExtraActions"/>).
+        /// </summary>
+        private void AddExtraActionOptions(IUnitActionContext context, List<string> validOptions,
+            List<StringSelectionRequest.InvalidOption> invalidOptions, Dictionary<string, Func<Task>> outcomes,
+            Dictionary<string, string> descriptions, bool canMove, bool canShoot, bool canPass,
+            string? cantPassReason, bool compelledToAttack)
+        {
+            if (!ExtraActions.AnyOn(GameContext) || QuestActions.IsQuestGame(GameContext)) return;
+            if (context.ExtraAction != null || context.HasMoved || context.HasAttacked
+                || context.IrreversibleActionTaken || compelledToAttack) return;
+
+            UnitData unit = context.ActivatingUnit.GetValue();
+            if (TransportUtilities.IsEmbarked(unit) || ExtraActions.InLastStand(unit)) return;
+
+            void Add(string name, bool valid, string? reason, Func<Task> outcome)
+            {
+                if (!ExtraActions.IsOn(GameContext, ExtraActions.FlagOf(name)) || outcomes.ContainsKey(name)) return;
+                descriptions[name] = ExtraActions.Describe(name);
+                if (valid)
+                {
+                    validOptions.Add(name);
+                    outcomes.Add(name, outcome);
+                }
+                else
+                {
+                    invalidOptions.Add(new StringSelectionRequest.InvalidOption(name, reason ?? "Not available."));
+                }
+            }
+
+            // The idle actions hold still all activation, so they are barred exactly where Pass is (an Aircraft
+            // must fly; a unit within 1" of an enemy must charge).
+            async Task Idle(string name, TokenType token)
+            {
+                context.ExtraAction = name;
+                ExtraActions.Mark(unit, token);
+                GameContext.Log($"{unit.Name} uses {name}.");
+                await GameContext.Announce($"{unit.Name}: {name}", tier: EBannerTier.Toast);
+                await ToReconcileEndOfActivation.Activate(context);
+            }
+
+            Add(ExtraActions.HunkerDown, canPass, cantPassReason, () => Idle(ExtraActions.HunkerDown, TokenType.HunkerDown));
+            Add(ExtraActions.DefensiveStance, canPass, cantPassReason, () => Idle(ExtraActions.DefensiveStance, TokenType.DefensiveStance));
+
+            Task Shoot(string name, TokenType token)
+            {
+                context.ExtraAction = name;
+                ExtraActions.Mark(unit, token);
+                GameContext.Log($"{unit.Name} uses {name}.");
+                return ToShoot.Activate(context);
+            }
+
+            Add(ExtraActions.FocusedFire, canShoot, "Nothing to shoot at.", () => Shoot(ExtraActions.FocusedFire, TokenType.FocusedFire));
+
+            HashSet<UnitID> heavyTargets = HeavyChargeCandidates(context);
+            bool canHeavyCharge = canMove && heavyTargets.Count > 0 && ChargeContactRules.CanFightInMelee(unit);
+            Add(ExtraActions.HeavyCharge, canHeavyCharge,
+                !canMove ? "Can't move." : !ChargeContactRules.CanFightInMelee(unit) ? "Nothing to fight in melee with."
+                    : "No enemy 3\" to 6\" away.",
+                () =>
+                {
+                    context.ExtraAction = ExtraActions.HeavyCharge;
+                    context.HeavyChargeTargets = heavyTargets;
+                    ExtraActions.Mark(unit, TokenType.HeavyCharge);
+                    GameContext.Log($"{unit.Name} declares a Heavy Charge.");
+                    return ToMovement.Activate(context);
+                });
+
+            Add(ExtraActions.StealthMove, canMove, "Can't move.", () =>
+            {
+                context.ExtraAction = ExtraActions.StealthMove;
+                ExtraActions.Mark(unit, TokenType.StealthMove);
+                GameContext.Log($"{unit.Name} uses a Stealth Move.");
+                return ToMovement.Activate(context);
+            });
+
+            Add(ExtraActions.CoveringFire, canShoot, "Nothing to shoot at.", () => Shoot(ExtraActions.CoveringFire, TokenType.CoveringFire));
+
+            bool hasGuns = unit.GetRangedWeapons().Count > 0;
+            Add(ExtraActions.Overwatch, canPass && hasGuns, !hasGuns ? "No ranged weapons." : cantPassReason,
+                () => Idle(ExtraActions.Overwatch, TokenType.Overwatch));
+        }
+
+        /// <summary>The enemies a Heavy Charge may be declared against: chargeable, and 3" to 6" away.</summary>
+        private HashSet<UnitID> HeavyChargeCandidates(IUnitActionContext context)
+        {
+            var result = new HashSet<UnitID>();
+            UnitData unit = context.ActivatingUnit.GetValue();
+            PlayerID me = context.ActivatingPlayer();
+            ITeam? myTeam = GameContext.TableState.Teams.Objects.FirstOrDefault(t => t.IsPlayerOnTeam(me));
+            foreach (IUnit enemy in GameContext.TableState.Units.Objects)
+            {
+                if (!enemy.GetIsAlive() || !enemy.GetIsOnBattlefield()) continue;
+                if (enemy.PlayerID.Equals(me) || (myTeam != null && myTeam.IsPlayerOnTeam(enemy.PlayerID))) continue;
+                if (AircraftRules.IsAircraft(enemy)) continue;
+                if (TransportUtilities.IsEmbarked(enemy)) continue;
+                float distance = UnitCompareUtilities.MinDistanceBetweenUnits(unit, enemy, out _, out _, includeVertical: false);
+                if (distance >= ExtraActions.HeavyChargeMinInches - 0.001f && distance <= ExtraActions.HeavyChargeMaxInches + 0.001f
+                    && enemy is UnitData data)
+                {
+                    result.Add(data.ID);
+                }
+            }
+            return result;
+        }
+
+        private bool InContactWithHeavyChargeTarget(IUnitActionContext context)
+        {
+            if (context.HeavyChargeTargets == null) return false;
+            UnitData unit = context.ActivatingUnit.GetValue();
+            return GameContext.TableState.Units.Objects.OfType<UnitData>()
+                .Any(enemy => context.HeavyChargeTargets.Contains(enemy.ID) && enemy.GetIsAlive()
+                    && MeleeRangeUtilities.AreUnitsInMeleeRange(unit, enemy));
+        }
+
+        /// <summary>
+        /// A declaration whose action never happened is withdrawn: Focused Fire or Covering Fire backed out of
+        /// before a shot, a Stealth Move or Heavy Charge whose move was abandoned at the path prompt.
+        /// </summary>
+        private void RevertAbandonedExtraAction(IUnitActionContext context)
+        {
+            UnitData unit = context.ActivatingUnit.GetValue();
+            TokenType? token = context.ExtraAction switch
+            {
+                ExtraActions.FocusedFire when !context.HasAttacked => TokenType.FocusedFire,
+                ExtraActions.CoveringFire when !context.HasAttacked => TokenType.CoveringFire,
+                ExtraActions.StealthMove when !context.HasMoved => TokenType.StealthMove,
+                ExtraActions.HeavyCharge when !context.HasMoved => TokenType.HeavyCharge,
+                _ => null,
+            };
+            if (token is not { } type) return;
+            if (unit.Tokens.HasToken(type)) unit.Tokens.RemoveTokens(type);
+            GameContext.Log($"{unit.Name}: {context.ExtraAction} withdrawn.");
+            context.ExtraAction = null;
+            context.HeavyChargeTargets = null;
+        }
 
         /// <summary>
         /// #369 — the rules <paramref name="offer"/>'s effect names, paired with their own descriptions, for

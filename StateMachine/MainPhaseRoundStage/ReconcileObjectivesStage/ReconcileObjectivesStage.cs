@@ -209,6 +209,9 @@ namespace FDG.Stages
                 // Shaken at end of round are excluded here.
                 if (unit.Tokens.HasToken(TokenType.Shaken)) continue;
 
+                // Extra Actions: a unit in Last Stand "can't contest or seize objectives".
+                if (ExtraActions.CannotHoldObjectives(unit)) continue;
+
                 // #029 Aircraft can't seize or contest objectives — skip its models so it counts toward neither.
                 if (AircraftRules.IsAircraft(unit)) continue;
 

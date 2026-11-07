@@ -155,6 +155,13 @@ namespace FDG
         public bool KingOfTheHill;
 
         /// <summary>
+        /// Extra Actions (Advanced Rulebooks 3.6.0, "Advanced Actions"): "Before the game, players can agree to
+        /// use any or all of the following extra actions". Each flag adds that action to every unit's menu
+        /// alongside the regular ones. None by default. See <see cref="FDG.ExtraActions"/>.
+        /// </summary>
+        public EExtraActions ExtraActions;
+
+        /// <summary>
         /// Each seat's lobby colour pick (slot id -> colour index), recorded at launch so a resumed game
         /// gives everyone back the colour they chose. Seats left on automatic are absent. Null in older saves.
         /// </summary>

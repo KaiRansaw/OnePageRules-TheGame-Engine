@@ -70,6 +70,16 @@ namespace FDG.Stages
                     // #022: a unit is engageable only if some model pair is within the melee cylinder
                     // (2" horizontal AND 4" vertical) — the same gate the post-pile-in strike check uses,
                     // so we never offer a defender no model could actually strike.
+                    // Extra Actions - Heavy Charge: the charge is at "a target that is between 3" and 6" away",
+                    // so only the enemies that were that far when it was declared may be picked.
+                    if (context is CombatActionContext { ActivationContext.HeavyChargeTargets: { } heavyTargets }
+                        && context.ChargingUnit != null && !heavyTargets.Contains(potentialDefender.GetValue().ID))
+                    {
+                        invalidDefenders.Add(new CancellableSelectionRequest<UnitData>.InvalidOption(potentialDefender,
+                            potentialDefender.GetValue().Name, "Heavy Charge - this unit was not 3\" to 6\" away."));
+                        continue;
+                    }
+
                     if(MeleeRangeUtilities.AreUnitsInMeleeRange(context.AttackingUnit.GetValue(), potentialDefender.GetValue()))
                     {
                         validDefenders.Add(new CancellableSelectionRequest<UnitData>.ValidOption(potentialDefender, potentialDefender.GetValue().Name));

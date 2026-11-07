@@ -148,6 +148,16 @@ namespace FDG.Stages
         public bool QuestActivationChecked { get; set; }
         /// <summary>GF: Firefight Campaign: the hero auras have been applied this activation.</summary>
         public bool CampaignActivationChecked { get; set; }
+
+        /// <summary>
+        /// The Extra Action (Advanced Rulebooks 3.6.0) this unit declared this activation - one of the
+        /// <c>FDG.ExtraActions</c> names - or null for a regular action. It shapes what the menu offers
+        /// after the declaration (a Hold-type action keeps the unit still, Stealth Move bars shooting...).
+        /// </summary>
+        public string? ExtraAction { get; set; }
+
+        /// <summary>Heavy Charge: the enemies that were 3" to 6" away when it was declared - the only legal targets.</summary>
+        public HashSet<UnitID>? HeavyChargeTargets { get; set; }
     }
 
     public class UnitActionContext : IUnitActionContext
@@ -235,6 +245,8 @@ namespace FDG.Stages
         public bool QuestExtraUsed { get; set; }
         public bool QuestActivationChecked { get; set; }
         public bool CampaignActivationChecked { get; set; }
+        public string? ExtraAction { get; set; }
+        public HashSet<UnitID>? HeavyChargeTargets { get; set; }
 
         public void BeginQuestExtraAction()
         {
@@ -266,6 +278,8 @@ namespace FDG.Stages
         public void Reset(DataBinding<UnitData> activatingUnit)
         {
             PendingQuestAction = null;
+            ExtraAction = null;
+            HeavyChargeTargets = null;
             QuestSkillsUsed = 0;
             QuestExtraUsed = false;
             QuestHeldWithoutShooting = false;

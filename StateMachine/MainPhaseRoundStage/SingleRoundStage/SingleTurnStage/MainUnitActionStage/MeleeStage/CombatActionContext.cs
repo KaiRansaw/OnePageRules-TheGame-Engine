@@ -38,6 +38,12 @@ namespace FDG.Stages
     //Having a query handler like the combat metadata could be an improvement.
     public interface ICombatActionContext : IGameContextAccessor
     {
+        /// <summary>
+        /// Extra Actions - Overwatch: a reaction shot may only be aimed at the enemy that triggered it. Null
+        /// (any target) for every ordinary attack.
+        /// </summary>
+        public UnitID? OnlyTargetUnit => null;
+
         public DataBinding<UnitData> AttackingUnit { get; }
 
         public DataBinding<UnitData> DefendingUnit { get; }
@@ -271,6 +277,8 @@ namespace FDG.Stages
 
         public bool MarkedTargetsOnly { get; }
 
+        public UnitID? OnlyTargetUnit { get; init; }
+
         public IReadOnlyList<DataBinding<ModelData>> InRangeAttackingModels { get; private set; }
             = new List<DataBinding<ModelData>>();
 
@@ -382,6 +390,9 @@ namespace FDG.Stages
         // how far away that defender was before the charger moved. Null for shooting and for the strike-back
         // context (neither is a charge), and null on the resolver-less simulator paths.
         private readonly IUnitActionContext? _activationContext;
+
+        /// <summary>The activation this attack belongs to, when it was created from one.</summary>
+        public IUnitActionContext? ActivationContext => _activationContext;
 
         // #197 (P15): the Unpredictable die, rolled once per attack ACTION and cached so every weapon of the
         // action shares one branch. Null until the first ConsumeAttackIntoContext resolves it; reset by

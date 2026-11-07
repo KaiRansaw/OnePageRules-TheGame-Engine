@@ -24,6 +24,19 @@ public readonly record struct TokenType(string Id)
     public const string CONCEDED_ID = "Conceded";
     public const string THICK_CLOUDS_ID = "ThickClouds";
 
+    // Extra Actions (Advanced Rulebooks 3.6.0). See FDG.ExtraActions.
+    public const string LAST_STAND_ID = "LastStand";
+    public const string HUNKER_DOWN_ID = "HunkerDown";
+    public const string DEFENSIVE_STANCE_ID = "DefensiveStance";
+    public const string FOCUSED_FIRE_ID = "FocusedFire";
+    public const string HEAVY_CHARGE_ID = "HeavyCharge";
+    public const string STEALTH_MOVE_ID = "StealthMove";
+    public const string COVERING_FIRE_ID = "CoveringFire";
+    public const string OVERWATCH_ID = "Overwatch";
+    public const string OVERWATCH_FIRING_ID = "OverwatchFiring";
+    public const string OVERWATCH_SHOT_AT_ID = "OverwatchShotAt";
+    public const string SUPPRESSED_ID = "Suppressed";
+
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
     // never merge, and Foundation needn't reference ERollKind, which lives in Definitions); the payload
@@ -329,4 +342,28 @@ public readonly record struct TokenType(string Id)
     /// regardless of the dice. Carried with a <c>ManualOnly</c> clear (removed explicitly on claim).
     /// </summary>
     public static readonly TokenType Mark = new(MARK_ID);
+
+    /// <summary>Extra Actions: until its next activation the unit is in Last Stand (counts as Shaken for
+    /// special rules, -1 to Quality and Defense rolls, half movement, can't seize or contest).</summary>
+    public static readonly TokenType LastStand = new(LAST_STAND_ID);
+    /// <summary>Extra Actions: +1 to Defense rolls against shooting until its next activation.</summary>
+    public static readonly TokenType HunkerDown = new(HUNKER_DOWN_ID);
+    /// <summary>Extra Actions: +1 to Defense rolls in melee and no striking back until its next activation.</summary>
+    public static readonly TokenType DefensiveStance = new(DEFENSIVE_STANCE_ID);
+    /// <summary>Extra Actions: this activation, +1 to hit when shooting at targets within 12".</summary>
+    public static readonly TokenType FocusedFire = new(FOCUSED_FIRE_ID);
+    /// <summary>Extra Actions: this activation, +1 to hit in melee.</summary>
+    public static readonly TokenType HeavyCharge = new(HEAVY_CHARGE_ID);
+    /// <summary>Extra Actions: enemies shooting from over 12" get -1 to hit until its next activation.</summary>
+    public static readonly TokenType StealthMove = new(STEALTH_MOVE_ID);
+    /// <summary>Extra Actions: this activation the unit's shots only suppress (hit on 6s, may force morale).</summary>
+    public static readonly TokenType CoveringFire = new(COVERING_FIRE_ID);
+    /// <summary>Extra Actions: may react once to an enemy moving or shooting, until its next activation.</summary>
+    public static readonly TokenType Overwatch = new(OVERWATCH_ID);
+    /// <summary>Engine bookkeeping: the unit is firing its Overwatch reaction right now (-1 to hit).</summary>
+    public static readonly TokenType OverwatchFiring = new(OVERWATCH_FIRING_ID);
+    /// <summary>Engine bookkeeping: an Overwatch unit was just shot at, and may shoot back.</summary>
+    public static readonly TokenType OverwatchShotAt = new(OVERWATCH_SHOT_AT_ID);
+    /// <summary>Engine bookkeeping: Covering Fire landed a 4+ on this unit; it tests morale after the shooting.</summary>
+    public static readonly TokenType Suppressed = new(SUPPRESSED_ID);
 }

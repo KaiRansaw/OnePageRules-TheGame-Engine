@@ -260,6 +260,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetKingOfTheHill(bool enabled);
 
+        /// <summary>Extra Actions agreed for the game - see <see cref="GameSettings.ExtraActions"/>.</summary>
+        EExtraActions ExtraActions { get; }
+
+        void SetExtraActions(EExtraActions actions);
+
         /// <summary>The Advanced Rulebooks' deployment style - see <see cref="GameSettings.DeploymentStyle"/>.</summary>
         EDeploymentStyle DeploymentStyle { get; }
 

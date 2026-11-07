@@ -259,6 +259,7 @@ namespace FDG.Ai.Tactician
         /// <summary>ReconcileObjectivesStage's eligibility gate: Shaken, fresh-from-reserve, and Aircraft units count toward nothing.</summary>
         public static bool CanSeizeObjectives(IUnit unit) =>
             !unit.Tokens.HasToken(TokenType.Shaken)
+            && !ExtraActions.CannotHoldObjectives(unit)
             && !unit.Tokens.HasToken(TokenType.ArrivedFromReserve)
             && !AircraftRules.IsAircraft(unit);
 

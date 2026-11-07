@@ -120,6 +120,13 @@ namespace FDG.Stages
             // campaign, and a no-op on the Shaken auto-fail path above because that returns before here -
             // which is right, since no die is rolled there for a point to shift.
             int underdogNet = await UnderdogSpend.ConsumeNet(gameContext, ERollKind.Morale, testingUnit);
+            // Extra Actions: Last Stand's "-1 to Quality ... rolls" - a morale test is a Quality roll.
+            int lastStand = ExtraActions.MoraleModifier(testingUnit);
+            if (lastStand != 0)
+            {
+                grantedNet += lastStand;
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(ExtraActions.LastStand, lastStand) }).ToList();
+            }
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
                 - grantedNet - underdogNet);
 

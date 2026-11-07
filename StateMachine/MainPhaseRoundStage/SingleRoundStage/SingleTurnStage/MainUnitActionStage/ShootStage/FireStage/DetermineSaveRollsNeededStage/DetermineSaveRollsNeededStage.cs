@@ -1,3 +1,4 @@
+using System.Linq;
 
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -56,6 +57,15 @@ namespace FDG.Stages
             // to the roller lowers its threshold. No-op outside a campaign.
             int underdogNet = await UnderdogSpend.ConsumeNet(
                 GameContext, ERollKind.Save, metaData.DefendingUnit.GetValue());
+
+            // Extra Actions: Last Stand -1, Hunker Down +1 against shooting, Defensive Stance +1 in melee.
+            IReadOnlyList<GrantedModifier> extraActions = ExtraActions.SaveModifiers(
+                metaData.DefendingUnit.GetValue(), metaData.IsMelee, metaData.IsSpell);
+            if (extraActions.Count > 0)
+            {
+                grantedDefense += ExtraActions.Net(extraActions);
+                grantedDetail = grantedDetail.Concat(extraActions).ToList();
+            }
 
             int baseDefenseWithAP = baseDefense + ap - coverResults.DefenseRollBonus - rollToHitResults.SaveModifier
                 - grantedDefense + markerNet - underdogNet;

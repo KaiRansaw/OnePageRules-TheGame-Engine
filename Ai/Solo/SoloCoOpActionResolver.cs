@@ -84,6 +84,13 @@ namespace FDG.Ai.Solo
             // change is one the rest of the book already decides.
             if (TryDisembark(Has) is { } disembark) return Task.FromResult(disembark);
 
+            // Extra Actions: a Shaken unit is asked first whether to take one instead of idling.
+            if (unit.Tokens.HasToken(Rules.Foundation.TokenType.Shaken) && ShakenExtraAction(unit, Has) is { } shakenPick)
+            {
+                ClauseTrace?.Invoke(unit, $"extra action while Shaken ({shakenPick})");
+                return Task.FromResult(shakenPick);
+            }
+
             // #423 General Special Rules: "AI units must always use their special rules AS SOON AS THEY
             // ARE ACTIVATED, targeting the closest unit that makes sense." The last of the seven clauses,
             // and the same shape of fault as Caster: the switch over the decision tree below covers
@@ -121,7 +128,7 @@ namespace FDG.Ai.Solo
                     return Task.FromResult(holdCast);
                 }
                 ClauseTrace?.Invoke(unit, "hold and shoot (Indirect/Relentless in range)");
-                return Task.FromResult(holdAndShoot);
+                return Task.FromResult(FocusedFireInstead(unit, Has) ?? holdAndShoot);
             }
 
             SoloAiPlan plan = SoloAiBrain.Plan(_table, _me, unit);
@@ -161,7 +168,8 @@ namespace FDG.Ai.Solo
                         ClauseTrace?.Invoke(unit, $"cast before charging ({castBeforeCharge})");
                         return Task.FromResult(castBeforeCharge);
                     }
-                    pick = TryCharge(Has, movementDeclined) ?? TryMove(Has, movementDeclined);
+                    pick = TryCharge(Has, movementDeclined) ?? TryHeavyCharge(unit, plan, Has, movementDeclined)
+                        ?? TryMove(Has, movementDeclined);
                     break;
 
                 case ESoloAiMove.AdvanceAndShoot:
@@ -178,7 +186,7 @@ namespace FDG.Ai.Solo
                         return Task.FromResult(castInPlace);
                     }
                     pick = inRange
-                        ? Has(ChooseActionStage.SHOOT_CHOICE_NAME) ?? TryMove(Has, movementDeclined)
+                        ? FocusedFireInstead(unit, Has) ?? Has(ChooseActionStage.SHOOT_CHOICE_NAME) ?? TryMove(Has, movementDeclined)
                         : TryMove(Has, movementDeclined) ?? Has(ChooseActionStage.SHOOT_CHOICE_NAME);
                     break;
 
@@ -189,7 +197,9 @@ namespace FDG.Ai.Solo
                 case ESoloAiMove.Hold:
                     // "Hold position" - but if something wandered into range meanwhile, shoot it. A Hold
                     // action in OPR is a non-move, not a non-action.
-                    pick = AnythingToShoot(unit) ? Has(ChooseActionStage.SHOOT_CHOICE_NAME) : null;
+                    pick = AnythingToShoot(unit)
+                        ? FocusedFireInstead(unit, Has) ?? Has(ChooseActionStage.SHOOT_CHOICE_NAME)
+                        : null;
                     break;
             }
 
@@ -198,6 +208,8 @@ namespace FDG.Ai.Solo
 
             // The fallback MUST stay inside ValidOptions - ChooseActionStage faults on an option it did not
             // offer, and it auto-passes when the list is empty, so options[0] is always safe.
+            // Extra Actions: a unit that would only stand idle takes the idle action that does something.
+            pick ??= IdleExtraAction(unit, Has);
             pick ??= Has(ChooseActionStage.PASS_CHOICE_NAME) ?? options[0];
             return Task.FromResult(pick);
         }
@@ -270,7 +282,51 @@ namespace FDG.Ai.Solo
             || option == Rules.Dispatch.CoreRuleCatalog.EmbarkRuleName      // see remarks
             || option == QuestActions.SkillOption
             || option == QuestActions.HoldWithoutShootingOption
-            || option == QuestActions.EndActivationOption;
+            || option == QuestActions.EndActivationOption
+            // Extra Actions are decisions of their own (below), never "use a special rule as soon as activated".
+            || ExtraActions.All.Any(a => a.Name == option);
+
+        // ---- Extra Actions (Advanced Rulebooks 3.6.0) --------------------------------------------------
+        // The Solo & Co-Op books predate them and say nothing, so these are the plain improvements a
+        // player would take without thinking (claude/house-rules.md): never a choice that changes WHAT the
+        // decision tree does, only HOW - a Hold-and-shoot becomes Focused Fire when the target is close,
+        // a charge from 3-6" becomes a Heavy Charge, an idle unit hunkers down or watches. Last Stand,
+        // Stealth Move and Covering Fire trade something away, so the bot leaves them alone.
+
+        /// <summary>Shaken: Defensive Stance with an enemy close enough to charge it, else Hunker Down.</summary>
+        private string? ShakenExtraAction(IUnit unit, Func<string, string?> has)
+        {
+            bool chargeable = _table.Units.Objects.Any(enemy => !enemy.PlayerID.Equals(_me) && enemy.GetIsAlive()
+                && enemy.GetIsOnBattlefield() && AiCombatMath.Distance(unit, enemy) <= 12f
+                && enemy.GetMeleeWeapons().Count > 0);
+            return chargeable
+                ? has(ExtraActions.DefensiveStance) ?? has(ExtraActions.HunkerDown)
+                : has(ExtraActions.HunkerDown) ?? has(ExtraActions.DefensiveStance);
+        }
+
+        /// <summary>Holding to shoot anyway: Focused Fire when some enemy is within its 12".</summary>
+        private string? FocusedFireInstead(IUnit unit, Func<string, string?> has)
+        {
+            if (has(ExtraActions.FocusedFire) == null) return null;
+            bool close = _table.Units.Objects.Any(enemy => !enemy.PlayerID.Equals(_me) && enemy.GetIsAlive()
+                && enemy.GetIsOnBattlefield() && AiCombatMath.Distance(unit, enemy) <= ExtraActions.CloseRangeInches);
+            return close ? ExtraActions.FocusedFire : null;
+        }
+
+        /// <summary>The plan's charge target is 3" to 6" away: the same charge, at +1 to hit.</summary>
+        private string? TryHeavyCharge(IUnit unit, SoloAiPlan plan, Func<string, string?> has, bool movementDeclined)
+        {
+            if (movementDeclined || _triedMove || plan.Target == null || has(ExtraActions.HeavyCharge) == null) return null;
+            float distance = AiCombatMath.Distance(unit, plan.Target);
+            if (distance < ExtraActions.HeavyChargeMinInches || distance > ExtraActions.HeavyChargeMaxInches) return null;
+            _triedMove = true;
+            return ExtraActions.HeavyCharge;
+        }
+
+        /// <summary>Nothing to do this activation: Overwatch if it has guns, else Hunker Down.</summary>
+        private static string? IdleExtraAction(IUnit unit, Func<string, string?> has) =>
+            (unit.GetRangedWeapons().Count > 0 ? has(ExtraActions.Overwatch) : null)
+            ?? has(ExtraActions.HunkerDown);
 
         /// <summary>
         /// #423: Disembark, latched like the rest. The placement that follows can be declined (nowhere

@@ -185,6 +185,23 @@ namespace FDG.SaveLoad
                 }
                 settings.GameSystem = system;
             }
+            foreach (string name in scenarioSettings.ExtraActions ?? new List<string>())
+            {
+                string wanted = name.Trim();
+                if (wanted.Equals("All", StringComparison.OrdinalIgnoreCase))
+                {
+                    settings.ExtraActions = EExtraActions.All;
+                    continue;
+                }
+                EExtraActions flag = FDG.ExtraActions.All
+                    .FirstOrDefault(a => a.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase)).Flag;
+                if (flag == EExtraActions.None)
+                {
+                    throw new ScenarioCompileException($"Unknown extra action '{name}' (use All, or one of " +
+                        $"{string.Join(", ", FDG.ExtraActions.All.Select(a => a.Name))}).");
+                }
+                settings.ExtraActions |= flag;
+            }
             return settings;
         }
 

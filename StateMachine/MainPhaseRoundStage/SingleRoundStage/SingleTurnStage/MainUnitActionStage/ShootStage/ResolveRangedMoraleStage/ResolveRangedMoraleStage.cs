@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using FDG.Rules.Dispatch;
 using FDG.Data;
 using FDG.Rules.Foundation;
 using FDG.Utilities;
@@ -29,9 +32,46 @@ namespace FDG.Stages
             foreach (AttackedDefender attacked in context.AttackedDefenders)
             {
                 await ResolveForDefender(attacked, context.AttackingUnit.GetValue());
+
+                // Extra Actions - Overwatch: a unit on Overwatch that was shot at may shoot back (OverwatchStage).
+                UnitData defender = attacked.Defender.GetValue();
+                if (defender.Tokens.HasToken(TokenType.Overwatch)) ExtraActions.Mark(defender, TokenType.OverwatchShotAt);
             }
 
+            await ResolveSuppression(context.AttackingUnit.GetValue());
+
             await ToFinished.Activate(context);
+        }
+
+        /// <summary>
+        /// Covering Fire's Morale Test, taken "regardless of casualties" by every unit the suppression dice
+        /// pinned this shooting action - once each, whatever number of weapons rolled a 4+ at it. A failure is
+        /// Shaken, like any shooting morale failure.
+        /// </summary>
+        private async Task ResolveSuppression(IUnit attacker)
+        {
+            List<DataBinding<UnitData>> pinned = GameContext.GameDataStore.GetAllValues<ArmyData>()
+                .SelectMany(army => army.UnitBindings)
+                .Where(b => b.GetValue().Tokens.HasToken(TokenType.Suppressed))
+                .ToList();
+            foreach (DataBinding<UnitData> binding in pinned)
+            {
+                UnitData unit = binding.GetValue();
+                unit.Tokens.RemoveTokens(TokenType.Suppressed);
+                if (!unit.GetIsAlive()) continue;
+
+                float shotFrom = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, unit, out _, out _, includeVertical: true);
+                var outcome = await MoraleUtilities.TakeMoraleTest(GameContext, unit,
+                    HeroStatRules.GetMoraleQuality(unit, GameContext.TableState), EMoraleTrigger.Shooting,
+                    failureCausesShakenOrRout: true, attackerLaunchDistanceInches: shotFrom);
+                if (outcome.Passed)
+                {
+                    GameContext.Log($"{unit.Name} holds under the Covering Fire.");
+                    continue;
+                }
+                GameContext.Log($"{unit.Name} fails its morale test under Covering Fire and is now Shaken.");
+                await MoraleUtilities.ApplyShakenWithPresentation(GameContext, binding);
+            }
         }
 
         // A unit left at half strength or less by wounds from shooting must take a morale test; a failed

@@ -519,7 +519,7 @@ namespace FDG.Tests
         public TableState TableState { get; }
         public IReadWriteableGameDataStore GameDataStore { get; }
         public IPresenter Presenter { get; }
-        public GameSettings Settings { get; } = GameSettings.GetDefault();
+        public GameSettings Settings { get; set; } = GameSettings.GetDefault();
         public List<ITeam>? FirstDeploymentRollOrder => null;
         IGameContext IGameContextAccessor.GameContext => this;
 

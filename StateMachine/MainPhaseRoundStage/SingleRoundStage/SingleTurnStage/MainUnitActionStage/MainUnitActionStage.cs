@@ -81,6 +81,9 @@ namespace FDG.Stages
                 // drains, then OnAllDone returns to the menu. Fully layered like Teleport.
                 .AddChild(new StormStage(GameContext, this), out var storm)
                 .AddChild(new QuestActionStage(GameContext, this), out var questAction)
+                // Extra Actions - Overwatch: enemy reactions after this unit moves, and after it shoots.
+                .AddChild(new OverwatchStage(GameContext, this, OverwatchStage.ETrigger.Movement), out var overwatchMove)
+                .AddChild(new OverwatchStage(GameContext, this, OverwatchStage.ETrigger.Shooting), out var overwatchShoot)
                 .AddSibling(nameof(ToReconcileEndOfActivation), ToReconcileEndOfActivation, out string toReconcileActivationEvent)
                 // #248: the pristine back-out leaves through its own sibling event so no end-of-activation
                 // reconcile runs and nothing marks the unit as activated.
@@ -115,14 +118,18 @@ namespace FDG.Stages
             storm.OnAllDone.Bind(chooseAction);
             chooseAction.ToReconcileEndOfActivation.Bind(toReconcileActivationEvent);
             chooseAction.ToBackOut.Bind(backedOutEvent);
-            movement.OnFinishedMovement.Bind(chooseAction);
+            movement.OnFinishedMovement.Bind(overwatchMove);
+            overwatchMove.OnShotDone.Bind(overwatchMove);
+            overwatchMove.ToFinished.Bind(chooseAction);
             // Abandoning the move at the path prompt returns without registering a move distance.
             movement.BackToChooseAction.Bind(chooseAction);
             melee.OnFinishedMelee.Bind(chooseAction);
             // Backing out of a charge before any dice or movement must not spend the attack, so it returns
             // through its own binding rather than OnFinishedMelee. Same shape as the shoot pair below.
             melee.BackToChooseAction.Bind(chooseAction);
-            shoot.OnFinishedShooting.Bind(chooseAction);
+            shoot.OnFinishedShooting.Bind(overwatchShoot);
+            overwatchShoot.OnShotDone.Bind(overwatchShoot);
+            overwatchShoot.ToFinished.Bind(chooseAction);
             shoot.BackToChooseAction.Bind(chooseAction);
             // #010 — a resolved custom action loops back to Choose Action (layered, doesn't end the turn).
             customAction.OnFinished.Bind(chooseAction);

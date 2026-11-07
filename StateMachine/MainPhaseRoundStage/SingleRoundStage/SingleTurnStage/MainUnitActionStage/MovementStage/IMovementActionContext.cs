@@ -216,8 +216,24 @@ namespace FDG.Stages
                 }
             }
 
-            // Star Quest: Crippled heroes (and Bad weather) halve movement distance.
-            float factor = QuestActions.MoveFactor(GameContext, unit);
+            // Extra Actions: Stealth Move "uses an Advance action" - the unit may not move further than its
+            // Advance, so the Rush and Charge budgets drop to it. (The token is placed when the action is
+            // declared and cleared at the unit's next activation, so it is only ever present while moving
+            // during the activation that declared it.)
+            if (unit.Tokens.HasToken(TokenType.StealthMove))
+            {
+                _maxRushDistance = Math.Min(_maxRushDistance, _maxAdvanceDistance);
+                _maxChargeDistance = Math.Min(_maxChargeDistance, _maxAdvanceDistance);
+                foreach (ModelID id in _modelBudgets.Keys.ToList())
+                {
+                    ModelBudget b = _modelBudgets[id];
+                    _modelBudgets[id] = new ModelBudget(b.Advance, Math.Min(b.Rush, b.Advance), Math.Min(b.Charge, b.Advance));
+                }
+            }
+
+            // Star Quest: Crippled heroes (and Bad weather) halve movement distance. Extra Actions: so does
+            // Last Stand ("halve their movement").
+            float factor = QuestActions.MoveFactor(GameContext, unit) * ExtraActions.MoveFactor(unit);
             if (factor < 1f)
             {
                 _maxAdvanceDistance *= factor;

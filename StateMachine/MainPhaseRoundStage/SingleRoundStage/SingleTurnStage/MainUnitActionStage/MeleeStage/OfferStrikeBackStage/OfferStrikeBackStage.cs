@@ -42,6 +42,17 @@ namespace FDG.Stages
                 return;
             }
 
+            // Extra Actions: Defensive Stance "may not strike back until its next activation" - and that holds
+            // even in the Quest books' must-strike-back systems, though Extra Actions are off there anyway.
+            if (ExtraActions.MayNotStrikeBack(context.DefendingUnit.GetValue()))
+            {
+                GameContext.Log($"{context.DefendingUnit.Name()} is in a Defensive Stance - it may not strike back.");
+                await GameContext.Announce($"{context.DefendingUnit.Name()} holds its Defensive Stance - no strike back.",
+                    tier: EBannerTier.Toast);
+                await SkipStrikingBack(context);
+                return;
+            }
+
             // #437: whether striking back is a CHOICE is a per-system question.
             //   Full-scale and skirmish books: "Then defenders MAY CHOOSE to strike back, but don't have to."
             //   GFSQ Core v2.1.0:  "Then defenders MUST strike back"

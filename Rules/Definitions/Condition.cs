@@ -424,7 +424,9 @@ public abstract record Condition
     {
         public override bool Evaluate(RuleInvocation invocation)
         {
-            return invocation.Bearer.Tokens.GetTokenCount(TType) >= MinCount;
+            // Extra Actions: a unit in Last Stand counts as Shaken for special rules.
+            return invocation.Bearer.Tokens.GetTokenCount(TType)
+                + global::FDG.ExtraActions.ShakenForSpecialRules(invocation.Bearer.Tokens, TType) >= MinCount;
         }
     }
 
@@ -444,7 +446,8 @@ public abstract record Condition
         : CapabilityCondition<IHasTarget>
     {
         protected override bool EvaluateCore(IHasTarget context) =>
-            context.Target.Tokens.GetTokenCount(TType) >= MinCount;
+            context.Target.Tokens.GetTokenCount(TType)
+            + global::FDG.ExtraActions.ShakenForSpecialRules(context.Target.Tokens, TType) >= MinCount;
     }
 
     /// <summary>

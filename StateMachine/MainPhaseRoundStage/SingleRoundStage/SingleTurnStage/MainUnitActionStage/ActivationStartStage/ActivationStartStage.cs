@@ -62,6 +62,9 @@ namespace FDG.Stages
             IUnit unit = context.ActivatingUnit.GetValue();
 
             ClearUntilNextActivationTokens(unit);
+            // Extra Actions: Last Stand, Hunker Down, Defensive Stance, Stealth Move and Overwatch all last
+            // "until its next activation" - this is it.
+            ExtraActions.ClearAtActivation(unit);
 
             // Campaign event 44 (Psychic Fog): "any unit that activates whilst fully within" the quarter.
             CampaignEventAreas.OnActivationStart(GameContext, unit);
