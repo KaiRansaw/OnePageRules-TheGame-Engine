@@ -26,6 +26,8 @@ namespace FDG.Stages
         /// </summary>
         public const string HOLD_BACK_PREFIX = "Hold back: ";
 
+        private const string AlreadyUsedReason = "The unit has already attacked with this weapon.";
+
         /// <summary>True if <paramref name="option"/> is a hold-back row rather than a weapon to attack with.</summary>
         public static bool IsHoldBackChoice(string option) =>
             option.StartsWith(HOLD_BACK_PREFIX, StringComparison.Ordinal);
@@ -173,8 +175,7 @@ namespace FDG.Stages
             {
                 string usedLabel = BuildUniqueLabel(kvp.Key, kvp.Value, usedLabels);
                 weaponByLabel[usedLabel] = kvp.Key;
-                invalidOptions.Add(new StringSelectionRequest.InvalidOption(
-                    usedLabel, "The unit has already attacked with this weapon."));
+                invalidOptions.Add(new StringSelectionRequest.InvalidOption(usedLabel, AlreadyUsedReason));
             }
 
             // #209: the weapon pool is a dictionary keyed by the Weapon reference type, so its
@@ -213,7 +214,11 @@ namespace FDG.Stages
             // there is no decision here - only a click (look pass, 2026-11-06: every one-weapon melee stopped to
             // ask "Choose weapon:" with a single row). Multi-weapon units are still asked, because the order
             // they swing in is theirs to pick.
-            string chosenWeaponStatsName = validOptions.Count == 1 && invalidOptions.Count == 0
+            // ...and the same when the only other rows are weapons that have ALREADY swung this melee: the
+            // second prompt of every two-weapon melee was a one-button question (network play-through,
+            // 2026-11-07).
+            bool onlyUsedOthers = invalidOptions.All(o => o.Reason == AlreadyUsedReason);
+            string chosenWeaponStatsName = validOptions.Count == 1 && onlyUsedOthers
                 ? validOptions[0].Label
                 : await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
 

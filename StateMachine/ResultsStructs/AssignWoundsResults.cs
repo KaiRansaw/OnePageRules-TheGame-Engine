@@ -94,7 +94,7 @@ namespace FDG
             PendingWounds = new List<PendingWounds>();
             for (int tier = 0; tier <= 2; tier++)
             {
-                foreach (DataBinding<ModelData> model in alive.Where(model => Tier(model) == tier))
+                foreach (DataBinding<ModelData> model in PlainModelsFirst(alive.Where(model => Tier(model) == tier)))
                 {
                     PendingWounds.Add(new PendingWounds(model));
                 }
@@ -403,6 +403,23 @@ namespace FDG
         /// #456 - where a model sits in the mandatory order: 0 the rank and file, 1 the Fast-Play leader,
         /// 2 a joined hero. A hero that is somehow also the leader counts as the hero - it is last either way.
         /// </summary>
+        /// <summary>
+        /// Within a tier, the models carrying the unit's usual kit come first and the ones with an upgraded
+        /// or special weapon after them, so Auto-assign removes plain models before the Gatling Rifle. The
+        /// book leaves the choice to the defending player (Resolve Wounds); this is only the default order
+        /// a player would pick - manual assignment can still take any legal model. Stable, so a unit whose
+        /// models all carry the same kit keeps plain unit order. Network play-through, 2026-11-07.
+        /// </summary>
+        private static IEnumerable<DataBinding<ModelData>> PlainModelsFirst(IEnumerable<DataBinding<ModelData>> models)
+        {
+            List<DataBinding<ModelData>> list = models.ToList();
+            if (list.Count < 2) return list;
+            static string Kit(DataBinding<ModelData> m) =>
+                string.Join("|", (m.GetValue().Weapons ?? new List<Weapon>()).Select(w => w.Name).OrderBy(n => n, StringComparer.Ordinal));
+            string usual = list.GroupBy(Kit).OrderByDescending(g => g.Count()).First().Key;
+            return list.OrderBy(m => Kit(m) == usual ? 0 : 1).ToList();
+        }
+
         private int Tier(DataBinding<ModelData> model) => IsHero(model) ? 2 : IsLeader(model) ? 1 : 0;
 
         /// <summary>
