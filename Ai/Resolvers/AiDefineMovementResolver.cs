@@ -43,9 +43,20 @@ namespace FDG.Ai.Resolvers
         /// cohesion-breaking path the executor would reject and fault on (#208); a non-cancellable forced
         /// move must still return a path, so it holds exact positions as before.
         /// </summary>
-        public async Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request)
+        public Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request) =>
+            ResolveToward(request, chargeTarget: null);
+
+        /// <summary>
+        /// The same move, aimed at ONE named enemy and charging it when it is in reach. For the official bot,
+        /// whose decision tree picks the charge target by the book ("charge the closest valid target,
+        /// prioritizing units that haven't activated yet") - <see cref="Resolve"/> charges whichever enemy
+        /// model is nearest, and only for melee-minded units, which is the frozen baseline's rule and must
+        /// stay so (plan D1). Null target = exactly <see cref="Resolve"/>.
+        /// </summary>
+        public async Task<CancellableResult<List<ModelMoveEntry>>> ResolveToward(DefineMovementPathRequest request,
+            IUnit? chargeTarget)
         {
-            List<ModelMoveEntry>? path = await ChoosePath(request);
+            List<ModelMoveEntry>? path = await ChoosePath(request, chargeTarget);
             // #358: a declined MAIN move bounces back to the action menu - arm the latch so the
             // menu pick skips the movement family once instead of looping the decline forever.
             // A declined TRIGGERED move (MainActivationMove false) is final and arms nothing.
@@ -56,14 +67,14 @@ namespace FDG.Ai.Resolvers
         }
 
         // Null return: no legal path exists and the move is cancellable, so Resolve replies Cancelled (#208).
-        private Task<List<ModelMoveEntry>?> ChoosePath(DefineMovementPathRequest request)
+        private Task<List<ModelMoveEntry>?> ChoosePath(DefineMovementPathRequest request, IUnit? chargeTarget = null)
         {
             var unitBinding = request.UnitDataBinding;
             var unit = unitBinding.GetValue();
             var archetype = AiUnitClassifier.Classify(unit);
 
             // Shooting units advance (can still shoot); melee/hybrid rush to close distance.
-            float moveDistance = archetype == AiUnitArchetype.Shooting
+            float moveDistance = archetype == AiUnitArchetype.Shooting && chargeTarget == null
                 ? request.MaxAdvanceDistance - 0.001f
                 : request.MaxDistanceInches - 0.001f;
 
@@ -102,7 +113,17 @@ namespace FDG.Ai.Resolvers
             float cx = living.Average(mb => mb.GetValue().Position.x);
             float cz = living.Average(mb => mb.GetValue().Position.z);
 
-            EnemyModelFootprint nearest = enemyFootprints
+            // A named target: only its models are candidates (matched by position - footprints carry no unit
+            // id). Falls back to every enemy if none of them is found, e.g. the target died meanwhile.
+            IEnumerable<EnemyModelFootprint> pool = enemyFootprints;
+            if (chargeTarget != null)
+            {
+                var targetSpots = chargeTarget.Models.Where(m => m.GetIsAlive()).Select(m => m.Position).ToList();
+                var mine = enemyFootprints.Where(f => targetSpots.Any(p =>
+                    Dist(p.x, p.z, f.Center.x, f.Center.z) < 0.01f)).ToList();
+                if (mine.Count > 0) pool = mine;
+            }
+            EnemyModelFootprint nearest = pool
                 .OrderBy(f => Dist(f.Center.x, f.Center.z, cx, cz))
                 .First();
 
@@ -126,6 +147,7 @@ namespace FDG.Ai.Resolvers
             // its output, and Hybrid would make it rush (forfeiting the shot) across the whole table
             // instead of advancing. So it seeks contact only when contact is already within this move.
             bool wantsCharge = (archetype != AiUnitArchetype.Shooting
+                    || chargeTarget != null
                     || Rules.Dispatch.ChargeContactRules.ActsOnChargeContact(unit))
                 && (dist - contactDistance) <= moveDistance + 0.05f;
             float targetGap = wantsCharge

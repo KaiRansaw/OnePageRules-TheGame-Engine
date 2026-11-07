@@ -46,6 +46,7 @@ namespace FDG.Ai
             // #358: one latch per solo set - the path resolver's main-move decline tells the
             // action menu to skip the movement family once, breaking the decline-repick livelock.
             var declineLatch = new SoloMoveDeclineLatch();
+            var chargeMemory = new Solo.SoloChargeMemory();
 
             // #423: the Caster clause's D3. Its own salt so adding it does not shift the deployment or
             // activation rolls of a seed that was already played.
@@ -112,7 +113,10 @@ namespace FDG.Ai
                 .RegisterResolver(new DerivedRequestAdapter<StageResolution.Requests.ChooseMeleeDefenderRequest,
                     StageResolution.Requests.CancellableSelectionRequest<UnitData>,
                     StageResolution.CancellableResult<Data.DataBinding<UnitData>>>(
-                    new AiChooseMeleeDefenderResolver()))
+                    book
+                        ? new Solo.SoloCoOpMeleeDefenderResolver(tableState, chargeMemory)
+                        : (IStageResolver<StageResolution.Requests.CancellableSelectionRequest<UnitData>,
+                            StageResolution.CancellableResult<Data.DataBinding<UnitData>>>)new AiChooseMeleeDefenderResolver()))
                 // #439: its own resolver rather than an adapter onto an existing unit picker - "which
                 // units get my banner" is a multi-select, and no other request in the engine is one.
                 .RegisterResolver(new AiPickCommandGroupUnitsResolver())
@@ -124,7 +128,7 @@ namespace FDG.Ai
                 .RegisterResolver(starQuest
                     ? new StarQuest.StarQuestMovementResolver(tableState, playerID, declineLatch, questMemory)
                     : book
-                        ? new Solo.SoloCoOpMovementResolver(tableState, playerID, declineLatch)
+                        ? new Solo.SoloCoOpMovementResolver(tableState, playerID, declineLatch, chargeMemory)
                         : (IStageResolver<StageResolution.Requests.DefineMovementPathRequest,
                             CancellableResult<List<StageResolution.Requests.ModelMoveEntry>>>)new AiDefineMovementResolver(tableState, playerID, declineLatch))
                 .RegisterResolver(new AiAircraftAdvanceResolver())

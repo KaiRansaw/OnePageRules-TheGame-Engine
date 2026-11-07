@@ -2,6 +2,7 @@ using FDG.Ai;
 using FDG.Ai.Solo;
 using FDG.Data;
 using FDG.Players;
+using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
 using FDG.Rules.Tokens;
 using FDG.Stages;
@@ -151,6 +152,36 @@ namespace FDG.Tests
             SoloAiPlan plan = SoloAiBrain.Plan(Table, _ai, ai.GetValue());
 
             Assert.That(plan.Kind, Is.EqualTo(ESoloAiMove.Charge));
+        }
+
+        // Bot audit, 2026-11-07: step 2's "without moving this unit over 3" away from the objective" applies
+        // to charges too. A charge ends in contact with its target, so a target standing 10" off the
+        // objective would drag the unit off the marker. The tree used to charge anything within 12".
+        [Test]
+        public void Step2_DoesNotChargeOffItsObjective()
+        {
+            DataBinding<UnitData> ai = Brute(_ai, "Brutes", 24f, 24f);
+            Objective(24f, 24f);
+            Unit(_player, "Troops", 34f, 24f, rangeInches: 0f);   // 10" away: chargeable, but well off the objective
+
+            SoloAiPlan plan = SoloAiBrain.Plan(Table, _ai, ai.GetValue());
+
+            Assert.That(plan.Kind, Is.Not.EqualTo(ESoloAiMove.Charge),
+                "charging a unit 10\" away pulls the Brutes off the objective they are holding");
+        }
+
+        // Bot audit, 2026-11-07: "if you move towards the objective, will any enemy be in range" is the unit's
+        // OWN move. A Slow unit advances 4", not 6" - planning on 6" sent it to shoot targets it could not reach.
+        [Test]
+        public void AdvanceReach_IsTheUnitsOwnMove()
+        {
+            DataBinding<UnitData> slow = Unit(_ai, "Slowpokes", 0f, 0f);
+            slow.GetValue().AttachRuleDefinition(new ResolvedRule("Slow", CoreRuleCatalog.Slow));
+            DataBinding<UnitData> plain = Unit(_ai, "Regulars", 10f, 0f);
+
+            Assert.That(SoloAiBrain.AdvanceReach(slow.GetValue()), Is.EqualTo(4f).Within(0.01f));
+            Assert.That(SoloAiBrain.AdvanceReach(plain.GetValue()), Is.EqualTo(6f).Within(0.01f));
+            Assert.That(SoloAiBrain.ChargeReach(slow.GetValue()), Is.EqualTo(8f).Within(0.01f));
         }
 
         // ── Step 3 / 4: going to take an unheld objective ─────────────────────────────────────────────

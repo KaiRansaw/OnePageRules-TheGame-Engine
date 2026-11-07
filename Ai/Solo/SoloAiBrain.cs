@@ -109,21 +109,66 @@ namespace FDG.Ai.Solo
         }
 
         /// <summary>The closest target worth charging, by the book's melee priority.</summary>
-        public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit)
+        /// <param name="stayNear">
+        /// Step 2: "without moving this unit over 3" away from the objective". A charge ends in contact with
+        /// its target, so the target itself has to stand within 3" of the objective the unit is holding -
+        /// otherwise the charge drags the unit off the marker the step exists to keep. The tree used to
+        /// charge anything within 12" from step 2 (found in the bot audit, 2026-11-07).
+        /// </param>
+        public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null)
         {
+            float reach = ChargeReach(unit);
             var candidates = AiCombatMath.Enemies(table, me)
-                .Where(e => AiCombatMath.Distance(unit, e) <= GameWideConstants.CHARGE_DISTANCE_INCHES)
+                .Where(e => AiCombatMath.Distance(unit, e) <= reach)
+                .Where(e => stayNear is not { } at
+                            || AiCombatMath.DistanceToPoint(e, at) <= ObjectiveReachInches)
                 .ToList();
             return SoloAiTargeting.PickChargeTarget(unit, candidates);
         }
 
+        // Read-only and non-logging: the movement queries ask the rule graph what Fast, Slow, Rapid Advance
+        // and the like do to this unit's moves. No movement rule rolls dice.
+        private static readonly Rules.Dispatch.RuleEvaluator MoveEvaluator =
+            new(new ProbabilisticDiceRoller(), ruleResolver: Rules.Dispatch.CoreRuleCatalog.CreateResolver());
+
+        /// <summary>
+        /// The unit's own Advance, with its rules. The tree asks "if you move towards the objective, will any
+        /// enemy be in range" - a Fast unit reaches further than 6" and a Slow one less, and planning on a
+        /// flat 6" sent Slow units to advance-and-shoot at targets they could not reach (bot audit, 2026-11-07).
+        /// </summary>
+        public static float AdvanceReach(IUnit unit)
+        {
+            try { return Rules.Dispatch.MovementRuleQueries.EffectiveMoveShootDistance(unit, MoveEvaluator); }
+            catch (InvalidOperationException) { return GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES; }
+        }
+
+        /// <summary>The unit's own Charge distance, with its rules (see <see cref="AdvanceReach"/>).</summary>
+        public static float ChargeReach(IUnit unit)
+        {
+            try { return Rules.Dispatch.MovementRuleQueries.EffectiveChargeDistance(unit, MoveEvaluator); }
+            catch (InvalidOperationException) { return GameWideConstants.CHARGE_DISTANCE_INCHES; }
+        }
+
+        /// <summary>
+        /// Every plan the tree makes, as "unit: why". For tests and the bot audit (who planned what, so a
+        /// move that broke its own plan can be told from one that followed it). Null in play.
+        /// </summary>
+        public static Action<IUnit, SoloAiPlan>? DecisionTrace;
+
         /// <summary>The whole tree for one unit.</summary>
         public static SoloAiPlan Plan(ITableState table, PlayerID me, IUnit unit)
+        {
+            SoloAiPlan plan = PlanCore(table, me, unit);
+            DecisionTrace?.Invoke(unit, plan);
+            return plan;
+        }
+
+        private static SoloAiPlan PlanCore(ITableState table, PlayerID me, IUnit unit)
         {
             if (!unit.Models.Any(m => m.GetIsAlive()))
                 return new SoloAiPlan(ESoloAiMove.Hold, null, null, 0f, "no living models");
 
-            float advance = GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES;
+            float advance = AdvanceReach(unit);
             float range = AiCombatMath.MaxRange(unit);
             List<IObjective> contested = Contested(table, me);
 
@@ -142,7 +187,7 @@ namespace FDG.Ai.Solo
                 float slack = Math.Max(0f, ObjectiveReachInches
                     - AiCombatMath.DistanceToPoint(unit, here.Position));
                 IUnit? shoot = ShootTarget(table, me, unit, slack);
-                IUnit? charge = ChargeTarget(table, me, unit);
+                IUnit? charge = ChargeTarget(table, me, unit, stayNear: here.Position);
 
                 if (charge != null && (shoot == null
                         || AiCombatMath.ExpectedWounds(unit, charge, melee: true)

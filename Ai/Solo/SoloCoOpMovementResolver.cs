@@ -34,10 +34,14 @@ namespace FDG.Ai.Solo
         private readonly PlayerID _me;
         private readonly AiDefineMovementResolver _baseline;
 
-        public SoloCoOpMovementResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch)
+        private readonly SoloChargeMemory? _charges;
+
+        public SoloCoOpMovementResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch,
+            SoloChargeMemory? charges = null)
         {
             _table = table;
             _me = me;
+            _charges = charges;
             _baseline = new AiDefineMovementResolver(table, me, latch);
         }
 
@@ -53,7 +57,12 @@ namespace FDG.Ai.Solo
             switch (plan.Kind)
             {
                 case ESoloAiMove.Charge:
-                    return _baseline.Resolve(request);
+                    // At the target the tree chose by the book (closest, not-yet-activated first, and in
+                    // step 2 one that keeps the unit on its objective). Handing this to the baseline's plain
+                    // Resolve charged whichever enemy MODEL was nearest instead - and a unit the baseline
+                    // classes as a shooter only walked to the standoff line (bot audit, 2026-11-07).
+                    if (plan.Target != null) _charges?.Remember(unit.ID, plan.Target.ID);
+                    return _baseline.ResolveToward(request, plan.Target);
 
                 case ESoloAiMove.RushToObjective when plan.Goal is { } rushGoal:
                     // Every inch: the unit is crossing ground, not setting up a shot.
