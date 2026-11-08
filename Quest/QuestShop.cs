@@ -28,7 +28,7 @@ namespace FDG.Quest
         /// Why <paramref name="hero"/> cannot buy <paramref name="item"/>, or null if it can. The text is
         /// shown to the player, so it says what to do about it.
         /// </summary>
-        public static string? WhyCannotBuy(QuestHero hero, QuestItemInfo item)
+        public static string? WhyCannotBuy(QuestHero hero, QuestItemInfo item, EGameSystem system = EGameSystem.GFStarQuest)
         {
             int tier = QuestProgression.TierUnlocked(hero.Level);
             if (item.Tier > tier)
@@ -38,7 +38,7 @@ namespace FDG.Quest
             }
 
             return item.Cost > hero.Credits
-                ? $"Costs {item.Cost}c and {hero.Name} has {hero.Credits}c."
+                ? $"Costs {QuestItemSkin.Money(system, item.Cost)} and {hero.Name} has {QuestItemSkin.Money(system, hero.Credits)}."
                 : null;
         }
 
@@ -50,11 +50,13 @@ namespace FDG.Quest
         /// Buys <paramref name="item"/> for <paramref name="hero"/>: credits down, item in the pack.
         /// Returns false and changes nothing when <see cref="WhyCannotBuy"/> has a reason.
         /// </summary>
-        public static bool Buy(QuestHero hero, QuestItemInfo item)
+        public static bool Buy(QuestHero hero, QuestItemInfo item, EGameSystem system = EGameSystem.GFStarQuest)
         {
-            if (WhyCannotBuy(hero, item) != null) return false;
+            if (WhyCannotBuy(hero, item, system) != null) return false;
             hero.Credits -= item.Cost;
-            hero.Items.Add(item.Name);
+            // Batch E: the item goes in the pack under THIS system's name ("Health Potion", not "Med Kit"),
+            // the same as a found item does; QuestItems.Find resolves either name to the one definition.
+            hero.Items.Add(QuestItemSkin.Name(system, item.Name));
             return true;
         }
 
@@ -108,10 +110,11 @@ namespace FDG.Quest
         /// be bought right now or null. The whole catalog is returned rather than just the affordable
         /// rows: a player deciding what to save up for needs to see the locked ones too.
         /// </summary>
-        public static IEnumerable<(QuestItemInfo Item, string? WhyNot)> Stock(QuestHero hero) =>
+        public static IEnumerable<(QuestItemInfo Item, string? WhyNot)> Stock(QuestHero hero,
+            EGameSystem system = EGameSystem.GFStarQuest) =>
             QuestItems.All
                 .OrderBy(i => i.Tier)
-                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(i => (i, WhyCannotBuy(hero, i)));
+                .ThenBy(i => QuestItemSkin.Name(system, i.Name), StringComparer.OrdinalIgnoreCase)
+                .Select(i => (i, WhyCannotBuy(hero, i, system)));
     }
 }

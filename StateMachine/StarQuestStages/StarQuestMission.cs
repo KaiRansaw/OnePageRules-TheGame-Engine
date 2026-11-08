@@ -167,7 +167,10 @@ namespace FDG.StateMachine
             await QuestChallenges.ChooseChallenges(GameContext, heroes, horde: false);
             QuestProgress quest = GameProgressUtilities.GetQuestProgress(GameContext.GameDataStore);
             quest.Difficulty = difficulty;
-            quest.Primary = HordePlacement.RollD6(GameContext);
+            // Batch E: a campaign mission planned on the Structure screen brings its own primary objective;
+            // otherwise it is rolled on the D6 table as the book has it.
+            int plannedPrimary = QuestMission.CampaignObjective(heroes, secondary: false);
+            quest.Primary = plannedPrimary > 0 ? plannedPrimary : HordePlacement.RollD6(GameContext);
             GameProgressUtilities.SetQuestProgress(GameContext.GameDataStore, quest);
             await context.Announce($"{StarQuestMissionRules.DifficultyNames[difficulty]} mission - primary objective: {StarQuestMissionRules.PrimaryNames[quest.Primary]}",
                 new TextColor(255, 215, 0, 255), EBannerTier.Headline);
@@ -263,7 +266,8 @@ namespace FDG.StateMachine
             QuestProgress quest = QuestMission.Progress(_context);
             if (quest.PrimaryDone && quest.Secondary == 0)
             {
-                quest.Secondary = HordePlacement.RollD6(_context);
+                int plannedSecondary = QuestMission.CampaignObjective(StarQuestHordeRules.Heroes(_context), secondary: true);
+                quest.Secondary = plannedSecondary > 0 ? plannedSecondary : HordePlacement.RollD6(_context);
                 QuestMission.Save(_context, quest);
                 QuestMission.SetUpObjective(_context, quest.Secondary, secondary: true, heroCorner: quest.HeroCorner);
                 await _context.Announce($"Secondary objective: {StarQuestMissionRules.SecondaryNames[quest.Secondary]}",
@@ -875,6 +879,19 @@ namespace FDG.Stages
             if (sheets.Count == 0 || sheets.Any(s => s == null || s.CampaignDifficulty <= 0)) return 0;
             var names = sheets.Select(s => s!.CampaignName).Distinct().ToList();
             return names.Count == 1 ? sheets.Max(s => s!.CampaignDifficulty) : 0;
+        }
+
+        /// <summary>
+        /// Batch E: the objective the campaign planned for this mission (1-6), when every hero is on the same
+        /// campaign mission and agrees on it; 0 = roll it on the table as usual.
+        /// </summary>
+        public static int CampaignObjective(List<UnitData> heroes, bool secondary)
+        {
+            if (CampaignDifficulty(heroes) <= 0) return 0;
+            var picks = heroes.Select(h => QuestHero.FromJson(h.QuestHeroJson))
+                .Select(s => s == null ? 0 : secondary ? s.CampaignSecondary : s.CampaignPrimary)
+                .Distinct().ToList();
+            return picks.Count == 1 && picks[0] is >= 1 and <= 6 ? picks[0] : 0;
         }
 
         /// <summary>Campaign: start the mission with the wounds and power left from the last one.</summary>

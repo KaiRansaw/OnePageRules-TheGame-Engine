@@ -279,6 +279,9 @@ namespace FDG
         /// <summary>Boss fight: 0 none, 1 triggered (wave pending/on table), 2 boss wave destroyed.</summary>
         public int BossFight { get; set; }
         public List<string> BossWave { get; set; } = new();
+        /// <summary>Every random event rolled this game, in order ("33 - Dazing Spores"), for the campaign
+        /// journal's record of the mission. <see cref="Event"/> only holds the one in play.</summary>
+        public List<string> EventLog { get; set; } = new();
         /// <summary>Random event: the hero it targets (unit guid) and the table quarter (1-4) for terrain events.</summary>
         public string EventHero { get; set; } = "";
         public int EventQuarter { get; set; }
@@ -309,6 +312,7 @@ namespace FDG
             copy.Markers = Markers.Select(m => m.Clone()).ToList();
             copy.WatchedWave = WatchedWave.ToList();
             copy.Challenges = Challenges.ToList();
+            copy.EventLog = (EventLog ?? new List<string>()).ToList();
             copy.BossWave = BossWave.ToList();
             copy.Ambushers = Ambushers.ToList();
             copy.Flags = Flags.ToList();

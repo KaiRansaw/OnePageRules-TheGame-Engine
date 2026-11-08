@@ -513,6 +513,7 @@ namespace FDG.Stages
             List<UnitData> heroes = StarQuestHordeRules.Heroes(context).Where(h => h.GetIsAlive() && h.GetIsOnBattlefield()).ToList();
             UnitData? hero = heroes.Count == 0 ? null : heroes[(HordePlacement.RollD6(context) * 5 + ones) % heroes.Count];
             q.Event = $"{n} - {EventName(n, context.Settings.GameSystem)}";
+            (q.EventLog ??= new List<string>()).Add(q.Event);
             q.EventHero = hero?.ID.ID.ToString() ?? "";
             q.EventQuarter = 1 + (HordePlacement.RollD6(context) - 1) % 4;
             Save(context, q);

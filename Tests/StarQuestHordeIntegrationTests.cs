@@ -170,6 +170,38 @@ namespace FDG.Tests
             GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
         }
 
+        /// <summary>Batch E: a campaign mission planned on the Structure screen plays the primary objective
+        /// it was given, instead of rolling one.</summary>
+        [Test]
+        public async Task CampaignMission_PlaysThePlannedPrimary()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var bus = new InProcessBus();
+            QuestHero vex = Hero("Vex", 9);
+            vex.CampaignName = "Test"; vex.CampaignDifficulty = 1; vex.CampaignPrimary = 4;
+            ArmyListFile party = QuestArmy.Build(new[] { vex }, _ => null);
+            var slots = new PlayerSlot[2];
+            for (int i = 0; i < slots.Length; i++)
+            {
+                slots[i] = new PlayerSlot(i, teamNumber: i, new PlayerID(Guid.NewGuid()), i == 0 ? party : EnemyCollection(), store);
+                var aiGame = new FDGGame_AsLocal(store, bus);
+                slots[i].AssignPlayerController(AiProfileFactory.CreateController(EAiProfile.StarQuest, $"AI {i}", slots[i].PlayerID, aiGame, 4, slots[i].SlotID));
+            }
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameSystem = EGameSystem.GFStarQuest;
+            settings.GameMode = EGameMode.StarQuestMission;
+            settings.RandomnessType = ERandomnessType.Realistic;
+            settings.DiceSeed = 4;
+            var completed = new TaskCompletionSource<GameResult>();
+            var server = new FDGServer(store, bus, settings, slots);
+            server.OnGameCompleted += result => completed.TrySetResult(result);
+            await Task.WhenAny(completed.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+            if (!completed.Task.IsCompleted) server.Stop();
+            QuestProgress quest = GameProgressUtilities.GetQuestProgress(store);
+            Assert.That(quest.Primary, Is.EqualTo(4), "the planned primary (Investigation) is used, not rolled.");
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
+        }
+
         [Test]
         public void MissionNumbers_FollowTheCampaignBuilder()
         {

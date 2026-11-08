@@ -82,6 +82,10 @@ namespace FDG.Quest
         public string CampaignName { get; set; } = "";
         /// <summary>The chapter's difficulty (1-4); 0 = not in a campaign mission.</summary>
         public int CampaignDifficulty { get; set; }
+        /// <summary>The campaign mission's planned primary objective (1-6), or 0 to roll it at set-up.</summary>
+        public int CampaignPrimary { get; set; }
+        /// <summary>The campaign mission's planned secondary objective (1-6), or 0 to roll it when it comes up.</summary>
+        public int CampaignSecondary { get; set; }
         /// <summary>Wounds carried into the next mission of the chapter.</summary>
         public int WoundsTaken { get; set; }
         /// <summary>Power carried into the next mission (-1 = full).</summary>
