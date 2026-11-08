@@ -255,6 +255,61 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void TheOneHeroAllowanceIsKeptOnTheArmyFile()
+        {
+            (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 1000);
+            CampaignNumbers n = CampaignNumbers.Firefight;
+            Assert.That(CampaignEconomy.HeroRecruitUsed(army), Is.False);
+
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n).Ok, Is.True);
+            Assert.That(army.StrikeTeam!.HeroRecruitedAfterMission, Is.EqualTo(army.StrikeTeam.Matches));
+            Assert.That(CampaignEconomy.HeroRecruitUsed(army), Is.True);
+
+            // No flag passed in - the file alone says the allowance is spent (it used to be screen memory,
+            // so restarting the game gave it back).
+            CampaignPurchase second = CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
+            Assert.That(second.Ok, Is.False);
+            Assert.That(second.Message, Does.Contain("one new Hero"));
+            Assert.That(CampaignEconomy.CannotRecruit(army, book, Plain(CaptainId, 1), false), Does.Contain("one new Hero"));
+
+            // Regular units are unlimited.
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n).Ok, Is.True);
+
+            // After the next mission it comes back.
+            army.StrikeTeam.Matches++;
+            Assert.That(CampaignEconomy.HeroRecruitUsed(army), Is.False);
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n).Ok, Is.True);
+        }
+
+        [Test]
+        public void OnlyOneVeteranRecruitAfterEachMission()
+        {
+            (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 1000);
+            CampaignNumbers n = CampaignNumbers.Firefight;
+
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n, veteran: true, d6: Dice(1)).Ok, Is.True);
+            Assert.That(CampaignEconomy.VeteranRecruitUsed(army), Is.True);
+            CampaignPurchase again = CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n, veteran: true, d6: Dice(1));
+            Assert.That(again.Ok, Is.False);
+            Assert.That(again.Message, Does.Contain("5 XP"));
+
+            army.StrikeTeam!.Matches++;
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n, veteran: true, d6: Dice(1)).Ok, Is.True);
+        }
+
+        [Test]
+        public void AnOldSaveHasNotUsedItsRecruitAllowances()
+        {
+            // A campaign file written before Batch F has neither field; it must read as "not used".
+            var info = System.Text.Json.JsonSerializer.Deserialize<StrikeTeamInfo>("{\"Name\":\"Old\",\"Matches\":0}")!;
+            Assert.That(info.HeroRecruitedAfterMission, Is.EqualTo(-1));
+            Assert.That(info.VeteranRecruitedAfterMission, Is.EqualTo(-1));
+            var army = new BuiltArmyFile { StrikeTeam = info };
+            Assert.That(CampaignEconomy.HeroRecruitUsed(army), Is.False);
+            Assert.That(CampaignEconomy.VeteranRecruitUsed(army), Is.False);
+        }
+
+        [Test]
         public void OnlyOneHeroPerMissionAndNeverMoreThanThree()
         {
             (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 1000);
@@ -268,10 +323,15 @@ namespace FDG.Tests
             Assert.That(second.Ok, Is.False);
             Assert.That(second.Message, Does.Contain("one new Hero"));
 
-            // Fill up to the cap, then one more.
+            // Fill up to the cap, one Hero after each mission, then one more. Batch F: the allowance is
+            // on the army file now, so each further Hero needs a mission played in between (this test
+            // used to recruit all three back to back, which the book never allowed).
+            army.StrikeTeam!.Matches++;
             CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
+            army.StrikeTeam.Matches++;
             CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
             Assert.That(CampaignEconomy.HeroCount(army), Is.EqualTo(CampaignNumbers.MaxHeroes));
+            army.StrikeTeam.Matches++;
             CampaignPurchase tooMany = CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
             Assert.That(tooMany.Ok, Is.False);
             Assert.That(tooMany.Message, Does.Contain("3 Heroes"));

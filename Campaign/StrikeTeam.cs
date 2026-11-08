@@ -121,6 +121,22 @@ namespace FDG.Campaign
         /// can be saved as a script). See <see cref="CampaignMissionPlan"/>.
         /// </summary>
         public List<CampaignMissionPlan> Plans { get; set; } = new();
+
+        /// <summary>
+        /// Batch F - the <see cref="Matches"/> count when this army last recruited a Hero, or -1 for never.
+        /// Campaign Rules v3.6.0, 6. Recruit Units: <i>"Players may recruit up to one new Hero after each
+        /// mission"</i>. Kept on the file so the allowance survives closing the game - it used to live
+        /// in the campaign screen's memory and came back on every restart. -1 on every older save, which
+        /// reads as "not used yet", the same as the old behaviour.
+        /// </summary>
+        public int HeroRecruitedAfterMission { get; set; } = -1;
+
+        /// <summary>
+        /// Batch F - the <see cref="Matches"/> count when this army last took the 5 XP recruit, or -1.
+        /// Same book section: <i>"One of the new recruited units may also start with 5 XP if the player
+        /// pays +50pts for it."</i>
+        /// </summary>
+        public int VeteranRecruitedAfterMission { get; set; } = -1;
     }
 
     /// <summary>

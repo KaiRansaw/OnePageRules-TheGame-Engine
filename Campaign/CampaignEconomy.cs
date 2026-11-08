@@ -134,6 +134,17 @@ namespace FDG.Campaign
         public static int HeroCount(ArmyListFile army) => army.Units.Count(CampaignRules.IsHero);
 
         /// <summary>
+        /// True when this army has already recruited its one new Hero since its last mission (Campaign
+        /// Rules v3.6.0, 6. Recruit Units). Read from the army file, so it holds across a restart.
+        /// </summary>
+        public static bool HeroRecruitUsed(ArmyListFile army) =>
+            army.StrikeTeam is { } info && info.HeroRecruitedAfterMission == info.Matches;
+
+        /// <summary>True when one of this round's recruits has already been the 5 XP one.</summary>
+        public static bool VeteranRecruitUsed(ArmyListFile army) =>
+            army.StrikeTeam is { } info && info.VeteranRecruitedAfterMission == info.Matches;
+
+        /// <summary>
         /// Why this unit can't be recruited, or null. The book: one new Hero per mission, at most three
         /// Heroes in the army, unlimited regular units, and you must be able to afford it.
         /// </summary>
@@ -146,7 +157,8 @@ namespace FDG.Campaign
 
             if (CampaignRules.IsHero(preview))
             {
-                if (heroAlreadyRecruitedThisMission) return "Only one new Hero may be recruited after each mission.";
+                if (heroAlreadyRecruitedThisMission || HeroRecruitUsed(army))
+                    return "Only one new Hero may be recruited after each mission.";
                 if (HeroCount(army) >= CampaignNumbers.MaxHeroes)
                     return $"The army already has {CampaignNumbers.MaxHeroes} Heroes, which is the limit.";
             }
@@ -168,6 +180,9 @@ namespace FDG.Campaign
             if (CannotRecruit(army, book, wanted, heroAlreadyRecruitedThisMission) is { } why)
                 return CampaignPurchase.No(why);
 
+            if (veteran && VeteranRecruitUsed(army))
+                return CampaignPurchase.No("Only one new recruit after each mission may start with 5 XP.");
+
             UnitFileEntry unit = ListCompiler.CompileUnitDetailed(book, wanted).Unit;
             int price = unit.PointCost + (veteran ? n.VeteranRecruitCost : 0);
             StrikeTeamInfo info = Info(army);
@@ -187,6 +202,8 @@ namespace FDG.Campaign
             army.Units.Add(unit);
             MergeBookRules(army, book);
             info.BankedPoints -= price;
+            if (sheet.IsHero) info.HeroRecruitedAfterMission = info.Matches;
+            if (veteran) info.VeteranRecruitedAfterMission = info.Matches;
 
             string line = $"Recruited {unit.Name} for {price} pts.";
             if (veteran && d6 != null)

@@ -158,7 +158,7 @@ namespace FDG.StateMachine
                 var request = new StringSelectionRequest(heroes[0].PlayerID, "Choose the mission's difficulty",
                     names, Array.Empty<StringSelectionRequest.InvalidOption>(),
                     optionDescriptions: names.Select((n, i) => (n, i + 1)).ToDictionary(p => p.n,
-                        p => $"Enemy waves worth {p.Item2 * 25}% of the party's points. Rewards: {StarQuestMissionRules.HazardPay(p.Item2)}c hazard pay, {2 * p.Item2} XP for the primary, {p.Item2} for the secondary."),
+                        p => $"Enemy waves worth {p.Item2 * 25}% of the party's points. Rewards: {FDG.Quest.QuestItemSkin.Money(GameContext.Settings.GameSystem, StarQuestMissionRules.HazardPay(p.Item2))} hazard pay, {2 * p.Item2} XP for the primary, {p.Item2} for the secondary."),
                     displayName: "Mission difficulty");
                 string pick = await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
                 difficulty = Math.Max(1, names.IndexOf(pick) + 1);
@@ -342,7 +342,7 @@ namespace FDG.StateMachine
                 if (QuestChallenges.BossWaveDestroyed(GameContext, clear: false)) xp += 2 * d;
                 message = $"Mission complete! {StarQuestMissionRules.PrimaryNames[quest.Primary]} done"
                     + (quest.Secondary > 0 ? (quest.SecondaryDone ? $", {StarQuestMissionRules.SecondaryNames[quest.Secondary]} done" : $", {StarQuestMissionRules.SecondaryNames[quest.Secondary]} not done") : "")
-                    + $". Each hero gets {pay}c and {xp} XP.";
+                    + $". Each hero gets {FDG.Quest.QuestItemSkin.Money(GameContext.Settings.GameSystem, pay)} and {xp} XP.";
                 await context.Announce(message, new TextColor(255, 215, 0, 255), EBannerTier.Headline);
                 foreach (UnitData hero in heroes)
                 {

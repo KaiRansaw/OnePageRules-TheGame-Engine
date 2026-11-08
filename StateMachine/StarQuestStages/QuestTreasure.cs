@@ -347,7 +347,7 @@ namespace FDG.Stages
             var picks = new List<string>();
             for (int i = 0; i < 2; i++)
             {
-                var request = new StringSelectionRequest(hero.PlayerID, $"Treasure Trove: pick {(i == 0 ? "the first" : "the second")} item or credits",
+                var request = new StringSelectionRequest(hero.PlayerID, $"Treasure Trove: pick {(i == 0 ? "the first" : "the second")} item or {QuestItemSkin.CurrencyWord(context.Settings.GameSystem)}",
                     TroveChoicesFor(context.Settings.GameSystem).ToList(),
                     Array.Empty<StringSelectionRequest.InvalidOption>(),
                     optionDescriptions: TroveChoicesFor(context.Settings.GameSystem).ToDictionary(
@@ -457,27 +457,32 @@ namespace FDG.Stages
             {
                 QuestHero? sheet = QuestHero.FromJson(hero.QuestHeroJson);
                 if (sheet == null) return;
+                // AoF: Quest shows its own item names and gold (AoFQ Campaign Builder v2.1.0), Star Quest
+                // its names and credits. Same items, same prices - QuestItemSkin owns the words.
+                EGameSystem system = context.Settings.GameSystem;
+                string Money(int amount) => QuestItemSkin.Money(system, amount);
                 int tier = QuestProgression.TierUnlocked(sheet.Level);
                 var options = new List<string> { ShopDone };
                 var descriptions = new Dictionary<string, string> { [ShopDone] = "Leave the shop." };
                 var actions = new Dictionary<string, Action<QuestHero>>();
                 foreach (QuestItemInfo item in QuestItems.All.Where(i => canBuyAndSell && i.Tier <= tier && i.Cost <= sheet.Credits))
                 {
-                    string o = $"Buy {item.Name} ({item.Cost}c)";
+                    string shown = QuestItemSkin.Name(system, item.Name);
+                    string o = $"Buy {shown} ({Money(item.Cost)})";
                     options.Add(o);
                     descriptions[o] = item.Description;
-                    actions[o] = s => { s.Credits -= item.Cost; s.Items.Add(item.Name); };
+                    actions[o] = s => { s.Credits -= item.Cost; s.Items.Add(shown); };
                 }
                 foreach (string held in sheet.Items.Distinct().Where(_ => canBuyAndSell))
                 {
                     QuestItemInfo? info = QuestItems.Find(held);
                     if (info == null) continue;
-                    string o = $"Sell {held} (+{info.SellValue}c)";
+                    string o = $"Sell {held} (+{Money(info.SellValue)})";
                     options.Add(o);
                     descriptions[o] = $"You have {sheet.Items.Count(i => i == held)}. The shop pays full price.";
                     actions[o] = s => { s.Items.Remove(held); s.Credits += info.SellValue; };
                 }
-                // Heroes may hand items and credits to each other.
+                // Heroes may hand items and money (credits / gold) to each other.
                 var gifts = new Dictionary<string, (UnitData To, string What)>();
                 foreach (UnitData other in StarQuestHordeRules.Heroes(context).Where(o => !ReferenceEquals(o, hero)))
                 {
@@ -491,10 +496,10 @@ namespace FDG.Stages
                     }
                     foreach (int amount in new[] { 5, 10 }.Where(a => a <= sheet.Credits))
                     {
-                        string o = $"Give {amount}c to {otherName}";
+                        string o = $"Give {Money(amount)} to {otherName}";
                         options.Add(o);
-                        descriptions[o] = $"Hand {amount} credits to {otherName}.";
-                        gifts[o] = (other, $"{amount}c");
+                        descriptions[o] = $"Hand {amount} {QuestItemSkin.CurrencyWord(system)} to {otherName}.";
+                        gifts[o] = (other, Money(amount));
                     }
                 }
                 if (options.Count == 1) return;
@@ -502,7 +507,7 @@ namespace FDG.Stages
                 string bag = sheet.Items.Count == 0 ? "nothing" : string.Join(", ", sheet.Items.GroupBy(i => i)
                     .Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key));
                 var request = new StringSelectionRequest(hero.PlayerID,
-                    $"{(canBuyAndSell ? "Shop" : "Share loot")} - {sheet.Name}: {sheet.Credits}c. Carrying: {bag}.", options,
+                    $"{(canBuyAndSell ? "Shop" : "Share loot")} - {sheet.Name}: {Money(sheet.Credits)}. Carrying: {bag}.", options,
                     Array.Empty<StringSelectionRequest.InvalidOption>(), optionDescriptions: descriptions,
                     displayName: $"{sheet.Name}: shop");
                 string pick = await context.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
