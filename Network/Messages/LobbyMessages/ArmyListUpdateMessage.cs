@@ -24,15 +24,22 @@ namespace FDG.Network.Messages
         /// RUNTIME type, so a Forge-built <c>BuiltArmyFile</c> keeps its embedded book + selections on the
         /// wire (the #153 launch gate validates them host-side). </summary>
         public static ArmyListUpdateMessage FromArmy(PlayerID playerID, ArmyListFile armyListFile) =>
-            new ArmyListUpdateMessage(playerID,
-                JsonSerializer.Serialize(armyListFile, armyListFile.GetType(), RuleJson.Options));
+            new ArmyListUpdateMessage(playerID, EncodeArmy(armyListFile));
 
         /// <summary> Decodes the carried army. Deserialized as <see cref="ArmyBuilding.BuiltArmyFile"/> so
         /// an embedded book + selections survive when present; a plain hand-authored army simply leaves
         /// them null. </summary>
-        public ArmyListFile DecodeArmy() =>
-            JsonSerializer.Deserialize<ArmyBuilding.BuiltArmyFile>(ArmyListJson, RuleJson.Options)
+        public ArmyListFile DecodeArmy() => DecodeArmy(PlayerID, ArmyListJson);
+
+        /// <summary> The one army wire encoding, shared with <see cref="LobbySeatArmyMessage"/> (the host
+        /// echoing every seat's list back to the joined players) so there is exactly one format. </summary>
+        internal static string EncodeArmy(ArmyListFile armyListFile) =>
+            JsonSerializer.Serialize(armyListFile, armyListFile.GetType(), RuleJson.Options);
+
+        /// <summary> Reads back what <see cref="EncodeArmy"/> wrote. </summary>
+        internal static ArmyListFile DecodeArmy(PlayerID playerID, string armyListJson) =>
+            JsonSerializer.Deserialize<ArmyBuilding.BuiltArmyFile>(armyListJson, RuleJson.Options)
             ?? throw new InvalidOperationException(
-                $"Army list payload for player {PlayerID} deserialized to null.");
+                $"Army list payload for player {playerID} deserialized to null.");
     }
 }

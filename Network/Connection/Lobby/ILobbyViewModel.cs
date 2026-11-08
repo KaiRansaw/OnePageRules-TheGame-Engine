@@ -182,6 +182,16 @@ namespace FDG.Network.Connection.Lobby
         void UpdateArmyListFile(PlayerID playerId, ArmyListFile armyListFile);
 
         /// <summary>
+        /// The full army list <paramref name="playerID"/>'s seat is bringing - every unit, weapon and rule,
+        /// not just the roster's name/faction/points summary - so the lobby can show any seat's list on
+        /// any machine. The host reads its own roster; a joined player reads the copies the host sends it
+        /// (<see cref="Messages.LobbySeatArmyMessage"/>) whenever a seat's list changes and when it joins,
+        /// so it answers <see cref="ESeatArmyStatus.Loading"/> for the moment between a pick and its
+        /// arrival. Safe to call every frame from the UI thread.
+        /// </summary>
+        SeatArmyView GetSeatArmy(PlayerID playerID);
+
+        /// <summary>
         /// Sets a player's lobby colour pick (#221): an index into the front end's palette (opaque to the
         /// engine), or -1 to clear. On the host this applies directly (any row) and rebroadcasts the
         /// roster; on a client it sends the request to the host (own row only). The host ignores a pick

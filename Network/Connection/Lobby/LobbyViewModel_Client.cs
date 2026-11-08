@@ -241,6 +241,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBusClient.RegisterForMessageEvent<LobbyGameSettingsUpdate>(OnGameSettingsUpdateReceived);
             _messageBusClient.RegisterForMessageEvent<GameEndedMessage>(OnGameEndedMessageReceived);
             _messageBusClient.RegisterForMessageEvent<LobbyJoinRejectedMessage>(OnJoinRejectedReceived);
+            _messageBusClient.RegisterForMessageEvent<LobbySeatArmyMessage>(OnSeatArmyReceived);
 
             //Send greeting — includes this build's protocol version + type-map fingerprint so the host can
             //refuse an incompatible build before we join the roster (#075), plus the lobby password the host
@@ -317,6 +318,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBusClient.DeregisterForMessageEvent<LobbyGameSettingsUpdate>(OnGameSettingsUpdateReceived);
             _messageBusClient.DeregisterForMessageEvent<GameEndedMessage>(OnGameEndedMessageReceived);
             _messageBusClient.DeregisterForMessageEvent<LobbyJoinRejectedMessage>(OnJoinRejectedReceived);
+            _messageBusClient.DeregisterForMessageEvent<LobbySeatArmyMessage>(OnSeatArmyReceived);
             _messageBusClient.Dispose(); //Detaches the bus from the network client's receive event.
 
             //Unhook BEFORE disconnecting: a deliberate teardown must not surface as "connection to the
@@ -372,7 +374,63 @@ namespace FDG.Network.Connection.Lobby
 
         private void OnPlayerListUpdateReceived(LobbyPlayerListUpdate playerListUpdate)
         {
+            // A seat that left the roster takes its list with it.
+            lock (_seatArmiesLock)
+            {
+                HashSet<PlayerID> seated = playerListUpdate.PlayerInfoList.Select(p => p.PlayerID).ToHashSet();
+                foreach (PlayerID gone in _seatArmies.Keys.Where(id => !seated.Contains(id)).ToList())
+                    _seatArmies.Remove(gone);
+            }
+
             _playerInfos.OnNext(playerListUpdate.PlayerInfoList);
+        }
+
+        // Seat army sync: the host sends every seat's full list (LobbySeatArmyMessage) when it changes and
+        // the whole set when we join, so this lobby can show any seat's list the way the host's does.
+        // Written on the network read loop, read every frame by the UI - hence the lock.
+        private readonly object _seatArmiesLock = new();
+        private readonly Dictionary<PlayerID, (long Sequence, ArmyListFile? Army, bool Unreadable)> _seatArmies = new();
+
+        private void OnSeatArmyReceived(LobbySeatArmyMessage message)
+        {
+            // Decode outside the lock: a big list takes a moment, and the UI must not wait on it.
+            ArmyListFile? army = null;
+            bool unreadable = false;
+            try
+            {
+                army = message.DecodeArmy();
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine($"Couldn't read the army list sent for seat {message.PlayerID}: {exception.Message}");
+                unreadable = true;
+            }
+
+            lock (_seatArmiesLock)
+            {
+                // Drop a list that arrived after the one that replaced it.
+                if (_seatArmies.TryGetValue(message.PlayerID, out var held) && held.Sequence > message.Sequence)
+                    return;
+                _seatArmies[message.PlayerID] = (message.Sequence, army, unreadable);
+            }
+        }
+
+        public SeatArmyView GetSeatArmy(PlayerID playerID)
+        {
+            lock (_seatArmiesLock)
+            {
+                if (_seatArmies.TryGetValue(playerID, out var held))
+                {
+                    if (held.Unreadable) return new SeatArmyView(ESeatArmyStatus.Unreadable, null);
+                    if (held.Army != null) return new SeatArmyView(ESeatArmyStatus.Ready, held.Army);
+                }
+            }
+
+            // Nothing held: the roster says whether a list is on its way or the seat simply has none.
+            LobbyPlayerInfoSummary? seat = _playerInfos.Value.FirstOrDefault(p => p.PlayerID == playerID);
+            return seat != null && seat.ArmyListSummary.IsAssigned
+                ? new SeatArmyView(ESeatArmyStatus.Loading, null)
+                : SeatArmyView.None;
         }
 
         private GameSettings? _lastSettings;

@@ -486,6 +486,7 @@ namespace FDG.Network.Connection.Lobby
                 EPlayerType.Network, connectionID, newClientPlayerID);
             _playerInfosFull.Add(newClientPlayerID, newLobbyPlayerInfo);
             UpdateInfoSummariesFromFullList();
+            SendAllSeatArmiesTo(connectionID); //A late joiner sees the lists already picked.
 
             LobbyGameSettingsUpdate gameSettingsUpdate = new LobbyGameSettingsUpdate(_gameSettings);
             _messageBus.SendCommandToAllAsync(gameSettingsUpdate);
@@ -542,6 +543,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.SendCommandToAllAsync(new LobbyServerNameMessage(_serverName.Value));
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
             UpdateInfoSummariesFromFullList();
+            SendAllSeatArmiesTo(connectionID);
         }
 
         private void OnClientDisconnected(ConnectionID disconnectedConnectionID)
@@ -577,7 +579,68 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.SendCommandToAllAsync(playerListUpdateMessage);
 
             _playerInfos.OnNext(infoSummaries);
+
+            // Every roster change comes through here, so this is where the full lists follow it out.
+            BroadcastChangedSeatArmies();
         }
+
+        // Seat army sync --------------------------------------------------------------------------------
+        // The roster broadcast above carries only a summary per seat. A joined player's lobby also shows
+        // every seat's FULL list (portrait cards, hovers, unit detail), so the host sends each seat's list
+        // on its own: to everyone when it changes, and the whole set to one connection when it joins.
+
+        /// <summary>The list each seat had when it was last broadcast, compared by reference: every pick
+        /// hands the roster a new ArmyListFile, so a different object is a different list.</summary>
+        private readonly Dictionary<PlayerID, ArmyListFile?> _broadcastSeatArmies = new();
+
+        private readonly object _seatArmySyncLock = new();
+
+        /// <summary>Rises with every seat-army message sent, so a client can drop one that arrives late.</summary>
+        private long _seatArmySequence;
+
+        /// <summary>Sends the list of every seat whose list changed since the last broadcast, and forgets
+        /// seats that left the roster (each client prunes those from the roster broadcast itself).</summary>
+        private void BroadcastChangedSeatArmies()
+        {
+            lock (_seatArmySyncLock)
+            {
+                foreach (LobbyPlayerInfoFull seat in _playerInfosFull.Values.ToList())
+                {
+                    bool known = _broadcastSeatArmies.TryGetValue(seat.PlayerID, out ArmyListFile? last);
+                    if (known && ReferenceEquals(last, seat.ArmyListFile)) continue;
+                    _broadcastSeatArmies[seat.PlayerID] = seat.ArmyListFile;
+
+                    // A brand-new seat with no list has nothing to say: the roster already shows it empty.
+                    if (!known && seat.ArmyListFile == null) continue;
+
+                    _messageBus.SendCommandToAllAsync(LobbySeatArmyMessage.FromArmy(
+                        seat.PlayerID, ++_seatArmySequence, seat.ArmyListFile));
+                }
+
+                foreach (PlayerID gone in _broadcastSeatArmies.Keys.Where(id => !_playerInfosFull.ContainsKey(id)).ToList())
+                    _broadcastSeatArmies.Remove(gone);
+            }
+        }
+
+        /// <summary>A player who joins after lists were picked gets every current list, sent to them
+        /// alone (everyone else already has them).</summary>
+        private void SendAllSeatArmiesTo(ConnectionID connectionID)
+        {
+            lock (_seatArmySyncLock)
+            {
+                foreach (LobbyPlayerInfoFull seat in _playerInfosFull.Values.ToList())
+                {
+                    if (seat.ArmyListFile == null) continue;
+                    _messageBus.SendCommandToSingleAsync(LobbySeatArmyMessage.FromArmy(
+                        seat.PlayerID, ++_seatArmySequence, seat.ArmyListFile), connectionID);
+                }
+            }
+        }
+
+        public SeatArmyView GetSeatArmy(PlayerID playerID) =>
+            _playerInfosFull.TryGetValue(playerID, out LobbyPlayerInfoFull? seat) && seat.ArmyListFile != null
+                ? new SeatArmyView(ESeatArmyStatus.Ready, seat.ArmyListFile)
+                : SeatArmyView.None;
 
         private void OnChatMessageReceived(LobbyChatMessage_FromClient chatMessageClient)
         {

@@ -163,8 +163,29 @@ namespace FDG.Tests
             OnDisconnected?.Invoke();
         }
 
+        /// <summary>When set, the next frame whose message type name ends with this is swallowed instead of
+        /// delivered (then the filter clears) - the gap between two messages on a real network.</summary>
+        public string? DropNextOfType { get; set; }
+
+        private readonly Dictionary<string, int> _deliveredByType = new Dictionary<string, int>();
+
+        /// <summary>Frames delivered whose message type name ends with <paramref name="typeName"/>.</summary>
+        public int DeliveredCount(string typeName) =>
+            _deliveredByType.Where(kv => kv.Key.EndsWith(typeName, StringComparison.Ordinal)).Sum(kv => kv.Value);
+
         internal void Deliver(ArraySegment<byte> data)
         {
+            // Wire frame: [4-byte type-name length][UTF-8 type name][JSON] (MessageSerializer).
+            string typeName = data.Count >= 4
+                ? System.Text.Encoding.UTF8.GetString(data.AsSpan(4, BitConverter.ToInt32(data.AsSpan(0, 4))))
+                : "";
+            if (DropNextOfType != null && typeName.EndsWith(DropNextOfType, StringComparison.Ordinal))
+            {
+                DropNextOfType = null;
+                return;
+            }
+            _deliveredByType[typeName] = _deliveredByType.TryGetValue(typeName, out int n) ? n + 1 : 1;
+
             ReceivedFrameCount++;
             OnMessageReceived?.Invoke(data);
         }
