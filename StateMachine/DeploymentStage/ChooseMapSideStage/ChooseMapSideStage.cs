@@ -132,30 +132,6 @@ namespace FDG.Stages
         */
 
 
-        /// <summary>
-        /// One of a custom map's deployment zones as a real zone. A zone drawn as several rectangles -
-        /// an L, a T (Kai, 2026-11-02) - becomes a <see cref="MultiRectZone"/>, which IS a
-        /// <see cref="RectangularZone"/> whose geometry answers for the union, so nothing downstream
-        /// needs to know the difference. A single rectangle stays a plain one.
-        /// </summary>
-        internal static RectangularZone BuildMapZone(FDG.SaveLoad.MapDeploymentZoneEntry entry)
-        {
-            var parts = new List<RectangularZone>();
-            foreach (FDG.SaveLoad.MapZoneRect r in entry.AllParts())
-            {
-                float left = MathF.Min(r.Left, r.Right), right = MathF.Max(r.Left, r.Right);
-                float bottom = MathF.Min(r.Bottom, r.Top), top = MathF.Max(r.Bottom, r.Top);
-                // A part with no area is something half-drawn in the map maker, not a shape - skip it
-                // rather than letting RectangularZone's constructor throw mid-deployment.
-                if (right - left < 0.01f || top - bottom < 0.01f) continue;
-                parts.Add(new RectangularZone(left, right, bottom, top));
-            }
-
-            if (parts.Count == 0)
-                throw new InvalidOperationException("A map deployment zone has no usable rectangles.");
-            return MultiRectZone.Of(parts);
-        }
-
         private List<RectangularZone> GetRectangularZones(int teamCount, IDeploymentContext context)
         {
             if(teamCount <= 0)
@@ -163,10 +139,11 @@ namespace FDG.Stages
                 throw new InvalidOperationException($"Can't have fewer than one team.");
             }
 
-            // Map maker: a custom map's own deployment zones, when it has one for every team.
-            var mapZones = CustomMapRules.DeploymentZones(GameContext.Settings);
-            if (mapZones.Count >= teamCount && mapZones.Count >= 2)
-                return mapZones.Select(BuildMapZone).ToList();
+            // Deployment is picked in the lobby, never by the map (Kai, 2026-11-07: "deployment is ONLY
+            // picked in the lobby"). Maps drawn before that decision can still carry deployment zones in
+            // their file (TerrainLayoutFile.DeploymentZones); they are ignored here on purpose, so the
+            // lobby's Deployment pick always wins. This used to hand a map with a zone per team its own
+            // zones and silently override the pick.
 
             // The Advanced Rulebooks' deployment styles (2026-11-05): two sides, a game whose pages are in,
             // and something other than the core layout picked. A random style rolls one die here, on every

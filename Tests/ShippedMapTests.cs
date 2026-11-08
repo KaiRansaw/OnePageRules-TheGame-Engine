@@ -44,9 +44,10 @@ namespace FDG.Tests
         }
 
         /// <summary>
-        /// Crossroads is the one authored to be played on, so it is held to more than "it parses": a map
-        /// with no deployment zones leaves both armies nowhere to stand, and one whose terrain sits off
-        /// the table is a table with nothing on it.
+        /// Crossroads is the one authored to be played on, so it is held to more than "it parses": one
+        /// whose terrain sits off the table is a table with nothing on it, and one with a building in the
+        /// core deployment bands leaves the armies less room to stand. Maps carry no deployment zones of
+        /// their own any more (Kai, 2026-11-07: deployment is picked in the lobby).
         /// </summary>
         [Test]
         public void CrossroadsIsPlayable()
@@ -59,7 +60,8 @@ namespace FDG.Tests
             TerrainLayoutFile layout = TerrainLayoutLoader.TryLoadFromFile(path, out string? error)!;
             Assert.That(layout, Is.Not.Null, error);
 
-            Assert.That(layout.DeploymentZones, Has.Count.EqualTo(2), "two armies, two zones.");
+            Assert.That(layout.DeploymentZones, Is.Empty,
+                "a shipped map must not carry its own deployment zones - deployment is the lobby's pick.");
             Assert.That(layout.Objectives, Has.Count.GreaterThanOrEqualTo(3),
                 "objectives decide the winner, so a map meant to be played on needs some.");
             Assert.That(layout.Pieces, Has.Count.GreaterThanOrEqualTo(6), "a bare table is not a map.");
@@ -71,13 +73,6 @@ namespace FDG.Tests
                 Assert.That(o.X, Is.InRange(0f, 72f));
                 Assert.That(o.Z, Is.InRange(0f, 48f));
             }
-            foreach (MapDeploymentZoneEntry z in layout.DeploymentZones)
-            {
-                Assert.That(z.Left, Is.InRange(0f, 72f));
-                Assert.That(z.Right, Is.InRange(0f, 72f));
-                Assert.That(z.Bottom, Is.InRange(0f, 48f));
-                Assert.That(z.Top, Is.InRange(0f, 48f));
-            }
             foreach (TerrainPieceEntry piece in layout.Pieces)
             {
                 Assert.That(piece.Shape, Is.Not.Null);
@@ -88,10 +83,9 @@ namespace FDG.Tests
                 Assert.That(hz, Is.LessThanOrEqualTo(48.01f), piece.Name);
             }
 
-            // The two zones must not overlap each other, or both armies deploy in the same place.
-            MapDeploymentZoneEntry a = layout.DeploymentZones[0], b = layout.DeploymentZones[1];
-            bool overlap = a.Left < b.Right && b.Left < a.Right && a.Bottom < b.Top && b.Bottom < a.Top;
-            Assert.That(overlap, Is.False, "the two deployment zones overlap.");
+            // The core rules' two bands, 12" from each long edge - the deployment every lobby offers.
+            float d = GameWideConstants.DEPLOYMENT_DISTANCE_INCHES;
+            var coreZones = new[] { (L: 0f, R: 72f, B: 0f, T: d), (L: 0f, R: 72f, B: 48f - d, T: 48f) };
 
             // No IMPASSIBLE terrain inside a deployment zone. Woods and rubble reaching into the band
             // are normal - on a real table terrain is placed across the whole board, deployment zones
@@ -105,10 +99,9 @@ namespace FDG.Tests
             {
                 if (!piece.TerrainType.HasFlag(ETerrainType.Impassible)) continue;
                 (float lx, float hx, float lz, float hz) = piece.Shape!.GetAABB();
-                foreach (MapDeploymentZoneEntry z in layout.DeploymentZones)
+                foreach (var z in coreZones)
                 {
-                    bool inZone = lx < MathF.Max(z.Left, z.Right) && MathF.Min(z.Left, z.Right) < hx
-                        && lz < MathF.Max(z.Bottom, z.Top) && MathF.Min(z.Bottom, z.Top) < hz;
+                    bool inZone = lx < z.R && z.L < hx && lz < z.T && z.B < hz;
                     Assert.That(inZone, Is.False,
                         $"impassible \"{piece.Name}\" sits inside a deployment zone.");
                 }

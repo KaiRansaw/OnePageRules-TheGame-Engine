@@ -45,8 +45,9 @@ namespace FDG.SaveLoad
         public List<MapObjectiveEntry> Objectives { get; set; } = new List<MapObjectiveEntry>();
 
         /// <summary>
-        /// Map maker: custom deployment zones. Used instead of the standard long-edge strips when there
-        /// are at least as many zones as teams; otherwise the standard zones are used.
+        /// LEGACY - deployment zones drawn by the old map maker. Kept only so maps saved before
+        /// 2026-11-07 still load; the game IGNORES them (Kai, 2026-11-07: deployment is picked in the
+        /// lobby, never by the map), and the map maker no longer writes any.
         /// </summary>
         public List<MapDeploymentZoneEntry> DeploymentZones { get; set; } = new List<MapDeploymentZoneEntry>();
     }

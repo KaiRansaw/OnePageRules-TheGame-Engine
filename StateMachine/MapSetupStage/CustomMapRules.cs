@@ -3,15 +3,14 @@ using FDG.SaveLoad;
 namespace FDG.Stages
 {
     /// <summary>
-    /// Map maker: reads the extra parts of a custom map (fixed objectives, deployment zones) for the
-    /// stages that use them. A custom map is the "Custom Map" terrain mode (LoadFromFile) with a layout
+    /// Map maker: reads the extra part of a custom map (fixed objectives) for the stages that use it.
+    /// A map's old deployment zones are NOT read: deployment is picked in the lobby (Kai, 2026-11-07). A custom map is the "Custom Map" terrain mode (LoadFromFile) with a layout
     /// path; any other mode, a missing path or an unreadable file means "no custom map" and every
     /// stage behaves exactly as before.
     /// </summary>
     public static class CustomMapRules
     {
         private static readonly IReadOnlyList<MapObjectiveEntry> NoObjectives = new List<MapObjectiveEntry>();
-        private static readonly IReadOnlyList<MapDeploymentZoneEntry> NoZones = new List<MapDeploymentZoneEntry>();
 
         public static TerrainLayoutFile? ActiveMap(GameSettings settings)
         {
@@ -30,8 +29,5 @@ namespace FDG.Stages
                 return NoObjectives;
             return spots;
         }
-
-        public static IReadOnlyList<MapDeploymentZoneEntry> DeploymentZones(GameSettings settings)
-            => (IReadOnlyList<MapDeploymentZoneEntry>?)ActiveMap(settings)?.DeploymentZones ?? NoZones;
     }
 }
