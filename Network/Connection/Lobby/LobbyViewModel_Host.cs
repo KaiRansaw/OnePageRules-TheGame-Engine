@@ -789,6 +789,19 @@ namespace FDG.Network.Connection.Lobby
             .Select(info => new SlotCrew(info.PlayerID, info.PlayerType, info.AiProfile, info.PlayerName, info.ColorIndex))
             .ToList();
 
+        /// <summary>
+        /// Everything a seat was set up with, army included - for the front end's Game Over "Rematch",
+        /// which opens a fresh lobby with the same players and armies (Kai, 2026-11-07). Roster order,
+        /// so the first entry is the host's own seat.
+        /// </summary>
+        public sealed record SeatSnapshot(PlayerID PlayerID, string PlayerName, EPlayerType PlayerType,
+            FDG.Ai.EAiProfile AiProfile, ETeamOption TeamNumber, int ColorIndex, SaveLoad.ArmyListFile? Army);
+
+        public IReadOnlyList<SeatSnapshot> GetSeats() => _playerInfosFull.Values
+            .Select(info => new SeatSnapshot(info.PlayerID, info.PlayerName, info.PlayerType, info.AiProfile,
+                info.TeamNumber, info.ColorIndex, info.ArmyListFile))
+            .ToList();
+
         /// <summary>True when every seat is this computer's (local players and bots) - the only games Take
         /// Back is offered in, since a rewind relaunches the game here.</summary>
         public bool AllSeatsLocal => _playerInfosFull.Values.All(info => info.PlayerType != EPlayerType.Network);
