@@ -76,7 +76,7 @@ namespace FDG.Ai
                 .RegisterResolver<StageResolution.Requests.ChooseActionRequest, string>(starQuest
                     ? new StarQuest.StarQuestActionResolver(tableState, playerID, declineLatch, stringSelection, questMemory)
                     : book
-                        ? new Solo.SoloCoOpActionResolver(tableState, playerID, declineLatch, stringSelection)
+                        ? new Solo.SoloCoOpActionResolver(tableState, playerID, declineLatch, stringSelection, chargeMemory)
                         : stringSelection)
                 .RegisterResolver(new AiChooseAbilityEffectResolver())
                 // #423: the official bot picks its spell the book's way - a random spell on D3+X, cycling

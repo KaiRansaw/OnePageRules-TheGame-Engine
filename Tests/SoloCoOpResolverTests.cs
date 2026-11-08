@@ -4,6 +4,8 @@ using FDG.Ai.Solo;
 using FDG.Data;
 using FDG.Players;
 using FDG.Rules.Dispatch;
+using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
@@ -289,7 +291,8 @@ namespace FDG.Tests
         public async Task AChargingCaster_CastsFirst_ThenCharges()
         {
             DataBinding<UnitData> ai = Unit(_ai, "Warlock", 24f, 24f, rangeInches: 0f);
-            Unit(_player, "Troops", 30f, 24f);
+            // In reach: the engine only puts Charge on the menu once an enemy is within melee range.
+            Unit(_player, "Troops", 26f, 24f);
 
             SoloCoOpActionResolver resolver = NewActionResolver();
             string[] menu = { FullMenu[0], FullMenu[1], ChooseActionStage.CAST_CHOICE_NAME, FullMenu[3] };
@@ -450,12 +453,49 @@ namespace FDG.Tests
         public async Task TheSameBrawlerWithoutTheRule_Charges()
         {
             DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, meleeAttacks: 8);
-            Unit(_player, "Troops", 30f, 24f);
+            Unit(_player, "Troops", 26f, 24f);   // in melee reach, as the engine requires before offering Charge
 
             string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
 
             Assert.That(pick, Is.EqualTo(ChooseActionStage.CHARGE_CHOICE_NAME),
                 "no Indirect and no Relentless - the tree charges with eight attacks.");
+        }
+
+        // Bot audit, 2026-11-07 (4 of 4 WRONG CHARGE TARGET findings). Charge is on the menu whenever ANY
+        // enemy is within melee reach - usually the unit fought last activation, 1" off after separating.
+        // The tree picks by the book ("the closest valid target, prioritizing units that haven't activated
+        // yet") and may pick a fresh unit further off. Taking Charge then fights the stale neighbour and
+        // the planned target is never reached, so the bot makes the charge move first.
+        [Test]
+        public async Task ChargeOffered_ButThePlannedTargetIsOutOfReach_MovesToItFirst()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, rangeInches: 0f, meleeAttacks: 8);
+            DataBinding<UnitData> stale = Unit(_player, "Stale Troops", 26f, 24f);    // in reach, already activated
+            stale.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+            Unit(_player, "Fresh Troops", 31f, 24f);                                    // 7" off, not activated
+
+            SoloAiPlan plan = SoloAiBrain.Plan(Table, _ai, ai.GetValue());
+            Assume.That(plan.Kind, Is.EqualTo(ESoloAiMove.Charge));
+            Assume.That(plan.Target?.Name, Is.EqualTo("Fresh Troops"), "the book's order: unactivated first.");
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.MOVEMENT_CHOICE_NAME),
+                "Charge here would fight Stale Troops; the charge move to Fresh Troops comes first.");
+        }
+
+        // The control: the planned target IS the one in reach, so Charge is taken straight away.
+        [Test]
+        public async Task ChargeOffered_AndThePlannedTargetIsInReach_Charges()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, rangeInches: 0f, meleeAttacks: 8);
+            Unit(_player, "Fresh Troops", 26f, 24f);
+            DataBinding<UnitData> far = Unit(_player, "Stale Troops", 31f, 24f);
+            far.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.CHARGE_CHOICE_NAME));
         }
 
         // And the reason the clause is written "that are in range": an Indirect weapon with nothing in

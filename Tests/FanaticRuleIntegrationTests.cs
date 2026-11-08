@@ -140,6 +140,37 @@ namespace FDG.Tests
             Assert.That(requester.RepositionRequest, Is.Null, "and no reposition placement.");
         }
 
+        // Vanguard, 2026-11-07: "After this model is deployed, it may be PLACED anywhere fully within 9" of its
+        // position" - the same wording in all six systems' Army Forge text. It used to be the older "may
+        // move up to 9"", a TriggeredMove that walked through terrain (the bot audit found a Vanguard unit
+        // ending its post-deploy move in a wood the deployment rules keep it out of). It is Fanatic's shape now.
+        [Test]
+        public void Catalog_Vanguard_IsAPlacement_LikeFanatic_NotAMove()
+        {
+            ActivatedAbility ability = CoreRuleCatalog.Vanguard.Activated.Single();
+
+            Assert.That(ability.TriggerHook, Is.EqualTo(EHookID.Deployment_OnUnitDeployed));
+            Assert.That(ability.Effect, Is.InstanceOf<Effect.RepositionOnDeploy>(),
+                "\"may be placed anywhere fully within 9\"\" - a placement, not a TriggeredMove.");
+            Assert.That(((Effect.RepositionOnDeploy)ability.Effect).MaxInches, Is.EqualTo(9f).Within(0.001f));
+        }
+
+        [Test]
+        public async Task DeployStage_VanguardAccepted_OffersANineInchPlacement()
+        {
+            DataBinding<UnitData> unit = MakeUnit("Scouts", fanatic: false);
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule("Vanguard", CoreRuleCatalog.Vanguard));
+            MakeArmy(unit);
+
+            var requester = new FanaticRequester(accept: true, deployAt: new Position(10f, 10f), shiftX: 5f);
+            await RunDeployUnit(requester, unit);
+
+            Assert.That(requester.RepositionRequest, Is.Not.Null, "Vanguard is offered as a placement.");
+            Assert.That(requester.RepositionRequest!.MaxDistanceFromStartInches, Is.EqualTo(9f).Within(0.001f));
+            foreach (DataBinding<ModelData> model in unit.GetValue().ModelBindings)
+                Assert.That(model.GetValue().Position.x, Is.EqualTo(15f).Within(0.001f));
+        }
+
         // --- helpers ---
 
         // Drives the real DeployUnitStage for one unit set as current deployer (as ChooseUnitToDeployStage

@@ -1899,10 +1899,15 @@ public static class CoreRuleCatalog
     // Triggered-move primitive (DeployUnitStage offer -> MovementExecutor) --------
 
     /// <summary>
-    /// Vanguard: once per game, after this unit deploys it may immediately move up to 9".
-    /// An activated ability offered at <see cref="EHookID.Deployment_OnUnitDeployed"/>; accepting
-    /// it queues an <see cref="RuleOperation.InvokeTriggeredMove"/> the engine enacts via the
-    /// movement subsystem.
+    /// Vanguard: "After this model is deployed, it may be placed anywhere fully within 9" of its position,
+    /// over 9" away from non-Vanguard enemy units." - the same wording in all six 3.6.0 / 2.1.0 systems
+    /// (OfficialRuleText). A PLACEMENT, not a move: until 2026-11-07 this was the older "may immediately
+    /// move up to 9"" (a TriggeredMove through the movement subsystem), which let it path through terrain
+    /// and stop in a wood the deployment rules keep units out of (bot audit, 2026-11-07). Now Fanatic's
+    /// shape exactly: a <see cref="RuleOperation.RepositionModels"/> that <c>DeployUnitStage</c> folds into
+    /// a per-model-radius placement. The OncePerGame cost is a guard, as on Fanatic - deployment happens
+    /// once, and it keeps the offer from re-firing on a Scout/Ambush re-placement. The "over 9" from
+    /// non-Vanguard enemies" standoff is still open, shared with Fanatic (fdg-todo, #420 item 8).
     /// </summary>
     public static SpecialRuleDefinition Vanguard { get; } = new SpecialRuleDefinition("Vanguard",
         Array.Empty<HookEntry>(),
@@ -1910,12 +1915,12 @@ public static class CoreRuleCatalog
         {
             new ActivatedAbility(EHookID.Deployment_OnUnitDeployed, new Cost.OncePerGame(),
                 new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
-                new Effect.TriggeredMove(MaxInches: 9f, IsOptional: true),
-                // #267: the post-deploy move carries every model, so every model must have Vanguard.
+                new Effect.RepositionOnDeploy(MaxInches: 9f),
+                // #267: the whole unit is re-placed, so every model must have Vanguard.
                 new Condition.AllModelsHaveThisRule()),
         },
         Valence: EValence.Positive,
-        Description: "Once per game, immediately after deploying, this unit may move up to 9\".");
+        Description: "After this model is deployed, it may be placed anywhere fully within 9\" of its position.");
 
     /// <summary>
     /// Fanatic (#197 P21): after this unit deploys, it may be PLACED anywhere fully within 9" of its

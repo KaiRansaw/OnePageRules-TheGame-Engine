@@ -182,20 +182,30 @@ namespace FDG.Tests
         {
             var lastPlan = new Dictionary<string, string>();
             string? activating = null;
+            bool chargeMoved = false;
             foreach (string l in log)
             {
                 if (l.StartsWith("PLAN ", StringComparison.Ordinal))
                 {
                     // The plan the activation STARTED with: the tree is asked again after the move (and then
                     // sees the unit already in contact), so a later line is a re-read, not the decision.
+                    // Before the charge move, though, a new CHARGE plan is a real re-decision - a spell cast
+                    // just before charging can kill the planned target, and the tree then picks the next one.
                     int colon = l.IndexOf(": ", StringComparison.Ordinal);
-                    lastPlan.TryAdd(l[5..colon], l[(colon + 2)..]);
+                    string who = l[5..colon];
+                    string planText = l[(colon + 2)..];
+                    if (!chargeMoved && who == activating && planText.StartsWith("Charge -> ", StringComparison.Ordinal)
+                        && lastPlan.TryGetValue(who, out string? first) && first.StartsWith("Charge -> ", StringComparison.Ordinal))
+                        lastPlan[who] = planText;
+                    else lastPlan.TryAdd(who, planText);
                     continue;
                 }
+                if (l.StartsWith("CHARGE ", StringComparison.Ordinal)) chargeMoved = true;
                 if (l.StartsWith("Activating: ", StringComparison.Ordinal))
                 {
                     activating = l["Activating: ".Length..].TrimEnd('.');
                     lastPlan.Remove(activating);
+                    chargeMoved = false;
                 }
 
                 // A move the tree meant as an Advance (to shoot after) that ran past it: the shot is lost.

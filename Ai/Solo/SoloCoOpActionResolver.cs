@@ -33,6 +33,7 @@ namespace FDG.Ai.Solo
         private readonly PlayerID _me;
         private readonly SoloMoveDeclineLatch? _latch;
         private readonly AiStringSelectionResolver _fallback;
+        private readonly SoloChargeMemory? _charges;
 
         /// <summary>The activation this resolver's per-activation state belongs to.</summary>
         private UnitID? _activation;
@@ -44,12 +45,13 @@ namespace FDG.Ai.Solo
         private readonly HashSet<string> _triedRuleActions = new(StringComparer.Ordinal);
 
         public SoloCoOpActionResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch,
-            AiStringSelectionResolver fallback)
+            AiStringSelectionResolver fallback, SoloChargeMemory? charges = null)
         {
             _table = table;
             _me = me;
             _latch = latch;
             _fallback = fallback;
+            _charges = charges;
         }
 
         public Task<string> Resolve(ChooseActionRequest request)
@@ -168,8 +170,30 @@ namespace FDG.Ai.Solo
                         ClauseTrace?.Invoke(unit, $"cast before charging ({castBeforeCharge})");
                         return Task.FromResult(castBeforeCharge);
                     }
+                    // Charge is on the menu whenever ANY enemy is already within melee reach - typically the
+                    // unit it fought last activation, standing 1" off after the separation move. Taking it
+                    // then fights that unit, not the one the tree picked ("charge the closest valid target,
+                    // prioritizing units that haven't activated yet"), and the charge move to the planned
+                    // target never happens. So when the planned target is not yet in reach, make the charge
+                    // move first; the Charge that follows lands on it (bot audit, 2026-11-07: 4 of 4
+                    // WRONG CHARGE TARGET findings were this). If the move cannot get there, the Charge
+                    // still offered afterwards fights whoever is in reach, as before.
+                    if (plan.Target != null && !MeleeRangeUtilities.AreUnitsInMeleeRange(unit, plan.Target)
+                        && (TryHeavyCharge(unit, plan, Has, movementDeclined) ?? TryMove(Has, movementDeclined)) is { } chargeMove)
+                    {
+                        pick = chargeMove;
+                        break;
+                    }
                     pick = TryCharge(Has, movementDeclined) ?? TryHeavyCharge(unit, plan, Has, movementDeclined)
                         ?? TryMove(Has, movementDeclined);
+                    // A Charge straight from where it stands (no charge move, so the movement resolver never
+                    // recorded a target): tell the defender pick which unit the tree chose. Without this it
+                    // re-ranked everything in reach with no regard for step 2's "within 3\" of the
+                    // objective", and a unit holding a marker fought the neighbour the tree had ruled out
+                    // (bot audit, 2026-11-07).
+                    if (pick == ChooseActionStage.CHARGE_CHOICE_NAME && plan.Target != null
+                        && MeleeRangeUtilities.AreUnitsInMeleeRange(unit, plan.Target))
+                        _charges?.Remember(unit.ID, plan.Target.ID);
                     break;
 
                 case ESoloAiMove.AdvanceAndShoot:
