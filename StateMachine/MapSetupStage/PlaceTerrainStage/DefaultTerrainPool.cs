@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FDG.SaveLoad;
 
 namespace FDG.Stages
@@ -50,6 +51,59 @@ namespace FDG.Stages
         /// The default auto layout, placed verbatim by AutoFromLayout. Unchanged by #268 on purpose:
         /// widening the player's choice of pieces should not silently change how generated maps play.
         /// </summary>
+        /// <summary>The table <see cref="Get"/> was authored for.</summary>
+        public const float AuthoredWidthInches = 72f, AuthoredHeightInches = 48f;
+
+        /// <summary>
+        /// The auto layout for a table of any size. On the book tables (6'x4' and smaller) it is
+        /// <see cref="Get"/> unchanged. On a bigger table (Kai, 2026-11-08: big games get bigger tables) the
+        /// table is cut into a grid of cells about the size of the authored 6'x4', and each cell gets a copy
+        /// of the layout with its piece CENTRES spread to fit the cell - pieces keep their own size and
+        /// shape, so a building is still a building. <paramref name="keepFraction"/> is the share of pieces
+        /// to keep so the terrain per square foot matches the authored table's (a cell smaller than 6'x4'
+        /// would otherwise pack in too much); the caller drops the rest at random.
+        /// </summary>
+        public static TerrainLayoutFile ForTable(float tableW, float tableH, out float keepFraction)
+        {
+            keepFraction = 1f;
+            TerrainLayoutFile authored = Get();
+            if (tableW <= AuthoredWidthInches + 0.01f && tableH <= AuthoredHeightInches + 0.01f)
+                return authored;
+
+            int cols = System.Math.Max(1, (int)System.Math.Round(tableW / AuthoredWidthInches, System.MidpointRounding.AwayFromZero));
+            int rows = System.Math.Max(1, (int)System.Math.Round(tableH / AuthoredHeightInches, System.MidpointRounding.AwayFromZero));
+            float cellW = tableW / cols, cellH = tableH / rows;
+            keepFraction = System.Math.Min(1f, cellW * cellH / (AuthoredWidthInches * AuthoredHeightInches));
+
+            var pieces = new List<TerrainPieceEntry>();
+            for (int row = 0; row < rows; row++)
+            for (int col = 0; col < cols; col++)
+            foreach (TerrainPieceEntry entry in authored.Pieces)
+            {
+                if (entry.Shape == null) continue;
+                Float2 centre = TerrainTemplateUtilities.GetCenter(entry.Shape);
+                var moved = new Float2(
+                    col * cellW + centre.X * cellW / AuthoredWidthInches,
+                    row * cellH + centre.Y * cellH / AuthoredHeightInches);
+                pieces.Add(new TerrainPieceEntry
+                {
+                    Name = entry.Name,
+                    TerrainType = entry.TerrainType,
+                    Shape = TerrainTemplateUtilities.TranslateToCenter(entry.Shape, moved),
+                    HeightInches = entry.HeightInches,
+                    Points = entry.Points,
+                });
+            }
+
+            return new TerrainLayoutFile
+            {
+                Name = authored.Name,
+                TableWidthInches = tableW,
+                TableHeightInches = tableH,
+                Pieces = pieces,
+            };
+        }
+
         public static TerrainLayoutFile Get() => new TerrainLayoutFile
         {
             Name = "Default Pool",

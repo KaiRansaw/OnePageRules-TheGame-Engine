@@ -267,10 +267,11 @@ namespace FDG.Tests
 
             // No flag passed in - the file alone says the allowance is spent (it used to be screen memory,
             // so restarting the game gave it back).
+            // (Still before mission 1, so the book's creation clause is the reason: "may buy max. one Hero".)
             CampaignPurchase second = CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
             Assert.That(second.Ok, Is.False);
-            Assert.That(second.Message, Does.Contain("one new Hero"));
-            Assert.That(CampaignEconomy.CannotRecruit(army, book, Plain(CaptainId, 1), false), Does.Contain("one new Hero"));
+            Assert.That(second.Message, Does.Contain("only one Hero"));
+            Assert.That(CampaignEconomy.CannotRecruit(army, book, Plain(CaptainId, 1), false), Does.Contain("only one Hero"));
 
             // Regular units are unlimited.
             Assert.That(CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n).Ok, Is.True);
@@ -279,6 +280,38 @@ namespace FDG.Tests
             army.StrikeTeam.Matches++;
             Assert.That(CampaignEconomy.HeroRecruitUsed(army), Is.False);
             Assert.That(CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n).Ok, Is.True);
+        }
+
+        /// <summary>
+        /// Campaign Rules v3.6.0, all four books, Preparation: "Before the first mission, players must spend
+        /// at least [X]pts to build their army, and may buy max. one Hero with those points." The "one new
+        /// Hero after each mission" allowance opens only after a mission, so an army that starts with its
+        /// Hero cannot recruit a second before playing (Kai's question, 2026-11-08 - the books answer it).
+        /// </summary>
+        [Test]
+        public void BeforeTheFirstMissionAnArmyMayHaveOnlyOneHero()
+        {
+            (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 1000);
+            CampaignNumbers n = CampaignNumbers.Firefight;
+            // The army came out of creation with its one Hero (added straight to the file, as the locked
+            // Forge does), and no Hero was RECRUITED - so only the creation clause can stop the next one.
+            army.Units.Add(ListCompiler.Compile(book, new BuilderList { Units = { Plain(CaptainId, 1) } }).Units[0]);
+            Assert.That(army.StrikeTeam!.Matches, Is.EqualTo(0));
+            Assert.That(army.StrikeTeam.HeroRecruitedAfterMission, Is.Not.EqualTo(0));
+
+            Assert.That(CampaignEconomy.BeforeFirstMissionHeroTaken(army), Is.True);
+            Assert.That(CampaignEconomy.HeroRecruitBlockedReason(army), Does.Contain("Before the first mission"));
+            CampaignPurchase second = CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n);
+            Assert.That(second.Ok, Is.False);
+            Assert.That(CampaignEconomy.HeroCount(army), Is.EqualTo(1));
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(TrooperId, 5), n).Ok, Is.True,
+                "regular units are still unlimited");
+
+            // After mission 1 the ordinary one-per-mission allowance applies.
+            army.StrikeTeam.Matches++;
+            Assert.That(CampaignEconomy.HeroRecruitBlockedReason(army), Is.Null);
+            Assert.That(CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n).Ok, Is.True);
+            Assert.That(CampaignEconomy.HeroRecruitBlockedReason(army), Does.Contain("one new Hero"));
         }
 
         [Test]
@@ -321,7 +354,7 @@ namespace FDG.Tests
             CampaignPurchase second = CampaignEconomy.Recruit(army, book, Plain(CaptainId, 1), n,
                 heroAlreadyRecruitedThisMission: true);
             Assert.That(second.Ok, Is.False);
-            Assert.That(second.Message, Does.Contain("one new Hero"));
+            Assert.That(second.Message, Does.Contain("only one Hero"), "before mission 1 the creation cap is the reason");
 
             // Fill up to the cap, one Hero after each mission, then one more. Batch F: the allowance is
             // on the army file now, so each further Hero needs a mission played in between (this test

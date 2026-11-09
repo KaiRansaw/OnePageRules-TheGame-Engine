@@ -232,6 +232,7 @@ namespace FDG.Network.Connection.Lobby
             _settings_TerrainPointsPerTurn = new BehaviorSubject<int>(_gameSettings.TerrainPointsPerTurn);
             _settings_TerrainPlacementMode = new BehaviorSubject<ETerrainPlacementMode>(_gameSettings.TerrainPlacementMode);
             _settings_TerrainLayoutPath = new BehaviorSubject<string?>(_gameSettings.TerrainLayoutPath);
+            RefreshMapTableSize();
             _settings_ObjectivePlacementMode = new BehaviorSubject<EObjectivePlacementMode>(_gameSettings.ObjectivePlacementMode);
             _settings_RandomnessType = new BehaviorSubject<ERandomnessType>(_gameSettings.RandomnessType);
             _settings_TurnMethod = new BehaviorSubject<ETurnStyle>(_gameSettings.TurnStyle);
@@ -302,6 +303,7 @@ namespace FDG.Network.Connection.Lobby
             _settings_TerrainPointsPerTurn = new BehaviorSubject<int>(_gameSettings.TerrainPointsPerTurn);
             _settings_TerrainPlacementMode = new BehaviorSubject<ETerrainPlacementMode>(_gameSettings.TerrainPlacementMode);
             _settings_TerrainLayoutPath = new BehaviorSubject<string?>(_gameSettings.TerrainLayoutPath);
+            RefreshMapTableSize();
             _settings_ObjectivePlacementMode = new BehaviorSubject<EObjectivePlacementMode>(_gameSettings.ObjectivePlacementMode);
             _settings_RandomnessType = new BehaviorSubject<ERandomnessType>(_gameSettings.RandomnessType);
             _settings_TurnMethod = new BehaviorSubject<ETurnStyle>(_gameSettings.TurnStyle);
@@ -1329,6 +1331,7 @@ namespace FDG.Network.Connection.Lobby
             string? normalized = string.IsNullOrWhiteSpace(path) ? null : path;
             _settings_TerrainLayoutPath.OnNext(normalized);
             _gameSettings.TerrainLayoutPath = normalized;
+            RefreshMapTableSize();
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 
@@ -1481,6 +1484,40 @@ namespace FDG.Network.Connection.Lobby
         {
             _gameSettings.FastPlaySimplifiedTerrain = enabled;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public (float W, float H) ResolvedTableSize => TableSizing.Resolve(_gameSettings);
+
+        public (float W, float H)? ChosenTableSize =>
+            _gameSettings is { TableWidthInches: > 0f, TableHeightInches: > 0f }
+                ? (_gameSettings.TableWidthInches!.Value, _gameSettings.TableHeightInches!.Value) : null;
+
+        public (float W, float H)? MapTableSize =>
+            _gameSettings is { MapTableWidthInches: > 0f, MapTableHeightInches: > 0f }
+                ? (_gameSettings.MapTableWidthInches!.Value, _gameSettings.MapTableHeightInches!.Value) : null;
+
+        public void SetTableSize((float W, float H)? size)
+        {
+            _gameSettings.TableWidthInches = size is { W: > 0f, H: > 0f } ? size.Value.W : null;
+            _gameSettings.TableHeightInches = size is { W: > 0f, H: > 0f } ? size.Value.H : null;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        /// <summary>
+        /// Copies the chosen map's table size into the settings, so every player resolves the same table
+        /// (a map always plays on the table it was drawn for) without opening the file. A map saved before
+        /// maps carried a size counts as drawn for the game's book table.
+        /// </summary>
+        private void RefreshMapTableSize()
+        {
+            _gameSettings.MapTableWidthInches = null;
+            _gameSettings.MapTableHeightInches = null;
+            if (string.IsNullOrWhiteSpace(_gameSettings.TerrainLayoutPath)) return;
+            SaveLoad.TerrainLayoutFile? layout =
+                SaveLoad.TerrainLayoutLoader.TryLoadFromFile(_gameSettings.TerrainLayoutPath, out _);
+            if (layout is not { TableWidthInches: > 0f, TableHeightInches: > 0f }) return;
+            _gameSettings.MapTableWidthInches = layout.TableWidthInches;
+            _gameSettings.MapTableHeightInches = layout.TableHeightInches;
         }
 
         public void SetNumberOfRounds(int? rounds)

@@ -138,7 +138,24 @@ namespace FDG.Campaign
         /// Rules v3.6.0, 6. Recruit Units). Read from the army file, so it holds across a restart.
         /// </summary>
         public static bool HeroRecruitUsed(ArmyListFile army) =>
-            army.StrikeTeam is { } info && info.HeroRecruitedAfterMission == info.Matches;
+            army.StrikeTeam is { } info
+            && (info.HeroRecruitedAfterMission == info.Matches || BeforeFirstMissionHeroTaken(army));
+
+        /// <summary>
+        /// Campaign Rules v3.6.0 (all four books), Preparation: <i>"Before the first mission, players must
+        /// spend at least [X]pts to build their army, and may buy max. one Hero with those points."</i> The
+        /// "one new Hero after each mission" allowance only opens AFTER a mission, so an army that has not
+        /// played yet and already holds a Hero may not recruit another (Kai's question, 2026-11-08 - the
+        /// books answer it).
+        /// </summary>
+        public static bool BeforeFirstMissionHeroTaken(ArmyListFile army) =>
+            army.StrikeTeam is { Matches: 0 } && HeroCount(army) >= 1;
+
+        /// <summary>The player-facing reason a Hero can't be recruited right now, or null.</summary>
+        public static string? HeroRecruitBlockedReason(ArmyListFile army) =>
+            BeforeFirstMissionHeroTaken(army)
+                ? "Before the first mission an army may have only one Hero."
+                : HeroRecruitUsed(army) ? "Only one new Hero may be recruited after each mission." : null;
 
         /// <summary>True when one of this round's recruits has already been the 5 XP one.</summary>
         public static bool VeteranRecruitUsed(ArmyListFile army) =>
@@ -157,8 +174,12 @@ namespace FDG.Campaign
 
             if (CampaignRules.IsHero(preview))
             {
-                if (heroAlreadyRecruitedThisMission || HeroRecruitUsed(army))
-                    return "Only one new Hero may be recruited after each mission.";
+                if (HeroRecruitBlockedReason(army) is { } heroReason)
+                    return heroReason;
+                if (heroAlreadyRecruitedThisMission)
+                    return army.StrikeTeam is { Matches: 0 }
+                        ? "Before the first mission an army may have only one Hero."
+                        : "Only one new Hero may be recruited after each mission.";
                 if (HeroCount(army) >= CampaignNumbers.MaxHeroes)
                     return $"The army already has {CampaignNumbers.MaxHeroes} Heroes, which is the limit.";
             }

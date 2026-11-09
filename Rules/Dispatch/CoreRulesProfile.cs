@@ -40,8 +40,18 @@ namespace FDG.Rules.Dispatch
         int CommandGroupExtraPicks,
         bool CommandGroupCapIsPerArmy,
         bool FlyingKeepsTerrainItStartsIn = false,
-        bool HordeEliteIsPerRound = false)
+        bool HordeEliteIsPerRound = false,
+        int HeroJoinToughCap = 6)
     {
+        /// <summary>
+        /// Kai, 2026-11-08: may a Hero join a unit in this system at all. Grimdark Future and Age of
+        /// Fantasy print the join clause (Tough(6) cap). Firefight and Skirmish print NO join clause; Kai
+        /// ruled that joining is allowed there, on the full-scale terms scaled to the skirmish Tough scale
+        /// (x3, the same scaling the books use for Transport: 6 -> 18). Both Quest games: no joining (his
+        /// call). A house rule - see claude/house-rules.md.
+        /// </summary>
+        public bool HeroesMayJoinUnits => HeroJoinToughCap > 0;
+
         /// <summary>
         /// The Command Group upgrades that confer on the picked units: <b>Banner</b> and <b>Musician</b>.
         /// <b>Sergeant is deliberately absent</b> - it is <i>"This model gets AP(+1) when attacking"</i>
@@ -133,7 +143,8 @@ namespace FDG.Rules.Dispatch
             FlyingKeepsTerrainItStartsIn: true,
             // #463: Horde's Elite trait - "May re-roll one roll of any kind once per ROUND" in GFF and AoFS
             // (Army Forge), against GF/AoF's once per game.
-            HordeEliteIsPerRound: true);
+            HordeEliteIsPerRound: true,
+            HeroJoinToughCap: 18);
 
         /// <summary>
         /// GF: Star Quest (GFSQ Core Rules v2.1.0). Three differences, all read from the book:
@@ -183,7 +194,8 @@ namespace FDG.Rules.Dispatch
             // No Quest book prints a Command Groups cap, so the book data's per-unit maxPicks stands.
             CommandGroupCapIsPerArmy: false,
             // #463: the skirmish Flying wording, in both Quest systems too.
-            FlyingKeepsTerrainItStartsIn: true);
+            FlyingKeepsTerrainItStartsIn: true,
+            HeroJoinToughCap: 0);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same ways as Star Quest. Checked line by line, originally against

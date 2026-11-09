@@ -127,12 +127,19 @@ namespace FDG
         public bool FriendlyUnitsMayOverlap;
 
         /// <summary>
-        /// The table, in inches, when it is not the game system's own (6'x4', or 4'x4' for the skirmish and
-        /// Quest games). Null = the system's table, which is every game until Kai settles the bigger-table
-        /// question. <see cref="Utilities.GameWideConstants.ConfigureTable(GameSettings)"/> reads it.
+        /// A table size picked in the lobby, in inches. Null = automatic: the book table, growing with the
+        /// army points above a full match (Kai, 2026-11-08). <see cref="TableSizing.Resolve"/> decides.
         /// </summary>
         public float? TableWidthInches;
         public float? TableHeightInches;
+
+        /// <summary>
+        /// The table the chosen map (Load From File) was drawn for, copied off the map when the lobby picks
+        /// it so every player resolves the same table without reading the file. A map always plays on its
+        /// own table - see <see cref="TableSizing.Resolve"/>. Null when no map is chosen.
+        /// </summary>
+        public float? MapTableWidthInches;
+        public float? MapTableHeightInches;
 
         /// <summary>
         /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games

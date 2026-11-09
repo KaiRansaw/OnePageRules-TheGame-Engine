@@ -143,9 +143,11 @@ namespace FDG
         /// every existing caller (tests included) keeps the rules-correct behaviour.</param>
         /// <summary>The whole table configuration from a game's settings - system, overlap house rule and any
         /// table size the settings name. Host and joined players both call this, so both measure the same table.</summary>
-        public static void ConfigureTable(GameSettings settings) =>
-            ConfigureTable(settings.GameSystem, settings.FriendlyUnitsMayOverlap,
-                settings.TableWidthInches, settings.TableHeightInches);
+        public static void ConfigureTable(GameSettings settings)
+        {
+            (float width, float height) = TableSizing.Resolve(settings);
+            ConfigureTable(settings.GameSystem, settings.FriendlyUnitsMayOverlap, width, height);
+        }
 
         public static void ConfigureTable(EGameSystem system, bool friendlyUnitsMayOverlap = false,
             float? tableWidthInches = null, float? tableHeightInches = null)

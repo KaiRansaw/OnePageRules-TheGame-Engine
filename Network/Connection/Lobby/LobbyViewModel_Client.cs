@@ -667,6 +667,23 @@ namespace FDG.Network.Connection.Lobby
             throw new InvalidOperationException("Tried to set the game length when not the host.");
         }
 
+        public (float W, float H) ResolvedTableSize => _lastSettings is { } settings
+            ? TableSizing.Resolve(settings)
+            : GameWideConstants.TableSizeFor(GameSystem);
+
+        public (float W, float H)? ChosenTableSize =>
+            _lastSettings is { TableWidthInches: > 0f, TableHeightInches: > 0f } settings
+                ? (settings.TableWidthInches!.Value, settings.TableHeightInches!.Value) : null;
+
+        public (float W, float H)? MapTableSize =>
+            _lastSettings is { MapTableWidthInches: > 0f, MapTableHeightInches: > 0f } settings
+                ? (settings.MapTableWidthInches!.Value, settings.MapTableHeightInches!.Value) : null;
+
+        public void SetTableSize((float W, float H)? size)
+        {
+            throw new InvalidOperationException("Tried to set the table size when not the host.");
+        }
+
         public void SetFastPlay(bool movement, bool melee, bool shooting)
         {
             throw new InvalidOperationException("Tried to set the Fast-Play rules when not the host.");

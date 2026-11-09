@@ -26,6 +26,15 @@ public static class HeroJoinResolver
     public const int MaxHeroToughForJoin = 6;
 
     /// <summary>
+    /// The join cap for the system an army belongs to (its slug) - 6 in GF/AoF, 18 in Firefight and
+    /// Skirmish, 0 (no joining) in both Quest games. See <see cref="CoreRulesProfile.HeroJoinToughCap"/>.
+    /// </summary>
+    public static int JoinCapFor(string? armySystemSlug) =>
+        GameSystemInfo.FromSlug(armySystemSlug) is { } system
+            ? CoreRulesProfile.For(system).HeroJoinToughCap
+            : MaxHeroToughForJoin;
+
+    /// <summary>
     /// Performs all valid Hero joins among <paramref name="built"/> (the freshly built units paired with
     /// their army-list entries, with rules already attached) and returns the units that should be
     /// registered as standalone units: every non-merging unit plus the hosts. A hero merged into a host is
@@ -33,7 +42,8 @@ public static class HeroJoinResolver
     /// </summary>
     public static IReadOnlyList<UnitData> Apply(
         IReadOnlyList<(UnitFileEntry Entry, UnitData Unit)> built,
-        Action<string>? warn = null)
+        Action<string>? warn = null,
+        int maxHeroTough = MaxHeroToughForJoin)
     {
         // Hosts are addressed by their authorable Id. Duplicate Ids are a data error; first one wins and
         // the rest are unaddressable (a hero targeting a duplicated Id resolves to the first).
@@ -69,9 +79,15 @@ public static class HeroJoinResolver
             }
 
             bool hasTough = TryGetToughValue(hero, out int tough);
-            if (hasTough && tough > MaxHeroToughForJoin)
+            if (maxHeroTough <= 0)
             {
-                warn?.Invoke($"Hero join: '{hero.Name}' has Tough({tough}) > {MaxHeroToughForJoin} and cannot join a unit; it will deploy on its own.");
+                warn?.Invoke($"Hero join: Heroes cannot join units in this game; '{hero.Name}' will deploy on its own.");
+                continue;
+            }
+
+            if (hasTough && tough > maxHeroTough)
+            {
+                warn?.Invoke($"Hero join: '{hero.Name}' has Tough({tough}) > {maxHeroTough} and cannot join a unit; it will deploy on its own.");
                 continue;
             }
 

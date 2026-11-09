@@ -118,7 +118,7 @@ namespace FDG.ArmyBuilding
             var unmerged = new BuiltArmyFile { PointsLimit = list.PointsLimit };
             unmerged.Units.AddRange(perUnit.Where(u => u is not null)!);
 
-            ValidateHeroJoins(unmerged, issues);
+            ValidateHeroJoins(unmerged, issues, Rules.Dispatch.HeroJoinResolver.JoinCapFor(book.GameSystem));
 
             // Army-composition caps (reuse the engine validator) as Warnings, on the MERGED output:
             // a combined pair is ONE squad toward the copy cap (Chris, 2026-07-10 - doubled-up
@@ -176,13 +176,19 @@ namespace FDG.ArmyBuilding
 
         // #006 hero-join eligibility, mirrored so the builder can't author a join that silently deploys solo
         // at game time. Warnings, not Errors — the engine tolerates all of these (the hero just stays solo).
-        private static void ValidateHeroJoins(BuiltArmyFile compiled, List<ListIssue> issues)
+        private static void ValidateHeroJoins(BuiltArmyFile compiled, List<ListIssue> issues, int joinCap)
         {
             for (int i = 0; i < compiled.Units.Count; i++)
             {
                 UnitFileEntry unit = compiled.Units[i];
                 if (string.IsNullOrEmpty(unit.JoinsUnitId)) continue;
 
+                if (joinCap <= 0)
+                {
+                    issues.Add(new ListIssue($"{unit.Name}: Heroes can't join units in this game; it will deploy on its own.",
+                        ListIssueSeverity.Warning, i));
+                    continue;
+                }
                 if (!ForceOrgValidator.IsHero(unit))
                 {
                     issues.Add(new ListIssue($"{unit.Name}: has a join target but no Hero rule.",
@@ -192,9 +198,9 @@ namespace FDG.ArmyBuilding
                 if (unit.ModelCount != 1)
                     issues.Add(new ListIssue($"{unit.Name}: a Hero must be a single model to join a unit.",
                         ListIssueSeverity.Warning, i));
-                if (TryGetToughValue(unit, out int tough) && tough > Rules.Dispatch.HeroJoinResolver.MaxHeroToughForJoin)
+                if (TryGetToughValue(unit, out int tough) && tough > joinCap)
                     issues.Add(new ListIssue(
-                        $"{unit.Name}: Tough({tough}) exceeds the join cap (Tough({Rules.Dispatch.HeroJoinResolver.MaxHeroToughForJoin})); it will deploy solo.",
+                        $"{unit.Name}: Tough({tough}) exceeds the join cap (Tough({joinCap})); it will deploy solo.",
                         ListIssueSeverity.Warning, i));
 
                 UnitFileEntry? host = compiled.Units.FirstOrDefault(u =>

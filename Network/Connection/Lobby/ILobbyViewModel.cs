@@ -260,6 +260,21 @@ namespace FDG.Network.Connection.Lobby
 
         void SetNumberOfRounds(int? rounds);
 
+        /// <summary>
+        /// The table this game will be played on, as <see cref="TableSizing.Resolve"/> decides it: the chosen
+        /// map's own size, else <see cref="ChosenTableSize"/>, else automatic from the army points.
+        /// </summary>
+        (float W, float H) ResolvedTableSize { get; }
+
+        /// <summary>A table size picked in the lobby (Kai, 2026-11-08), or null for automatic.</summary>
+        (float W, float H)? ChosenTableSize { get; }
+
+        /// <summary>The table size the chosen map was drawn for, or null when no map is chosen.</summary>
+        (float W, float H)? MapTableSize { get; }
+
+        /// <summary>Picks a table size (host only). Null = automatic, by army points.</summary>
+        void SetTableSize((float W, float H)? size);
+
         /// <summary>Fast-Play Simplified Terrain - see <see cref="GameSettings.FastPlaySimplifiedTerrain"/>.</summary>
         bool FastPlaySimplifiedTerrain { get; }
 

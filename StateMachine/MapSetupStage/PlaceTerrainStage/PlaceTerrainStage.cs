@@ -79,7 +79,9 @@ namespace FDG.Stages
             switch (context.GameContext.Settings.TerrainPlacementMode)
             {
                 case ETerrainPlacementMode.AutoFromLayout:
-                    PlaceAutoLayout(context, DefaultTerrainPool.Get());
+                    PlaceAutoLayout(context, DefaultTerrainPool.ForTable(
+                        GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES,
+                        out float keepFraction), keepFraction);
                     break;
 
                 case ETerrainPlacementMode.LoadFromFile:
@@ -154,7 +156,7 @@ namespace FDG.Stages
                 ? declared | QuestTerrainTypes.ExtraFlagsFor(pieceName)
                 : declared;
 
-        private static void PlaceAutoLayout(IMapSetupContext context, TerrainLayoutFile layout)
+        private static void PlaceAutoLayout(IMapSetupContext context, TerrainLayoutFile layout, float keepFraction = 1f)
         {
             // #198: all randomness here draws from the game's seeded source. This was `new System.Random()` -
             // the last unseeded RNG on the game path (missed by #193's audit because the fully-qualified
@@ -164,6 +166,8 @@ namespace FDG.Stages
             float tableW = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES;
             float tableH = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
             float deploy = GameWideConstants.DEPLOYMENT_DISTANCE_INCHES;
+            bool tiled = tableW > DefaultTerrainPool.AuthoredWidthInches + 0.01f
+                || tableH > DefaultTerrainPool.AuthoredHeightInches + 0.01f;
 
             var placed = new List<ITerrain>();
             void Create(TerrainPieceEntry entry, IZone shape)
@@ -178,6 +182,9 @@ namespace FDG.Stages
             {
                 if (entry.Shape == null) continue;
                 if (!FitsTable(entry.Shape)) continue;
+                // A big table's tiled layout thins itself back to the authored terrain density. Never
+                // drawn on the book tables (keepFraction is 1), so their seeded games are unchanged.
+                if (keepFraction < 1f && rng.NextDouble() > keepFraction) continue;
 
                 if (!IsInDeploymentZone(entry.Shape, tableH, deploy))
                 {
@@ -190,6 +197,12 @@ namespace FDG.Stages
                     context.Log($"  Auto layout: skipping a deployment-zone piece ({entry.TerrainType}).");
                     continue;
                 }
+
+                // On a tiled big table two cells' copies can meet at the seam; a deployment-zone piece is
+                // placed as authored, so check it too rather than stacking two pieces on one spot.
+                if (tiled
+                    && TerrainPlacementValidator.Check(entry.Shape, tableW, tableH, placed) != TerrainPlacementValidity.Valid)
+                    continue;
 
                 Create(entry, entry.Shape);
             }

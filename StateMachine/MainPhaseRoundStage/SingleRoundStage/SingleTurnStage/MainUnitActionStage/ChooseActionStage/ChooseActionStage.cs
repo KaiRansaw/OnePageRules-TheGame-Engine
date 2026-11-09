@@ -656,7 +656,21 @@ namespace FDG.Stages
             AddExtraActionOptions(context, validOptions, invalidOptions, outcomes, optionDescriptions,
                 canMove, canShoot, canPass, cantPassReason, compelledToAttackNow);
 
-            if (validOptions.Count == 0)
+            // Kai, 2026-11-08: a unit whose ONLY legal action is Pass shows a Pass button rather than skipping
+            // silently, so the player sees the activation happen and can read why nothing else was offered.
+            // Only on a pristine activation - once the unit has moved or attacked, an empty menu means the
+            // activation is spent and ends as before, so no extra click is added to every ordinary turn.
+            bool pristineActivation = !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken;
+            if (validOptions.Count == 0 && canPass && pristineActivation)
+            {
+                GameContext.Log($"{context.ActivatingUnit.GetValue().Name} can only Pass. " +
+                    string.Join(" ", invalidOptions.Select(option => $"[{option.Option}: {option.Reason}]")));
+                optionDescriptions[PASS_CHOICE_NAME] = invalidOptions.Count > 0
+                    ? "This unit's only legal action. " + string.Join(" ",
+                        invalidOptions.Select(option => $"{option.Option}: {option.Reason}."))
+                    : "This unit's only legal action.";
+            }
+            else if (validOptions.Count == 0)
             {
                 // #401: say WHY - a silent pass reads as the AI idling, and the reasons are already in hand.
                 GameContext.Log($"No actions available for {context.ActivatingUnit.GetValue().Name} - passing. " +
