@@ -4,7 +4,16 @@ using FDG.StageResolution;
 
 namespace FDG.Players
 {
-    public class ComputerPlayerController : IPlayerController
+    /// <summary>
+    /// Marks a controller as a bot playing its seat - what "the AI" means to the Solo &amp; Co-Op Challenge
+    /// Bonuses. <see cref="ComputerPlayerController"/> is the one real implementation; a test that wraps a bot
+    /// controller (to capture its log, say) implements it too, so the game still knows the seat is a bot.
+    /// </summary>
+    public interface IComputerPlayer
+    {
+    }
+
+    public class ComputerPlayerController : IPlayerController, IComputerPlayer
     {
         public string Name { get; }
 

@@ -80,6 +80,11 @@ namespace FDG
                 progress.CombatBonus = TryGetProgress(store)?.CombatBonus;
             if (progress.CombatBonusSpentIn == null)
                 progress.CombatBonusSpentIn = TryGetProgress(store)?.CombatBonusSpentIn;
+            // Challenge Bonus D3 activations: a run in progress survives the rolling save point written at
+            // the start of every activation (Capture knows nothing of it). Cleared explicitly by
+            // ChallengeBonuses when the run ends, never by a snapshot.
+            if (progress.ChallengeRun == null)
+                progress.ChallengeRun = TryGetProgress(store)?.ChallengeRun;
 
             foreach (DataReference existing in store.GetAllDataReferences<GameProgressData>())
             {

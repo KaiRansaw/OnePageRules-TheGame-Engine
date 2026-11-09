@@ -290,6 +290,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetExtraActions(EExtraActions actions);
 
+        /// <summary>The Solo &amp; Co-Op Challenge Bonuses given to the AI - see <see cref="GameSettings.ChallengeBonuses"/>.</summary>
+        EChallengeBonuses ChallengeBonuses { get; }
+
+        void SetChallengeBonuses(EChallengeBonuses bonuses);
+
         /// <summary>The Advanced Rulebooks' deployment style - see <see cref="GameSettings.DeploymentStyle"/>.</summary>
         EDeploymentStyle DeploymentStyle { get; }
 

@@ -67,6 +67,16 @@ namespace FDG.Stages
                 grantedDetail = grantedDetail.Concat(extraActions).ToList();
             }
 
+            // Challenge Bonuses (Solo & Co-Op 3.6.0): a losing AI's units get +1 to Defense rolls.
+            IReadOnlyList<GrantedModifier> challenge = ChallengeBonuses.SaveModifiers(GameContext,
+                metaData.DefendingUnit.GetValue());
+            if (challenge.Count > 0)
+            {
+                grantedDefense += ExtraActions.Net(challenge);
+                grantedDetail = grantedDetail.Concat(challenge).ToList();
+                GameContext.Log($"{metaData.DefendingUnit.GetValue().Name}: {challenge[0].Source} +1 to Defense.");
+            }
+
             int baseDefenseWithAP = baseDefense + ap - coverResults.DefenseRollBonus - rollToHitResults.SaveModifier
                 - grantedDefense + markerNet - underdogNet;
 

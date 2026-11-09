@@ -244,6 +244,16 @@ namespace FDG.GameModel
             _gameContext.OnGameCompleted += RaiseGameCompleted;
             _gameContext.TakeBack = takeBackRecorder;
 
+            // The Challenge Bonuses buff "the AI": the seats a bot is playing right now. Never set on a
+            // simulation - a planning rollout is not the game the players gave the bonuses to.
+            if (_simulation == null)
+            {
+                _gameContext.ComputerPlayers = _playerSlotManager.PlayerSlots
+                    .Where(slot => slot.IsFilled && slot.Controller is IComputerPlayer)
+                    .Select(slot => slot.PlayerID)
+                    .ToList();
+            }
+
             if (gameMaster != null)
             {
                 gameMaster.Attach(_gameContext);

@@ -140,6 +140,13 @@ namespace FDG
         /// book's "once per activation".</summary>
         public Dictionary<int, string>? CombatBonusSpentIn { get; set; }
 
+        /// <summary>
+        /// Challenge Bonus "activate D3 units": the AI seat partway through its run of activations and how many
+        /// it has left after the one in progress. Null when no run is under way, and in every older save.
+        /// Saved so a game reloaded mid-run finishes it rather than handing the turn back early.
+        /// </summary>
+        public ChallengeActivationRun? ChallengeRun { get; set; }
+
         [JsonConstructor]
         public GameProgressData(
             EResumeStage stage,
@@ -164,6 +171,19 @@ namespace FDG
             Settings = settings;
             ActivatingUnit = activatingUnit;
         }
+    }
+
+    /// <summary>The Challenge Bonus run of D3 activations an AI seat is partway through.</summary>
+    public sealed class ChallengeActivationRun
+    {
+        /// <summary>The AI's seat (slot id).</summary>
+        public int Slot { get; set; }
+
+        /// <summary>The round the run was rolled in - a run never carries into the next round.</summary>
+        public int Round { get; set; }
+
+        /// <summary>Activations still owed after the current one.</summary>
+        public int Left { get; set; }
     }
 
     /// <summary>

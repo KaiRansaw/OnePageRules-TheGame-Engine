@@ -76,11 +76,25 @@ namespace FDG.Stages
             {
                 context.Cursor.PointAt(nextPlayerID.Value);
             }
+            // Challenge Bonus (Solo & Co-Op 3.6.0): "When it's the AI's turn to activate a unit, it gets to
+            // activate D3 units instead". Mid-run, the same AI seat takes the next activation too. Below the
+            // forced-activation override on purpose: a unit something else ordered to go next still goes next.
+            else if (ChallengeBonuses.TryContinueRun(GameContext, context.RoundCount,
+                         context.DoesPlayerHaveRemainingActivations, out PlayerID runPlayer))
+            {
+                nextPlayerID = runPlayer;
+                context.Cursor.PointAt(runPlayer);
+            }
             else if (context.TryAdvanceToNextPlayer(out ITeam? _, out nextPlayerID) == false)
             {
                 context.Log("No players left to activate. Ending round.");
                 await OnNoPlayersLeft.Activate(context);
                 return;
+            }
+            else
+            {
+                // A turn handed over by the ordinary alternation: an AI with the bonus rolls its D3 here.
+                ChallengeBonuses.OnTurnGiven(GameContext, context.RoundCount, nextPlayerID!.Value);
             }
 
             // #191 B1 5c (D10a, pre-authorized): THE activation boundary, and the one point a

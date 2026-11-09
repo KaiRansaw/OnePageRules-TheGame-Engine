@@ -28,7 +28,13 @@ namespace FDG.Tests
         private GameDataStore _store = null!;
 
         [SetUp]
-        public void SetUp() => _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+        public void SetUp()
+        {
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            // These cases are written for the standard 6' x 4' table, which is a global - any earlier fixture
+            // that played a game on another table would otherwise decide where "off the table" is.
+            GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
+        }
 
         // The reported case: a 4"x2" vehicle whose CENTRE is still on the table but whose base hangs over.
         [Test]

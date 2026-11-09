@@ -76,6 +76,14 @@ namespace FDG
 
         /// <summary>Take Back save points for this game (local play against bots), or null.</summary>
         public TakeBackTools.TakeBackHistory.Recorder? TakeBack => null;
+
+        /// <summary>
+        /// The players whose seat a bot is playing, read from the seats' controllers at launch (fresh game or
+        /// resume alike, so a resumed game asks the live seats rather than a saved guess). What "the AI" means
+        /// to the Solo &amp; Co-Op Challenge Bonuses. Empty in a simulation and in any context that does not
+        /// set it - nothing is then a bot, and the bonuses never apply.
+        /// </summary>
+        public IReadOnlyCollection<PlayerID> ComputerPlayers => Array.Empty<PlayerID>();
     }
 
     public class GameContext : IGameContext
@@ -112,6 +120,9 @@ namespace FDG
 
         /// <inheritdoc />
         public TakeBackTools.TakeBackHistory.Recorder? TakeBack { get; set; }
+
+        /// <inheritdoc />
+        public IReadOnlyCollection<PlayerID> ComputerPlayers { get; set; } = Array.Empty<PlayerID>();
 
         public event Action<GameResult>? OnGameCompleted;
 

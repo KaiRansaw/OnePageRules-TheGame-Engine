@@ -147,6 +147,13 @@ namespace FDG.Quest
         public string EnemyArmy { get; set; } = "";
         /// <summary>The enemy army's name, for showing when the file is not to hand.</summary>
         public string EnemyName { get; set; } = "";
+        /// <summary>
+        /// The enemy army BOOK the chapter is fought against, by file name (e.g. <c>GFSQ-AlienHives.fdgbook</c>),
+        /// as the alternative to <see cref="EnemyArmy"/>: the force is built from the whole book each time the
+        /// chapter's next mission is played, so it always matches the current book. "" = not from a book.
+        /// A file name rather than a path so a campaign moves between computers. Only one of the two is set.
+        /// </summary>
+        public string EnemyBook { get; set; } = "";
         /// <summary>The player's theme note for the chapter.</summary>
         public string Theme { get; set; } = "";
         public int MissionsWon { get; set; }
@@ -158,7 +165,7 @@ namespace FDG.Quest
         {
             Number = Number, Missions = _missions, MissionPlan = MissionPlan.Select(m => m.Clone()).ToList(),
             Difficulty = Difficulty, PlannedDifficulty = PlannedDifficulty, EnemyArmy = EnemyArmy,
-            EnemyName = EnemyName, Theme = Theme, MissionsWon = MissionsWon, Done = Done, Restarts = Restarts,
+            EnemyName = EnemyName, EnemyBook = EnemyBook, Theme = Theme, MissionsWon = MissionsWon, Done = Done, Restarts = Restarts,
         };
     }
 
@@ -242,6 +249,7 @@ namespace FDG.Quest
                 }
                 ch.EnemyArmy ??= "";
                 ch.EnemyName ??= "";
+                ch.EnemyBook ??= "";
                 ch.Theme ??= "";
             }
             FileVersion = CurrentFileVersion;

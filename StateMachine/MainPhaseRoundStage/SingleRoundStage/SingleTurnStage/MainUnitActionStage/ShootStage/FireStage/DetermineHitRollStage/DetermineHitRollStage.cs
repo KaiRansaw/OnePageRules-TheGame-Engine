@@ -204,6 +204,21 @@ namespace FDG.Stages
                 }
             }
 
+            // Challenge Bonuses (Solo & Co-Op 3.6.0): an AI that is tied, or losing, gets +1 to hit with all of
+            // its units. Skipped while fatigued like every modifier above - only unmodified 6s hit then - and
+            // under Covering Fire, which is the same "unmodified 6s" override. Named on the dice chips.
+            if (!fatiguedInMelee && !coveringFire)
+            {
+                IReadOnlyList<GrantedModifier> challenge = ChallengeBonuses.HitModifiers(GameContext, attacker,
+                    metaData.IsSpell);
+                if (challenge.Count > 0)
+                {
+                    results.HitRollNeeded -= ExtraActions.Net(challenge);
+                    grantedDetail = grantedDetail.Concat(challenge).ToList();
+                    GameContext.Log($"{attacker.Name}: {challenge[0].Source} +1 to hit.");
+                }
+            }
+
             GameContext.Log($"Base hit roll required is {results.HitRollNeeded} based on attacker's quality.");
 
             // Override the computed threshold rather than stacking a modifier; the d6 comparison in

@@ -116,6 +116,7 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlaySimplifiedTerrain { get; private set; }
         public bool KingOfTheHill { get; private set; }
         public EExtraActions ExtraActions { get; private set; }
+        public EChallengeBonuses ChallengeBonuses { get; private set; }
 
         public bool FriendlyUnitsMayOverlap => _settings_FriendlyUnitsMayOverlap.Value;
 
@@ -511,6 +512,7 @@ namespace FDG.Network.Connection.Lobby
             FastPlaySimplifiedTerrain = gameSettingsUpdate.GameSettings.FastPlaySimplifiedTerrain;
             KingOfTheHill = gameSettingsUpdate.GameSettings.KingOfTheHill;
             ExtraActions = gameSettingsUpdate.GameSettings.ExtraActions;
+            ChallengeBonuses = gameSettingsUpdate.GameSettings.ChallengeBonuses;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
             {
                 _settings_UnlimitedSplitFire.OnNext(gameSettingsUpdate.GameSettings.UnlimitedSplitFire);
@@ -655,6 +657,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetExtraActions(EExtraActions actions)
         {
             throw new InvalidOperationException("Tried to set the Extra Actions when not the host.");
+        }
+
+        public void SetChallengeBonuses(EChallengeBonuses bonuses)
+        {
+            throw new InvalidOperationException("Tried to set the Challenge Bonuses when not the host.");
         }
 
         public void SetFastPlaySimplifiedTerrain(bool enabled)

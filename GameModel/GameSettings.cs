@@ -169,6 +169,15 @@ namespace FDG
         public EExtraActions ExtraActions;
 
         /// <summary>
+        /// The Solo &amp; Co-Op Rules v3.6.0 "Challenge Bonuses (optional)" - the books' own difficulty for
+        /// playing against the official AI: "Players may give the AI any of the following bonuses". Word for
+        /// word the same in all four books (GF, GFF, AoF, AoFS); the Quest games have no Solo &amp; Co-Op book
+        /// and so none. Each bonus is its own flag because the book lets players pick "any". None by default
+        /// and in every older save. See <see cref="FDG.ChallengeBonuses"/>.
+        /// </summary>
+        public EChallengeBonuses ChallengeBonuses;
+
+        /// <summary>
         /// Each seat's lobby colour pick (slot id -> colour index), recorded at launch so a resumed game
         /// gives everyone back the colour they chose. Seats left on automatic are absent. Null in older saves.
         /// </summary>
@@ -524,6 +533,29 @@ namespace FDG
         /// <summary>GF: Star Quest one-off mission (Campaign Builder): primary + secondary objectives, sentries and
         /// reinforcements, then the heroes leave by a table corner.</summary>
         StarQuestMission,
+    }
+
+    /// <summary>
+    /// The three Challenge Bonuses (Solo &amp; Co-Op Rules v3.6.0) a game can give the AI. Flags, because the
+    /// book says "any of the following". The numeric values are what saves and the wire carry - append only.
+    /// </summary>
+    [Flags]
+    public enum EChallengeBonuses
+    {
+        None = 0,
+
+        /// <summary>"When it's the AI's turn to activate a unit, it gets to activate D3 units instead."</summary>
+        ExtraActivations = 1,
+
+        /// <summary>"If the AI is tied with the players for objective control or VPs, then all of its units get
+        /// +1 to hit rolls."</summary>
+        TiedHitBonus = 2,
+
+        /// <summary>"If the AI is losing for objective control or VPs, then all of its units get +1 hit rolls and
+        /// +1 to Defense rolls."</summary>
+        LosingBonus = 4,
+
+        All = ExtraActivations | TiedHitBonus | LosingBonus,
     }
 
     /// <summary>Normal play, or Game Master testing tools for the host. Append new values at the end.</summary>

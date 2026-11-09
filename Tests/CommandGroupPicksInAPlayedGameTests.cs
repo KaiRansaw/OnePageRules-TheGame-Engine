@@ -44,6 +44,11 @@ namespace FDG.Tests
     [TestFixture]
     public class CommandGroupPicksInAPlayedGameTests
     {
+        /// <summary>A played Firefight / Skirmish game leaves the global table at 4' x 4' - put it back, or a
+        /// later fixture that assumes the default 6' x 4' table (MoveStaysOnTableTests) fails depending on order.</summary>
+        [TearDown]
+        public void RestoreTheTable() => GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture);
+
         /// <summary>Banner as #438 gates it: the combat-only morale bonus.</summary>
         private static SpecialRuleDefinition BannerDefinition() => new("Banner",
             new[]

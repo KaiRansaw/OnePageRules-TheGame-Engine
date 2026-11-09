@@ -81,6 +81,14 @@ namespace FDG.Campaign
         /// </remarks>
         [System.Text.Json.Serialization.JsonConverter(typeof(MissionDifficultyJsonConverter))]
         public EMissionDifficulty Difficulty { get; set; } = EMissionDifficulty.Unset;
+
+        /// <summary>
+        /// The Solo &amp; Co-Op Challenge Bonuses given to the rival bot in this campaign's missions (see
+        /// <see cref="FDG.ChallengeBonuses"/>). Set on the PLAYER's army beside <see cref="Difficulty"/>,
+        /// chosen on Mission Setup and remembered. A different thing from Difficulty, which sizes the
+        /// rival's force: these buff how it plays, so the two stack. None on older campaigns.
+        /// </summary>
+        public EChallengeBonuses ChallengeBonuses { get; set; }
         /// <summary>
         /// #428 - the campaign army file of this campaign's standing enemy (a bot army created with it),
         /// or null when it has none. Set on the PLAYER's army only; the enemy's own block leaves it null
