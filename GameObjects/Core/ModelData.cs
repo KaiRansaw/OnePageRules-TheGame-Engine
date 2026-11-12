@@ -87,6 +87,10 @@ namespace FDG
 
         public Float2 Facing => FacingBinding.GetValue();
 
+        /// <inheritdoc cref="IModel.Look"/>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string? Look { get; set; }
+
         // The base footprint (#149). Serialized (Newtonsoft TypeNameHandling.Auto records the concrete
         // shape via $type); legacy saves with no base fall back to the default circle in the ctor.
         public IBaseShape BaseShape { get; }
@@ -201,6 +205,7 @@ namespace FDG
             PositionBinding = positionBinding;
             FacingBinding = facingBinding;
             BaseShape = source.BaseShape;
+            Look = source.Look;
             if (source.Weapons != null)
             {
                 Weapons = new List<Weapon>(source.Weapons.Count);

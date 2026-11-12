@@ -154,6 +154,8 @@ namespace FDG.ArmyBuilding
             {
                 (UnitFileEntry host, UnitFileEntry absorbed) = merges[m];
 
+                if (host.ModelLooks != null || absorbed.ModelLooks != null)
+                    host.ModelLooks = Pad(host.ModelLooks, host.ModelCount).Concat(Pad(absorbed.ModelLooks, absorbed.ModelCount)).ToList();
                 host.ModelCount += absorbed.ModelCount;
                 host.PointCost += absorbed.PointCost;
                 foreach (WeaponFileEntry weapon in absorbed.Weapons)
@@ -170,6 +172,20 @@ namespace FDG.ArmyBuilding
                         if (other.JoinsUnitId == absorbed.Id)
                             other.JoinsUnitId = host.Id;
             }
+        }
+
+        // Cosmetic per-model looks: trimmed to the unit's size; null when nothing was picked so plain files stay plain.
+        private static List<string?>? LooksFor(List<string?>? picked, int modelCount)
+        {
+            if (picked == null || !picked.Take(modelCount).Any(l => !string.IsNullOrEmpty(l))) return null;
+            return Pad(picked, modelCount);
+        }
+
+        private static List<string?> Pad(List<string?>? looks, int count)
+        {
+            var list = new List<string?>(count);
+            for (int i = 0; i < count; i++) list.Add(looks != null && i < looks.Count ? looks[i] : null);
+            return list;
         }
 
         /// <summary>Per-row compiles in list order, WITHOUT #107 combined-pair merging — the row-aligned
@@ -327,6 +343,7 @@ namespace FDG.ArmyBuilding
             foreach (WeaponFileEntry weapon in unit.Weapons)
                 weapon.EffectSet ??= WeaponEffectAssigner.Match(book.Faction, weapon, book.GameSystem);
 
+            unit.ModelLooks = LooksFor(bu.ModelLooks, unit.ModelCount);
             return (unit, items);
         }
 

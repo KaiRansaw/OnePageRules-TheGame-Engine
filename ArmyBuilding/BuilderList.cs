@@ -43,6 +43,12 @@ namespace FDG.ArmyBuilding
         /// GDF "pay for both individually" rule); the compiler folds this copy into its partner so play
         /// sees one big unit. Null = not combined.</summary>
         public string? CombinedWithId { get; set; }
+
+        /// <summary>Cosmetic: the 3D model file name picked for each model of this copy, in model order (the
+        /// army builder's "Choose looks"). Null / null entries = the unit's first version. Compiled onto
+        /// <c>UnitFileEntry.ModelLooks</c>; never affects rules or points.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<string?>? ModelLooks { get; set; }
     }
 
     /// <summary>A selected option within a section. <see cref="Count"/> is the number of applications for

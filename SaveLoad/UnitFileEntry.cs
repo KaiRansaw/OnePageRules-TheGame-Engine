@@ -28,6 +28,12 @@ namespace FDG.SaveLoad
 
         public int ModelCount { get; set; }
 
+        /// <summary>Cosmetic: the 3D model file name picked for each model, in model order (see
+        /// <see cref="IModel.Look"/>). Null, short, or a null/empty entry = that model uses the unit's first version.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public List<string?>? ModelLooks { get; set; }
+
         /// <summary>
         /// The base footprint shared by all this unit's models (#149). Defaults to a 28mm circle, so a
         /// pre-#149 army file (no <c>base</c> property) is unchanged.

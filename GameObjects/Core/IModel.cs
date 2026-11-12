@@ -81,6 +81,11 @@ namespace FDG
         /// </summary>
         public Float2 Facing { get; }
 
+        /// <summary>Cosmetic only: which downloaded 3D model file (its file name, e.g. "grunt_v2.glb") stands for
+        /// this model on the table, as picked in the army builder. Null = the unit's first version. Rules never
+        /// read it; it rides saves and the network so every player sees the same looks.</summary>
+        public string? Look { get; }
+
         public IReadOnlyList<Weapon> Weapons { get; }
 
         public IMeshProvider MeshProvider { get; }
