@@ -1,12 +1,13 @@
 using FDG.Ai.Resolvers;
 using FDG.Data;
 using FDG.StageResolution.Requests;
+using FDG.Stages;
 using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    // #029: the AI answers the Aircraft forced move with the shortest distance in the band that stays on the
-    // table (staying in play beats flying far), and confirms the mandatory fly-off when nothing stays on.
+    // #029 (GF Core 3.6.0): the AI flies the 30" minimum along the way it faces when that fits on the table, and
+    // turns to the nearest line that fits when it doesn't - it never flies off the table.
     [TestFixture]
     public class AiAircraftAdvanceResolverTests
     {
@@ -29,15 +30,19 @@ namespace FDG.Tests
         }
 
         [Test]
-        public async Task ConfirmsTheMandatoryFlyOff_WhenNoDistanceStaysOn()
+        public async Task TurnsAwayFromTheEdge_WhenTheLineAheadIsTooShort()
         {
-            DataBinding<UnitData> unit = MakeUnit(new Position(10, 40)); // facing +z: even 30" is past the top edge
+            DataBinding<UnitData> unit = MakeUnit(new Position(10, 40)); // facing +z: under 8" to the top edge
             var request = new AircraftAdvanceRequest(new PlayerID(Guid.NewGuid()), "test", unit,
                 new Float2(0f, 1f), 30f, 36f);
 
             AircraftAdvanceResult result = await new AiAircraftAdvanceResolver().Resolve(request);
 
-            Assert.That(result.FliesOffTable, Is.True);
+            Assert.That(result.FliesOffTable, Is.False, "3.6.0 has no flying off the table.");
+            Assert.That(result.Heading, Is.Not.Null);
+            var paths = ForcedAircraftMove.BuildPaths(unit, result.Heading!.Value, result.DistanceInches);
+            Assert.That(ForcedAircraftMove.WouldLeaveTable(paths), Is.False);
+            Assert.That(result.DistanceInches, Is.EqualTo(30f).Within(0.001f));
         }
 
         private DataBinding<UnitData> MakeUnit(Position pos)

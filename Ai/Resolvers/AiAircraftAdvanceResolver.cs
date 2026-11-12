@@ -5,22 +5,17 @@ using FDG.Stages;
 namespace FDG.Ai.Resolvers
 {
     /// <summary>
-    /// #029 — answers the Aircraft forced-move request: the shortest distance in the 30–36" band that keeps
-    /// every base on the table (staying in play beats flying far). When no distance in the band stays on,
-    /// the fly-off is mandatory, so it confirms it at the minimum distance.
+    /// #029 — answers the Aircraft forced move (GF Core 3.6.0): keeps flying the way it faces when the full 30"
+    /// fits on the table that way, else turns to the nearest line that fits, and flies the 30" minimum (it never
+    /// leaves the table).
     /// </summary>
     public class AiAircraftAdvanceResolver : IStageResolver<AircraftAdvanceRequest, AircraftAdvanceResult>
     {
         public Task<AircraftAdvanceResult> Resolve(AircraftAdvanceRequest request)
         {
-            for (float d = request.MinDistanceInches; d <= request.MaxDistanceInches + 0.001f; d += 1f)
-            {
-                var paths = ForcedAircraftMove.BuildPaths(request.UnitDataBinding, request.HeadingNormal, d);
-                if (!ForcedAircraftMove.WouldLeaveTable(paths))
-                    return Task.FromResult(new AircraftAdvanceResult(d, false));
-            }
-
-            return Task.FromResult(new AircraftAdvanceResult(request.MinDistanceInches, true));
+            Float2 line = ForcedAircraftMove.LegalHeading(request.UnitDataBinding, request.HeadingNormal);
+            float room = ForcedAircraftMove.RoomAlong(request.UnitDataBinding, line);
+            return Task.FromResult(new AircraftAdvanceResult(Math.Min(request.MinDistanceInches, room), false, line));
         }
     }
 }

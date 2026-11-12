@@ -11,8 +11,8 @@ using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    // #029 — the Aircraft forced-movement helper: heading init (toward the table centre, set once and never
-    // turned), rigid straight-line paths, and off-table detection.
+    // #029 — the Aircraft forced-movement helper (GF Core 3.6.0): the facing as the suggested line, any straight
+    // line where the full 30" fits on the table, rigid straight-line paths, and off-table detection.
     [TestFixture]
     public class ForcedAircraftMoveTests
     {
@@ -73,28 +73,63 @@ namespace FDG.Tests
             Assert.That(ForcedAircraftMove.WouldLeaveTable(offEdge), Is.True);
         }
 
-        // Integration: drive DefinePathStage with an Aircraft and confirm the forced move's two outcomes.
-        // (OnPathDefined is dropped by the NoOpLayer, so the on-table move is SUBMITTED but its downstream commit
-        // doesn't run — the off-table branch, which mutates models directly, is the one fully observable here.)
+        // Integration: drive DefinePathStage with an Aircraft (OnPathDefined is dropped by the NoOpLayer, so the move
+        // is SUBMITTED but its downstream commit doesn't run - the submitted paths are what is checked).
+        // GF Core 3.6.0, Aircraft: "moving in a straight line ... can't move into the table edges to move less than 30"".
+        // Regression guard for 2026-11-11: the engine used to fly it off the edge and redeploy it next round (an older
+        // edition's rule); now it turns to a line where 30" fits and never leaves the table.
         [Test]
-        public async Task AircraftAdvance_OffTableEdge_LeavesPlayAndMarksForRedeploy()
+        public async Task AircraftAdvance_FacingAnEdge_TurnsAndStaysOnTheTable()
         {
             var ctx = new TriggeredMoveTestContext(_store, new FirstStringRequester());
 
             DataBinding<UnitData> aircraft = MakeUnit(new Position(10, 40)); // near the top edge (H = 48)
             aircraft.GetValue().AttachRuleDefinition(new ResolvedRule("Aircraft", CoreRuleCatalog.Aircraft));
-            // Facing +z (straight off the top edge) — the deploy facing IS the heading.
-            aircraft.GetValue().Models[0].SetFacing(new Float2(0f, 1f));
+            aircraft.GetValue().Models[0].SetFacing(new Float2(0f, 1f));   // facing straight at the top edge
 
             var moveCtx = new MovementActionContext(ctx, aircraft);
             var stage = new DefinePathStage(ctx, new NoOpLayer<IMovementActionContext>());
             stage.OnPathDefined.Bind("done");
             await stage.Enter(moveCtx);
 
-            Position p = aircraft.GetValue().Models[0].Position;
-            Assert.That(p.x == 0f && p.z == 0f, Is.True, "flew off the table — held off-table (models at origin).");
-            Assert.That(aircraft.GetValue().Tokens.HasToken(TokenType.OffTableFromForcedMove), Is.True,
-                "marked for redeployment next round.");
+            Assert.That(aircraft.GetValue().Tokens.HasToken(TokenType.OffTableFromForcedMove), Is.False,
+                "it never leaves the table.");
+            Assert.That(moveCtx.TryGetPaths(out var paths), Is.True);
+            Assert.That(ForcedAircraftMove.WouldLeaveTable(paths.ToList()), Is.False, "the move it makes stays on the table.");
+            Position dest = paths[0].Positions[0];
+            float flown = MathF.Sqrt((dest.x - 10f) * (dest.x - 10f) + (dest.z - 40f) * (dest.z - 40f));
+            Assert.That(flown, Is.GreaterThanOrEqualTo(ForcedAircraftMove.MinDistanceInches - 0.01f), "still the full 30\".");
+            Float2 facing = aircraft.GetValue().Models[0].Facing;
+            Assert.That(facing.Y, Is.LessThan(1f - 0.001f), "it turned away from the edge, and now faces its line.");
+        }
+
+        [Test]
+        public async Task AircraftAdvance_FliesTheLineThePlayerPicks()
+        {
+            // Any straight line is allowed when the full 30" fits on the table along it.
+            var ctx = new TriggeredMoveTestContext(_store, new FixedAircraftDistanceRequester(30f, new Float2(1f, 0f)));
+            DataBinding<UnitData> aircraft = MakeUnit(new Position(10, 5));   // facing +z, but the player picks +x
+            aircraft.GetValue().AttachRuleDefinition(new ResolvedRule("Aircraft", CoreRuleCatalog.Aircraft));
+
+            var moveCtx = new MovementActionContext(ctx, aircraft);
+            var stage = new DefinePathStage(ctx, new NoOpLayer<IMovementActionContext>());
+            stage.OnPathDefined.Bind("done");
+            await stage.Enter(moveCtx);
+
+            Assert.That(moveCtx.TryGetPaths(out var paths), Is.True);
+            Position dest = paths[0].Positions[0];
+            Assert.That(dest.x, Is.EqualTo(40f).Within(0.001f));
+            Assert.That(dest.z, Is.EqualTo(5f).Within(0.001f), "flew 30\" along the line picked, not the old heading.");
+        }
+
+        [Test]
+        public void LegalHeading_KeepsAnAllowedLine_TurnsOneThatHitsAnEdge()
+        {
+            DataBinding<UnitData> unit = MakeUnit(new Position(10, 40));
+            Assert.That(ForcedAircraftMove.IsLegalHeading(unit, new Float2(1f, 0f)), Is.True, "60\" of room along +x.");
+            Assert.That(ForcedAircraftMove.IsLegalHeading(unit, new Float2(0f, 1f)), Is.False, "under 8\" to the top edge.");
+            Float2 turned = ForcedAircraftMove.LegalHeading(unit, new Float2(0f, 1f));
+            Assert.That(ForcedAircraftMove.RoomAlong(unit, turned), Is.GreaterThanOrEqualTo(30f - 0.01f));
         }
 
         [Test]
@@ -260,19 +295,20 @@ namespace FDG.Tests
     internal sealed class FixedAircraftDistanceRequester : IPlayerRequestByID
     {
         private readonly float _distance;
-        public FixedAircraftDistanceRequester(float distance) => _distance = distance;
+        private readonly Float2? _line;
+        public FixedAircraftDistanceRequester(float distance, Float2? line = null) { _distance = distance; _line = line; }
 
         public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request)
             where TRequest : IStageTaskRequest<TReply>
         {
             if (request is AircraftAdvanceRequest)
-                return Task.FromResult((TReply)(object)new AircraftAdvanceResult(_distance, false));
+                return Task.FromResult((TReply)(object)new AircraftAdvanceResult(_distance, false, _line));
             throw new InvalidOperationException("Unexpected request type: " + request.GetType());
         }
     }
 
-    // Answers the Aircraft forced-move with its minimum distance (staying on the table where geometry allows;
-    // the stage's WouldLeaveTable check is authoritative either way), and any StringSelectionRequest with its
+    // Answers the Aircraft forced-move with its minimum distance along the line it faces (the stage turns a line
+    // that runs into an edge), and any StringSelectionRequest with its
     // first valid option.
     internal sealed class FirstStringRequester : IPlayerRequestByID
     {

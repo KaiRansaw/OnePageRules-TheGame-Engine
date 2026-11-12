@@ -4,11 +4,10 @@ using Newtonsoft.Json;
 namespace FDG.StageResolution.Requests
 {
     /// <summary>
-    /// #029/#150 — the Aircraft forced-move decision: how far (30–36") the unit flies straight ahead along its
-    /// fixed heading, or whether the player confirms flying off the table (when the chosen spot would carry a
-    /// base across the table bounds; the activation then ends — no shooting — and the unit redeploys from a
-    /// table edge next round). Replaces the old 30/33/36 string menu so the GUI can offer a continuous, visual
-    /// placement along the segment ahead of the aircraft.
+    /// #029 — the Aircraft forced-move decision: which straight line to fly and how far (30-36"). GF Core 3.6.0:
+    /// "moving in a straight line ... Aircraft can't move into the table edges to move less than 30"" - so any
+    /// direction is allowed as long as the full 30" fits on the table (<see cref="ForcedAircraftMove.IsLegalHeading"/>),
+    /// and the Aircraft never leaves the table. <see cref="HeadingNormal"/> is the way it faces now, the suggestion.
     /// </summary>
     public class AircraftAdvanceRequest : IStageTaskRequest<AircraftAdvanceResult>
     {
@@ -20,7 +19,7 @@ namespace FDG.StageResolution.Requests
 
         public DataBinding<UnitData> UnitDataBinding { get; }
 
-        /// <summary>The unit's fixed flight heading — a unit vector in the table's X/Z plane. It can't be changed.</summary>
+        /// <summary>The way the unit faces now — a unit vector in the table's X/Z plane. The suggested line; the reply may pick another.</summary>
         public Float2 HeadingNormal { get; }
 
         public float MinDistanceInches { get; }
@@ -55,9 +54,10 @@ namespace FDG.StageResolution.Requests
     }
 
     /// <summary>
-    /// The chosen forced-move distance, and whether the player confirmed flying off the table. The stage treats
-    /// the fly-off flag as advisory — the end-position geometry is authoritative (a stay-on answer whose bases
-    /// still cross the table bounds flies off regardless; the rule offers no third option).
+    /// The chosen distance and straight line. <paramref name="Heading"/> null keeps the line the Aircraft faces.
+    /// A line the book doesn't allow (runs into an edge before 30") is turned to the nearest allowed one, and the
+    /// distance is cut to what fits on the table. <paramref name="FliesOffTable"/> is retired (3.6.0 has no flying
+    /// off the table) and ignored; it stays only so old saves and resolvers still load.
     /// </summary>
-    public record AircraftAdvanceResult(float DistanceInches, bool FliesOffTable);
+    public record AircraftAdvanceResult(float DistanceInches, bool FliesOffTable = false, Float2? Heading = null);
 }

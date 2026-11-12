@@ -164,11 +164,10 @@ namespace FDG.Stages
                     : null);
         }
 
-        // #029: turn an Aircraft's Advance into a forced straight-line move along its fixed heading (the facing
-        // set at deployment). The player picks a point on the 30–36" segment ahead; the direction can't change
-        // while it's on the table. If the chosen spot carries a base off the table edge it leaves play (held
-        // off-table) and redeploys from an edge next round; otherwise the straight move is committed. Aircraft
-        // ignore terrain + units, so there's nothing to validate against.
+        // #029: turn an Aircraft's Advance into a forced straight-line move (GF Core 3.6.0). The player picks the
+        // line (any direction where the full 30" fits on the table) and a distance of 30-36" along it; a line that
+        // runs into an edge is turned to the nearest allowed one and the distance cut to what fits, so the Aircraft
+        // never leaves the table. Aircraft ignore terrain + units, so there's nothing else to validate.
         private async Task ResolveForcedAircraftMove(IMovementActionContext context, PlayerID playerID)
         {
             UnitData unit = context.MovingUnit.GetValue();
@@ -180,34 +179,17 @@ namespace FDG.Stages
             AircraftAdvanceResult choice = await context.PlayerRequester()
                 .RequestDecision<AircraftAdvanceRequest, AircraftAdvanceResult>(request);
 
-            float distance = Math.Clamp(choice.DistanceInches,
-                ForcedAircraftMove.MinDistanceInches, ForcedAircraftMove.MaxDistanceInches);
-            List<ModelMoveEntry> paths = ForcedAircraftMove.BuildPaths(context.MovingUnit, heading, distance);
+            // GF Core 3.6.0: any straight line, as long as the full 30" fits on the table - never off it.
+            Float2 line = ForcedAircraftMove.LegalHeading(context.MovingUnit, choice.Heading ?? heading);
+            float room = ForcedAircraftMove.RoomAlong(context.MovingUnit, line);
+            float distance = Math.Min(room, Math.Clamp(choice.DistanceInches,
+                ForcedAircraftMove.MinDistanceInches, ForcedAircraftMove.MaxDistanceInches));
+            List<ModelMoveEntry> paths = ForcedAircraftMove.BuildPaths(context.MovingUnit, line, distance);
+            ForcedAircraftMove.FaceAlong(unit, line);
+            if (room < ForcedAircraftMove.MinDistanceInches - 0.01f)
+                context.GameContext.Log($"{unit.Name} (Aircraft) has no room for a full 30\" line on this table - it flies as far as it can.");
 
-            // The resolver's fly-off flag is advisory; the end-position geometry is authoritative (a stay-on
-            // answer whose bases still cross the bounds flies off regardless — the rule offers no third option).
-            if (choice.FliesOffTable || ForcedAircraftMove.WouldLeaveTable(paths))
-            {
-                // Flew off the edge: leave play (models to origin) and mark for redeploy — the player re-aims it by
-                // how they place it next round (heading = facing as placed). Off-table it can't shoot or charge
-                // (ChooseActionStage gates on the token).
-                List<ModelMoveEntry> hold = new List<ModelMoveEntry>();
-                foreach (DataBinding<ModelData> model in unit.ModelBindings)
-                {
-                    if (!model.GetValue().GetIsAlive()) continue;
-                    model.GetValue().SetPosition(new Position(0f, 0f));
-                    hold.Add(new ModelMoveEntry(model, new List<Position> { new Position(0f, 0f) }));
-                }
-                unit.Tokens.AddToken(new Rules.Tokens.Token(Rules.Foundation.TokenType.OffTableFromForcedMove, 1,
-                    new Rules.Foundation.TokenClearTrigger.ManualOnly()));
-                context.GameContext.Log($"{unit.Name} (Aircraft) flew off the table edge - it redeploys from an edge next round.");
-
-                context.SubmitValidPathTemplate(hold);
-                await OnPathDefined.Activate(context);
-                return;
-            }
-
-            context.GameContext.Log($"{unit.Name} (Aircraft) advances {distance}\" in a straight line along its heading.");
+            context.GameContext.Log($"{unit.Name} (Aircraft) flies {distance:0.#}\" in a straight line.");
             context.SubmitValidPathTemplate(paths);
             await OnPathDefined.Activate(context);
         }
