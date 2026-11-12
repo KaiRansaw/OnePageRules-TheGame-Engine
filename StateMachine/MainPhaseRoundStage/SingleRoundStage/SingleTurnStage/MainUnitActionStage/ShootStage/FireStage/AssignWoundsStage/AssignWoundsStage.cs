@@ -231,7 +231,14 @@ namespace FDG.Stages
             if (assignWoundsResults.HasRemainingChoice && !assignWoundsResults.AutoFillWouldKillEveryModel())
             {
                 AssignWoundsRequest request = new AssignWoundsRequest(metaData.DefendingUnit.PlayerID(),
-                    "Assigning Wounds", metaData.DefendingUnit, packets);
+                    "Assigning Wounds", metaData.DefendingUnit, packets)
+                {
+                    AttackerName = attacker.Name,
+                    WeaponName = metaData.WeaponType?.Name ?? "",
+                    WeaponArmorPenetration = metaData.WeaponType?.ArmorPenetration ?? 0,
+                    IsMelee = metaData.IsMelee,
+                    IsSpell = metaData.IsSpell,
+                };
                 assignWoundsResults = await metaData.GameContext.PlayerRequester()
                     .RequestDecision<AssignWoundsRequest, AssignWoundsResults>(request);
             }

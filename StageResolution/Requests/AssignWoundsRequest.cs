@@ -20,6 +20,17 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public List<WoundPacket> Packets { get; }
 
+        /// <summary>
+        /// What hit the unit, for the wound dialog's header (Kai, 2026-11-11: "show what hit them at the top: the
+        /// attacker, the weapon, AP, how many wounds"). Display only - nothing in the rules reads these, and an older
+        /// sender leaves them empty. Set by AssignWoundsStage.
+        /// </summary>
+        public string AttackerName { get; set; } = "";
+        public string WeaponName { get; set; } = "";
+        public int WeaponArmorPenetration { get; set; }
+        public bool IsMelee { get; set; }
+        public bool IsSpell { get; set; }
+
         /// <summary>The most the queue could land - the headline figure for a dialog title.</summary>
         [JsonIgnore]
         public float TotalWoundsToAssign => Packets.Sum(packet => packet.WeightedWounds);
