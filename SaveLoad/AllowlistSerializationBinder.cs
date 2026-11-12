@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.Loader;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
@@ -89,7 +91,8 @@ namespace FDG.SaveLoad
                     $"Refusing $type '{typeName}': assembly-less names must be registered stable IDs (#186/#265).");
             }
 
-            Type resolved = Fallback.BindToType(assemblyName, typeName);
+            Type resolved = Resolve(assemblyName, typeName)
+                ?? throw new JsonSerializationException($"Could not resolve type '{typeName}, {assemblyName}'.");
 
             if (!IsAllowed(resolved))
             {
@@ -98,6 +101,36 @@ namespace FDG.SaveLoad
             }
 
             return resolved;
+        }
+
+        /// <summary>
+        /// Resolves an assembly-qualified name the way the ENGINE sees it: every assembly the name (or one of its generic
+        /// arguments) mentions is looked up in the engine's own load context first. Godot's exported game loads the
+        /// engine into its own load context while the same files also sit on the app's default list; Newtonsoft's
+        /// default binder resolved "FutureOfDarkGrimness" there, handing back a second copy of the engine whose types
+        /// fail the <see cref="IsAllowed"/> identity check (every exported game ended at deployment with "type is outside
+        /// the deserialization allowlist" - Kai, 2026-11-12). The editor and the Raylib build have one copy, so nothing
+        /// changes for them.
+        /// </summary>
+        private static Type? Resolve(string assemblyName, string typeName)
+        {
+            AssemblyLoadContext context = AssemblyLoadContext.GetLoadContext(EngineAssembly) ?? AssemblyLoadContext.Default;
+            Assembly? ResolveAssembly(AssemblyName wanted)
+            {
+                foreach (Assembly loaded in context.Assemblies)
+                    if (string.Equals(loaded.GetName().Name, wanted.Name, StringComparison.OrdinalIgnoreCase)) return loaded;
+                try { return context.LoadFromAssemblyName(wanted); }
+                catch (Exception) { return null; }
+            }
+            try
+            {
+                return Type.GetType($"{typeName}, {assemblyName}", ResolveAssembly, null, throwOnError: false)
+                    ?? Fallback.BindToType(assemblyName, typeName);
+            }
+            catch (Exception e) when (e is not JsonSerializationException)
+            {
+                return null;
+            }
         }
 
         /// <summary>The allowlist rule, exposed so other trusted-boundary code (e.g. the save's
