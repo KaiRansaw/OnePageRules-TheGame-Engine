@@ -152,7 +152,7 @@ namespace FDG.Stages
             foreach (PlacedObjectEntry<ModelData> placement in placements)
             {
                 placement.Binding.GetValue().SetPosition(placement.Position);
-                if (placement.Facing.HasValue) placement.Binding.GetValue().SetFacing(placement.Facing.Value);
+                FacingRules.ApplyPlaced(placement.Binding.GetValue(), placement.Facing, GameContext.Settings);
             }
 
             context.Log($"{unit.Name} was re-deployed.");

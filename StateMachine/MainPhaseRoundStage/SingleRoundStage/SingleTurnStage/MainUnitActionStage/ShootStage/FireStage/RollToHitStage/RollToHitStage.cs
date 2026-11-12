@@ -50,6 +50,9 @@ namespace FDG.Stages
             (List<Position> attackerPositions, List<Position> targetPositions) =
                 AttackBeatPositions.Endpoints(GameContext.TableState, metaData, GameContext.RuleEvaluator,
                     GameContext.Settings.SeeThroughFriendlyUnits);
+            // The attackers turn to face what they shoot or fight, and stay so (round bases only - FacingRules).
+            FacingRules.FaceTarget(metaData.AttackingUnit.GetValue(), metaData.DefendingUnit.GetValue());
+
             if (attackerPositions.Count > 0 && targetPositions.Count > 0)
             {
                 // Each volley fires every weapon at once; the weapon's Attacks is the volley count.

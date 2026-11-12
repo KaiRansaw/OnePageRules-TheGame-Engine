@@ -83,7 +83,7 @@ namespace FDG.Stages
             foreach(PlacedObjectEntry<ModelData> entry in modelPositions)
             {
                 entry.Binding.GetValue().SetPosition(entry.Position);
-                if (entry.Facing.HasValue) entry.Binding.GetValue().SetFacing(entry.Facing.Value);
+                FacingRules.ApplyPlaced(entry.Binding.GetValue(), entry.Facing, GameContext.Settings); // round bases face the enemy side
             }
 
             await OfferPostDeploymentAbilities(deployingUnit, currentPlayerID);

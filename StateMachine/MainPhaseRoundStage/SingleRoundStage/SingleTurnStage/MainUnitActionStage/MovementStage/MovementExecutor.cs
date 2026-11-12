@@ -273,10 +273,15 @@ namespace FDG.Stages
                     //where the position updates queue up. So, we'll do this anyway.
                     for (int i = 0; i < modelEntry.Positions.Count; i++)
                     {
-                        modelEntry.Model.GetValue().SetPosition(modelEntry.Positions[i]);
-                        // Per-waypoint facing (#150), when the resolver supplied it (default: direction of travel).
+                        ModelData model = modelEntry.Model.GetValue();
+                        Position from = model.Position;
+                        model.SetPosition(modelEntry.Positions[i]);
+                        // Per-waypoint facing (#150), when the resolver supplied it; with none, a round base faces
+                        // the way it went (FacingRules - presentation only, a round base's facing changes nothing).
                         if (modelEntry.Facings != null && i < modelEntry.Facings.Count)
-                            modelEntry.Model.GetValue().SetFacing(modelEntry.Facings[i]);
+                            model.SetFacing(modelEntry.Facings[i]);
+                        else if (modelEntry.Facings == null || modelEntry.Facings.Count == 0)
+                            FacingRules.ApplyTravel(model, from, modelEntry.Positions[i]);
                     }
                 }
             }
