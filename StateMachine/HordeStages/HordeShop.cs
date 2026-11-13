@@ -56,6 +56,12 @@ namespace FDG.Stages
                 {
                     AllowedGameSystems = gameContext.Settings.AllowedGameSystems,
                     Upgradable = upgradable,
+                    GameSystemSlug = GameSystemInfo.Slug(gameContext.Settings.GameSystem),
+                    PointsEarned = HordeRules.WaveReward(objectives.Count, objectives.Any(o => o.IsPriority)),
+                    PointsPerObjective = HordeRules.PointsPerSeizedObjective,
+                    PriorityBonus = HordeRules.PriorityObjectiveBonus,
+                    ShopRangeInches = HordeRules.ShopRangeInches,
+                    ReinforceRangeInches = HordeRules.ReinforceRangeInches,
                 };
                 HordeShopReply reply = await gameContext.PlayerRequester
                     .RequestDecision<HordeShopRequest, HordeShopReply>(request);

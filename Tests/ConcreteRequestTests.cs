@@ -206,6 +206,25 @@ namespace FDG.Tests
             Assert.That(result, Is.EqualTo(expectedChoice));
         }
 
+        /// <summary>The Godot Horde Shop (Kai's mockup, 2026-11-12) shows where the points came from and draws each
+        /// objective's reach ring - those ride the request to a guest's PC.</summary>
+        [Test]
+        public void HordeShopRequest_CarriesEarnedPointsAndReach()
+        {
+            var request = new HordeShopRequest(new PlayerID(Guid.NewGuid()), 1, 120, "Alien Hives", "Swarm",
+                new List<HordeShopObjective> { new HordeShopObjective(1, 18, 16, true), new HordeShopObjective(3, 54, 32, false) })
+            {
+                PointsEarned = 100, PointsPerObjective = 40, PriorityBonus = 20, ShopRangeInches = 6, ReinforceRangeInches = 9, GameSystemSlug = "grimdark-future",
+            };
+            var back = JsonConvert.DeserializeObject<HordeShopRequest>(JsonConvert.SerializeObject(request))!;
+            Assert.That(back.PointsEarned, Is.EqualTo(100));
+            Assert.That(back.PointsPerObjective, Is.EqualTo(40));
+            Assert.That(back.PriorityBonus, Is.EqualTo(20));
+            Assert.That(back.ShopRangeInches, Is.EqualTo(6f));
+            Assert.That(back.ReinforceRangeInches, Is.EqualTo(9f));
+            Assert.That(back.GameSystemSlug, Is.EqualTo("grimdark-future"));
+        }
+
         [Test]
         public void StringSelectionRequest_SerializesAndDeserializesCorrectly()
         {

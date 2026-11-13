@@ -111,6 +111,32 @@ namespace FDG.StageResolution.Requests
         [JsonProperty]
         public List<HordeShopUnit> Upgradable { get; set; } = new List<HordeShopUnit>();
 
+        /// <summary>What this wave's reward paid (seized objectives x <see cref="PointsPerObjective"/>, plus
+        /// <see cref="PriorityBonus"/> when the priority one was seized), so the shop can show where the points came
+        /// from; the rest of <see cref="PointsAvailable"/> was kept from earlier shops. Display only.</summary>
+        [JsonProperty]
+        public int PointsEarned { get; set; }
+
+        /// <summary>The game being played's book slug (e.g. "grimdark-future"), so the shop opens the army's book for
+        /// THIS game and not the same-named faction of another one (Army Forge publishes each faction once per game).
+        /// Null on requests from before it existed.</summary>
+        [JsonProperty]
+        public string? GameSystemSlug { get; set; }
+
+        [JsonProperty]
+        public int PointsPerObjective { get; set; }
+
+        [JsonProperty]
+        public int PriorityBonus { get; set; }
+
+        /// <summary>How far from a seized objective recruits deploy and upgrades reach (9" GF / AoF, 6" GFF / AoFS).</summary>
+        [JsonProperty]
+        public float ShopRangeInches { get; set; } = 9f;
+
+        /// <summary>How far from a seized objective a unit may be reinforced (9" in all four Horde books, #437).</summary>
+        [JsonProperty]
+        public float ReinforceRangeInches { get; set; } = 9f;
+
         [JsonConstructor]
         public HordeShopRequest(PlayerID targetPlayerID, TaskID taskID, int wave, int pointsAvailable,
             string faction, string armyName, List<HordeShopObjective> seizedObjectives)
