@@ -74,6 +74,13 @@ namespace FDG.Quest
         /// <summary>Faction spells known (casters only).</summary>
         public List<string> Spells { get; set; } = new();
 
+        /// <summary>
+        /// Cosmetic: which downloaded 3D model stands for this hero on the table (Kai, 2026-11-12, Hero Builder
+        /// mockup): "Faction/Unit/file.glb" - the model folder and file - or null for the base hero's first
+        /// version. Rules never read it.
+        /// </summary>
+        public string? Look { get; set; }
+
         /// <summary>Missions finished, for the hero list.</summary>
         public int Missions { get; set; }
 

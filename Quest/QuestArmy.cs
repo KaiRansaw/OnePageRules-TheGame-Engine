@@ -150,8 +150,14 @@ namespace FDG.Quest
                 SpecialRules = rules,
                 Weapons = weapons,
                 QuestHeroJson = hero.ToJson(),
+                // The hero's unit is named after the HERO ("Krrek"), so its model is found through its look:
+                // the picked file, or the base hero's folder (its first version) when none was picked.
+                ModelLooks = new List<string?> { hero.Look ?? QuestHeroLook(hero) },
             };
         }
+
+        /// <summary>"Faction/Base Hero/" - the base hero's model folder, meaning its first version.</summary>
+        public static string QuestHeroLook(QuestHero hero) => $"{hero.Faction}/{hero.BaseHeroName}/";
 
         private static void Add(List<SpecialRuleEntry> rules, SpecialRuleEntry rule)
         {

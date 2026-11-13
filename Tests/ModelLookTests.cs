@@ -101,5 +101,17 @@ namespace FDG.Tests
                 Assert.That(all.Count(l => l == null), Is.EqualTo(2));
             }
         }
+
+        /// <summary>A Quest hero's unit is named after the hero, so its model comes through its look: the picked file,
+        /// or the base hero's folder (its first version).</summary>
+        [Test]
+        public void QuestHero_LookRidesOntoItsUnit()
+        {
+            var hero = new FDG.Quest.QuestHero { Name = "Krrek", Faction = "Alien Hives", BaseHeroName = "Grunt Veteran", Quality = 4, Defense = 6, Tough = 9 };
+            Assert.That(FDG.Quest.QuestArmy.ToUnit(hero, null).ModelLooks, Is.EqualTo(new List<string?> { "Alien Hives/Grunt Veteran/" }));
+            hero.Look = "Alien Hives/Grunt Veteran/gv_b.glb";
+            Assert.That(FDG.Quest.QuestArmy.ToUnit(hero, null).ModelLooks, Is.EqualTo(new List<string?> { "Alien Hives/Grunt Veteran/gv_b.glb" }));
+            Assert.That(FDG.Quest.QuestHero.FromJson(hero.ToJson())!.Look, Is.EqualTo(hero.Look));
+        }
     }
 }
