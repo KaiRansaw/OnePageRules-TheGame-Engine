@@ -54,26 +54,31 @@ namespace FDG.Stages
         /// </summary>
         public static async Task Announce(IGameContext gameContext, IUnit dead)
         {
-            foreach (string ruleName in CoreRulesProfile.ConferringCommandGroupRules)
+            // 2026-11-13: every conferral, not just Banner and Musician - in the four wide games every aura can be
+            // handed to picked units too (AuraConferral). Driven by the grants, so GF and AoF still get only the short line.
+            foreach (AuraConferral.Conferral c in AuraConferral.For(dead))
             {
-                // The dead unit WAS the bearer.
-                if (PickCommandGroupUnitsStage.CarriesRule(dead, ruleName))
-                {
-                    List<string> covered = UnitsCoveredBy(gameContext, dead, ruleName);
+                List<string> covered = UnitsCoveredBy(gameContext, dead, c.Granted);
+                // A bearer whose aura reached nobody else: Banner/Musician keep their #441 line; a plain aura
+                // dying with its unit is not news (every dead Hero would announce it).
+                if (covered.Count == 0 && !CoreRulesProfile.ConferringCommandGroupRules.Contains(c.Source)) continue;
 
-                    string text = covered.Count == 0
-                        ? $"{dead.Name} with {ruleName} died!"
-                        : $"{dead.Name} with {ruleName} died! {Join(covered)} "
-                          + $"{(covered.Count == 1 ? "loses" : "lose")} benefits from {ruleName}!";
+                string text = covered.Count == 0
+                    ? $"{dead.Name} with {c.Source} died!"
+                    : $"{dead.Name} with {c.Source} died! {Join(covered)} "
+                      + $"{(covered.Count == 1 ? "loses" : "lose")} benefits from {c.Source}!";
 
-                    await Present(gameContext, text, ruleName);
-                }
+                await Present(gameContext, text, c.Source);
+            }
 
-                // The dead unit was RECEIVING it from somebody else's bearer.
-                if (PickCommandGroupUnitsStage.HoldsGrantFor(dead, ruleName))
-                {
-                    await Present(gameContext, $"{dead.Name} receiving {ruleName} died!", ruleName);
-                }
+            // The dead unit was RECEIVING something from somebody else's bearer.
+            foreach (Token token in dead.Tokens.GetAllTokens(TokenType.RuleGrant))
+            {
+                if (token.OwnerUnitID is null || token.OwnerUnitID == dead.ID) continue;
+                // Only the picked-unit grants: an Aura-lifetime rule grant that ends when its bearer dies.
+                if (token.Payload is not TokenPayload.RuleGrant { Lifetime: ELifetime.Aura } grant) continue;
+                if (token.ClearTrigger is not TokenClearTrigger.OwnerDestroyed) continue;
+                await Present(gameContext, $"{dead.Name} receiving {grant.RuleName} died!", grant.RuleName);
             }
         }
 

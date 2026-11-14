@@ -70,81 +70,55 @@ namespace FDG.Stages
                 .SelectMany(army => army.UnitBindings)
                 .ToList();
 
-            foreach (DataBinding<UnitData> bearer in allUnits)
+            // 2026-11-13: every AURA confers too in these four games, not just Banner and Musician (AuraConferral), and
+            // Kai asked for one screen per player rather than one question per carrier. Players in army order, so
+            // host and clients issue the same requests in the same sequence.
+            foreach (PlayerID player in allUnits.Select(u => u.GetValue().PlayerID).Distinct().ToList())
             {
-                foreach (string ruleName in CoreRulesProfile.ConferringCommandGroupRules)
+                var rows = new List<PickAuraUnitsRequest.Row>();
+                var candidatesByRow = new List<List<DataBinding<UnitData>>>();
+                foreach (DataBinding<UnitData> bearer in allUnits.Where(u => u.GetValue().PlayerID == player))
                 {
-                    if (!CarriesRule(bearer.GetValue(), ruleName)) continue;
+                    UnitData bearerUnit = bearer.GetValue();
+                    // Quest enemies hand their auras to the nearest units when their wave lands (Kai, 2026-11-13).
+                    if (AuraConferral.IsQuestEnemy(context.GameContext, bearerUnit)) continue;
 
-                    await PickFor(context, bearer, ruleName, picksAllowed, allUnits);
+                    foreach (AuraConferral.Conferral c in AuraConferral.For(bearerUnit))
+                    {
+                        List<DataBinding<UnitData>> candidates = allUnits
+                            .Where(candidate => AuraConferral.CanReceive(bearerUnit, candidate.GetValue(), c.Granted))
+                            .ToList();
+                        if (candidates.Count == 0)
+                        {
+                            context.Log($"{c.Source} on {bearerUnit.Name}: no other friendly unit to confer it on.");
+                            continue;
+                        }
+                        rows.Add(new PickAuraUnitsRequest.Row(bearer, bearerUnit.Name, c.Source, c.Granted, picksAllowed,
+                            candidates.Select(x => new PickCommandGroupUnitsRequest.ValidOption(x, x.GetValue().Name)).ToList()));
+                        candidatesByRow.Add(candidates);
+                    }
+                }
+                if (rows.Count == 0) continue;
+
+                List<List<DataBinding<UnitData>>> reply = await context.GameContext.PlayerRequester
+                    .RequestDecision<PickAuraUnitsRequest, List<List<DataBinding<UnitData>>>>(
+                        new PickAuraUnitsRequest(player, rows));
+
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    PickAuraUnitsRequest.Row row = rows[i];
+                    List<DataBinding<UnitData>> asked = reply != null && i < reply.Count && reply[i] != null
+                        ? reply[i] : new List<DataBinding<UnitData>>();
+                    List<DataBinding<UnitData>> toGrant = AcceptablePicks(candidatesByRow[i], asked, picksAllowed, row.Granted);
+                    foreach (DataBinding<UnitData> pick in toGrant) Grant(pick, row.Granted, row.Bearer.GetValue());
+                    context.Log(toGrant.Count == 0
+                        ? $"{row.Source} on {row.BearerName}: no units picked."
+                        : $"{row.Source} on {row.BearerName} also covers "
+                          + $"{string.Join(" and ", toGrant.Select(pick => pick.GetValue().Name))}.");
                 }
             }
 
             await ToDeployAllUnits.Activate(context);
-        }
-
-        private async Task PickFor(IDeploymentContext context, DataBinding<UnitData> bearer, string ruleName,
-            int picksAllowed, List<DataBinding<UnitData>> allUnits)
-        {
-            UnitData bearerUnit = bearer.GetValue();
-
-            List<DataBinding<UnitData>> candidates = allUnits
-                // By ID, not by binding reference. Both come out of the same ArmyData.UnitBindings list
-                // today, so reference equality happens to hold - but if a binding is ever re-wrapped on
-                // the way here, reference equality would stop matching and a bearer would be offered
-                // itself as a pick.
-                .Where(candidate => candidate.GetValue().ID != bearerUnit.ID
-                    // "friendly" is read as the bearer's OWN army. In a team game an ally's units are not
-                    // fed by your banner - the books assume two players and say only "friendly", and the
-                    // narrower reading is the one that cannot hand a buff to someone else's army by
-                    // accident. Recorded as a judgement call in claude/house-rules.md.
-                    && candidate.GetValue().PlayerID == bearerUnit.PlayerID
-                    && candidate.GetValue().GetIsAlive()
-                    // Already carries it natively, or was already picked for it by another bearer -
-                    // either way there is nothing a second grant would add, and the modifier sinks ADD,
-                    // so a second copy would silently double the bonus.
-                    && !CarriesRule(candidate.GetValue(), ruleName)
-                    && !HoldsGrantFor(candidate.GetValue(), ruleName))
-                .ToList();
-
-            if (candidates.Count == 0)
-            {
-                context.Log($"{ruleName} on {bearerUnit.Name}: no other friendly unit to confer it on.");
-                return;
-            }
-
-            var options = candidates
-                .Select(candidate => new PickCommandGroupUnitsRequest.ValidOption(
-                    candidate, candidate.GetValue().Name))
-                .ToList();
-
-            // ONE request for both picks, not one per pick (Kai, 2026-11-01).
-            var request = new PickCommandGroupUnitsRequest(bearerUnit.PlayerID, bearerUnit.Name, ruleName,
-                picksAllowed, options);
-
-            CancellableResult<List<DataBinding<UnitData>>> reply = await context.GameContext.PlayerRequester
-                .RequestDecision<PickCommandGroupUnitsRequest,
-                    CancellableResult<List<DataBinding<UnitData>>>>(request);
-
-            // A cancel and an empty list both mean "none", which the books allow - it is "UP TO 2".
-            if (reply is not Selected<List<DataBinding<UnitData>>> selected || selected.Value.Count == 0)
-            {
-                context.Log($"{ruleName} on {bearerUnit.Name}: no units picked.");
-                return;
-            }
-
-            List<DataBinding<UnitData>> toGrant =
-                AcceptablePicks(candidates, selected.Value, picksAllowed, ruleName);
-
-            foreach (DataBinding<UnitData> pick in toGrant)
-            {
-                Grant(pick, ruleName, bearerUnit);
-            }
-
-            context.Log(toGrant.Count == 0
-                ? $"{ruleName} on {bearerUnit.Name}: no units picked."
-                : $"{ruleName} on {bearerUnit.Name} also covers "
-                  + $"{string.Join(" and ", toGrant.Select(pick => pick.GetValue().Name))}.");
         }
 
         /// <summary>
@@ -199,11 +173,14 @@ namespace FDG.Stages
         /// about whether the stage uses it, which is how a correct-looking grant with the wrong clear
         /// trigger would have shipped.
         /// </remarks>
-        internal static void Grant(DataBinding<UnitData> unit, string ruleName, IUnit bearer)
+        internal static void Grant(DataBinding<UnitData> unit, string ruleName, IUnit bearer) =>
+            Grant(unit.GetValue(), ruleName, bearer);
+
+        internal static void Grant(UnitData unit, string ruleName, IUnit bearer)
         {
             var operations = new List<RuleOperation>
             {
-                new RuleOperation.GrantTokenToUnit(unit.GetValue(),
+                new RuleOperation.GrantTokenToUnit(unit,
                     // OwnerDestroyed + OwnerUnitID is the whole of "If this model is killed, picked
                     // models that are deployed lose the rule": UnitDestructionNotifier already calls
                     // TokenClearService.ClearForDestroyedOwner on every alive-to-dead transition, so the

@@ -648,7 +648,8 @@ namespace FDG.Tests
         public TableState TableState { get; }
         public IReadWriteableGameDataStore GameDataStore { get; }
         public IPresenter Presenter { get; }
-        public GameSettings Settings { get; } = GameSettings.GetDefault();
+        // Settable so a test can play under another system's or mode's rules (GameSettings is a struct).
+        public GameSettings Settings { get; set; } = GameSettings.GetDefault();
         public List<ITeam>? FirstDeploymentRollOrder => null;
         IGameContext IGameContextAccessor.GameContext => this;
 

@@ -42,3 +42,18 @@ namespace FDG.Ai.Resolvers
         }
     }
 }
+
+namespace FDG.Ai.Resolvers
+{
+    /// <summary>
+    /// The bot's answer to the one-screen aura picks (2026-11-13): each row the same way as
+    /// <see cref="AiPickCommandGroupUnitsResolver"/> - its full allowance, in army order. Same judgement call, same reasons.
+    /// </summary>
+    public class AiPickAuraUnitsResolver : IStageResolver<PickAuraUnitsRequest, List<List<DataBinding<UnitData>>>>
+    {
+        public Task<List<List<DataBinding<UnitData>>>> Resolve(PickAuraUnitsRequest request) =>
+            Task.FromResult(request.Rows
+                .Select(row => row.Options.Take(Math.Max(row.MaxPicks, 0)).Select(o => o.Option).ToList())
+                .ToList());
+    }
+}

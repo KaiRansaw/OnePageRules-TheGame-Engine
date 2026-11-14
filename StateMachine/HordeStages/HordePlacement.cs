@@ -104,6 +104,11 @@ namespace FDG.Stages
             }
 
             Commit(unit, placements);
+            // Quest auras: an enemy's "up to 2 nearest friendly units" are the nearest when it lands (Kai, 2026-11-13).
+            // Every Quest enemy reaches the table through here - waves, mission set-up, reinforcements, ambushes.
+            if (Rules.Dispatch.AuraConferral.IsQuestEnemy(gameContext, unit))
+                Rules.Dispatch.AuraConferral.GrantToNearest(gameContext, unit,
+                    Rules.Dispatch.CoreRulesProfile.For(gameContext).CommandGroupExtraPicks);
             return used;
         }
 
