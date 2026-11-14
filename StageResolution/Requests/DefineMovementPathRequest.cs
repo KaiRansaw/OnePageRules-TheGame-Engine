@@ -108,6 +108,12 @@ namespace FDG.StageResolution.Requests
         /// <summary>Whether <paramref name="modelId"/>'s distance counts - every model, unless only the leader's does.</summary>
         public bool IsMeasured(ModelID modelId) => MeasuredModelId is not { } leader || leader.Equals(modelId);
 
+        /// <summary>
+        /// What this move risks in Dangerous terrain, worked out by the engine (Build 2.07) so a front end can show
+        /// "Dangerous terrain: N dice" before the player confirms - see <see cref="FDG.Stages.DangerousTerrainOdds"/>.
+        /// </summary>
+        public FDG.Stages.DangerousTerrainOdds DangerousTerrain { get; init; } = FDG.Stages.DangerousTerrainOdds.Normal;
+
         [JsonConstructor]
         public DefineMovementPathRequest(PlayerID targetPlayerID, TaskID taskID, string taskName,
             DataBinding<UnitData> unitDataBinding, float maxAdvanceDistance, float maxRushDistance, float maxDistanceInches,

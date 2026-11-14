@@ -73,7 +73,10 @@ namespace FDG.Stages
                 canMoveThroughEnemies, ignoresDifficultTerrain, ignoresImpassibleTerrain, BuildRangeOverrides(context),
                 perModelBudgets, allowCancel: true, mainActivationMove: true,
                 measuredModelId: FastPlay.FreeMoveLeader(context.MovingUnit.GetValue(), context.GameContext.Settings),
-                leaderOnlyMovement: FastPlay.Movement(context.GameContext.Settings));
+                leaderOnlyMovement: FastPlay.Movement(context.GameContext.Settings))
+            {
+                DangerousTerrain = DangerousTerrainOdds.For(context.GameContext, context.MovingUnit.GetValue()),
+            };
 
             CancellableResult<List<ModelMoveEntry>> pathResult = await context.PlayerRequester()
                 .RequestDecision<DefineMovementPathRequest, CancellableResult<List<ModelMoveEntry>>>(pathRequest);

@@ -71,37 +71,16 @@ namespace FDG.Stages
             // counted-as one).
             if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
 
-            // Unstable belongs in this list even though it is not Dangerous: AoF: Quest's Unstable counts
-            // AS Dangerous for a model that moved over 6", and that distance rule lives inside
-            // MovementUtilities.DoesPathCrossDangerousTerrain below. Filtering to Dangerous alone here
-            // would hand that method a list with no Unstable piece in it, so the rule would be
-            // unreachable - correct code downstream, fed nothing. (Audit finding 8.)
-            List<ITerrain> dangerous = relevantTerrain
-                .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous)
-                    || t.TerrainType.HasFlag(ETerrainType.Unstable))
-                .ToList();
-
-            // "Counts as being in Dangerous Terrain" (#153): every moving model tests, regardless of what
-            // its path actually crosses — so the no-dangerous-on-table early-out doesn't apply.
-            if (dangerous.Count == 0 && !countsAsInDangerousTerrain) return DangerousTerrainResult.None;
-
+            // Unstable counts as Dangerous for AoF: Quest's over-6" movers, and a "counts as in Dangerous terrain"
+            // grant (#153) makes every moving model test - both live in DangerousTerrainOdds.WouldTest, which the
+            // move preview uses too, so the warning a player sees and the roll they get are one rule (Build 2.07).
+            //
             // #414 / OPR 3.6.0: the trigger is per-path, the TEST is per-unit. "Units with models moving
             // across Dangerous terrain, or that activate in it, must roll as many dice as the number of
             // wounds it would take to fully destroy them" - word for word in GF, AoF, AoFS v3.6.0 and GFSQ
-            // v2.1.0, so this is every game system. Before 3.6 each crossing model tested for itself, which
-            // meant one model clipping a corner of a minefield risked one die while the nine models behind
-            // it risked nothing. Now the unit tests as a unit: one model's path touching the piece is enough
-            // to put the whole unit's remaining wounds on the table.
-            bool anyCrossed = false;
-            foreach (ModelMoveEntry move in paths)
-            {
-                if (move.Positions.Count == 0) continue;
-                if (!countsAsInDangerousTerrain
-                    && !MovementUtilities.DoesPathCrossDangerousTerrain(move, dangerous)) continue;
-                anyCrossed = true;
-                break;
-            }
-            if (!anyCrossed) return DangerousTerrainResult.None;
+            // v2.1.0. One model's path touching the piece puts the whole unit's remaining wounds on the table.
+            if (!DangerousTerrainOdds.WouldTest(paths, relevantTerrain, countsAsInDangerousTerrain))
+                return DangerousTerrainResult.None;
 
             return RollBatch(gameContext, UnitTesters(unit), unit);
         }
@@ -216,7 +195,7 @@ namespace FDG.Stages
             int totalDice = 0;
             for (int i = 0; i < testers.Count; i++)
             {
-                dice[i] = Math.Max(1, (int)MathF.Round(testers[i].RemainingWounds));
+                dice[i] = DangerousTerrainOdds.DiceFor(testers[i]);
                 totalDice += dice[i];
             }
 

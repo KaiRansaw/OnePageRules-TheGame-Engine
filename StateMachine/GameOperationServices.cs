@@ -61,7 +61,12 @@ namespace FDG.Stages
                 unitBinding, maxInches, maxInches, maxInches,
                 WeaponSightProfileBuilder.For(unitBinding.GetValue(), _gameContext.RuleEvaluator),
                 canMoveThroughEnemies, ignoresDifficultTerrain, ignoresImpassibleTerrain,
-                allowCancel: isOptional);
+                allowCancel: isOptional)
+            {
+                // A triggered move rolls for the terrain it crosses but does not spend a "counts as in Dangerous" grant
+                // (TryMove passes none), so the preview leaves it out too.
+                DangerousTerrain = DangerousTerrainOdds.For(_gameContext, unitBinding.GetValue()) with { CountsAs = false },
+            };
 
             CancellableResult<List<ModelMoveEntry>> pathResult = await _gameContext.PlayerRequester
                 .RequestDecision<DefineMovementPathRequest, CancellableResult<List<ModelMoveEntry>>>(pathRequest);

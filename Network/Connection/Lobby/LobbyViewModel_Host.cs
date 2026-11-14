@@ -56,7 +56,7 @@ namespace FDG.Network.Connection.Lobby
 
         public string ServerName => _serverName.Value;
 
-        public IReadOnlyList<LobbyChatMessage> ChatMessages => _chatMessages;
+        public IReadOnlyList<LobbyChatMessage> ChatMessages { get { lock (_chatLock) return _chatMessages.ToArray(); } }
 
         public IReadOnlyList<LobbyPlayerInfoSummary> PlayerInfos => _playerInfos.Value;
 
@@ -110,6 +110,12 @@ namespace FDG.Network.Connection.Lobby
 
         private ReplaySubject<LobbyChatMessage> _chatMessagesSubject;
         private readonly List<LobbyChatMessage> _chatMessages = new List<LobbyChatMessage>();
+
+        // Chat arrives from more than one thread at once - each bot's greeting is posted from its own timer, and
+        // network messages land on the receive thread - while the screen reads the list every frame. A bare
+        // List<T> loses an append when two land together (the "saw 7 of 8 greetings" test flake, #414) and throws
+        // on a torn read, so appends are taken under this lock and readers get a copy (Build 2.07).
+        private readonly object _chatLock = new object();
 
         private BehaviorSubject<IReadOnlyList<LobbyPlayerInfoSummary>> _playerInfos;
         private Dictionary<PlayerID, LobbyPlayerInfoFull> _playerInfosFull = new Dictionary<PlayerID, LobbyPlayerInfoFull>();
@@ -369,8 +375,11 @@ namespace FDG.Network.Connection.Lobby
 
         private void AddMessageToLocalList(LobbyChatMessage chatMessage)
         {
-            _chatMessagesSubject.OnNext(chatMessage);
-            _chatMessages.Add(chatMessage);
+            lock (_chatLock)
+            {
+                _chatMessages.Add(chatMessage);
+                _chatMessagesSubject.OnNext(chatMessage);
+            }
         }
 
         private void OnNewClientConnected(ConnectionID connectionID)
