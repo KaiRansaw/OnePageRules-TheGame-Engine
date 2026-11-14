@@ -152,6 +152,12 @@ namespace FDG.GameModel
                 built.Add((unitEntry, unitData));
             }
 
+            // A list imported from Army Forge can carry points no unit owns (UnattributedPoints): Army Forge's total
+            // minus our per-unit attribution. The lobby shows the file's total; the game only ever sees units, so
+            // a 1000-pt list whose units summed to 1005 showed "POINTS LEFT 1005" untouched. Share it out over the
+            // units in proportion to their cost, so a full army in play always totals what the lobby showed.
+            SpreadUnattributedPoints(built.Select(b => b.Unit).ToList(), armyListFile.UnattributedPoints);
+
             // Merge heroes into their declared host units; survivors are the units that deploy on their own
             // (hosts + non-joining units). A merged hero is absorbed into its host and never registered.
             // The per-army call naturally enforces the rule's "part of one multi-model unit" being from the
@@ -190,6 +196,36 @@ namespace FDG.GameModel
                 armyListFile.DefaultMeleeEffectSet);
 
             DataReference armyDataReference = gameDataStore.Create(armyData);
+        }
+
+        /// <summary>
+        /// Adds <paramref name="points"/> (either sign) across <paramref name="units"/> in proportion to each unit's
+        /// own cost, largest remainder first, so the units' new sum is exactly the old sum plus <paramref name="points"/>.
+        /// No unit goes below 0. A list whose units cost nothing gets it all on its first unit.
+        /// </summary>
+        public static void SpreadUnattributedPoints(IReadOnlyList<UnitData> units, int points)
+        {
+            if (points == 0 || units.Count == 0) return;
+            int total = units.Sum(u => Math.Max(0, u.PointCost));
+            if (total <= 0)
+            {
+                units[0].PointCost = Math.Max(0, units[0].PointCost + points);
+                return;
+            }
+
+            var shares = units.Select((u, i) =>
+            {
+                double exact = (double)points * Math.Max(0, u.PointCost) / total;
+                int whole = (int)Math.Truncate(exact);
+                return (Index: i, Whole: whole, Left: exact - whole);
+            }).ToList();
+            int remaining = points - shares.Sum(x => x.Whole);
+            int step = Math.Sign(remaining);
+            // Largest leftover (in the direction we still owe) gets the next point; ties go to list order.
+            foreach (var x in shares.OrderByDescending(x => x.Left * step).ThenBy(x => x.Index).Take(Math.Abs(remaining)).ToList())
+                shares[x.Index] = (x.Index, x.Whole + step, 0);
+
+            foreach (var x in shares) units[x.Index].PointCost = Math.Max(0, units[x.Index].PointCost + x.Whole);
         }
 
         //Resolves each special rule named on the army-list entry against the rule registry and

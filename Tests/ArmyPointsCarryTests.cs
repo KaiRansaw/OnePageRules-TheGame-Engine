@@ -71,6 +71,38 @@ namespace FDG.Tests
             Assert.That(units.Single(u => u.Name == "Spores").PointCost, Is.EqualTo(30));
         }
 
+        // Game Over showed "POINTS LEFT 1005" for an untouched 1000-pt imported list: Army Forge's total sat in the
+        // file as units 1005 + UnattributedPoints -5, and the game only sees units. CreateArmy now shares the
+        // residual over the units by cost, so a full army in play totals exactly what the lobby shows.
+        [TestCase(-5)]
+        [TestCase(15)]
+        [TestCase(-70)]
+        public void CreateArmy_SharesUnattributedPoints_SoTheArmyTotalsWhatTheLobbyShows(int residual)
+        {
+            GameDataStore store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ArmyListFile file = ArmyFile();
+            file.UnattributedPoints = residual;
+
+            GameBootstrap.CreateArmy(Player, file, store, CoreRuleCatalog.CreateResolver());
+
+            ArmyData army = store.GetAllValues<ArmyData>().Single();
+            Assert.That(army.Units.Sum(u => ((UnitData)u).PointCost), Is.EqualTo(file.TotalPoints));
+        }
+
+        [Test]
+        public void SpreadUnattributedPoints_IsProportional_AndExact()
+        {
+            GameDataStore store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var units = new[] { 220, 230, 125, 200, 95, 135 }
+                .Select(p => new UnitData(Player, Entry("U", modelCount: 1, pointCost: p), store)).ToList();
+
+            GameBootstrap.SpreadUnattributedPoints(units, -5);
+
+            Assert.That(units.Sum(u => u.PointCost), Is.EqualTo(1000));
+            Assert.That(units.Select(u => u.PointCost), Is.EqualTo(new[] { 219, 229, 124, 199, 95, 134 }),
+                "the biggest leftovers lose a point first");
+        }
+
         // A three-entry list: a multi-model host, a hero that joins it, and a standalone unit —
         // the smallest file that exercises both the plain carry and the hero fold.
         private static ArmyListFile ArmyFile() => new ArmyListFile

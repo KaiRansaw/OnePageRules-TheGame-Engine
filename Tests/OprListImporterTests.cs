@@ -209,6 +209,23 @@ public class OprListImporterTests
         Assert.That(rifle.SpecialRules, Is.Empty);
     }
 
+    // Army Forge's `attacks` is already the final count - the multiplier is never applied on top. Checked over every
+    // live book 2026-11-13: "Overrun (A4, Thrust)" has attacks 4 and attacksMultiplier 4 (High Elf Fleets), and the
+    // same holds for all 8,142 multiplied weapons. Was warned as "unsupported" since 1.53, which read like a bug.
+    [Test]
+    public void Import_AttacksMultiplier_IsAlreadyInTheAttacks_AndNotWarnedAbout()
+    {
+        string json = System.Text.RegularExpressions.Regex.Replace(ListJson,
+            "\"attacks\": 2,(\\s*)\"attacksMultiplier\": 1", "\"attacks\": 8,$1\"attacksMultiplier\": 4");
+        Assert.That(json, Is.Not.EqualTo(ListJson), "fixture edit applied");
+
+        OprListImportResult result = OprListImporter.Import(json, Books);
+
+        WeaponFileEntry rifle = result.Army.Units.Single(u => u.Name == "Champion").Weapons.Single(w => w.Name == "Champion Rifle");
+        Assert.That(rifle.Attacks, Is.EqualTo(8));
+        Assert.That(result.Warnings, Has.None.Contains("attacksMultiplier"));
+    }
+
     [Test]
     public void Import_MergesCombinedPair_AndRepointsNothingItShouldnt()
     {

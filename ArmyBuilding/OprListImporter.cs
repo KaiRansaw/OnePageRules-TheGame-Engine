@@ -29,7 +29,7 @@ namespace FDG.ArmyBuilding
     //
     // Recorded fidelity gaps (v1 — warned, not silently dropped):
     //   • Campaign/narrative features (campaignMode, narrativeMode, per-unit xp/traits) are not imported (#242).
-    //   • attacksMultiplier != 1 on a loadout weapon is unverified corpus territory — attacks stay as-is.
+    //   • attacksMultiplier is ignored on purpose: `attacks` is already final (verified 2026-11-13, see MapWeapon).
     //   • selectedUpgrades is parsed defensively for RULE gains only (dedupe-merged); `loadout` is trusted
     //     as the sole source of weapons/items.
     public static partial class OprListImporter
@@ -404,8 +404,9 @@ namespace FDG.ArmyBuilding
                 RangeInches = w.Range ?? 0,
                 Attacks = w.Attacks ?? 0,
             };
-            if (w.AttacksMultiplier is int m && m != 1)
-                warn($"Weapon '{weapon.Name}' has attacksMultiplier {m} (unsupported) - attacks left at {weapon.Attacks}.");
+            // attacksMultiplier is NOT applied: Army Forge's `attacks` is already the final number. Checked
+            // 2026-11-13 over every book on the live API - 8,142 weapons with a multiplier other than 1, and in every
+            // one the label Army Forge prints ("Overrun (A4, Thrust)") equals `attacks` (4), never attacks x multiplier.
             foreach (OprListRule rule in w.SpecialRules ?? new())
             {
                 if (rule.Name == "AP" && int.TryParse(rule.Rating, out int ap)) weapon.ArmorPenetration = ap;
