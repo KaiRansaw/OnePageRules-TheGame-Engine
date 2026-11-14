@@ -163,7 +163,7 @@ namespace FDG.Stages
             // (Strider/Flying). Applied to the unit scalars here and to each per-model budget below.
             bool countsAsDifficult =
                 MovementRuleQueries.CountsAsInTerrain(unit, GameContext.RuleEvaluator, ECountAsTerrain.Difficult)
-                && !MovementRuleQueries.IgnoresDifficultTerrain(unit, GameContext.RuleEvaluator);
+                && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit);
             float difficultCap = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
             if (countsAsDifficult)
             {
@@ -204,7 +204,7 @@ namespace FDG.Stages
 
             // Star Quest: Heavy Rain (random event) makes one table quarter difficult terrain.
             if (QuestActions.IsQuestGame(GameContext) && QuestChallenges.InDifficultQuarter(GameContext, unit)
-                && !MovementRuleQueries.IgnoresDifficultTerrain(unit, GameContext.RuleEvaluator))
+                && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit))
             {
                 _maxAdvanceDistance = Math.Min(_maxAdvanceDistance, difficultCap);
                 _maxRushDistance = Math.Min(_maxRushDistance, difficultCap);

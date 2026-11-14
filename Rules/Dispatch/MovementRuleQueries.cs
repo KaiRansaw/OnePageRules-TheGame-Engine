@@ -90,6 +90,40 @@ namespace FDG.Rules.Dispatch
                 && TerrainProximityQueries.IsModelWithinInches(m, new[] { piece }, 0f))).ToList();
         }
 
+        /// <summary>
+        /// <see cref="IgnoresDifficultTerrain(IUnit, RuleEvaluator)"/> for the game being played (2026-11-14). GF and AoF:
+        /// Flying "ignores the effects of Difficult and Dangerous terrain". GFF, AoFS and both Quest games: "...terrain
+        /// IT DOESN'T START ITS MOVE IN" - so a unit whose difficult-terrain waiver comes from Flying alone, starting
+        /// this move with a model in Difficult terrain, is held to the Difficult cap. Strider's waiver has no such
+        /// clause and is untouched. Every engine site that builds a move's flag calls this, so the move request the
+        /// front ends and the bots plan with already carries the answer.
+        /// </summary>
+        public static bool IgnoresDifficultTerrain(IGameContext gameContext, IUnit unit)
+        {
+            if (!IgnoresDifficultTerrain(unit, gameContext.RuleEvaluator)) return false;
+            return !FlyingStartsInDifficult(gameContext, unit, gameContext.TableState.Terrain.Objects);
+        }
+
+        /// <summary>Whether the narrowed Flying applies: this game keeps terrain a flier starts in, the waiver is
+        /// Flying's alone (no Strider, no other grant), and a living model stands in Difficult terrain.</summary>
+        public static bool FlyingStartsInDifficult(IGameContext gameContext, IUnit unit, IEnumerable<ITerrain> terrain)
+        {
+            if (!CoreRulesProfile.For(gameContext).FlyingKeepsTerrainItStartsIn) return false;
+            if (!AllTerrainOnlyFromFlying(unit, gameContext.RuleEvaluator)) return false;
+            if (DifficultWaiverFromOtherThanFlying(unit, gameContext.RuleEvaluator)) return false;
+            var difficult = terrain.Where(t => t.TerrainType.HasFlag(ETerrainType.Difficult)).ToList();
+            return difficult.Count > 0 && unit.Models.Any(m => m.GetIsAlive()
+                && TerrainProximityQueries.IsModelWithinInches(m, difficult, 0f));
+        }
+
+        private static bool DifficultWaiverFromOtherThanFlying(IUnit unit, RuleEvaluator evaluator)
+        {
+            foreach ((RuleOperation op, string name) in evaluator.EvaluateAllNamed(
+                         new MoveThroughTerrainContext(unit), RuleParticipant.Actor(unit)))
+                if (op is RuleOperation.IgnoreTerrainEffects && name != "Flying") return true;
+            return false;
+        }
+
         public static bool IgnoresAllTerrain(IUnit unit, RuleEvaluator evaluator)
         {
             foreach ((RuleOperation op, string _) in evaluator.EvaluateAllNamed(

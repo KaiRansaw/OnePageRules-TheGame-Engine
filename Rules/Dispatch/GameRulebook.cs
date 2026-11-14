@@ -79,12 +79,17 @@ namespace FDG.Rules.Dispatch
             ("Ambush", Quest, EReading.HandledPerGame,
                 "Quest has no alternation / can't-seize clause; Quest enemies never use the standard Ambush arrival (waves bring them)."),
 
+            ("Banner", SkirmishAndQuest, EReading.HandledPerGame,
+                "CoreRulesProfile.CommandGroupExtraPicks - its own unit and up to 2 picked units; one per army (#439, 1.96)."),
+            ("Musician", SkirmishAndQuest, EReading.HandledPerGame,
+                "CoreRulesProfile.CommandGroupExtraPicks - its own unit and up to 2 picked units; one per army (#439, 1.96)."),
+
             ("Tough", SkirmishAndQuest, EReading.SameBehaviour,
                 "These books print only \"killed after X wounds\"; the wound-assignment clause is the core rules' general allocation."),
 
             ("Flying", SkirmishAndQuest, EReading.KnownGap,
-                "Dangerous terrain it starts in: done (CoreRulesProfile.FlyingKeepsTerrainItStartsIn). Not done: Difficult terrain it "
-                + "starts in, and auto-passing jumping rolls (no jumping until multi-level maps)."),
+                "Terrain it starts in: done for Dangerous and Difficult (CoreRulesProfile.FlyingKeepsTerrainItStartsIn, "
+                + "MovementRuleQueries.IgnoresDifficultTerrain(ctx, unit)). Not done: auto-passing jumping rolls (no jumping until multi-level maps)."),
             ("Strider", SkirmishAndQuest, EReading.KnownGap, "Halves jumping dice - no jumping until multi-level maps; Difficult terrain part is played."),
         };
 
@@ -93,13 +98,21 @@ namespace FDG.Rules.Dispatch
         private static readonly Regex WideAura = new(
             "^This model's unit and up to 2 (nearest )?friendly units picked before the start of the game ", RegexOptions.Compiled);
 
-        /// <summary>Every core rule as <paramref name="system"/> plays it.</summary>
-        public static IReadOnlyList<Entry> For(EGameSystem system)
+        /// <summary>
+        /// Core-book rules defined in the book data rather than <see cref="CoreRuleCatalog"/> (#431): the Command
+        /// Group upgrades and the two Age of Fantasy-born rules every 3.6.0 book now prints. The engine can't load
+        /// the supplement itself, so the app passes their definitions to <see cref="For"/>.
+        /// </summary>
+        public static readonly IReadOnlyList<string> CoreRulesInBookData = new[] { "Banner", "Musician", "Sergeant", "Brace", "Parry" };
+
+        /// <summary>Every core rule as <paramref name="system"/> plays it - the catalog's, plus
+        /// <paramref name="bookDataCoreRules"/> (<see cref="CoreRulesInBookData"/>'s definitions) when given.</summary>
+        public static IReadOnlyList<Entry> For(EGameSystem system, IEnumerable<SpecialRuleDefinition>? bookDataCoreRules = null)
         {
             RuleResolver resolver = CoreRuleCatalog.CreateResolver(system);
             string slug = GameSystemInfo.Slug(system);
             var entries = new List<Entry>();
-            foreach (SpecialRuleDefinition shared in CoreRuleCatalog.All)
+            foreach (SpecialRuleDefinition shared in CoreRuleCatalog.All.Concat(bookDataCoreRules ?? Array.Empty<SpecialRuleDefinition>()))
             {
                 SpecialRuleDefinition played = resolver.TryResolve(shared.Name, out ResolvedRule r) ? r.Definition : shared;
                 string? own = Clean(OfficialRuleText.OwnText(shared.Name, slug));

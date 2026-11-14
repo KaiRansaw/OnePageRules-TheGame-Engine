@@ -1330,6 +1330,9 @@ namespace FDG.Ai.Tactician
         private bool IgnoresAllTerrain => _ignoresAllTerrain ??=
             MovementRuleQueries.IgnoresAllTerrain(_activeUnit!.GetValue(), _evaluator);
 
+        // Goal scoring only: the game-aware IgnoresDifficultTerrain(ctx, unit) (a skirmish/Quest flier starting in
+        // Difficult terrain keeps the cap) needs the game system, which the planner doesn't carry. Safe - the move
+        // itself is planned and validated from the request's flag (AiMoveExecutor), which has it right.
         private bool IgnoresDifficultTerrain => _ignoresDifficultTerrain ??=
             MovementRuleQueries.IgnoresDifficultTerrain(_activeUnit!.GetValue(), _evaluator);
 

@@ -3,6 +3,7 @@ using FDG.Players;
 using FDG.Quest;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
+using FDG.Rules.Foundation;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
@@ -71,6 +72,25 @@ namespace FDG.Tests
 
             Assert.That(GrantedRollModifiers.PeekNet(e1, ERollKind.Hit), Is.EqualTo(-1));
             Assert.That(GrantedRollModifiers.PeekNet(e2, ERollKind.Hit), Is.EqualTo(-1));
+        }
+
+        /// <summary>Quest direct hits (events, skills) roll Defense with the target's granted modifiers - and spend a
+        /// one-shot one - like any other Defense roll. Dice fixed at 4: Defense 5+ fails, 5+ with +1 passes.</summary>
+        [Test]
+        public async Task DirectHits_ReadAndSpendTheTargetsDefenseModifiers()
+        {
+            (TestGameContext c, UnitData hero, UnitData e1, UnitData e2, _) = Table();
+            QuestActions.Grant(e1, e1, ERollKind.Save, +1, ELifetime.NextTrigger, c, "Shield");   // Defense 5+ -> 4+
+            float before = e1.Models.Sum(m => m.WoundsDealt);
+
+            await QuestActions.DealHits(c, hero, e1, 1, 0, "Explosive Trap");
+
+            Assert.That(e1.Models.Sum(m => m.WoundsDealt), Is.EqualTo(before), "a 4 saves on 4+");
+            Assert.That(GrantedRollModifiers.PeekNet(e1, ERollKind.Save), Is.EqualTo(0), "the one-shot Shield was spent");
+
+            QuestActions.GrantNextStatRoll(hero, e2, -1, "Mockery");
+            await QuestActions.DealHits(c, hero, e2, 1, 0, "Explosive Trap");
+            Assert.That(GrantedRollModifiers.PeekNet(e2, ERollKind.Hit), Is.EqualTo(0), "Mockery's -1 was spent on this Defense roll");
         }
 
         private sealed class PickAll : IPlayerRequestByID

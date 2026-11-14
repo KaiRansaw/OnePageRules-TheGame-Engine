@@ -363,8 +363,7 @@ namespace FDG.Stages
             List<EnemyModelFootprint> friendlyFootprints = MovementUtilities.GetFriendlyModelFootprints(unit, gameContext);
             bool canMoveThroughEnemies = Rules.Dispatch.MovementRuleQueries.CanMoveThroughEnemies(
                 unit.GetValue(), gameContext.RuleEvaluator);
-            bool ignoresDifficultTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresDifficultTerrain(
-                unit.GetValue(), gameContext.RuleEvaluator);
+            bool ignoresDifficultTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresDifficultTerrain(gameContext, unit.GetValue());
             bool ignoresAllTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(
                 unit.GetValue(), gameContext.RuleEvaluator);
 

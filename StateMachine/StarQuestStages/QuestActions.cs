@@ -478,13 +478,21 @@ namespace FDG.Stages
         public static async Task DealHits(IGameContext context, UnitData attacker, UnitData target, int hits, int ap, string source)
         {
             if (hits <= 0 || !target.GetIsAlive()) return;
-            int needed = Math.Clamp(target.Defense + ap, 2, 6);
+            // Granted Defense modifiers count here too (2026-11-14): a shield buff, Impaired, or a Mockery "-1 to
+            // its next stat roll" - spent by this roll like any other Defense roll. Before, these hits skipped them.
+            (int granted, IReadOnlyList<Rules.Dispatch.GrantedModifier> detail) =
+                Rules.Dispatch.GrantedRollModifiers.ConsumeDetailed(target, ERollKind.Save);
+            int needed = Math.Clamp(target.Defense + ap - granted, 2, 6);
             IDiceResults roll = context.DiceRoller.Roll(6, hits);
             float saved = roll.AtOrAbove(needed);
             float wounds = hits - saved;
+            var tags = new List<string> { $"Defense {target.Defense}+" };
+            if (ap > 0) tags.Add($"AP {ap}");
+            tags.AddRange(detail.Where(d => d.Delta != 0).Select(d => d.Describe()));
             await context.Presenter.Present(DiceRolledBeat.From(roll, needed, context.Settings.RandomnessType,
                 $"{target.Name} - Defense vs {source}", $"{wounds:0.#} wound{(wounds == 1f ? "" : "s")}",
-                category: ERollBeatCategory.Defense, context: $"{attacker.Name} -> {target.Name}"));
+                category: ERollBeatCategory.Defense, context: $"{attacker.Name} -> {target.Name}",
+                modifierTags: tags.Count > 1 ? tags : null));
             if (wounds > 0f) await CasualtyPresentation.ApplyUnitWounds(context, target, wounds);
         }
 

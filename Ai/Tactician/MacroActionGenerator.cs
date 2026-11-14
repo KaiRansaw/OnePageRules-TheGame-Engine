@@ -117,6 +117,9 @@ namespace FDG.Ai.Tactician
                 PerModelCaps(perModelBudgets, EActionType.Rush, rush));
 
             bool canMoveThroughEnemies = MovementRuleQueries.CanMoveThroughEnemies(self, evaluator);
+            // Goal scoring only: the game-aware IgnoresDifficultTerrain(ctx, unit) (a skirmish/Quest flier starting in
+            // Difficult terrain keeps the cap) needs the game system, which the planner doesn't carry. Safe - the move
+            // itself is planned and validated from the request's flag (AiMoveExecutor), which has it right.
             bool ignoresDifficult = MovementRuleQueries.IgnoresDifficultTerrain(self, evaluator);
             bool ignoresAllTerrain = MovementRuleQueries.IgnoresAllTerrain(self, evaluator);
 

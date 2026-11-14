@@ -62,7 +62,7 @@ namespace FDG.Stages
             bool canMoveThroughEnemies = Rules.Dispatch.MovementRuleQueries.CanMoveThroughEnemies(
                 context.MovingUnit.GetValue(), context.GameContext.RuleEvaluator);
             bool ignoresDifficultTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresDifficultTerrain(
-                context.MovingUnit.GetValue(), context.GameContext.RuleEvaluator);
+                context.GameContext, context.MovingUnit.GetValue());
             bool ignoresImpassibleTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(
                 context.MovingUnit.GetValue(), context.GameContext.RuleEvaluator);
 
