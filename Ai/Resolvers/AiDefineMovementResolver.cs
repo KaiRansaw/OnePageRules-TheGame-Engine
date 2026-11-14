@@ -74,9 +74,11 @@ namespace FDG.Ai.Resolvers
             var archetype = AiUnitClassifier.Classify(unit);
 
             // Shooting units advance (can still shoot); melee/hybrid rush to close distance.
-            float moveDistance = archetype == AiUnitArchetype.Shooting && chargeTarget == null
+            // Never below 0: a unit allowed no move this action (2026-11-14 playtest sweep) got a negative bound and
+            // the step clamp below threw, faulting the game.
+            float moveDistance = Math.Max(0f, archetype == AiUnitArchetype.Shooting && chargeTarget == null
                 ? request.MaxAdvanceDistance - 0.001f
-                : request.MaxDistanceInches - 0.001f;
+                : request.MaxDistanceInches - 0.001f);
 
             // #093: validate each model against its OWN budget (a joined hero's Fast/Slow), matching the
             // authoritative stage check. The AI moves the whole unit as a grid, so this mainly backs the step

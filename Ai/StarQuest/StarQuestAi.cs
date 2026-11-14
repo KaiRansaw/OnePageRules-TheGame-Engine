@@ -413,7 +413,7 @@ namespace FDG.Ai.StarQuest
             {
                 // Get within 3" of the objective; stop a little short of its centre.
                 float dist = Position.GetDistance2D(new Position(cx, cz), goal);
-                float budget = Math.Clamp(dist - 1.5f, 0f, request.MaxDistanceInches - 0.001f);
+                float budget = Math.Clamp(dist - 1.5f, 0f, Math.Max(0f, request.MaxDistanceInches - 0.001f));
                 move = MovementPlanner.PlanMoveToward(request.UnitDataBinding, living, _table, goal, budget,
                     request.MaxDistanceInches, budgetFor, request.CanMoveThroughEnemies,
                     request.IgnoresDifficultTerrain, request.IgnoresImpassibleTerrain);
@@ -449,6 +449,10 @@ namespace FDG.Ai.StarQuest
                         break;
                 }
 
+                // A unit that may not move this action (0" allowed - found by the 2026-11-14 playtest sweep, a
+                // Shadow Stalkers unit in AoF: Quest) has nothing to plan: the fallback keeps it where it is. The
+                // clamp below threw on the negative bound.
+                if (moveDistance <= 0.01f) return _solo.Resolve(request);
                 float initialStep = Math.Clamp(dist - contact - targetGap, 0f, moveDistance);
                 float step = MovementPlanner.RefineStepTowardGap(request.UnitDataBinding, living, cx, cz, ndx, ndz,
                     initialStep, moveDistance, targetGap, enemyFootprints, request.MaxDistanceInches);

@@ -459,6 +459,26 @@ namespace FDG.Tests
                 + "from - this is the failure that makes a mission unfinishable.");
         }
 
+        /// <summary>2026-11-14 playtest sweep: an enemy unit allowed no move this action (0") faulted the whole AoF:
+        /// Quest mission - the planner clamped to a negative bound. It must simply stay where it is.</summary>
+        [TestCase(0f, 0f)]
+        [TestCase(0f, 6f)]
+        public async Task AnEnemyThatMayNotMove_StaysPut_InsteadOfFaultingTheGame(float advance, float rush)
+        {
+            Hero("Vex", 24f, 6f);
+            DataBinding<UnitData> enemy = Enemy(6f, 6f);
+            Quest(_ => { });
+            var resolver = new StarQuestMovementResolver(Table, _enemy, null, new StarQuestAiMemory());
+            var request = new DefineMovementPathRequest(_enemy, "Move", enemy,
+                maxAdvanceDistance: advance, maxRushDistance: rush, maxDistanceInches: 0f,
+                mainActivationMove: true);
+
+            List<ModelMoveEntry> move = Unwrap(await resolver.Resolve(request));
+
+            Assert.That(move.All(m => m.Positions.Count == 0 || Position.GetDistance2D(m.Positions.Last(), m.Model.GetValue().Position) < 0.01f), Is.True,
+                "a unit with 0\" of move does not move.");
+        }
+
         [Test]
         public async Task ItStopsCloseEnoughToWorkTheMarker_NotOnTopOfIt()
         {
