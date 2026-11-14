@@ -537,6 +537,17 @@ namespace FDG.ArmyBuilding
             "^pick (?<count>one|two|three|up to two|up to three) (?<aff>enemy|friendly) (?<kind>units?|models?) within (?<range>\\d+)\"",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // Line of sight comes from the spell's own words, never from its kind: every core book's Caster(X) says only
+        // "Pick a target", and the spells that need sight say so ("within 18\" in line of sight"). Psychic Onslaught
+        // ("within 6\"") needs none; Deep Hypnosis ("within 18\" in line of sight") does.
+        private static readonly Regex LineOfSightShape = new(
+            "within \\d+\" in line of sight", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // "Each unit may only be moved once per round in this way." - Mind Control's clause, which Army Forge also
+        // prints on Deep Hypnosis and Seductive Invocation.
+        private static readonly Regex OncePerRoundMoveShape = new(
+            "may only be moved once per round", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private static readonly Regex DamageShape = new(
             "which takes? (?<hits>\\d+) hits?(?: with (?<rules>[^.]+))?",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -615,6 +626,7 @@ namespace FDG.ArmyBuilding
                 ? ETargetAffinity.Friend
                 : ETargetAffinity.Foe;
             bool singleModel = shape.Groups["kind"].Value.StartsWith("model", StringComparison.OrdinalIgnoreCase);
+            bool los = LineOfSightShape.IsMatch(text);
 
             Match damage = DamageShape.Match(text);
             if (damage.Success)
@@ -635,7 +647,7 @@ namespace FDG.ArmyBuilding
                     }
                 }
                 return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: true, SingleModel: singleModel),
+                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los, SingleModel: singleModel),
                     new Effect.DealHits(hits, withRules, ap));
             }
 
@@ -645,7 +657,7 @@ namespace FDG.ArmyBuilding
             if (mark.Success)
             {
                 return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: false),
+                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los),
                     new Effect.MarkTarget(mark.Groups["rule"].Value.Trim()));
             }
 
@@ -655,14 +667,14 @@ namespace FDG.ArmyBuilding
                 int advance = int.Parse(move.Groups["adv"].Value);
                 int rushCharge = int.Parse(move.Groups["rc"].Value);
                 synthesized = SynthesizeMovementRule(spellName, advance, rushCharge);
-                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, ref synthesized);
+                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, los, ref synthesized);
             }
 
             Match apLoss = ApLossShape.Match(text);
             if (apLoss.Success)
             {
                 synthesized = SynthesizeApLossRule(spellName, int.Parse(apLoss.Groups["ap"].Value));
-                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, ref synthesized);
+                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, los, ref synthesized);
             }
 
             Match terrain = TerrainShape.Match(text);
@@ -672,7 +684,7 @@ namespace FDG.ArmyBuilding
                     ? ECountAsTerrain.Dangerous
                     : ECountAsTerrain.Difficult;
                 synthesized = SynthesizeCountAsTerrainRule(spellName, kind);
-                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, ref synthesized);
+                return SynthesizedGrantOrSkip(spell, spellName, range, maxCount, affinity, los, ref synthesized);
             }
 
             Match moraleTest = MoraleTestShape.Match(text);
@@ -682,12 +694,13 @@ namespace FDG.ArmyBuilding
                 Effect? onFailure =
                     MoraleFatigueTail.IsMatch(tail) ? new Effect.ApplyFatigue()
                     : MoraleMoveTail.Match(tail) is { Success: true } moveTail
-                        ? new Effect.TriggeredMove(int.Parse(moveTail.Groups["inches"].Value), IsOptional: true)
+                        ? new Effect.TriggeredMove(int.Parse(moveTail.Groups["inches"].Value), IsOptional: true,
+                            OncePerRound: OncePerRoundMoveShape.IsMatch(text))
                         : null;
                 if (onFailure is null) return null; // unknown consequence — skip whole spell, never half-wrong
 
                 return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: false),
+                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los),
                     new Effect.MoraleTestThen(onFailure));
             }
 
@@ -707,13 +720,13 @@ namespace FDG.ArmyBuilding
                         _ => ERollKind.Cast,
                     };
                     return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                        new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: false),
+                        new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los),
                         new Effect.StatModifier(roll, int.Parse(statModifier.Groups["delta"].Value,
                             System.Globalization.NumberStyles.AllowLeadingSign), ELifetime.NextTrigger));
                 }
 
                 return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: false),
+                    new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los),
                     new Effect.AddRule(granted, ELifetime.NextTrigger));
             }
 
@@ -724,7 +737,7 @@ namespace FDG.ArmyBuilding
         /// "&lt;Spell&gt; Effect" once (NextTrigger), like any other grant spell. If the synthesized
         /// definition fails validation, the whole spell is skipped (null) — never shipped half-wrong.</summary>
         private static SpellDefinition? SynthesizedGrantOrSkip(OprSpell spell, string spellName, int range,
-            int maxCount, ETargetAffinity affinity, ref SpecialRuleDefinition? synthesized)
+            int maxCount, ETargetAffinity affinity, bool los, ref SpecialRuleDefinition? synthesized)
         {
             if (synthesized is null || new Rules.Dispatch.RuleValidator().Validate(synthesized).Count > 0)
             {
@@ -733,7 +746,7 @@ namespace FDG.ArmyBuilding
             }
 
             return new SpellDefinition(spellName, spell.Threshold ?? 1,
-                new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: false),
+                new TargetSelector(range, 1, maxCount, affinity, RequireLineOfSight: los),
                 new Effect.AddRule(synthesized.Name, ELifetime.NextTrigger));
         }
 

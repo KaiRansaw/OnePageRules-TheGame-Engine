@@ -45,20 +45,36 @@ namespace FDG.Rules.Dispatch
         /// Keep-out discs for <paramref name="scout"/>'s forward placement: one per living, on-table model
         /// of every enemy unit that does NOT itself have Scout.
         /// </summary>
-        public static IReadOnlyList<PlacementDisc> EnemyKeepOutDiscs(IUnit scout, ITableState tableState)
+        public static IReadOnlyList<PlacementDisc> EnemyKeepOutDiscs(IUnit scout, ITableState tableState) =>
+            KeepOutDiscs(scout, tableState, "Scout", EnemyKeepOutInches);
+
+        /// <summary>
+        /// Vanguard and Fanatic (every book that has them, 3.6.0 / 2.1.0): "may be placed anywhere fully within 9" of
+        /// its position, <b>over 9" away from non-Vanguard enemy units</b>". The same keep-out as Scout's, with
+        /// Vanguard as the exception - for Fanatic too, which prints "non-Vanguard" word for word.
+        /// </summary>
+        public static IReadOnlyList<PlacementDisc> VanguardKeepOutDiscs(IUnit unit, ITableState tableState) =>
+            KeepOutDiscs(unit, tableState, "Vanguard", EnemyKeepOutInches);
+
+        /// <summary>
+        /// Keep-out discs for <paramref name="placed"/>: one per living, on-table model of every enemy unit that does
+        /// NOT itself carry <paramref name="exemptRule"/>, each widened by both bases (edge-to-edge distance).
+        /// </summary>
+        public static IReadOnlyList<PlacementDisc> KeepOutDiscs(IUnit placed, ITableState tableState, string exemptRule, float inches)
         {
-            float scoutReach = WidestLivingBaseRadius(scout);
+            float reach = WidestLivingBaseRadius(placed);
             List<PlacementDisc>? discs = null;
 
             foreach (IUnit unit in tableState.Units.Objects)
             {
-                if (ReferenceEquals(unit, scout)) continue;
+                if (ReferenceEquals(unit, placed)) continue;
                 if (!unit.GetIsAlive()) continue;
                 if (ReserveRules.IsInReserve(unit)) continue;
-                if (ITeamExtensions.AreAllied(tableState.Teams.Objects, scout.PlayerID, unit.PlayerID)) continue;
+                if (ITeamExtensions.AreAllied(tableState.Teams.Objects, placed.PlayerID, unit.PlayerID)) continue;
 
-                // The exception that makes this rule need its own builder: enemy Scouts don't push.
-                if (HasScout(unit)) continue;
+                // The exception that makes these rules need their own builder: enemy Scouts don't push a Scout,
+                // enemy Vanguards don't push a Vanguard.
+                if (HasRule(unit, exemptRule)) continue;
 
                 foreach (IModel model in unit.Models)
                 {
@@ -68,7 +84,7 @@ namespace FDG.Rules.Dispatch
                     if (pos.x == 0f && pos.z == 0f) continue;
 
                     (discs ??= new List<PlacementDisc>()).Add(new PlacementDisc(pos,
-                        EnemyKeepOutInches + model.BaseShape.BoundingRadiusInches + scoutReach));
+                        inches + model.BaseShape.BoundingRadiusInches + reach));
                 }
             }
 
@@ -121,10 +137,12 @@ namespace FDG.Rules.Dispatch
             return widened;
         }
 
-        public static bool HasScout(IUnit unit) =>
+        public static bool HasScout(IUnit unit) => HasRule(unit, "Scout");
+
+        public static bool HasRule(IUnit unit, string name) =>
             unit.RuleDefinitions.Any(rule =>
-                string.Equals(rule.Definition.Name, "Scout", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(rule.RequestedName, "Scout", StringComparison.OrdinalIgnoreCase));
+                string.Equals(rule.Definition.Name, name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(rule.RequestedName, name, StringComparison.OrdinalIgnoreCase));
 
         private static float WidestLivingBaseRadius(IUnit unit)
         {

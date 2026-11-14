@@ -419,12 +419,13 @@ public class OprBookImporterTests
         Assert.That(terror.Target.TargetAffinity, Is.EqualTo(ETargetAffinity.Foe));
         Assert.That(((Effect.MarkTarget)terror.Effect).RuleName, Is.EqualTo("Unpredictable Fighter"));
 
-        // Damage: AP folds into ArmorPenetration; targeting is one enemy unit needing LoS.
+        // Damage: AP folds into ArmorPenetration; targeting is one enemy unit. Its words don't say "in line of
+        // sight", so it needs none (Caster(X): "Pick a target" - sight only where the spell asks for it).
         SpellDefinition blast = book.Spells.Single(s => s.Name == "Psychic Blast");
         Assert.That(blast.Threshold, Is.EqualTo(2));
         Assert.That(blast.Target.RangeInches, Is.EqualTo(12f));
         Assert.That(blast.Target.TargetAffinity, Is.EqualTo(ETargetAffinity.Foe));
-        Assert.That(blast.Target.RequireLineOfSight, Is.True);
+        Assert.That(blast.Target.RequireLineOfSight, Is.False);
         var blastHits = (Effect.DealHits)blast.Effect;
         Assert.That(blastHits.Count, Is.EqualTo(4));
         Assert.That(blastHits.ArmorPenetration, Is.EqualTo(2));
@@ -579,6 +580,7 @@ public class OprBookImporterTests
         var hypnosisMove = (Effect.TriggeredMove)((Effect.MoraleTestThen)hypnosis.Effect).OnFailure;
         Assert.That((hypnosisMove.MaxInches, hypnosisMove.IsOptional), Is.EqualTo((6f, true)));
         Assert.That(hypnosis.Target.MaxCount, Is.EqualTo(2));
+        Assert.That(hypnosisMove.OncePerRound, Is.False, "this older wording has no once-per-round clause");
 
         // Only the synthesized rules land in the book; parse-only spells embed nothing.
         Assert.That(book.RuleDefinitions.Select(d => d.Name),
@@ -827,5 +829,39 @@ public class OprBookImporterTests
         Assert.That(unit.PointCost, Is.EqualTo(120));                       // 100 + 10×2
         Assert.That(unit.Weapons.Single(w => w.Name == "Blaster").Quantity, Is.EqualTo(3));  // 5 − 2 replaced
         Assert.That(unit.Weapons.Single(w => w.Name == "Heavy Blaster").Quantity, Is.EqualTo(2));
+    }
+
+    // Army Forge's live 3.6.0 wording (Soul-Snatcher Cults / Vampiric Undead, fetched 2026-11-13): sight and the
+    // once-per-round clause come from the words, not from what kind of spell it is.
+    private const string LiveWordingJson = """
+    {
+      "uid": "live", "name": "Live Wording", "versionString": "3.6.0", "units": [], "upgradePackages": [],
+      "specialRules": [],
+      "spells": [
+        { "name": "Deep Hypnosis", "threshold": 1,
+          "effect": "Pick one enemy unit within 18\" in line of sight, which must take a Morale Test. If failed you may move it by up to 6\" in a straight line in any direction. Each unit may only be moved once per round in this way." },
+        { "name": "Psychic Onslaught", "threshold": 1,
+          "effect": "Pick one enemy unit within 6\", which takes 3 hits with AP(1) and Reap. Roll as many dice as hits to see if \"on rolls of 6\" effects trigger." },
+        { "name": "Mind Corruption", "threshold": 3,
+          "effect": "Pick one enemy unit within 18\" in line of sight, which takes 6 hits with Surge. Roll as many dice as hits to see if \"on rolls of 6\" effects trigger." },
+        { "name": "Bio-Displacer", "threshold": 3,
+          "effect": "Pick up to three friendly units within 18\", which get Teleport once (next time the effect would apply)." }
+      ]
+    }
+    """;
+
+    [Test]
+    public void Import_SpellSightAndOncePerRound_ComeFromTheSpellsOwnWords()
+    {
+        BookFile book = OprBookImporter.Import(LiveWordingJson, "TestSource", "CC-BY-SA 4.0", _ => { });
+        SpellDefinition Spell(string n) => book.Spells.Single(s => s.Name == n);
+
+        Assert.That(Spell("Deep Hypnosis").Target.RequireLineOfSight, Is.True, "\"within 18\\\" in line of sight\"");
+        Assert.That(Spell("Mind Corruption").Target.RequireLineOfSight, Is.True);
+        Assert.That(Spell("Psychic Onslaught").Target.RequireLineOfSight, Is.False, "damage, but no sight in its words");
+        Assert.That(Spell("Bio-Displacer").Target.RequireLineOfSight, Is.False);
+
+        var move = (Effect.TriggeredMove)((Effect.MoraleTestThen)Spell("Deep Hypnosis").Effect).OnFailure;
+        Assert.That(move.OncePerRound, Is.True, "\"Each unit may only be moved once per round in this way.\"");
     }
 }

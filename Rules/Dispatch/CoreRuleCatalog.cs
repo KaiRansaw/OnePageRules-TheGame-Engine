@@ -1907,7 +1907,8 @@ public static class CoreRuleCatalog
     /// shape exactly: a <see cref="RuleOperation.RepositionModels"/> that <c>DeployUnitStage</c> folds into
     /// a per-model-radius placement. The OncePerGame cost is a guard, as on Fanatic - deployment happens
     /// once, and it keeps the offer from re-firing on a Scout/Ambush re-placement. The "over 9" from
-    /// non-Vanguard enemies" standoff is still open, shared with Fanatic (fdg-todo, #420 item 8).
+    /// non-Vanguard enemies" standoff is built at request time in DeployUnitStage
+    /// (ScoutDeploymentRules.VanguardKeepOutDiscs), shared with Fanatic.
     /// </summary>
     public static SpecialRuleDefinition Vanguard { get; } = new SpecialRuleDefinition("Vanguard",
         Array.Empty<HookEntry>(),
@@ -1920,7 +1921,7 @@ public static class CoreRuleCatalog
                 new Condition.AllModelsHaveThisRule()),
         },
         Valence: EValence.Positive,
-        Description: "After this model is deployed, it may be placed anywhere fully within 9\" of its position.");
+        Description: "After this model is deployed, it may be placed anywhere fully within 9\" of its position, over 9\" away from non-Vanguard enemy units.");
 
     /// <summary>
     /// Fanatic (#197 P21): after this unit deploys, it may be PLACED anywhere fully within 9" of its
@@ -1942,7 +1943,7 @@ public static class CoreRuleCatalog
                 new Condition.AllModelsHaveThisRule()),
         },
         Valence: EValence.Positive,
-        Description: "After deploying, this unit may be placed anywhere fully within 9\" of its position.");
+        Description: "After this model is deployed, it may be placed anywhere fully within 9\" of its position, over 9\" away from non-Vanguard enemy units.");
 
     /// <summary>
     /// Harassing: after this unit shoots — or after it is in melee, in EITHER role (#391; the text is

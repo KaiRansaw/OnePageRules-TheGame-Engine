@@ -164,7 +164,10 @@ namespace FDG.Stages
 
                 // Fanatic emits a RepositionModels op the executor ignores (it is stage-folded, not
                 // executable). Fold it into a within-radius placement, exactly as ActivationStartStage does.
-                await RepositionPlacement.OfferFromOperations(GameContext, deployedUnit, outcome.Operations);
+                // Both deploy-time repositions in the books (Vanguard, Fanatic) end "over 9\" away from non-Vanguard
+                // enemy units" - built at request time against the table as it stands, like Scout's keep-out.
+                await RepositionPlacement.OfferFromOperations(GameContext, deployedUnit, outcome.Operations,
+                    Rules.Dispatch.ScoutDeploymentRules.VanguardKeepOutDiscs(deployedUnit, GameContext.TableState));
             }
         }
     }

@@ -25,7 +25,10 @@ namespace FDG.Stages
         /// Offers the placement for the living models of <paramref name="unit"/> up to
         /// <paramref name="maxInches"/>. A no-op when the radius is not positive or no models are alive.
         /// </summary>
-        public static async Task Offer(IGameContext gameContext, UnitData unit, float maxInches)
+        /// <param name="keepOut">Enemy keep-out discs the new positions must stay outside (Vanguard / Fanatic's
+        /// "over 9\" away from non-Vanguard enemy units"); none for the activation-start repositions.</param>
+        public static async Task Offer(IGameContext gameContext, UnitData unit, float maxInches,
+            IReadOnlyList<PlacementDisc>? keepOut = null)
         {
             if (maxInches <= 0f) return;
 
@@ -42,6 +45,7 @@ namespace FDG.Stages
             var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID,
                 $"Repositioning {unit.Name}",
                 wholeTable, livingModels, allowCancel: true, maxDistanceFromStartInches: maxInches,
+                enemyKeepOutDiscs: keepOut,
                 cancelHint: "Cancel the reposition. Every model stays where it is.");
 
             CancellableResult<List<PlacedObjectEntry<ModelData>>> result = await gameContext.PlayerRequester
@@ -75,10 +79,10 @@ namespace FDG.Stages
         /// if the total radius is positive, offers the placement for <paramref name="unit"/>.
         /// </summary>
         public static Task OfferFromOperations(IGameContext gameContext, UnitData unit,
-            IReadOnlyList<RuleOperation> operations)
+            IReadOnlyList<RuleOperation> operations, IReadOnlyList<PlacementDisc>? keepOut = null)
         {
             float inches = operations.OfType<RuleOperation.RepositionModels>().Sum(op => op.MaxInches);
-            return Offer(gameContext, unit, inches);
+            return Offer(gameContext, unit, inches, keepOut);
         }
 
         /// <summary>

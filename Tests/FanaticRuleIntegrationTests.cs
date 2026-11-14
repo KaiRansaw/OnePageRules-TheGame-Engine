@@ -171,6 +171,53 @@ namespace FDG.Tests
                 Assert.That(model.GetValue().Position.x, Is.EqualTo(15f).Within(0.001f));
         }
 
+        // 3.6.0 / 2.1.0, every book that has them: "...placed anywhere fully within 9" of its position, over 9" away
+        // from non-Vanguard enemy units." Fanatic prints "non-Vanguard" too. Enemy Vanguards don't push back;
+        // friendly units, unplaced enemies and the unit itself never do.
+        [TestCase("Vanguard")]
+        [TestCase("Fanatic")]
+        public async Task DeployStage_Reposition_KeepsOver9InchesFromNonVanguardEnemies(string rule)
+        {
+            DataBinding<UnitData> unit = MakeUnit("Forward", fanatic: rule == "Fanatic");
+            if (rule == "Vanguard") unit.GetValue().AttachRuleDefinition(new ResolvedRule("Vanguard", CoreRuleCatalog.Vanguard));
+            DataBinding<UnitData> friend = MakeUnit("Friends", fanatic: false);
+            MakeArmy(unit, friend);
+            Place(friend, 20f, 12f);
+
+            var enemyPlayer = new PlayerID(Guid.NewGuid());
+            DataBinding<UnitData> line = MakeUnitFor(enemyPlayer, "Line Troops", 30f, 40f);
+            DataBinding<UnitData> enemyVanguard = MakeUnitFor(enemyPlayer, "Enemy Vanguard", 12f, 30f);
+            enemyVanguard.GetValue().AttachRuleDefinition(new ResolvedRule("Vanguard", CoreRuleCatalog.Vanguard));
+            DataBinding<UnitData> reserve = MakeUnitFor(enemyPlayer, "Not Placed", 0f, 0f);
+            _store.Create(new ArmyData(enemyPlayer, new List<DataBinding<UnitData>> { line, enemyVanguard, reserve }));
+
+            var requester = new FanaticRequester(accept: true, deployAt: new Position(10f, 10f), shiftX: 5f);
+            await RunDeployUnit(requester, unit);
+
+            IReadOnlyList<PlacementDisc> discs = requester.RepositionRequest!.EnemyKeepOutDiscs;
+            Assert.That(discs, Has.Count.EqualTo(2), "one per model of the enemy line unit - nothing else pushes");
+            Assert.That(discs.All(d => Math.Abs(d.Center.x - 30f) < 0.001f && Math.Abs(d.Center.z - 40f) < 0.001f));
+            Assert.That(discs[0].RadiusInches, Is.EqualTo(9f + 0.5f + 0.5f).Within(0.001f),
+                "9\" edge to edge: the keep-out is widened by both bases");
+        }
+
+        private void Place(DataBinding<UnitData> unit, float x, float z)
+        {
+            foreach (DataBinding<ModelData> m in unit.GetValue().ModelBindings) m.GetValue().SetPosition(new Position(x, z));
+        }
+
+        private DataBinding<UnitData> MakeUnitFor(PlayerID owner, string name, float x, float z)
+        {
+            var modelBindings = new List<DataBinding<ModelData>>();
+            for (int i = 0; i < 2; i++)
+            {
+                var model = new ModelData(0.5f, new List<Weapon>(), new Position(x, z), _store);
+                modelBindings.Add(_store.GetDataBinding<ModelData>(_store.Create(model)));
+            }
+            var unit = new UnitData(owner, name, quality: 4, defense: 4, modelBindings: modelBindings);
+            return _store.GetDataBinding<UnitData>(_store.Create(unit));
+        }
+
         // --- helpers ---
 
         // Drives the real DeployUnitStage for one unit set as current deployer (as ChooseUnitToDeployStage

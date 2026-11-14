@@ -560,6 +560,10 @@ public static class RuleFireLint
             case Condition.UnitHasRule hasRule when positive:
                 AttachStubRule(world.Bearer, hasRule.RuleName);
                 break;
+            // Has it OR was given it: holding it outright satisfies the gate just the same.
+            case Condition.UnitHasRuleOrGrant hasOrGranted when positive:
+                AttachStubRule(world.Bearer, hasOrGranted.RuleName);
+                break;
             case Condition.TargetHasRule targetHas when positive:
                 AttachStubRule(world.Other, targetHas.RuleName);
                 break;
