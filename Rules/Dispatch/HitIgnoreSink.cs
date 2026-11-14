@@ -20,6 +20,14 @@ public sealed class HitIgnoreSink : IHitIgnoreSink
         _threshold = System.Math.Min(_threshold, successThreshold);
     }
 
+    private readonly HashSet<(ModelID, string)> _counted = new();
+
+    public void AddModelIgnoreDice(ModelID model, string copy, float dice, int successThreshold)
+    {
+        if (!_counted.Add((model, copy))) return;
+        AddIgnoreDice(dice, successThreshold);
+    }
+
     public void ApplyFrom(IEnumerable<RuleOperation> operations)
     {
         foreach (SinkOperation<IHitIgnoreSink> operation in operations.OfType<SinkOperation<IHitIgnoreSink>>())

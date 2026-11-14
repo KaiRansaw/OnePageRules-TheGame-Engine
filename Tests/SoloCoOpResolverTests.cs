@@ -446,6 +446,25 @@ namespace FDG.Tests
                 "Relentless is worded for the unit rather than the weapon, and its clause is the same.");
         }
 
+        // House rule (Build 2.08): the books have no Cumbersome clause, and the tree's "Advance and shoot" throws a
+        // Cumbersome unit's shot away ("can't shoot when moving"). It holds and fires like Indirect/Relentless.
+        [Test]
+        public async Task CumbersomeUnitInRange_HoldsAndShoots_InsteadOfWalkingAndLosingItsShot()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Artillery Crew", 24f, 24f);
+            GiveUnitRule(ai, "Cumbersome");
+            // The tree targets the closest UNACTIVATED enemy (30" off, out of range) and walks towards it - which,
+            // for a Cumbersome unit, throws away the shot it has at the activated unit 16" away.
+            DataBinding<UnitData> near = Unit(_player, "Activated Troops", 24f, 40f);
+            near.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+            Unit(_player, "Fresh Troops", 54f, 24f);
+
+            string pick = await NewActionResolver().Resolve(Menu(ai, FullMenu));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.SHOOT_CHOICE_NAME),
+                "a Cumbersome unit that moves cannot shoot - with anything in range it holds and fires");
+        }
+
         // The control that gives the two above their meaning: the identical board and the identical unit
         // WITHOUT either rule charges, because melee is its better attack. So the Shoot picks above are
         // the clause doing the work and not the fixture.

@@ -35,6 +35,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(UnitHasRuleOrGrant), "unitHasRuleOrGrant")]
 [JsonDerivedType(typeof(AllModelsHaveThisRule), "allModelsHaveThisRule")]
 [JsonDerivedType(typeof(MostModelsHaveThisRule), "mostModelsHaveThisRule")]
+[JsonDerivedType(typeof(AnyModelHasThisRule), "anyModelHasThisRule")]
 [JsonDerivedType(typeof(TargetHasRule), "targetHasRule")]
 [JsonDerivedType(typeof(WeaponHasRule), "weaponHasRule")]
 [JsonDerivedType(typeof(ActionTypeIs), "actionTypeIs")]
@@ -211,6 +212,25 @@ public abstract record Condition
     /// </summary>
     public sealed record MostModelsHaveThisRule : Condition
     {
+        /// <summary>
+        /// Whether <paramref name="model"/> carries <paramref name="definition"/> - the ownership reading every
+        /// "models with this rule" condition shares: on the model itself, granted to the unit (counts for
+        /// everyone), or static on the unit for a native model (a joined hero does not inherit the host's
+        /// rules). <paramref name="arguments"/>, when given, must match too - Parry(1) and Parry(3) are
+        /// different copies.
+        /// </summary>
+        internal static bool ModelCarries(IUnit unit, IModel model, SpecialRuleDefinition definition,
+            IReadOnlyList<RuleArgument>? arguments = null)
+        {
+            bool Same(FDG.Rules.Dispatch.ResolvedRule r) => r.Definition == definition
+                && (arguments == null || r.Arguments.SequenceEqual(arguments));
+
+            if (model.RuleDefinitions.Any(Same)) return true;
+            if (RuleGrantQueries.UnitHasGrantedRule(unit, definition)) return true;
+            bool isJoinedHero = unit.JoinedHeroModelId is ModelID hid && model.ID == hid;
+            return !isJoinedHero && unit.RuleDefinitions.Any(Same);
+        }
+
         public override bool Evaluate(RuleInvocation invocation)
         {
             SpecialRuleDefinition? definition = invocation.Definition;
@@ -244,6 +264,26 @@ public abstract record Condition
             }
 
             return living > 0 && carriers * 2 > living;
+        }
+    }
+
+    /// <summary>
+    /// True if ANY living model in the bearer's unit carries the firing rule (Build 2.08). For the rules whose
+    /// text is about the models that have it rather than about the whole unit having it - Parry ("roll X dice
+    /// per model with this rule in it") and Brace ("enemies charging this unit get -X") print no "where all
+    /// models" clause. Before this they used <see cref="AllModelsHaveThisRule"/>, so a hero without Parry
+    /// switched a Parry unit's dice off, and a hero's own Parry did nothing inside a unit. Same ownership
+    /// reading as the other two (<see cref="MostModelsHaveThisRule.ModelCarries"/>). A rule using it must
+    /// count its own carriers in its effect (Parry does), or a lone hero's copy would act for the whole unit.
+    /// </summary>
+    public sealed record AnyModelHasThisRule : Condition
+    {
+        public override bool Evaluate(RuleInvocation invocation)
+        {
+            SpecialRuleDefinition? definition = invocation.Definition;
+            if (definition == null) return true; // mirrors AllModelsHaveThisRule
+            IUnit unit = invocation.Bearer;
+            return unit.Models.Any(m => m.GetIsAlive() && MostModelsHaveThisRule.ModelCarries(unit, m, definition));
         }
     }
 

@@ -17,4 +17,8 @@ public interface IHitIgnoreSink
     /// <summary> Adds <paramref name="dice"/> dice to the pool, each cancelling a hit on
     /// <paramref name="successThreshold"/> or more. </summary>
     void AddIgnoreDice(float dice, int successThreshold);
+
+    /// <summary> Build 2.08: one model's dice from one copy of the rule. The same model and copy added again
+    /// (two attachments reaching one model) is counted once. </summary>
+    void AddModelIgnoreDice(ModelID model, string copy, float dice, int successThreshold);
 }

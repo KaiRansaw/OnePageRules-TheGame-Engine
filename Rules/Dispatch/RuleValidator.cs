@@ -187,6 +187,9 @@ public sealed class RuleValidator
     {
         Condition.AllModelsHaveThisRule => true,
         Condition.MostModelsHaveThisRule => true,
+        // Build 2.08: a rule that counts its own carriers (Parry's dice per model with it, Brace on "this unit")
+        // gates on its carriers rather than on every model - the book text, not the general convention.
+        Condition.AnyModelHasThisRule => true,
         Condition.And and => GatesOnAllModels(and.Left) || GatesOnAllModels(and.Right),
         _ => false,
     };

@@ -1159,16 +1159,38 @@ public abstract record Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
-            int carriers = ruleInvocation.Weapon == null || ruleInvocation.Definition == null
-                ? ruleInvocation.Bearer.Models.Count(m => m.GetIsAlive())
-                : ruleInvocation.Bearer.Models.Count(m => m.GetIsAlive()
-                    && m.Weapons.Any(w => w.RuleDefinitions.Any(r => r.Definition == ruleInvocation.Definition)));
-
             int perModel = DicePerModel.Resolve(ruleInvocation);
-            if (carriers > 0 && perModel > 0)
+            if (perModel <= 0) return;
+
+            IUnit unit = ruleInvocation.Bearer;
+            SpecialRuleDefinition? definition = ruleInvocation.Definition;
+            if (definition == null)
             {
-                operations.Add(new RuleOperation.IgnoreHitsOnRoll(carriers * perModel, SuccessThreshold));
+                int living = unit.Models.Count(m => m.GetIsAlive());
+                if (living > 0) operations.Add(new RuleOperation.IgnoreHitsOnRoll(living * perModel, SuccessThreshold));
+                return;
             }
+
+            // "X dice per model with this rule in it" (Build 2.08): only the models that carry THIS copy - a
+            // weapon-scoped attachment counts models with a weapon carrying it; a unit- or model-held one counts
+            // the models that hold it (a joined hero's own Parry is the hero's alone; the host's is the host's).
+            // Each model is named, so a model reached by two attachments of the same copy rolls once.
+            var carriers = new List<ModelID>();
+            foreach (IModel model in unit.Models)
+            {
+                if (!model.GetIsAlive()) continue;
+                bool carries = ruleInvocation.Weapon != null
+                    ? model.Weapons.Any(w => w.RuleDefinitions.Any(r => r.Definition == definition))
+                    : Condition.MostModelsHaveThisRule.ModelCarries(unit, model, definition, ruleInvocation.Arguments);
+                if (carries) carriers.Add(model.ID);
+            }
+            if (carriers.Count == 0) return;
+
+            string copy = definition.Name + "(" + string.Join(",", ruleInvocation.Arguments) + ")";
+            operations.Add(new RuleOperation.IgnoreHitsOnRoll(carriers.Count * perModel, SuccessThreshold)
+            {
+                PerModel = carriers.Select(id => (id, copy, (float)perModel)).ToList(),
+            });
         }
     }
 

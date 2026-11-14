@@ -53,6 +53,7 @@ namespace FDG.Ai.Solo
         /// for, so an army's own embedded copy of the rule counts.</summary>
         private const string Indirect = "Indirect";
         private const string Relentless = "Relentless";
+        private const string Cumbersome = "Cumbersome";
         private const string Blast = "Blast";
         private const string Deadly = "Deadly";
         private const string Tough = "Tough";
@@ -94,7 +95,14 @@ namespace FDG.Ai.Solo
             // weapon it has will do.
             float relentlessRange = UnitHasRule(unit, Relentless) ? AiCombatMath.MaxRange(unit) : 0f;
 
-            float reach = Math.Max(indirectRange, relentlessRange);
+            // House rule (Build 2.08, books silent): Cumbersome - "May only use Hold or Advance actions, but can't
+            // shoot when moving". The Solo & Co-Op books have no clause for it, and their tree's "Advance and
+            // shoot" can't be done by a Cumbersome unit: it walked and lost its shot every activation (the 2.06
+            // bot sweep). So it gets the same treatment the books give Indirect and Relentless - an enemy in
+            // range means it holds and fires. Recorded in claude/house-rules.md.
+            float cumbersomeRange = UnitHasRule(unit, Cumbersome) ? AiCombatMath.MaxRange(unit) : 0f;
+
+            float reach = Math.Max(Math.Max(indirectRange, relentlessRange), cumbersomeRange);
             if (reach <= 0f) return false;
 
             return enemies.Any(enemy => AiCombatMath.Distance(unit, enemy) <= reach);

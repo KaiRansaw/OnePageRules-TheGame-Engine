@@ -183,7 +183,15 @@ public abstract record RuleOperation
 
     public sealed record IgnoreHitsOnRoll(float Dice, int SuccessThreshold) : SinkOperation<IHitIgnoreSink>
     {
-        public override void ApplyTo(IHitIgnoreSink sink) => sink.AddIgnoreDice(Dice, SuccessThreshold);
+        /// <summary>Build 2.08: the dice by the model that rolls them, and which copy of the rule they come from -
+        /// so a model reached by two attachments of one copy is counted once. Null for a flat pool.</summary>
+        public IReadOnlyList<(ModelID Model, string Copy, float Dice)>? PerModel { get; init; }
+
+        public override void ApplyTo(IHitIgnoreSink sink)
+        {
+            if (PerModel == null) sink.AddIgnoreDice(Dice, SuccessThreshold);
+            else foreach (var (model, copy, dice) in PerModel) sink.AddModelIgnoreDice(model, copy, dice, SuccessThreshold);
+        }
 
         public override string Describe() =>
             $"rolled {Dice} dice to ignore hits on {SuccessThreshold}+";

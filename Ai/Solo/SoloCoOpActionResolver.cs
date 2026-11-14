@@ -129,7 +129,7 @@ namespace FDG.Ai.Solo
                     ClauseTrace?.Invoke(unit, $"cast while holding ({holdCast})");
                     return Task.FromResult(holdCast);
                 }
-                ClauseTrace?.Invoke(unit, "hold and shoot (Indirect/Relentless in range)");
+                ClauseTrace?.Invoke(unit, "hold and shoot (Indirect/Relentless/Cumbersome in range)");
                 return Task.FromResult(FocusedFireInstead(unit, Has) ?? holdAndShoot);
             }
 
