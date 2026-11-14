@@ -33,6 +33,13 @@ namespace FDG
         // the first cut of this rule passed its tests and did nothing in a real game.) 0 when none fired.
         public float SelfWounds;
 
+        /// <summary>
+        /// Pierce was used ("ignores all positive Defense modifiers on the target"). <see cref="SaveModifier"/> has already
+        /// lost the rule-based bonuses; the save stage drops the rest - cover and the granted "+1 Defense" buffs, which
+        /// are added there, after this stage.
+        /// </summary>
+        public bool PiercesDefenseBonuses;
+
         public RollToHitResults(List<SuccessfulHitInfo> successfulHits, List<FailedHitInfo> failedHitList)
         {
             SuccessfulHitList = successfulHits;

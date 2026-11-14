@@ -16,22 +16,17 @@ namespace FDG.Stages
 
         public override async Task Enter(ICombatActionContext context)
         {
-            // #020 Fatigue: units that fought in this melee become Fatigued for the rest of the round,
-            // after which they hit only on unmodified 6s in further melee. Applied here, at the end of
-            // the melee, so the swings just resolved used full Quality. Up to three units can need it,
-            // and FatigueUtilities.ApplyFatigued is idempotent so the overlaps are harmless:
+            // #020 Fatigue, 3.6.0: "After a melee where they attacked, units hit on unmodified rolls of 6 in
+            // melee until the end of that round." Applied here, at the end of the melee, so the swings just
+            // resolved used full Quality. FatigueUtilities.ApplyFatigued is idempotent.
             //   - AttackingUnit:  the unit that swung first (the charger, or a Counter unit that swapped in).
-            //   - ChargingUnit:   the unit that charged — fatigued for charging even if a Counter unit
-            //                     denied it a swing (recoverable after SwapCombatRoles via this capture).
-            //   - DefendingUnit:  fatigued only if it actually struck back.
+            //   - DefendingUnit:  only if it actually attacked - struck back, or (after a Counter swap) made the
+            //                     charge's own attack. A charger a Counter unit left with no model able to swing
+            //                     did not attack, so it is not Fatigued (until 1.94 it was, for charging - the
+            //                     3.5.1 wording, "at the end of an activation in which they charged").
             IUnit swinger = context.AttackingUnit.GetValue();
             FatigueUtilities.ApplyFatigued(swinger);
             GameContext.Log($"{swinger.Name} is Fatigued.");
-
-            if (context.ChargingUnit != null)
-            {
-                FatigueUtilities.ApplyFatigued(context.ChargingUnit.GetValue());
-            }
 
             if (context.DefenderStruckBack)
             {

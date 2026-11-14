@@ -2,6 +2,7 @@ using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.Stages;
 using NUnit.Framework;
 
@@ -121,6 +122,65 @@ namespace FDG.Tests
             RollToHitResults result = await RunStage(attacker, MakeUnit(DefenderPos));
 
             Assert.That(result.SaveModifier, Is.EqualTo(-2), "nothing favourable to discard.");
+        }
+
+        // Pierce found building 1.42: cover and the GRANTED buffs (spells, items, Hunker Down, the Challenge Bonus) are
+        // added at the save stage, after the hit roll that knew Pierce was used. They must go too.
+
+        [Test]
+        public async Task Pierce_AlsoDropsCoverAndGrantedDefenseBuffs_AtTheSaveRoll()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            Attach(attacker, Pierce());
+            DataBinding<UnitData> defender = MakeUnit(DefenderPos);
+            defender.GetValue().Tokens.AddToken(new Token(RollModifierTokens.TypeFor(ERollKind.Save), 1,
+                new TokenClearTrigger.RoundEnd(), Payload: new TokenPayload.StatModifier(1)));
+
+            int saveNeeded = await RunSave(attacker, defender, cover: 1);
+
+            Assert.That(saveNeeded, Is.EqualTo(4), "Defense 4+, and neither the cover nor the +1 buff counts.");
+        }
+
+        [Test]
+        public async Task NoPierce_CoverAndGrantedBuffsStand()
+        {
+            DataBinding<UnitData> defender = MakeUnit(DefenderPos);
+            defender.GetValue().Tokens.AddToken(new Token(RollModifierTokens.TypeFor(ERollKind.Save), 1,
+                new TokenClearTrigger.RoundEnd(), Payload: new TokenPayload.StatModifier(1)));
+
+            int saveNeeded = await RunSave(MakeUnit(AttackerPos), defender, cover: 1);
+
+            Assert.That(saveNeeded, Is.EqualTo(2), "4+ with cover +1 and the buff +1.");
+        }
+
+        [Test]
+        public async Task Pierce_KeepsAGrantedDefensePenalty()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            Attach(attacker, Pierce());
+            DataBinding<UnitData> defender = MakeUnit(DefenderPos);
+            defender.GetValue().Tokens.AddToken(new Token(RollModifierTokens.TypeFor(ERollKind.Save), 1,
+                new TokenClearTrigger.RoundEnd(), Payload: new TokenPayload.StatModifier(-1)));
+
+            int saveNeeded = await RunSave(attacker, defender, cover: 0);
+
+            Assert.That(saveNeeded, Is.EqualTo(5), "only POSITIVE modifiers are ignored; a -1 still hurts.");
+        }
+
+        private async Task<int> RunSave(DataBinding<UnitData> attacker, DataBinding<UnitData> defender, int cover)
+        {
+            RollToHitResults hits = await RunStage(attacker, defender);
+            var ctx = new TestGameContext(_store, new FixedDiceRoller(6));
+            var weapon = new Weapon("Test", rangeInches: 0f, attacks: 1, armorPenetration: 0);
+            var saveStage = new DetermineSaveRollsNeededStage<ICombatMetadata>(ctx, new NoOpLayer<ICombatMetadata>());
+            saveStage.NextStage.Bind("done");
+            var meta = new CombatMetadata(ctx, attacker, defender, weapon, weaponCount: 1,
+                attackerMoved: false, isMelee: true, isCharging: false);
+            meta.AddResult(hits);
+            meta.AddResult(new CoverCheckResults(cover));
+            await saveStage.Enter(meta);
+            meta.QueryForResult(out DetermineSaveRollNeededResults saves);
+            return saves.PendingSaveRollsList[0].SaveNeeded;
         }
 
         private async Task<RollToHitResults> RunStage(DataBinding<UnitData> attacker,

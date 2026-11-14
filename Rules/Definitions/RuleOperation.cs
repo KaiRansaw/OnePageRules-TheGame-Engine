@@ -325,11 +325,11 @@ public abstract record RuleOperation
     /// exposes movement as a callable subsystem (item #042 engine work).
     /// </summary>
     public sealed record InvokeTriggeredMove(IUnit Unit, float MaxInches, bool IsOptional,
-        PlayerID? Controller = null) : ExecutableOperation
+        PlayerID? Controller = null, bool OncePerRound = false) : ExecutableOperation
     {
         public override Task Execute(IOperationServices services)
         {
-            return services.MoveUnit(Unit, MaxInches, IsOptional, Controller);
+            return services.MoveUnit(Unit, MaxInches, IsOptional, Controller, OncePerRound);
         }
 
         public override string Describe()

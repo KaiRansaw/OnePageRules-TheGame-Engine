@@ -852,12 +852,14 @@ public abstract record Effect
     /// forced move the bearer is the caster, so the caster directs where the
     /// enemy is displaced rather than the victim choosing for itself.
     /// </summary>
-    public sealed record TriggeredMove(float MaxInches, bool IsOptional) : Effect
+    /// <param name="OncePerRound">#444: "Units may only be moved once per round in this way" (Mind Control): a unit
+    /// such a move has already moved this round stays where it is.</param>
+    public sealed record TriggeredMove(float MaxInches, bool IsOptional, bool OncePerRound = false) : Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
             operations.Add(new RuleOperation.InvokeTriggeredMove(
-                ruleInvocation.EffectiveTarget, MaxInches, IsOptional, ruleInvocation.Bearer.PlayerID));
+                ruleInvocation.EffectiveTarget, MaxInches, IsOptional, ruleInvocation.Bearer.PlayerID, OncePerRound));
         }
     }
 

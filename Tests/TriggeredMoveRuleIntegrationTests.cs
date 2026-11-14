@@ -88,6 +88,47 @@ namespace FDG.Tests
             AssertModelAt(unit, 1, 5f, 1f);
         }
 
+        // #444 Mind Control: "Units may only be moved once per round in this way." The second forced move on the
+        // same unit in a round does nothing; a move without the clause (Vanguard, Harassing) is never limited.
+        [Test]
+        public async Task OncePerRoundMove_MovesAUnitOnlyOnceARound()
+        {
+            var requester = new CannedMovePathRequester(dx: 2f, dz: 0f);
+            var ctx = new TriggeredMoveTestContext(_store, requester);
+            DataBinding<UnitData> unit = MakeUnit(new Position(0f, 0f), new Position(0f, 1f));
+            var move = new RuleOperation.InvokeTriggeredMove(unit.GetValue(), MaxInches: 6f, IsOptional: true, OncePerRound: true);
+
+            await OperationExecutor.Execute(new RuleOperation[] { move }, new GameOperationServices(ctx));
+            await OperationExecutor.Execute(new RuleOperation[] { move }, new GameOperationServices(ctx));
+
+            AssertModelAt(unit, 0, 2f, 0f);
+            Assert.That(unit.GetValue().Tokens.HasToken(TokenType.ForcedMoveThisRound), Is.True);
+
+            // Next round the token is gone (RoundEnd clear) and the unit can be moved again.
+            unit.GetValue().Tokens.RemoveTokens(TokenType.ForcedMoveThisRound);
+            await OperationExecutor.Execute(new RuleOperation[] { move }, new GameOperationServices(ctx));
+            AssertModelAt(unit, 0, 4f, 0f);
+        }
+
+        [Test]
+        public async Task AMoveWithoutTheClause_IsNotLimited()
+        {
+            var requester = new CannedMovePathRequester(dx: 2f, dz: 0f);
+            var ctx = new TriggeredMoveTestContext(_store, requester);
+            DataBinding<UnitData> unit = MakeUnit(new Position(0f, 0f), new Position(0f, 1f));
+            var move = new RuleOperation.InvokeTriggeredMove(unit.GetValue(), MaxInches: 6f, IsOptional: true);
+
+            await OperationExecutor.Execute(new RuleOperation[] { move }, new GameOperationServices(ctx));
+            await OperationExecutor.Execute(new RuleOperation[] { move }, new GameOperationServices(ctx));
+
+            AssertModelAt(unit, 0, 4f, 0f);
+        }
+
+        [Test]
+        public void TheRoundEndSweep_ClearsTheForcedMoveToken() =>
+            Assert.That(Rules.Tokens.TokenDefinitionCatalog.Create(TokenType.ForcedMoveThisRound).ClearTrigger,
+                Is.InstanceOf<TokenClearTrigger.RoundEnd>());
+
         // #208: an OPTIONAL triggered move whose resolver hands back a path the authoritative validator
         // rejects (here a cohesion-breaking hold - the models start >1" apart, as a unit spread by
         // post-melee intermingling does, and the resolver can only hold them there) is DECLINED, not

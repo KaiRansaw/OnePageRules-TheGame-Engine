@@ -24,7 +24,8 @@ public interface IOperationServices
     /// the player may decline by submitting a no-op move. Resolution of
     /// <see cref="RuleOperation.InvokeTriggeredMove"/>.
     /// </summary>
-    Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null);
+    /// <param name="oncePerRound">#444: the move is "once per round in this way" - skipped for a unit already moved so.</param>
+    Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null, bool oncePerRound = false);
 
     /// <summary>
     /// Fatigue <paramref name="unit"/> for the rest of the round (the #020 melee penalty). Resolution of

@@ -224,6 +224,9 @@ public static class TokenDefinitionCatalog
             new(TokenType.EMBARKED_IN_ID, "Embarked", EValence.Neutral,
                 ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.ManualOnly()),
 
+            new(TokenType.FORCED_MOVE_THIS_ROUND_ID, "Moved by an enemy this round", EValence.Neutral,
+                ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.RoundEnd()),
+
             new(TokenType.POST_COMBAT_MOVE_USED_ID, "Post-combat move used", EValence.Neutral,
                 ETokenProminence.Invisible, DefaultClearTrigger: new TokenClearTrigger.RoundEnd()),
 

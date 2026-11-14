@@ -27,9 +27,17 @@ namespace FDG.Stages
             _gameContext = gameContext;
         }
 
-        public async Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null)
+        public async Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null, bool oncePerRound = false)
         {
             DataBinding<UnitData> unitBinding = ResolveUnitBinding(unit);
+
+            // #444 "Units may only be moved once per round in this way."
+            if (oncePerRound && unitBinding.GetValue().Tokens.HasToken(TokenType.ForcedMoveThisRound))
+            {
+                _gameContext.Log($"{unit.Name} has already been moved this way this round, so it stays put.");
+                await _gameContext.Announce($"{unit.Name} was already moved this round - no move");
+                return;
+            }
 
             bool canMoveThroughEnemies = Rules.Dispatch.MovementRuleQueries.CanMoveThroughEnemies(
                 unitBinding.GetValue(), _gameContext.RuleEvaluator);
@@ -98,6 +106,9 @@ namespace FDG.Stages
             // a triggered move (Vanguard, forced move, etc.) that crosses dangerous terrain shows the roll
             // and animates its casualties, not just the wound.
             await MovementExecutor.ResolveDangerousTerrain(_gameContext, dangerResult);
+
+            if (oncePerRound && !unitBinding.GetValue().Tokens.HasToken(TokenType.ForcedMoveThisRound))
+                unitBinding.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ForcedMoveThisRound));
         }
 
         public Task ApplyFatigue(IUnit unit)

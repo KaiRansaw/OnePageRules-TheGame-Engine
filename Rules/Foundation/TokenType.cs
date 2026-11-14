@@ -116,6 +116,11 @@ public readonly record struct TokenType(string Id)
     // in contact and charges without moving has genuinely not moved, and keeps the bonus.
     public const string MOVED_THIS_ROUND_ID = "MovedThisRound";
 
+    // #444: "Units may only be moved once per round in this way" (Mind Control, every game's book). Stamped on the
+    // unit a once-per-round forced move actually moved; RoundEnd clear. One token for every such rule: the clause
+    // limits the unit, not the caster or the rule instance.
+    public const string FORCED_MOVE_THIS_ROUND_ID = "ForcedMoveThisRound";
+
     // #197 P12 Regenerative Strength: "place one marker on this model when it ignores a wound; when in
     // melee, pick one of its weapons to get +X attacks, where X is the number of markers on it."
     //
@@ -156,6 +161,7 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType ActivatedThisRound = new(ACTIVATED_THIS_ROUND_ID);
     public static readonly TokenType CompelledToAttack = new(COMPELLED_TO_ATTACK_ID);
     public static readonly TokenType MovedThisRound = new(MOVED_THIS_ROUND_ID);
+    public static readonly TokenType ForcedMoveThisRound = new(FORCED_MOVE_THIS_ROUND_ID);
     public static readonly TokenType RegenerativeStrengthMarker = new(REGENERATIVE_STRENGTH_MARKER_ID);
     public static readonly TokenType RegenerativeStrengthSpent = new(REGENERATIVE_STRENGTH_SPENT_ID);
     public static readonly TokenType SpellTokens = new(SPELL_TOKENS_ID);

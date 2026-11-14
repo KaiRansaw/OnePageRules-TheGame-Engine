@@ -126,26 +126,43 @@ namespace FDG.Tests
         }
 
         [Test]
-        public async Task CounterSwap_StillFatiguesTheOriginalCharger()
+        public async Task CounterSwap_TheChargerIsFatigued_OnceItHasAttacked()
         {
-            // Counter (DetermineStrikeOrderStage) calls SwapCombatRoles and never swaps back, so by the
-            // time ApplyFatigueStage runs the AttackingUnit is the defender. The immutable ChargingUnit
-            // capture must still fatigue the unit that actually charged.
+            // Counter (DetermineStrikeOrderStage) calls SwapCombatRoles and never swaps back, so by the time
+            // ApplyFatigueStage runs the charger is the "defender", and its charge attack ran through the
+            // strike-back stage (which records it).
             var charger = MakeUnit("Charger", 1);
             var defender = MakeUnit("Defender", 1);
             var combat = new CombatActionContext(_ctx, charger, isMelee: true, isCharging: true);
             combat.SetDefender(defender);
             combat.SwapCombatRoles();
+            combat.RegisterDefenderStruckBack();
 
             Assert.That(combat.AttackingUnit.Reference, Is.EqualTo(defender.Reference),
                 "precondition: the swap made the defender the attacker.");
 
             await RunFatigue(combat);
 
-            Assert.That(charger.GetValue().Tokens.HasToken(TokenType.Fatigued), Is.True,
-                "the original charger is fatigued for charging despite the role swap.");
+            Assert.That(charger.GetValue().Tokens.HasToken(TokenType.Fatigued), Is.True, "it attacked.");
             Assert.That(defender.GetValue().Tokens.HasToken(TokenType.Fatigued), Is.True,
                 "the swapped-in unit swung, so it is fatigued too.");
+        }
+
+        [Test]
+        public async Task CounterSwap_AChargerThatNeverAttacked_IsNotFatigued()
+        {
+            // 3.6.0: "After a melee where they attacked". A charger the Counter unit left with no model able
+            // to swing did not attack.
+            var charger = MakeUnit("Charger", 1);
+            var defender = MakeUnit("Defender", 1);
+            var combat = new CombatActionContext(_ctx, charger, isMelee: true, isCharging: true);
+            combat.SetDefender(defender);
+            combat.SwapCombatRoles();
+
+            await RunFatigue(combat);
+
+            Assert.That(charger.GetValue().Tokens.HasToken(TokenType.Fatigued), Is.False);
+            Assert.That(defender.GetValue().Tokens.HasToken(TokenType.Fatigued), Is.True);
         }
 
         // --- Lifecycle: the token clears at end of round through the REAL sweep ---

@@ -368,6 +368,7 @@ namespace FDG.Stages
             // clamp would then have thrown away the AP as well as the cover.
             bool piercesDefenseBonuses =
                 operations.OfType<RuleOperation.IgnorePositiveDefenseModifiers>().Any();
+            results.PiercesDefenseBonuses = piercesDefenseBonuses;
             results.SaveModifier = piercesDefenseBonuses
                 ? saveModifiers.NetIgnoringPositive(ERollKind.Save)
                 : saveModifiers.Net(ERollKind.Save);

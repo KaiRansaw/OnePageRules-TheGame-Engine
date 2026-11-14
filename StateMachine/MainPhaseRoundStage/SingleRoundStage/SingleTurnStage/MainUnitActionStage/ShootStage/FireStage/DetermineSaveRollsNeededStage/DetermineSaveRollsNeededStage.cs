@@ -77,10 +77,26 @@ namespace FDG.Stages
                 GameContext.Log($"{metaData.DefendingUnit.GetValue().Name}: {challenge[0].Source} +1 to Defense.");
             }
 
-            int baseDefenseWithAP = baseDefense + ap - coverResults.DefenseRollBonus - rollToHitResults.SaveModifier
+            // Pierce: "Ignores all positive Defense modifiers on the target." The rule-based ones went at the hit roll;
+            // cover and every granted bonus (spells, items, Hunker Down, Defensive Stance, the Challenge Bonus, the
+            // defender's Underdog +1) are added here, so they go here. Penalties stay (Last Stand -1).
+            int coverBonus = coverResults.DefenseRollBonus;
+            if (rollToHitResults.PiercesDefenseBonuses)
+            {
+                int keptGranted = grantedDetail.Count > 0 ? grantedDetail.Where(g => g.Delta <= 0).Sum(g => g.Delta) : Math.Min(0, grantedDefense);
+                int dropped = Math.Max(0, coverBonus) + (grantedDefense - keptGranted) + Math.Max(0, underdogNet);
+                coverBonus = Math.Min(0, coverBonus);
+                grantedDetail = grantedDetail.Where(g => g.Delta <= 0).ToList();
+                grantedDefense = keptGranted;
+                underdogNet = Math.Min(0, underdogNet);
+                if (dropped > 0)
+                    GameContext.Log($"Pierce: {metaData.DefendingUnit.GetValue().Name} loses +{dropped} Defense (cover and bonuses).");
+            }
+
+            int baseDefenseWithAP = baseDefense + ap - coverBonus - rollToHitResults.SaveModifier
                 - grantedDefense + markerNet - underdogNet;
 
-            GameContext.Log($"Base roll to save is {baseDefense}, AP {ap}, cover -{coverResults.DefenseRollBonus}, " +
+            GameContext.Log($"Base roll to save is {baseDefense}, AP {ap}, cover -{coverBonus}, " +
                 $"Rending/save mods {rollToHitResults.SaveModifier}, markers +{markerNet}, " +
                 $"underdog {underdogNet:+0;-0;0}, " +
                 $"effective threshold {baseDefenseWithAP} (not yet clamped).");
@@ -97,7 +113,7 @@ namespace FDG.Stages
             }
 
             DetermineSaveRollNeededResults results = new DetermineSaveRollNeededResults(pendingSaveRollsList);
-            results.ThresholdTags = ComposeThresholdTags(baseDefense, ap, coverResults.DefenseRollBonus,
+            results.ThresholdTags = ComposeThresholdTags(baseDefense, ap, coverBonus,
                 rollToHitResults.SaveModifierTags, grantedDefense, markerNet, grantedDetail);
             await onFinished(results);
         }
