@@ -680,9 +680,13 @@ namespace FDG.Stages
             QuestProgress q = Progress(context);
             if (secondary ? q.SecondaryDone : q.PrimaryDone) return;
             if (secondary) q.SecondaryDone = true; else q.PrimaryDone = true;
-            q.Markers.RemoveAll(m => m.ForSecondary == secondary);
+            // The objective's other markers have nothing left to do (Scavenge / Area Search complete on a roll with
+            // markers still out). Say so - QA 3.35 read the silent clean-up as a marker vanishing untouched.
+            int leftOver = q.Markers.RemoveAll(m => m.ForSecondary == secondary);
             Save(context, q);
             string name = secondary ? StarQuestMissionRules.SecondaryNames[q.Secondary] : StarQuestMissionRules.PrimaryNames[q.Primary];
+            if (leftOver > 0)
+                context.Log($"{name} is complete, so its other {(leftOver == 1 ? "marker is" : leftOver + " markers are")} taken off the table.");
             context.Log($"Star Quest Mission: {(secondary ? "secondary" : "primary")} objective {name} complete.");
             await context.Announce($"{(secondary ? "Secondary" : "Primary")} objective complete: {name}!", Gold, EBannerTier.Headline);
             if (!secondary)

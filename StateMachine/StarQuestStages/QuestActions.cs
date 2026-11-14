@@ -4,6 +4,7 @@ using FDG.Quest;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution.Requests;
 using FDG.Utilities;
 
@@ -455,6 +456,21 @@ namespace FDG.Stages
                         // Cross-unit provenance, matching RuleInvocation.OwnerForEffectiveTarget: stamp
                         // the granter only when the buff lands on someone else.
                         ownerUnitID: target.ID != bearer.ID ? bearer.ID : null)),
+            });
+        }
+
+        /// <summary>
+        /// "-1 to their next stat roll" (Mockery, Spiteful Curse). For an enemy unit a stat roll is a hit, Defense or
+        /// morale roll (its Quality and Defense are its stats), so the first of those it makes spends it.
+        /// </summary>
+        public static void GrantNextStatRoll(IUnit bearer, IUnit target, int delta, string source)
+        {
+            OperationApplier.ApplyTokenOperations(new List<RuleOperation>
+            {
+                new RuleOperation.GrantTokenToUnit(target,
+                    new Token(TokenType.NextStatRoll, 1, new TokenClearTrigger.FirstTrigger(),
+                        Payload: new TokenPayload.StatModifier(delta, source),
+                        OwnerUnitID: target.ID != bearer.ID ? bearer.ID : null)),
             });
         }
 

@@ -24,18 +24,37 @@ namespace FDG.Rules.Dispatch
         /// </summary>
         public static int PeekNet(IUnit unit, ERollKind roll)
         {
-            TokenType type = RollModifierTokens.TypeFor(roll);
-
             int net = 0;
-            foreach (Token token in unit.Tokens.GetAllTokens(type))
+            foreach (Token token in Carriers(unit, roll))
             {
                 if (token.Payload is TokenPayload.StatModifier modifier)
                 {
                     net += modifier.Delta * token.Count;
                 }
             }
-            return net;
+            return net + StandingStatPenalty(unit, roll);
         }
+
+        /// <summary>
+        /// The Quest books' stat tests are every roll against a stat: "Stat tests ... such as hitting its targets
+        /// or passing morale tests", and "Quality: the score needed for attacks and morale. Defense: the score needed
+        /// for Defense" (AoF: Quest Beginners Guide v2.1.0 p4, the same in GF: Star Quest Core Rules v2.1.0). So a
+        /// hit, Defense or morale roll is a stat roll; a casting roll (a flat 4+) is not.
+        /// </summary>
+        public static bool IsStatRoll(ERollKind roll) => roll is ERollKind.Hit or ERollKind.Save or ERollKind.Morale;
+
+        /// <summary>This roll kind's own carriers, plus a "next stat roll" token when this roll is a stat roll.</summary>
+        private static IEnumerable<Token> Carriers(IUnit unit, ERollKind roll)
+        {
+            IEnumerable<Token> own = unit.Tokens.GetAllTokens(RollModifierTokens.TypeFor(roll));
+            return IsStatRoll(roll) ? own.Concat(unit.Tokens.GetAllTokens(TokenType.NextStatRoll)) : own;
+        }
+
+        /// <summary>Impaired: "Impaired models get -1 to all stat rolls" - on a Quest hero's hit, Defense and morale
+        /// rolls too, not just Str/Dex/Wil (those apply it in QuestActions).</summary>
+        private static int StandingStatPenalty(IUnit unit, ERollKind roll) =>
+            IsStatRoll(roll) && unit is UnitData hero && hero.IsQuestHero
+                && Stages.QuestTreasure.Has(hero, Stages.QuestTreasure.Impaired) ? -1 : 0;
 
         /// <summary>
         /// #407: the same buffs <see cref="PeekNet"/> totals, but itemised - one entry per granting
@@ -46,7 +65,6 @@ namespace FDG.Rules.Dispatch
         /// </summary>
         public static IReadOnlyList<GrantedModifier> PeekDetailed(IUnit unit, ERollKind roll)
         {
-            TokenType type = RollModifierTokens.TypeFor(roll);
 
             // Grouped by source and kept in first-seen order, so two stacking copies of one skill read
             // as "Bless +2" rather than "Bless +1  Bless +1".
@@ -55,7 +73,7 @@ namespace FDG.Rules.Dispatch
             int unattributed = 0;
             bool sawUnattributed = false;
 
-            foreach (Token token in unit.Tokens.GetAllTokens(type))
+            foreach (Token token in Carriers(unit, roll))
             {
                 if (token.Payload is not TokenPayload.StatModifier modifier) continue;
                 int delta = modifier.Delta * token.Count;
@@ -72,13 +90,15 @@ namespace FDG.Rules.Dispatch
                 totals[modifier.Source] = running + delta;
             }
 
-            var result = new List<GrantedModifier>(order.Count);
+            var result = new List<GrantedModifier>(order.Count + 1);
             foreach (string? source in order)
             {
                 result.Add(source == null
                     ? new GrantedModifier(null, unattributed)
                     : new GrantedModifier(source, totals[source]));
             }
+            int standing = StandingStatPenalty(unit, roll);
+            if (standing != 0) result.Add(new GrantedModifier(Stages.QuestTreasure.Impaired, standing));
             return result;
         }
 
@@ -86,7 +106,19 @@ namespace FDG.Rules.Dispatch
         {
             TokenType type = RollModifierTokens.TypeFor(roll);
 
-            int net = 0;
+            // A "next stat roll" penalty is spent by this roll if it is a stat roll - whichever kind comes first.
+            int net = StandingStatPenalty(unit, roll);
+            if (IsStatRoll(roll))
+            {
+                int nextCount = 0;
+                foreach (Token token in unit.Tokens.GetAllTokens(TokenType.NextStatRoll).ToList())
+                {
+                    if (token.Payload is TokenPayload.StatModifier m) net += m.Delta * token.Count;
+                    nextCount += token.Count;
+                }
+                if (nextCount > 0) unit.Tokens.RemoveFirstTriggerTokens(TokenType.NextStatRoll, nextCount);
+            }
+
             int firstTriggerCount = 0;
             foreach (Token token in unit.Tokens.GetAllTokens(type).ToList())
             {

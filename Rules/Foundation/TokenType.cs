@@ -120,6 +120,9 @@ public readonly record struct TokenType(string Id)
     // unit a once-per-round forced move actually moved; RoundEnd clear. One token for every such rule: the clause
     // limits the unit, not the caster or the rule instance.
     public const string FORCED_MOVE_THIS_ROUND_ID = "ForcedMoveThisRound";
+    /// <summary>Quest: "-1 to their next stat roll" (Mockery, Spiteful Curse) - spent by whichever of the unit's
+    /// hit, Defense or morale rolls comes first. See GrantedRollModifiers.</summary>
+    public const string NEXT_STAT_ROLL_ID = "NextStatRoll";
 
     // #197 P12 Regenerative Strength: "place one marker on this model when it ignores a wound; when in
     // melee, pick one of its weapons to get +X attacks, where X is the number of markers on it."
@@ -162,6 +165,7 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType CompelledToAttack = new(COMPELLED_TO_ATTACK_ID);
     public static readonly TokenType MovedThisRound = new(MOVED_THIS_ROUND_ID);
     public static readonly TokenType ForcedMoveThisRound = new(FORCED_MOVE_THIS_ROUND_ID);
+    public static readonly TokenType NextStatRoll = new(NEXT_STAT_ROLL_ID);
     public static readonly TokenType RegenerativeStrengthMarker = new(REGENERATIVE_STRENGTH_MARKER_ID);
     public static readonly TokenType RegenerativeStrengthSpent = new(REGENERATIVE_STRENGTH_SPENT_ID);
     public static readonly TokenType SpellTokens = new(SPELL_TOKENS_ID);

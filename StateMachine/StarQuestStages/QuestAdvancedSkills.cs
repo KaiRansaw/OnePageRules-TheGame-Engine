@@ -21,8 +21,6 @@ namespace FDG.Stages
             ["Leap"] = "There are no jumping rolls in this game, so Leap has no effect.",
             ["Confusion"] = "Enemies can't attack their own side in this game.",
             ["Infiltrate"] = "Moving only outside enemy line of sight isn't in this game yet.",
-            ["Mockery"] = "Enemies never take stat tests in this game, so this has no effect.",
-            ["Spiteful Curse"] = "Enemies never take stat tests in this game, so this has no effect.",
         };
 
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────────────
@@ -121,6 +119,15 @@ namespace FDG.Stages
             {
                 QuestActions.Grant(h, e, roll, delta, ELifetime.ThisRound, c);
                 await Toast(c, $"{skill}: {e.Name} {text} this round.");
+            }
+        }
+
+        private static async Task NextStatRollPenalty(IGameContext c, UnitData h, string skill, float range)
+        {
+            foreach (UnitData e in await PickEnemies(c, h, skill, range, 2))
+            {
+                QuestActions.GrantNextStatRoll(h, e, -1, skill);
+                await Toast(c, $"{skill}: {e.Name} gets -1 to its next hit, Defense or morale roll.");
             }
         }
 
@@ -246,6 +253,10 @@ namespace FDG.Stages
                     foreach (UnitData u in await QuestActions.PickUnits(c, h, "Curing Melody", hurt, 2)) LoseCondition(u);
                     await Toast(c, "Curing Melody: conditions eased.");
                 }),
+            // An enemy's stat rolls are its hit, Defense and morale rolls (Quest core: stat tests are "such as
+            // hitting its targets or passing morale tests"), so the -1 lands on whichever it rolls first.
+            new("Mockery", 1, "Pick two enemy units within 9\", which get -1 to their next stat roll each.",
+                NeedsEnemy(9f), (c, h) => NextStatRollPenalty(c, h, "Mockery", 9f)),
             new("Persuade", 2, "Pick one enemy unit within 12\", which must take a morale test. If failed, it gets -2 to hit until the end of the round.",
                 NeedsEnemy(12f), (c, h) => MoraleThen(c, h, "Persuade", 12f, 1, async e =>
                 {
@@ -414,6 +425,8 @@ namespace FDG.Stages
                 Always, (c, h) => Teleport(c, h, D3(c) + D3(c) + 1, "Shadow Step")),
 
             // ── Paladin ──
+            new("Spiteful Curse", 2, "Pick two enemy units within 6\", which get -1 to their next stat roll each.",
+                NeedsEnemy(6f), (c, h) => NextStatRollPenalty(c, h, "Spiteful Curse", 6f)),
             new("Spiteful Control", 0, "Pick two enemy units within 3\", which can't move until the end of the round.",
                 NeedsEnemy(3f), async (c, h) =>
                 {
