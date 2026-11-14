@@ -20,10 +20,9 @@ namespace FDG.Tests
     /// case that opened this item was a Saurian Starhost list saved 2026-07-26 whose Ripjawdactyl Riders
     /// lost Heavy Impact(3), three days after Heavy Impact shipped.
     ///
-    /// <para>Load now gap-fills from <see cref="CurrentRulebook"/>: definitions the current book for the
-    /// army's faction ships, for names the army does not itself define. GAP-FILL, not refresh — a
-    /// definition the file carries is never replaced, so a list's existing rules behave exactly as they
-    /// did when it was saved (owner ruling 2026-08-05).</para>
+    /// <para>Load takes the current book's definitions from <see cref="CurrentRulebook"/>: they fill names the
+    /// army is too old to define, and (Kai, 2026-11-14) replace the file's frozen copy of a name both define, so
+    /// a rule fix reaches saved lists. Was gap-fill only (owner ruling 2026-08-05).</para>
     /// </summary>
     [TestFixture]
     public class ArmyRulebookBackfillIntegrationTests
@@ -112,9 +111,9 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void ArmysOwnDefinition_WinsOverTheRulebooks()
+        public void TheRulebooksDefinition_ReplacesTheArmysFrozenCopy()
         {
-            // Gap-fill, not refresh: the list froze a +2 version of the rule and keeps it.
+            // Kai, 2026-11-14: a rule fix reaches saved lists. The list froze a +2 version; the book now says +1.
             CurrentRulebook.Installed = new StubRulebook(Faction, HitBonus(BackfilledRule, delta: 1));
 
             ArmyListFile army = StaleList(Faction, HitBonus(BackfilledRule, delta: 2));
@@ -122,8 +121,20 @@ namespace FDG.Tests
 
             ResolvedRule attached = unit.RuleDefinitions.Single(r => r.RequestedName == BackfilledRule);
             Effect.RollModifier effect = (Effect.RollModifier)attached.Definition.Passive.Single().Effect;
-            Assert.That(effect.Delta, Is.EqualTo(2),
-                "a definition the army carries is never replaced by the rulebook's - only gaps are filled.");
+            Assert.That(effect.Delta, Is.EqualTo(1),
+                "the current book's definition replaces the list's old copy of the same rule.");
+        }
+
+        [Test]
+        public void ARuleOnlyTheArmyDefines_IsKeptAsSaved()
+        {
+            CurrentRulebook.Installed = new StubRulebook(Faction, HitBonus(BackfilledRule, delta: 1));
+
+            ArmyListFile army = StaleList(Faction, HitBonus(BackfilledRule, delta: 1), HitBonus("Homebrew Grit", delta: 2));
+            List<SpecialRuleDefinition> effective = ArmyListRuleResolution.EffectiveDefinitions(army);
+
+            Assert.That(effective.Single(d => d.Name == "Homebrew Grit"), Is.Not.Null,
+                "a rule the book doesn't define stays exactly as the list saved it.");
         }
 
         [Test]
