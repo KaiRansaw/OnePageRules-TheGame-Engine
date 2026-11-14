@@ -30,21 +30,21 @@ namespace FDG.Tests
         // -- Which systems play with them ---------------------------------------------------------------
 
         [Test]
-        public void OnlyAoFQuest_PlaysWithDenseAndUnstable()
+        public void EveryGameWithASource_PlaysWithDenseAndUnstable_StarQuestDoesNot()
         {
-            Assert.That(QuestTerrainTypes.AppliesTo(EGameSystem.AoFQuest), Is.True,
-                "its Beginners Guide v2.1.0 defines both.");
-
-            foreach (EGameSystem other in new[]
+            foreach (EGameSystem system in new[]
                      {
-                         EGameSystem.GrimdarkFuture, EGameSystem.AgeOfFantasy, EGameSystem.GFFirefight,
-                         EGameSystem.AoFSkirmish, EGameSystem.GFStarQuest,
+                         EGameSystem.AoFQuest, EGameSystem.GrimdarkFuture, EGameSystem.AgeOfFantasy,
+                         EGameSystem.GFFirefight, EGameSystem.AoFSkirmish,
                      })
             {
-                Assert.That(QuestTerrainTypes.AppliesTo(other), Is.False,
-                    $"{other}: its own book's terrain section lists only Cover, Difficult and Dangerous. "
-                    + "Star Quest especially - being the other Quest system is not a source.");
+                Assert.That(QuestTerrainTypes.AppliesTo(system), Is.True,
+                    $"{system}: AoFQ Beginners Guide v2.1.0 / the 3.6.0 Advanced Rulebooks define both (Kai, 2026-11-13).");
             }
+
+            Assert.That(QuestTerrainTypes.AppliesTo(EGameSystem.GFStarQuest), Is.False,
+                "Star Quest's core book lists only Cover, Difficult and Dangerous, and it has no Advanced book - "
+                + "being the other Quest system is not a source.");
         }
 
         // -- The name mapping, and the guard that keeps it honest ---------------------------------------

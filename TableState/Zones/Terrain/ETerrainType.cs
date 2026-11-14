@@ -36,5 +36,18 @@ namespace FDG
         /// </para>
         /// </summary>
         Unstable   = 1 << 7,
+
+        /// <summary>
+        /// Advanced Rulebooks 3.6.0 / AoFQ Beginners Guide v2.1.0 - Hills are "Cover + Steep". <b>Recorded
+        /// only, no effect yet</b>: Steep is about moving up and down slopes, and the table is flat until
+        /// heights arrive (Godot port step 6). The Map Maker lets a piece carry it so maps made now keep it.
+        /// </summary>
+        Steep      = 1 << 8,
+
+        /// <summary>
+        /// Advanced Rulebooks 3.6.0 / AoFQ Beginners Guide v2.1.0 - Walls are "Climbable". <b>Recorded only,
+        /// no effect yet</b> - climbing needs heights (Godot port step 6), same as <see cref="Steep"/>.
+        /// </summary>
+        Climbable  = 1 << 9,
     }
 }

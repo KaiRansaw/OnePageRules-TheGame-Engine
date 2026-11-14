@@ -56,10 +56,18 @@ namespace FDG.Stages
         //    this finding exists because things were guessed.
 
         /// <summary>
-        /// Whether this game plays with Dense and Unstable terrain at all. AoF: Quest only - see the type
-        /// remarks for why Star Quest is excluded despite also being a Quest system.
+        /// Whether this game plays with Dense and Unstable terrain at all.
+        /// <para>
+        /// <b>Widened 2026-11-13 (Kai's ruling, Map Maker mockup item 6: "All games, when a piece has
+        /// them").</b> The four 3.6.0 Advanced Rulebooks (GF, GFF, AoF, AoFS) define both, word for word
+        /// with AoF: Quest's guide, and print the same piece list ("Forests - Difficult + Cover + Dense",
+        /// "Ruins - Cover + Unstable"). The 2026-11-01 scoping above was made from the one-page core
+        /// books before the Advanced books were in the project. <b>GF: Star Quest stays out</b>: its core
+        /// book lists only Cover, Difficult and Dangerous and there is no Star Quest Advanced book, so it
+        /// still has no source.
+        /// </para>
         /// </summary>
-        public static bool AppliesTo(EGameSystem system) => system == EGameSystem.AoFQuest;
+        public static bool AppliesTo(EGameSystem system) => system != EGameSystem.GFStarQuest;
 
         /// <summary>
         /// The extra flags a pool piece of this name should carry, or <see cref="ETerrainType.None"/> for

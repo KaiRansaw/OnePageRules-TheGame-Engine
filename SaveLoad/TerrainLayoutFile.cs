@@ -151,5 +151,18 @@ namespace FDG.SaveLoad
         /// before this field price every piece at the minimum; ignored by every other placement mode.
         /// </summary>
         public int Points { get; set; } = 1;
+
+        /// <summary>
+        /// Map Maker (Godot, 2026-11-13) - which of the book's common terrain kinds this piece is
+        /// (<see cref="TerrainBook.Kinds"/> id: "Forest", "Ruins"...). Decides which 3D models can stand
+        /// on it. Cosmetic: the rules are <see cref="TerrainType"/>. Empty on maps made before it.
+        /// </summary>
+        public string Kind { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Map Maker - the 3D look picked for this piece (a terrain model's file name), or empty for the
+        /// plain block. Cosmetic; a look that is not installed on this computer draws as the block.
+        /// </summary>
+        public string Look { get; set; } = string.Empty;
     }
 }
