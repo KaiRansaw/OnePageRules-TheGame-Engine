@@ -98,6 +98,7 @@ namespace FDG.Network.Connection.Lobby
         public int? NumberOfRounds => _gameSettings.NumberOfRounds;
         public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;
         public bool KingOfTheHill => _gameSettings.KingOfTheHill;
+        public bool PickDangerousTerrain => _gameSettings.PickDangerousTerrain;
         public EExtraActions ExtraActions => _gameSettings.ExtraActions;
         public EChallengeBonuses ChallengeBonuses => _gameSettings.ChallengeBonuses;
 
@@ -1472,6 +1473,12 @@ namespace FDG.Network.Connection.Lobby
         public void SetKingOfTheHill(bool enabled)
         {
             _gameSettings.KingOfTheHill = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetPickDangerousTerrain(bool enabled)
+        {
+            _gameSettings.PickDangerousTerrain = enabled;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

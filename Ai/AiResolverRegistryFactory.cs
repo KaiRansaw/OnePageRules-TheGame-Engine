@@ -171,6 +171,7 @@ namespace FDG.Ai
                     : (IStageResolver<StageResolution.Requests.PlaceObjectiveRequest, Position>)
                     new AiPlaceObjectiveResolver(tableState, objectiveRng))
                 .RegisterResolver(new AiPlaceOneTerrainResolver(tableState, terrainRng))
+                .RegisterResolver(new AiPickDangerousTerrainResolver())
                 .RegisterResolver(new AiHordeShopResolver());
 
             if (SlowMode)

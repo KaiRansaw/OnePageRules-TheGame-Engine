@@ -285,6 +285,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetKingOfTheHill(bool enabled);
 
+        /// <summary>The Generic generator's Dangerous terrain picks - see <see cref="GameSettings.PickDangerousTerrain"/>.</summary>
+        bool PickDangerousTerrain { get; }
+
+        void SetPickDangerousTerrain(bool enabled);
+
         /// <summary>Extra Actions agreed for the game - see <see cref="GameSettings.ExtraActions"/>.</summary>
         EExtraActions ExtraActions { get; }
 

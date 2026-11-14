@@ -162,6 +162,14 @@ namespace FDG
         public bool KingOfTheHill;
 
         /// <summary>
+        /// The Generic terrain generator's last step (Advanced Rulebooks 3.6.0): <i>"After terrain has been placed,
+        /// roll-off to see who goes first, and then players alternate in picking D3 pieces of terrain each, which
+        /// count as Dangerous Terrain."</i> The lobby ticks it when the chosen map was rolled on the Generic table;
+        /// it can be ticked for any table. Off by default. See <see cref="FDG.Stages.PickDangerousTerrainStage"/>.
+        /// </summary>
+        public bool PickDangerousTerrain;
+
+        /// <summary>
         /// Extra Actions (Advanced Rulebooks 3.6.0, "Advanced Actions"): "Before the game, players can agree to
         /// use any or all of the following extra actions". Each flag adds that action to every unit's menu
         /// alongside the regular ones. None by default. See <see cref="FDG.ExtraActions"/>.

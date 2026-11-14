@@ -115,6 +115,7 @@ namespace FDG.Network.Connection.Lobby
         public int? NumberOfRounds { get; private set; }
         public bool FastPlaySimplifiedTerrain { get; private set; }
         public bool KingOfTheHill { get; private set; }
+        public bool PickDangerousTerrain { get; private set; }
         public EExtraActions ExtraActions { get; private set; }
         public EChallengeBonuses ChallengeBonuses { get; private set; }
 
@@ -511,6 +512,7 @@ namespace FDG.Network.Connection.Lobby
             NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;
             FastPlaySimplifiedTerrain = gameSettingsUpdate.GameSettings.FastPlaySimplifiedTerrain;
             KingOfTheHill = gameSettingsUpdate.GameSettings.KingOfTheHill;
+            PickDangerousTerrain = gameSettingsUpdate.GameSettings.PickDangerousTerrain;
             ExtraActions = gameSettingsUpdate.GameSettings.ExtraActions;
             ChallengeBonuses = gameSettingsUpdate.GameSettings.ChallengeBonuses;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
@@ -652,6 +654,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetKingOfTheHill(bool enabled)
         {
             throw new InvalidOperationException("Tried to set King of the Hill when not the host.");
+        }
+
+        public void SetPickDangerousTerrain(bool enabled)
+        {
+            throw new InvalidOperationException("Tried to set the Dangerous terrain picks when not the host.");
         }
 
         public void SetExtraActions(EExtraActions actions)

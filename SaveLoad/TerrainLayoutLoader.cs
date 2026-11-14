@@ -19,6 +19,10 @@ namespace FDG.SaveLoad
             SerializationBinder = new AllowlistSerializationBinder(),
         };
 
+        /// <summary>The layout as file text, with the same settings the loader reads it back with.</summary>
+        public static string SerializeToJson(TerrainLayoutFile layout)
+            => JsonConvert.SerializeObject(layout, Formatting.Indented, _settings);
+
         public static TerrainLayoutFile? TryLoadFromFile(string path, out string? error)
         {
             error = null;

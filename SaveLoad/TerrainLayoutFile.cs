@@ -12,6 +12,13 @@ namespace FDG.SaveLoad
         public string Name { get; set; } = string.Empty;
 
         /// <summary>
+        /// The Advanced Rulebooks' terrain generator table this map was last rolled on ("Generic", "Hospitable",
+        /// "Wasteland", "Death" - <see cref="FDG.TerrainBook.ETheme"/> names), or empty for a map built by hand.
+        /// The lobby reads it for the Generic table's last step, the Dangerous terrain picks.
+        /// </summary>
+        public string GeneratedFrom { get; set; } = string.Empty;
+
+        /// <summary>
         /// The table this map was drawn on, in inches. Defaults to the standard 6' x 4', which is also
         /// what every layout written before these fields gets - so an old map keeps the size it was
         /// actually drawn at and nothing shifts underneath it.

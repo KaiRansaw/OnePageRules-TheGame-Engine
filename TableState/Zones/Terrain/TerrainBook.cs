@@ -78,6 +78,13 @@ namespace FDG
             _ => flag.ToString(),
         };
 
+        /// <summary>A piece's rules as the book names them, in the book's order ("Cover, Difficult"), or "No rules".</summary>
+        public static string Describe(ETerrainType rules)
+        {
+            var names = RuleFlags.Where(f => rules.HasFlag(f)).Select(RuleName).ToList();
+            return names.Count == 0 ? "No rules" : string.Join(", ", names);
+        }
+
         /// <summary>Flags with no effect until the table has heights (Godot port step 6).</summary>
         public static bool NeedsHeights(ETerrainType flag) => flag is ETerrainType.Steep or ETerrainType.Climbable;
 

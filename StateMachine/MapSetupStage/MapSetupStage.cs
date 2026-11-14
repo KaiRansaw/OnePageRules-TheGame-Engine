@@ -25,6 +25,7 @@ namespace FDG.Stages
             var dictionary = new TransitionSetBuilder(this)
                 .AddChild(new RollForFirstTerrainPlacementStage(GameContext, this), out var rollForFirstTerrain)
                 .AddChild(new PlaceTerrainStage(GameContext, this), out var placeTerrain)
+                .AddChild(new PickDangerousTerrainStage(GameContext, this), out var pickDangerous)
                 .AddChild(new RollForObjectiveCountStage(GameContext, this), out var rollForObjectiveCount)
                 .AddChild(new RollForFirstObjectivePlacementStage(GameContext, this), out var rollForFirstObjective)
                 .AddChild(new PlaceObjectivesStage(GameContext, this), out var placeObjectives)
@@ -34,7 +35,8 @@ namespace FDG.Stages
             startingChild = rollForFirstTerrain;
 
             rollForFirstTerrain.OnRollComplete.Bind(placeTerrain);
-            placeTerrain.OnTerrainPlaced.Bind(rollForObjectiveCount);
+            placeTerrain.OnTerrainPlaced.Bind(pickDangerous);
+            pickDangerous.OnPicksComplete.Bind(rollForObjectiveCount);
             rollForObjectiveCount.OnRollComplete.Bind(rollForFirstObjective);
             rollForFirstObjective.OnRollComplete.Bind(placeObjectives);
             placeObjectives.OnObjectivesPlaced.Bind(toDeploymentEvent);
