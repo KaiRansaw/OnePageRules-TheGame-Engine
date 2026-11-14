@@ -16,6 +16,12 @@ namespace FDG
 
         float HeightInches { get; }
 
+        /// <summary>The book terrain kind ("Forest", "Ruins"...) or empty - cosmetic, see <see cref="TerrainData.Kind"/>.</summary>
+        string Kind => string.Empty;
+
+        /// <summary>The map's picked 3D look, or empty for the game's own pick - cosmetic.</summary>
+        string Look => string.Empty;
+
         /// <summary>
         /// What this piece does to a sight line drawn between two points. The default
         /// implementation on <see cref="TerrainData"/> reads <see cref="TerrainType"/>
@@ -35,10 +41,21 @@ namespace FDG
 
         public float HeightInches { get; }
 
+        /// <summary>
+        /// Which of the book's common terrain kinds this piece is (<see cref="TerrainBook.Kinds"/> id: "Forest",
+        /// "Ruins"...), from the map it was placed from; empty for pieces made without one. Cosmetic - the rules are
+        /// <see cref="TerrainType"/>. The front ends pick the 3D look from it (2026-11-14, terrain looks).
+        /// </summary>
+        public string Kind { get; }
+
+        /// <summary>The look the map picked for this piece, or empty for the game's own pick. Cosmetic.</summary>
+        public string Look { get; }
+
         //name is optional and last so pre-existing positional call sites (and saves/wire payloads
         //written before the field existed) keep working unchanged.
         [JsonConstructor]
-        public TerrainData(ETerrainType terrainType, IZone shape, float heightInches, string? name = null)
+        public TerrainData(ETerrainType terrainType, IZone shape, float heightInches, string? name = null,
+            string? kind = null, string? look = null)
         {
             if (shape == null)
             {
@@ -49,6 +66,8 @@ namespace FDG
             Shape = shape;
             HeightInches = heightInches;
             Name = name ?? string.Empty;
+            Kind = kind ?? string.Empty;
+            Look = look ?? string.Empty;
         }
 
         public TerrainData(ETerrainType terrainType, IZone shape) : this(terrainType, shape, 0f) { }

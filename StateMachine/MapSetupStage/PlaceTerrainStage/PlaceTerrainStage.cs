@@ -111,7 +111,7 @@ namespace FDG.Stages
                 if (entry.Shape == null) continue;
                 if (!FitsTable(entry.Shape)) continue;
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), entry.Shape, entry.HeightInches, entry.Name));
+                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), entry.Shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look));
             }
         }
 
@@ -172,7 +172,7 @@ namespace FDG.Stages
             var placed = new List<ITerrain>();
             void Create(TerrainPieceEntry entry, IZone shape)
             {
-                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), shape, entry.HeightInches, entry.Name);
+                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name), shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look);
                 placed.Add(data);
                 context.GameContext.GameDataStore.Create(data);
             }
@@ -353,7 +353,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
 
                 piecesPlaced++;
                 cursor.TryAdvance(_ => true, _ => true, out _, out _);
@@ -476,7 +476,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
 
                 turn.RecordPlacement(cost);
                 context.Log($"  {name} placed {template.Name} for {TerrainPointsBudget.Pts(cost)} " +

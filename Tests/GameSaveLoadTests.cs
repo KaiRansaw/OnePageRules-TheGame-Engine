@@ -91,6 +91,23 @@ namespace FDG.Tests
             Assert.That(fired, Is.True, "Restored unit's OnWoundsDealt should fire after re-wire.");
         }
 
+        /// <summary>2026-11-14, terrain looks: a piece keeps its book kind and picked look through a save, and a
+        /// piece saved before they existed loads with both empty.</summary>
+        [Test]
+        public void Terrain_KeepsItsKindAndLook_ThroughASave()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var r = store.Create(new TerrainData(ETerrainType.Difficult | ETerrainType.Cover, new CircularZone(10, 10, 3), 3f, "Wood", "Forest", "oak"));
+            var old = store.Create(new TerrainData(ETerrainType.Cover, new CircularZone(20, 20, 2), 1f, "Rock"));
+
+            GameDataStore loaded = GameSaveSerializer.Load(GameSaveSerializer.Save(store));
+
+            TerrainData t = loaded.GetValue<TerrainData>(r);
+            Assert.That((t.Kind, t.Look, t.Name), Is.EqualTo(("Forest", "oak", "Wood")));
+            Assert.That((loaded.GetValue<TerrainData>(old).Kind, loaded.GetValue<TerrainData>(old).Look), Is.EqualTo(("", "")));
+            Assert.That(((ITerrain)t).Kind, Is.EqualTo("Forest"), "read through the interface too");
+        }
+
         [Test]
         public void TypeMap_RecordsCapacitiesAndIsRebuilt()
         {
