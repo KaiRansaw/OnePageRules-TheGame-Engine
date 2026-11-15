@@ -206,9 +206,14 @@ namespace FDG.Tests
         public void MissionNumbers_FollowTheCampaignBuilder()
         {
             Assert.That(StarQuestMissionRules.WaveBudget(2, 300), Is.EqualTo(150));
-            Assert.That(StarQuestMissionRules.WaveBudget(4, 300), Is.EqualTo(300));
-            Assert.That(StarQuestMissionRules.AlertnessGain(primaryDone: true, enemiesOnTable: true), Is.EqualTo(3));
-            Assert.That(StarQuestMissionRules.AlertnessGain(primaryDone: false, enemiesOnTable: false), Is.EqualTo(2));
+            // "Difficulty 1 = 25%, 2 = 50%, 3 = 100%, 4 = 200%" - both Campaign Builders v2.1.0.
+            Assert.That(StarQuestMissionRules.WaveBudget(1, 300), Is.EqualTo(75));
+            Assert.That(StarQuestMissionRules.WaveBudget(3, 300), Is.EqualTo(300));
+            Assert.That(StarQuestMissionRules.WaveBudget(4, 300), Is.EqualTo(600));
+            Assert.That(StarQuestMissionRules.AlertnessGain(secondarySetUpThisRound: true, enemiesOnTable: true), Is.EqualTo(3));
+            Assert.That(StarQuestMissionRules.AlertnessGain(secondarySetUpThisRound: false, enemiesOnTable: false), Is.EqualTo(2));
+            Assert.That(StarQuestMissionRules.AlertnessGain(secondarySetUpThisRound: false, enemiesOnTable: true), Is.EqualTo(1),
+                "the +3 is a one-off in the round the secondary is set up, not every round after the primary");
             Assert.That(StarQuestMissionRules.Xp(3, primary: true, secondary: true), Is.EqualTo(9));
             Assert.That(StarQuestMissionRules.HazardPay(2), Is.EqualTo(10));
             GameWideConstants.ConfigureTable(EGameSystem.GFStarQuest);

@@ -31,12 +31,12 @@ namespace FDG.Stages
         // places that have no game context to ask (a catalog built at class-load time) and as the
         // documented default. ANY SITE THAT HAS A CONTEXT SHOULD ASK THE PROFILE.
 
-        /// <summary>Star Quest: "Heroes may spend 3 Power to use any one additional action."
-        /// AoF: Quest charges 2 - see <see cref="Rules.Dispatch.QuestRulesProfile"/>.</summary>
+        /// <summary>"Heroes may spend 3 Power to use any one additional action." - both books at v2.1.0 (AoF: Quest's
+        /// archived v2.0.1 charged 2).</summary>
         public const int ExtraActionPower = 3;
 
-        /// <summary>Star Quest: "Heroes may spend 3 Power to revive other Unconscious Heroes."
-        /// AoF: Quest charges 2.</summary>
+        /// <summary>"Heroes may spend 3 Power to revive other Unconscious Heroes." - both books at v2.1.0 (AoF: Quest's
+        /// archived v2.0.1 charged 2).</summary>
         public const int RevivePower = 3;
 
         /// <summary>"Heroes may spend 2 Power to count failed Str/Dex/Wil tests as passed." The same in

@@ -27,11 +27,25 @@ namespace FDG.StateMachine
         public static readonly float[] HeroRadii = { 6f, 9f, 12f };
         public static readonly float[] EnemyRadii = { 6f, 9f, 12f, 15f };
 
-        /// <summary>A wave is worth 25% of the party's points per difficulty level.</summary>
-        public static int WaveBudget(int difficulty, int partyPoints) => Math.Max(1, difficulty) * partyPoints / 4;
+        /// <summary>
+        /// A wave's worth as a share of the party's points: "Difficulty 1 = 25%, 2 = 50%, 3 = 100%, 4 = 200%" (GFSQ and
+        /// AoFQ Campaign Builder v2.1.0). It doubles from 2 on - not 25% a level: until Build 2.10 this was
+        /// <c>difficulty * 25%</c>, so Expert fielded 75% and Legendary 100% (found by the core-rules prose check). Horde
+        /// is the one that adds 25% a wave (<see cref="StarQuestHordeRules.WaveBudget"/>).
+        /// </summary>
+        public static int WaveBudget(int difficulty, int partyPoints) => partyPoints * WavePercent(difficulty) / 100;
 
-        /// <summary>Alertness: +3 once the primary is done; otherwise +1, or +2 with no enemies on the table.</summary>
-        public static int AlertnessGain(bool primaryDone, bool enemiesOnTable) => primaryDone ? 3 : enemiesOnTable ? 1 : 2;
+        /// <summary>The Campaign Builder's wave size for a difficulty, in percent of the party's points.</summary>
+        public static int WavePercent(int difficulty) => Math.Clamp(difficulty, 1, 4) switch { 1 => 25, 2 => 50, 3 => 100, _ => 200 };
+
+        /// <summary>
+        /// Alertness at the end of a round: +1, or +2 with no enemies on the table - and +3 instead in the round the
+        /// secondary objective is set up. The Campaign Builders (v2.1.0): "After the primary objective is completed, you
+        /// must set up a random secondary objective at the end of the round, and increase Alertness by 3 (instead of by
+        /// 1 or 2)" - one step, done once. Until Build 2.10 the +3 applied every round after the primary (house-rules.md).
+        /// </summary>
+        public static int AlertnessGain(bool secondarySetUpThisRound, bool enemiesOnTable) =>
+            secondarySetUpThisRound ? 3 : enemiesOnTable ? 1 : 2;
 
         public static int HazardPay(int difficulty) => 5 * difficulty;
         public static int Xp(int difficulty, bool primary, bool secondary) => (primary ? 2 * difficulty : 0) + (secondary ? difficulty : 0);
@@ -264,10 +278,12 @@ namespace FDG.StateMachine
             await QuestMission.CheckWipedWave(_context);
 
             QuestProgress quest = QuestMission.Progress(_context);
+            bool secondarySetUpThisRound = false;
             if (quest.PrimaryDone && quest.Secondary == 0)
             {
                 int plannedSecondary = QuestMission.CampaignObjective(StarQuestHordeRules.Heroes(_context), secondary: true);
                 quest.Secondary = plannedSecondary > 0 ? plannedSecondary : HordePlacement.RollD6(_context);
+                secondarySetUpThisRound = true;
                 QuestMission.Save(_context, quest);
                 QuestMission.SetUpObjective(_context, quest.Secondary, secondary: true, heroCorner: quest.HeroCorner);
                 await _context.Announce($"Secondary objective: {StarQuestMissionRules.SecondaryNames[quest.Secondary]}",
@@ -303,7 +319,7 @@ namespace FDG.StateMachine
 
             quest = QuestMission.Progress(_context);
             bool enemiesOnTable = StarQuestHordeRules.Enemies(_context).Any(u => u.GetIsAlive() && u.GetIsOnBattlefield());
-            int gain = StarQuestMissionRules.AlertnessGain(quest.PrimaryDone, enemiesOnTable) + QuestChallenges.ExtraAlertness(_context);
+            int gain = StarQuestMissionRules.AlertnessGain(secondarySetUpThisRound, enemiesOnTable) + QuestChallenges.ExtraAlertness(_context);
             quest.Alertness = Math.Min(StarQuestHordeRules.AlertnessToEndWave, quest.Alertness + gain);
             QuestMission.Save(_context, quest);
             _context.Log($"Star Quest Mission: alertness +{gain} ({quest.Alertness}/6).");

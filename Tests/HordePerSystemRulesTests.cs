@@ -163,6 +163,35 @@ namespace FDG.Tests
             Assert.That(await scene.AwardPoints(), Is.EqualTo(0));
         }
 
+        // Build 2.10: a Shaken unit "can't contest or seize objectives" in the four 3.6.0 books, but only "can't seize
+        // objectives" in both Quest books. So a Shaken hero still guards a marker in Quest Horde, and a Shaken enemy
+        // still damages nothing.
+        [TestCase(EGameSystem.GrimdarkFuture, 1)]
+        [TestCase(EGameSystem.GFStarQuest, 0)]
+        [TestCase(EGameSystem.AoFQuest, 0)]
+        public async Task AShakenDefenderOnTheMarker_StillGuardsItOnlyInQuest(EGameSystem system, int damage)
+        {
+            var scene = new HordeScene(system);
+            scene.DefenderAt(new Position(25f, 24f), shaken: true);
+            scene.EnemyAt(new Position(23f, 24f));
+
+            await scene.DamageObjectives();
+
+            Assert.That(scene.Objective.HordeDamage, Is.EqualTo(damage));
+        }
+
+        [TestCase(EGameSystem.GrimdarkFuture)]
+        [TestCase(EGameSystem.GFStarQuest)]
+        public async Task AShakenEnemy_NeverDamagesAMarker(EGameSystem system)
+        {
+            var scene = new HordeScene(system);
+            scene.EnemyAt(new Position(23f, 24f), shaken: true);
+
+            await scene.DamageObjectives();
+
+            Assert.That(scene.Objective.HordeDamage, Is.Zero, "Shaken can't seize in any book");
+        }
+
         // ── Scene ───────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>One objective, one defending team and one enemy team, and a point-reward round.</summary>
@@ -175,7 +204,7 @@ namespace FDG.Tests
             public PlayerID Enemy { get; }
             public ObjectiveData Objective { get; }
 
-            public HordeScene()
+            public HordeScene(EGameSystem system = EGameSystem.GrimdarkFuture)
             {
                 _store = GameDataStore.GameDataStoreBuilder.GetDefault();
                 Defender = new PlayerID(Guid.NewGuid());
@@ -196,6 +225,7 @@ namespace FDG.Tests
 
                 GameSettings settings = GameSettings.GetDefault();
                 settings.GameMode = EGameMode.Horde;
+                settings.GameSystem = system;
                 _context = new TestGameContext(_store, new FixedDiceRoller(4), settings: settings);
 
                 // AddHordePoints needs a progress record to add to; without one it returns null and the
@@ -218,9 +248,11 @@ namespace FDG.Tests
                 _store.Create(Objective);
             }
 
-            public void DefenderAt(Position at) => Unit(Defender, "Defenders", at);
+            public void DefenderAt(Position at, bool shaken = false) => Unit(Defender, "Defenders", at, shaken);
 
-            public void EnemyAt(Position at) => Unit(Enemy, "Raiders", at);
+            public void EnemyAt(Position at, bool shaken = false) => Unit(Enemy, "Raiders", at, shaken);
+
+            public Task DamageObjectives() => new HordeRoundHooks(_context).DamageObjectives();
 
             /// <summary>Runs the real reward hook and returns what it paid.</summary>
             public async Task<int> AwardPoints()
@@ -244,7 +276,7 @@ namespace FDG.Tests
                 public void SendPlayerMessage(string sendingPlayerName, EChatMessageType messageType, string message) { }
             }
 
-            private void Unit(PlayerID owner, string name, Position at)
+            private void Unit(PlayerID owner, string name, Position at, bool shaken = false)
             {
                 var model = new ModelData(0.5f, new List<Weapon>(), at, _store);
                 model.SetMaxWounds(3);
@@ -252,6 +284,7 @@ namespace FDG.Tests
                 var unit = new UnitData(owner, name, quality: 4, defense: 4,
                     modelBindings: new List<DataBinding<ModelData>> { modelBinding });
                 DataBinding<UnitData> binding = _store.GetDataBinding<UnitData>(_store.Create(unit));
+                if (shaken) unit.Tokens.AddToken(Rules.Tokens.TokenDefinitionCatalog.Create(Rules.Foundation.TokenType.Shaken));
                 _store.Create(new ArmyData(owner, new List<DataBinding<UnitData>> { binding }));
             }
         }

@@ -17,7 +17,7 @@ namespace FDG.Campaign
     /// <para>
     /// <b>Not the Quest difficulty.</b> GF: Star Quest and AoF: Quest have a published 1-4 difficulty in
     /// their Campaign Builder, and it scales the enemy as a <i>percentage</i> of the party's points
-    /// (<c>StarQuestMissionRules.WaveBudget</c> is 25% per level). That is right for Quest and wrong here,
+    /// (<c>StarQuestMissionRules.WaveBudget</c>: 25 / 50 / 100 / 200%). That is right for Quest and wrong here,
     /// because this campaign's cap is a <b>flat</b> number of points: bring 2,000 against 1,500 in
     /// Grimdark Future and that 500-point gap is illegal, so a percentage band would quietly propose
     /// illegal forces as armies grow. The four names are shared with Quest deliberately - a player should

@@ -37,6 +37,14 @@ namespace FDG.Stages
             // dead attacker skipped consolidation entirely and the unit that won never moved.
             // (The disengage case stays one-sided: only the attacker falls back when both sides survive.)
             bool wipeout = !attackerAlive || !defenderAlive;
+
+            // Build 2.10: the Quest books have no wipeout move - only the 1" back-off when both survive.
+            if (wipeout && !Rules.Dispatch.CoreRulesProfile.For(GameContext).WipeoutConsolidates)
+            {
+                GameContext.Log("Consolidation: none after a wipeout in this game.");
+                await OnConsolidated.Activate(context);
+                return;
+            }
             DataBinding<UnitData> consolidatingUnit = attackerAlive ? context.AttackingUnit : context.DefendingUnit;
             EConsolidationReason reason = wipeout ? EConsolidationReason.Wipeout : EConsolidationReason.Disengage;
             float maxDist = wipeout ? WIPEOUT_MAX_DISTANCE_INCHES : DISENGAGE_MAX_DISTANCE_INCHES;

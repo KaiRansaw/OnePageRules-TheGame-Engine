@@ -183,10 +183,13 @@ namespace FDG.Stages
         }
 
         // Returns the set of PlayerIDs whose living models have a base edge within SeizureRadiusInches of the objective.
+        // includeShaken: count Shaken units too - for "who CONTESTS" in the Quest games, where Shaken only stops a
+        // unit seizing (CoreRulesProfile.ShakenStillContests).
         internal static HashSet<PlayerID> PlayersNearObjective(
             IObjective objective,
             IEnumerable<IModel> allModels,
-            Dictionary<IModel, IUnit> modelToUnit)
+            Dictionary<IModel, IUnit> modelToUnit,
+            bool includeShaken = false)
         {
             var result = new HashSet<PlayerID>();
             var objPos = objective.Position;
@@ -207,7 +210,7 @@ namespace FDG.Stages
                 // A Shaken unit can neither seize nor contest objectives (#008). Units that activated
                 // and recovered this round have already had the token cleared, so only those still
                 // Shaken at end of round are excluded here.
-                if (unit.Tokens.HasToken(TokenType.Shaken)) continue;
+                if (!includeShaken && unit.Tokens.HasToken(TokenType.Shaken)) continue;
 
                 // Extra Actions: a unit in Last Stand "can't contest or seize objectives".
                 if (ExtraActions.CannotHoldObjectives(unit)) continue;

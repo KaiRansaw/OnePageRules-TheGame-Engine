@@ -617,9 +617,9 @@ namespace FDG.Stages
                 }
 
                 int maxPower = QuestActions.Sheet(questHero)?.Power ?? questHero.QuestPower;
-                // #418: the prices on these buttons are this Quest system's, not Star Quest's by
-                // definition - AoF: Quest charges 2 power for an extra action where Star Quest charges 3,
-                // and the label and the spend have to read the same number or the button lies.
+                // #418: the prices on these buttons are this Quest system's, read from its profile, so the
+                // label and the spend always read the same number. (Both books charge 3 at v2.1.0; the archived
+                // AoF: Quest v2.0.1 charged 2, which is why the seam exists.)
                 FDG.Rules.Dispatch.QuestRulesProfile questRules =
                     FDG.Rules.Dispatch.QuestRulesProfile.For(GameContext);
                 bool fresh = !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken

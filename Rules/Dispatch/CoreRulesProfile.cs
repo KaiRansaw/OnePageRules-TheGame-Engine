@@ -41,7 +41,9 @@ namespace FDG.Rules.Dispatch
         bool CommandGroupCapIsPerArmy,
         bool FlyingKeepsTerrainItStartsIn = false,
         bool HordeEliteIsPerRound = false,
-        int HeroJoinToughCap = 6)
+        int HeroJoinToughCap = 6,
+        bool WipeoutConsolidates = true,
+        bool ShakenStillContests = false)
     {
         /// <summary>
         /// Kai, 2026-11-08: may a Hero join a unit in this system at all. Grimdark Future and Age of
@@ -195,7 +197,17 @@ namespace FDG.Rules.Dispatch
             CommandGroupCapIsPerArmy: false,
             // #463: the skirmish Flying wording, in both Quest systems too.
             FlyingKeepsTerrainItStartsIn: true,
-            HeroJoinToughCap: 0);
+            HeroJoinToughCap: 0,
+            // Build 2.10 (core-rules prose check): no 3" move for the unit that wipes out the other. The four
+            // 3.6.0 books: "If either unit is destroyed, the other may move by up to 3", else chargers must move
+            // back". GFSQ v2.1.0: "if neither unit is destroyed, chargers must move back and separate by 1""; AoFQ
+            // v2.1.0: "If neither of the units was destroyed, then the charging unit must move back by 1"". Both
+            // Quest books print the back-off and nothing for a wipeout.
+            WipeoutConsolidates: false,
+            // Build 2.10: Shaken units "can't seize objectives" - both Quest books stop there. The four 3.6.0 books
+            // say "can't contest or seize objectives". So in Quest a Shaken unit on a marker still blocks the other
+            // side from taking it; it just can't take it itself.
+            ShakenStillContests: true);
 
         /// <summary>
         /// #418 - AoF: Quest reads the same ways as Star Quest. Checked line by line, originally against

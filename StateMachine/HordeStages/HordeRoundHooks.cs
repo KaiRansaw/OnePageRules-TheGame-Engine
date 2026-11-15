@@ -156,9 +156,13 @@ namespace FDG.Stages
                 ObjectiveData objective = binding.GetValue();
                 HashSet<PlayerID> near = ReconcileObjectivesStage.PlayersNearObjective(
                     objective, table.Models.Objects, modelToUnit);
+                // Quest Horde: a Shaken hero still guards the marker (Shaken only stops seizing there).
+                HashSet<PlayerID> guarding = Rules.Dispatch.CoreRulesProfile.For(_gameContext).ShakenStillContests
+                    ? ReconcileObjectivesStage.PlayersNearObjective(objective, table.Models.Objects, modelToUnit, includeShaken: true)
+                    : near;
 
                 bool enemyNear = near.Any(p => !defenders.Contains(p));
-                bool defenderNear = near.Any(defenders.Contains);
+                bool defenderNear = guarding.Any(defenders.Contains);
                 if (!enemyNear || defenderNear) continue;
 
                 int number = NumberOf(objective);

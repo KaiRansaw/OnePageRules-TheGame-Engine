@@ -46,6 +46,27 @@ namespace FDG.Tests
                 "and the 2\" it asked for was actually executed.");
         }
 
+        // Build 2.10: both Quest books print only the 1" back-off ("if neither unit is destroyed, chargers must move
+        // back") - no 3" move for the unit that wiped the other out.
+        [TestCase(EGameSystem.GFStarQuest)]
+        [TestCase(EGameSystem.AoFQuest)]
+        public async Task InTheQuestGames_AWipeoutGivesNoMove(EGameSystem system)
+        {
+            var (ctx, requester, charger, defender) = BuildMelee();
+            GameSettings settings = ctx.Settings;
+            settings.GameSystem = system;
+            ctx.Settings = settings;
+
+            var melee = new MeleeStage(ctx, new NoOpLayer<IUnitActionContext>());
+            melee.OnFinishedMelee.Bind("finishedMelee");
+            melee.BackToChooseAction.Bind("backToChooseAction");
+            await melee.Enter(new UnitActionContext(ctx, charger));
+
+            Assert.That(charger.GetValue().ModelBindings.Any(mb => mb.GetValue().GetIsAlive()), Is.False, "premise: wiped out");
+            Assert.That(requester.Consolidation, Is.Null, "no consolidation move is offered");
+            Assert.That(defender.GetValue().ModelBindings[0].GetValue().Position.z, Is.EqualTo(20f).Within(0.0001f));
+        }
+
         // ──────────────────────────────────────────────────────────────────────
         // Helpers
         // ──────────────────────────────────────────────────────────────────────

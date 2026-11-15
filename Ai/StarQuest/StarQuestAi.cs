@@ -270,6 +270,12 @@ namespace FDG.Ai.StarQuest
                 && StarQuestAiBrain.Enemies(_table, _me, unit).Any(e => StarQuestAiBrain.Distance(unit, e) <= StarQuestAiBrain.MaxRange(unit)))
                 pick = ChooseActionStage.SHOOT_CHOICE_NAME;
             pick ??= Has(ChooseActionStage.PASS_CHOICE_NAME) ?? options[0];
+            // Build 2.10: a move was just declined and Move is all that is left to pick (no Pass on the menu - a
+            // Fatigued unit beside the hero it fought, a Hold plan). Without this the planner declined again, the
+            // menu came back, and the activation looped forever (a Star Quest Horde seed hung its test). The next
+            // move stands still, which completes the action.
+            if (movementDeclined && pick == ChooseActionStage.MOVEMENT_CHOICE_NAME)
+                _memory.StandStill.Add(unit.ID);
             return Task.FromResult(pick);
         }
 
@@ -387,7 +393,9 @@ namespace FDG.Ai.StarQuest
             QuestAiPlan plan = StarQuestAiBrain.Plan(_table, _me, unit);
             if (plan.Kind == EQuestAiMove.Charge && _memory.MoveInsteadOfCharge.Remove(unit.ID))
                 plan = plan with { Kind = EQuestAiMove.Rush };
-            if (plan.Kind == EQuestAiMove.Hold) return _solo.Resolve(request);
+            // A stand-still is answered below, whatever the plan - a Hold plan handed to the solo bot is declined
+            // again, which is the loop the stand-still exists to break.
+            if (plan.Kind == EQuestAiMove.Hold && !standStill) return _solo.Resolve(request);
 
             var living = unit.ModelBindings.Where(mb => mb.GetValue().GetIsAlive()).ToList();
             if (living.Count == 0) return Done(MovementPlanner.StayInPlace(request.UnitDataBinding));

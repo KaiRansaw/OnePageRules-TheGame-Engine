@@ -286,7 +286,10 @@ namespace FDG.StateMachine
             foreach (ObjectiveData objective in _gameContext.GameDataStore.GetAllValues<ObjectiveData>().ToList())
             {
                 HashSet<PlayerID> near = ReconcileObjectivesStage.PlayersNearObjective(objective, table.Models.Objects, modelToUnit);
-                if (!near.Any(defenders.Contains) || near.Any(p => !defenders.Contains(p))) continue;
+                // Both Quest books: Shaken units "can't seize objectives" - but a Shaken enemy still stands in the way.
+                HashSet<PlayerID> contesting = ReconcileObjectivesStage.PlayersNearObjective(objective, table.Models.Objects,
+                    modelToUnit, includeShaken: Rules.Dispatch.CoreRulesProfile.For(_gameContext).ShakenStillContests);
+                if (!near.Any(defenders.Contains) || contesting.Any(p => !defenders.Contains(p))) continue;
                 seized++;
                 seizedSpots.Add(objective.Position);
                 if (objective.IsHordePriority) prioritySeized = true;
