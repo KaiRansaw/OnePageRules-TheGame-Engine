@@ -272,6 +272,15 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The table size the chosen map was drawn for, or null when no map is chosen.</summary>
         (float W, float H)? MapTableSize { get; }
 
+        /// <summary>
+        /// Each seat's unit pictures (Kai, 2026-11-14), as the players sent them - a copy, safe to read from the UI.
+        /// A seat that sent none is absent.
+        /// </summary>
+        IReadOnlyDictionary<PlayerID, SeatPictures> SeatPictures { get; }
+
+        /// <summary>Sends this player's unit pictures to the others (replacing any sent before).</summary>
+        void SetMyPictures(PlayerID me, SeatPictures pictures);
+
         /// <summary>The chosen map's battle mat (a picture id, see <see cref="SaveLoad.TerrainLayoutFile.Mat"/>), or null. Cosmetic.</summary>
         string? MapMat { get; }
 

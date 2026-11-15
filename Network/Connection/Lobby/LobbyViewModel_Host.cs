@@ -265,6 +265,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.RegisterForMessageEvent<ArmyListUpdateMessage>(OnArmyListFileUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
+            _messageBus.RegisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
 
             //Show init message in chatbox.
             AddMessageToLocalList(new LobbyChatMessage("System", SERVER_START_MESSAGE));
@@ -336,6 +337,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.RegisterForMessageEvent<ArmyListUpdateMessage>(OnArmyListFileUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
+            _messageBus.RegisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
 
             AddMessageToLocalList(new LobbyChatMessage("System", "Loaded saved game. Assign players to slots, then Resume."));
 
@@ -500,6 +502,7 @@ namespace FDG.Network.Connection.Lobby
             _playerInfosFull.Add(newClientPlayerID, newLobbyPlayerInfo);
             UpdateInfoSummariesFromFullList();
             SendAllSeatArmiesTo(connectionID); //A late joiner sees the lists already picked.
+            SendAllSeatPicturesTo(connectionID);
 
             LobbyGameSettingsUpdate gameSettingsUpdate = new LobbyGameSettingsUpdate(_gameSettings);
             _messageBus.SendCommandToAllAsync(gameSettingsUpdate);
@@ -557,6 +560,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
             UpdateInfoSummariesFromFullList();
             SendAllSeatArmiesTo(connectionID);
+            SendAllSeatPicturesTo(connectionID);
         }
 
         private void OnClientDisconnected(ConnectionID disconnectedConnectionID)
@@ -648,6 +652,40 @@ namespace FDG.Network.Connection.Lobby
                         seat.PlayerID, ++_seatArmySequence, seat.ArmyListFile), connectionID);
                 }
             }
+        }
+
+        // Seat pictures (Kai, 2026-11-14) -----------------------------------------------------------------
+        private readonly object _seatPicturesLock = new();
+        private readonly Dictionary<PlayerID, SeatPictures> _seatPictures = new();
+        private long _seatPicturesSequence;
+
+        public IReadOnlyDictionary<PlayerID, SeatPictures> SeatPictures
+        {
+            get { lock (_seatPicturesLock) return new Dictionary<PlayerID, SeatPictures>(_seatPictures); }
+        }
+
+        public void SetMyPictures(PlayerID me, SeatPictures pictures) => StoreAndRelayPictures(me, pictures);
+
+        private void OnSeatPicturesUpdateReceived(SeatPicturesUpdateMessage update) => StoreAndRelayPictures(update.PlayerID, update.Pictures);
+
+        private void StoreAndRelayPictures(PlayerID who, SeatPictures pictures)
+        {
+            // Sender ownership isn't validated (same trust level as OnArmyListFileUpdateReceived - see #186), but
+            // only a seat in the roster is kept, so nothing piles up under made-up ids.
+            if (!_playerInfosFull.ContainsKey(who)) return;
+            SeatPictures trimmed = (pictures ?? new SeatPictures()).Trimmed();
+            lock (_seatPicturesLock)
+            {
+                _seatPictures[who] = trimmed;
+                _messageBus.SendCommandToAllAsync(new LobbySeatPicturesMessage(who, ++_seatPicturesSequence, trimmed));
+            }
+        }
+
+        private void SendAllSeatPicturesTo(ConnectionID connectionID)
+        {
+            lock (_seatPicturesLock)
+                foreach (var kv in _seatPictures.Where(kv => _playerInfosFull.ContainsKey(kv.Key)))
+                    _messageBus.SendCommandToSingleAsync(new LobbySeatPicturesMessage(kv.Key, ++_seatPicturesSequence, kv.Value), connectionID);
         }
 
         public SeatArmyView GetSeatArmy(PlayerID playerID) =>
@@ -787,6 +825,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.DeregisterForMessageEvent<ArmyListUpdateMessage>(OnArmyListFileUpdateReceived);
             _messageBus.DeregisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.DeregisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
+            _messageBus.DeregisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
             _messageBus.Dispose(); //Detaches the bus from the host's receive/disconnect events.
 
             _host.OnNewClientConnected -= OnNewClientConnected;

@@ -250,6 +250,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBusClient.RegisterForMessageEvent<GameEndedMessage>(OnGameEndedMessageReceived);
             _messageBusClient.RegisterForMessageEvent<LobbyJoinRejectedMessage>(OnJoinRejectedReceived);
             _messageBusClient.RegisterForMessageEvent<LobbySeatArmyMessage>(OnSeatArmyReceived);
+            _messageBusClient.RegisterForMessageEvent<LobbySeatPicturesMessage>(OnSeatPicturesReceived);
 
             //Send greeting — includes this build's protocol version + type-map fingerprint so the host can
             //refuse an incompatible build before we join the roster (#075), plus the lobby password the host
@@ -330,6 +331,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBusClient.DeregisterForMessageEvent<GameEndedMessage>(OnGameEndedMessageReceived);
             _messageBusClient.DeregisterForMessageEvent<LobbyJoinRejectedMessage>(OnJoinRejectedReceived);
             _messageBusClient.DeregisterForMessageEvent<LobbySeatArmyMessage>(OnSeatArmyReceived);
+            _messageBusClient.DeregisterForMessageEvent<LobbySeatPicturesMessage>(OnSeatPicturesReceived);
             _messageBusClient.Dispose(); //Detaches the bus from the network client's receive event.
 
             //Unhook BEFORE disconnecting: a deliberate teardown must not surface as "connection to the
@@ -392,6 +394,12 @@ namespace FDG.Network.Connection.Lobby
                 foreach (PlayerID gone in _seatArmies.Keys.Where(id => !seated.Contains(id)).ToList())
                     _seatArmies.Remove(gone);
             }
+            lock (_seatPicturesLock)
+            {
+                HashSet<PlayerID> seated = playerListUpdate.PlayerInfoList.Select(p => p.PlayerID).ToHashSet();
+                foreach (PlayerID gone in _seatPictures.Keys.Where(id => !seated.Contains(id)).ToList())
+                    _seatPictures.Remove(gone);
+            }
 
             _playerInfos.OnNext(playerListUpdate.PlayerInfoList);
         }
@@ -425,6 +433,30 @@ namespace FDG.Network.Connection.Lobby
                 _seatArmies[message.PlayerID] = (message.Sequence, army, unreadable);
             }
         }
+
+        // Seat pictures (Kai, 2026-11-14): kept like the seat armies - newest per seat wins.
+        private readonly object _seatPicturesLock = new();
+        private readonly Dictionary<PlayerID, (long Sequence, SeatPictures Pictures)> _seatPictures = new();
+
+        private void OnSeatPicturesReceived(LobbySeatPicturesMessage message)
+        {
+            if (message.Pictures == null) return;
+            SeatPictures trimmed = message.Pictures.Trimmed();
+            lock (_seatPicturesLock)
+            {
+                if (_seatPictures.TryGetValue(message.PlayerID, out var held) && held.Sequence > message.Sequence)
+                    return;
+                _seatPictures[message.PlayerID] = (message.Sequence, trimmed);
+            }
+        }
+
+        public IReadOnlyDictionary<PlayerID, SeatPictures> SeatPictures
+        {
+            get { lock (_seatPicturesLock) return _seatPictures.ToDictionary(kv => kv.Key, kv => kv.Value.Pictures); }
+        }
+
+        public void SetMyPictures(PlayerID me, SeatPictures pictures) =>
+            _messageBusClient.SendCommandToHostAsync(new SeatPicturesUpdateMessage(me, (pictures ?? new SeatPictures()).Trimmed()));
 
         public SeatArmyView GetSeatArmy(PlayerID playerID)
         {

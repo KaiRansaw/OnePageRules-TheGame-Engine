@@ -26,8 +26,9 @@ namespace FDG.Network
         /// v3: added PlayerColorUpdateMessage + LobbyPlayerInfoSummary.ColorIndex (#221 lobby colour sync).
         /// v4: added PlayerTeamUpdateMessage (#255 lobby team selection).
         /// v5: added LobbySeatArmyMessage (every seat's full army list reaches joined players' lobbies).
+        /// v6: added SeatPicturesUpdateMessage / LobbySeatPicturesMessage (each player's unit pictures reach the others).
         /// </summary>
-        public const int Version = 5;
+        public const int Version = 6;
 
         /// <summary>
         /// The default TCP port the host listens on and the client connects to when the player
