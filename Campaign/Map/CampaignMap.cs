@@ -131,6 +131,9 @@ namespace FDG.Campaign.Map
 
         /// <summary>The garrison army file made for the battle being played, deleted once it is recorded.</summary>
         public string? GarrisonFile { get; set; }
+
+        /// <summary>The battlefield made for the battle being played (#467 step 4), deleted once it is recorded.</summary>
+        public string? BattlefieldFile { get; set; }
     }
 
     /// <summary>A finished turn's report.</summary>

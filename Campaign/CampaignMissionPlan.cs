@@ -30,6 +30,12 @@ namespace FDG.Campaign
         /// <summary>A saved map's name (no folder, no extension) - portable between computers.</summary>
         public string? MapName { get; set; }
 
+        /// <summary>
+        /// #467 - the map as a file path, for a map that isn't in the Maps folder (a campaign map region's battlefield,
+        /// made for one battle beside the campaign files). Used before <see cref="MapName"/> when the file exists.
+        /// </summary>
+        public string? MapFile { get; set; }
+
         public EDeploymentStyle DeploymentStyle { get; set; } = EDeploymentStyle.Core;
 
         /// <summary>Off is the core rules' objectives; the rest are the Mission Cards games.</summary>

@@ -61,22 +61,25 @@ namespace FDG.Campaign.Map
             _ => "No perk - but the battle has a lot of dangerous terrain.",
         };
 
-        /// <summary>The battlefield a region's battle is fought on.</summary>
-        public static string BattlefieldText(ERegionType t, EMapStyle s) => (t, s == EMapStyle.Realm) switch
+        /// <summary>
+        /// The Advanced Rulebook terrain-generator theme a region's battle is rolled with (#467 step 4). The four books
+        /// print four themes (Generic, Hospitable, Wasteland, Death Planets / Planes); each region type takes the one that
+        /// reads closest - a judgement call (house rule B24), but the terrain itself is the book's own roll.
+        /// </summary>
+        public static TerrainBook.ETheme ThemeFor(ERegionType t) => t switch
         {
-            (ERegionType.Hive, false) => "City - dense buildings and ruins",
-            (ERegionType.Hive, true) => "Town - houses, walls, fences",
-            (ERegionType.Forge, false) => "Industrial - containers, pipes, walls",
-            (ERegionType.Forge, true) => "Hills - rocks and cliffs",
-            (ERegionType.Shrine, _) => "Ruins - broken temples, rubble",
-            (ERegionType.Fortress, _) => "Fortified - walls and barricades",
-            (ERegionType.Medical, false) => "Station - corridors and cover",
-            (ERegionType.Medical, true) => "Farmland - fields, hedges, a chapel",
-            (ERegionType.Port, false) => "Open - landing pads, few walls",
-            (ERegionType.Port, true) => "Coast - docks, crates, open ground",
-            (ERegionType.Wild, false) => "Jungle - woods and dangerous ground",
-            _ => "Forest - dense woods",
+            ERegionType.Hive => TerrainBook.ETheme.Hospitable,     // cities and towns: buildings, walls, fields
+            ERegionType.Forge => TerrainBook.ETheme.Wasteland,     // "devastated by years of industry"
+            ERegionType.Shrine => TerrainBook.ETheme.Generic,      // ruins, barricades, sight blockers
+            ERegionType.Fortress => TerrainBook.ETheme.Wasteland,  // a front line: craters, ruins, bunkers
+            ERegionType.Medical => TerrainBook.ETheme.Hospitable,
+            ERegionType.Port => TerrainBook.ETheme.Hospitable,     // rivers, lakes, open ground
+            _ => TerrainBook.ETheme.Death,                         // deadly jungles and swamps
         };
+
+        /// <summary>The battlefield a region's battle is fought on: its theme, in the game's own words. ASCII.</summary>
+        public static string BattlefieldText(ERegionType t, EGameSystem system) =>
+            TerrainBook.ThemeName(ThemeFor(t), system) + " - rolled on the Advanced Rulebook's terrain generator";
 
         // ------------------------------------------------------------------ the graph
 
