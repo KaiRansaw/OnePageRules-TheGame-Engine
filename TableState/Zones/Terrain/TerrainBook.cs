@@ -85,8 +85,21 @@ namespace FDG
             return names.Count == 0 ? "No rules" : string.Join(", ", names);
         }
 
-        /// <summary>Flags with no effect until the table has heights (Godot port step 6).</summary>
-        public static bool NeedsHeights(ETerrainType flag) => flag is ETerrainType.Steep or ETerrainType.Climbable;
+        /// <summary>Flags with no effect until the table has heights (Godot port step 6). Climbable is half in
+        /// effect: its "over 3\" tall counts as Impassable" needs no heights (see <see cref="WithClimbableHeight"/>).</summary>
+        public static bool NeedsHeights(ETerrainType flag) => flag is ETerrainType.Steep;
+
+        /// <summary>The Climbable rule's limit: "Terrain features that are over 3\" tall count as Impassable terrain".</summary>
+        public const float ClimbableMaxInches = 3f;
+
+        /// <summary>
+        /// Climbable's first sentence, which needs no heights (Kai, 2026-11-14: walls from the Warhammer terrain didn't
+        /// stop anyone): a Climbable piece over 3" tall counts as Impassable, so it gets the Impassable flag when the
+        /// table is set up. Up to 3" stays crossable - climbing it as part of a move, which needs heights, is what
+        /// is still to come (the table is flat, so it is crossed like open ground).
+        /// </summary>
+        public static ETerrainType WithClimbableHeight(ETerrainType rules, float heightInches) =>
+            rules.HasFlag(ETerrainType.Climbable) && heightInches > ClimbableMaxInches ? rules | ETerrainType.Impassible : rules;
 
         /// <summary>
         /// The rule's text, word for word from the Advanced Rulebook v3.6.0, Terrain p.12 (identical in the GF, GFF,
@@ -136,12 +149,14 @@ namespace FDG
 
         /// <summary>
         /// Whether this game plays with a flag at all. Dense / Unstable: <see cref="Stages.QuestTerrainTypes.AppliesTo"/>
-        /// (every game but Star Quest, Kai 2026-11-13). Steep / Climbable: none yet (they need heights).
+        /// (every game but Star Quest, Kai 2026-11-13). Climbable: the same games - its "over 3\" = Impassable" half
+        /// (2026-11-14). Steep: none yet (it needs heights).
         /// </summary>
         public static bool Plays(ETerrainType flag, EGameSystem system) => flag switch
         {
             ETerrainType.Dense or ETerrainType.Unstable => Stages.QuestTerrainTypes.AppliesTo(system),
-            ETerrainType.Steep or ETerrainType.Climbable => false,
+            ETerrainType.Climbable => Stages.QuestTerrainTypes.AppliesTo(system),
+            ETerrainType.Steep => false,
             _ => true,
         };
 

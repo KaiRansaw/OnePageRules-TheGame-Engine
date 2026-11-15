@@ -45,8 +45,9 @@ namespace FDG
         Steep      = 1 << 8,
 
         /// <summary>
-        /// Advanced Rulebooks 3.6.0 / AoFQ Beginners Guide v2.1.0 - Walls are "Climbable". <b>Recorded only,
-        /// no effect yet</b> - climbing needs heights (Godot port step 6), same as <see cref="Steep"/>.
+        /// Advanced Rulebooks 3.6.0 / AoFQ Beginners Guide v2.1.0 - Walls are "Climbable". Over 3" tall it counts as
+        /// Impassable (<see cref="TerrainBook.WithClimbableHeight"/>, 2026-11-14); climbing up to 3" needs heights
+        /// (Godot port step 6), same as <see cref="Steep"/>, so it is crossed like open ground until then.
         /// </summary>
         Climbable  = 1 << 9,
     }
