@@ -125,3 +125,57 @@ namespace FDG.Tests
         }
     }
 }
+
+namespace FDG.Tests
+{
+    /// <summary>#467 step 3 - a rival's starting army, built for you from a random book.</summary>
+    [TestFixture]
+    public class MapRivalArmyTests
+    {
+        private static BookFile Book() => new()
+        {
+            Name = "Test Legion",
+            Faction = "Test Legion",
+            Units =
+            {
+                new RosterUnit { Id = "a", Name = "Troopers", Quality = 4, Defense = 4, BaseModelCount = 5, MinModels = 5, MaxModels = 5, BasePointCost = 100,
+                    Weapons = { new WeaponFileEntry { Name = "Rifle", RangeInches = 24, Attacks = 1 } } },
+                new RosterUnit { Id = "b", Name = "Scouts", Quality = 4, Defense = 5, BaseModelCount = 3, MinModels = 3, MaxModels = 3, BasePointCost = 60,
+                    Weapons = { new WeaponFileEntry { Name = "Carbine", RangeInches = 18, Attacks = 1 } } },
+                new RosterUnit { Id = "c", Name = "Heavies", Quality = 4, Defense = 3, BaseModelCount = 3, MinModels = 3, MaxModels = 3, BasePointCost = 150,
+                    Weapons = { new WeaponFileEntry { Name = "Cannon", RangeInches = 30, Attacks = 2 } } },
+                new RosterUnit { Id = "h", Name = "Captain", Quality = 3, Defense = 4, BaseModelCount = 1, MinModels = 1, MaxModels = 1, BasePointCost = 50,
+                    Weapons = { new WeaponFileEntry { Name = "Blade", Attacks = 3 } }, Rules = { new SpecialRuleEntry_Core("Hero") } },
+                new RosterUnit { Id = "h2", Name = "Major", Quality = 3, Defense = 3, BaseModelCount = 1, MinModels = 1, MaxModels = 1, BasePointCost = 80,
+                    Weapons = { new WeaponFileEntry { Name = "Sword", Attacks = 4 } }, Rules = { new SpecialRuleEntry_Core("Hero") } },
+            },
+        };
+
+        [Test]
+        public void ARival_IsALegalStartingArmy_WithOneHero_AndVariety()
+        {
+            CampaignNumbers n = CampaignNumbers.GrimdarkFuture;
+            for (int seed = 0; seed < 40; seed++)
+            {
+                var built = MapRivalArmy.Build(EGameSystem.GrimdarkFuture, new[] { Book() }, new Random(seed));
+                Assert.That(built, Is.Not.Null);
+                var army = built!.Value.Army;
+                Assert.That(CampaignRules.CannotStart(army, n), Is.Null, $"seed {seed}");
+                Assert.That(army.TotalPoints, Is.InRange(600, 750));
+                Assert.That(army.Units.Count(u => u.Name is "Captain" or "Major"), Is.EqualTo(1), "exactly one Hero");
+                Assert.That(army.Units.Select(u => u.Name).Distinct().Count(), Is.GreaterThanOrEqualTo(3), "not all one unit");
+                Assert.That(army.StrikeTeam!.IsBot, Is.True);
+                Assert.That(army.Book, Is.Not.Null, "it keeps its book, to recruit from later");
+            }
+        }
+
+        [Test]
+        public void Names_DontRepeat_WhileThereAreFreeOnes()
+        {
+            var rng = new Random(1);
+            var taken = new List<string>();
+            for (int i = 0; i < 10; i++) taken.Add(MapRivalArmy.PickName(EMapStyle.StarSystem, rng, taken));
+            Assert.That(taken.Distinct().Count(), Is.EqualTo(10));
+        }
+    }
+}

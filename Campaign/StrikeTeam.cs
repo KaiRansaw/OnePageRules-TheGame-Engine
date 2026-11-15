@@ -103,6 +103,19 @@ namespace FDG.Campaign
         /// first of them, kept so the screens that show "you vs them" still have someone to show).
         /// </summary>
         public string? CampaignMapFile { get; set; }
+
+        /// <summary>
+        /// #467 - the next mission pays no treasury and no VP (a map campaign's garrison battle, house rule B24): casualties,
+        /// XP and the win/loss record still count. Cleared by the write-back once the mission is recorded.
+        /// </summary>
+        public bool NoMissionReward { get; set; }
+
+        /// <summary>
+        /// #467 - extra underdog points the next mission starts with, from the map (Shrine Worlds held, a defended capital or
+        /// Fortress). Added to the book's underdog points at launch - for a player's seat only (house rule B10). Cleared by
+        /// the write-back.
+        /// </summary>
+        public int MapUnderdogBonus { get; set; }
         /// <summary>
         /// The special objective rolled for the next mission, worth
         /// <see cref="CampaignNumbers.SpecialObjectiveBonus"/> if it is completed. Empty until one is

@@ -307,7 +307,7 @@ namespace FDG.Campaign
         /// string "Hero", so a named character (#414's "Unique Hero", which the book defines as counting
         /// as having Hero) is recruited as one and counts against the three-hero cap.
         /// </summary>
-        private static bool IsHeroEntry(RosterUnit roster) =>
+        public static bool IsHeroEntry(RosterUnit roster) =>
             roster.Rules.Any(r => r is SpecialRuleEntry_Core core
                                   && Rules.Dispatch.CoreRuleCatalog.IsHeroRuleName(core.Name));
     }

@@ -45,9 +45,13 @@ namespace FDG.Campaign
         /// Every force in this mission, each with the seat that brings it and whether that seat is the
         /// bot's.
         /// </param>
+        /// <param name="bonus">
+        /// #467 - extra points per slot on top of the book's (a map campaign's land: Shrine Worlds, a defended capital or
+        /// Fortress). Like the book's points, never given to a bot.
+        /// </param>
         public static void Seed(IGameContext gameContext,
             IReadOnlyList<(int SlotId, CampaignEntrant Entrant, bool IsBot)> entrants,
-            CampaignNumbers numbers)
+            CampaignNumbers numbers, IReadOnlyDictionary<int, int>? bonus = null)
         {
             // Every force counts towards who the underdog IS - the comparison is against the largest
             // force on the table, bot or not.
@@ -68,6 +72,7 @@ namespace FDG.Campaign
                 if (isBot) continue;
 
                 int points = CampaignPreGame.UnderdogPoints(entrant.Points, armies, numbers);
+                if (bonus != null && bonus.TryGetValue(slotId, out int extra) && extra > 0) points += extra;
                 if (points > 0) pool[slotId] = points;
             }
 
@@ -76,9 +81,14 @@ namespace FDG.Campaign
             foreach ((int slotId, CampaignEntrant entrant, bool _) in entrants)
             {
                 if (!pool.TryGetValue(slotId, out int points)) continue;
-                gameContext.Log($"{entrant.Name} is the underdog this mission: {points} underdog "
-                    + $"point(s) (1 per {numbers.UnderdogPer} pts behind the largest force). Each may "
-                    + "shift every die in one roll by 1, yours or the enemy's.");
+                int fromLand = bonus != null && bonus.TryGetValue(slotId, out int e) ? Math.Max(0, e) : 0;
+                gameContext.Log(fromLand > 0 && fromLand == points
+                    ? $"{entrant.Name} has {points} underdog point(s) from the land it holds on the campaign map. Each may "
+                      + "shift every die in one roll by 1, yours or the enemy's."
+                    : $"{entrant.Name} is the underdog this mission: {points} underdog "
+                      + $"point(s) (1 per {numbers.UnderdogPer} pts behind the largest force"
+                      + (fromLand > 0 ? $", {fromLand} of them from its land on the campaign map" : "") + "). Each may "
+                      + "shift every die in one roll by 1, yours or the enemy's.");
             }
         }
 
@@ -123,6 +133,7 @@ namespace FDG.Campaign
             if (!CampaignNumbers.HasCampaignBook(system)) return;
 
             var entrants = new List<(int SlotId, CampaignEntrant Entrant, bool IsBot)>();
+            var bonus = new Dictionary<int, int>();
             foreach (PlayerSlot slot in slots)
             {
                 if (!slot.IsFilled) continue;
@@ -134,13 +145,14 @@ namespace FDG.Campaign
                 string name = team.Name.Length > 0 ? team.Name : army.Name;
                 bool isBot = slot.Controller is ComputerPlayerController;
                 entrants.Add((slot.SlotID, new CampaignEntrant(name, army.TotalPoints, false), isBot));
+                if (team.MapUnderdogBonus > 0) bonus[slot.SlotID] = team.MapUnderdogBonus;
             }
 
             // One campaign army is not a campaign mission: the Bonus compares armies, and with nothing to
             // compare against the arithmetic gives zero anyway. Returning early keeps the log quiet.
             if (entrants.Count < 2) return;
 
-            Seed(gameContext, entrants, CampaignNumbers.For(system));
+            Seed(gameContext, entrants, CampaignNumbers.For(system), bonus);
         }
 
         /// <summary>Underdog points <paramref name="player"/> has left this mission; 0 when it has none.</summary>

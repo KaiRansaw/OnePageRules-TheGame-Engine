@@ -455,6 +455,28 @@ namespace FDG.Tests
             });
         }
 
+        /// <summary>
+        /// #467 - a map campaign's garrison battle (house rule B24) pays no treasury or VP, win or lose; the record and
+        /// the units' XP still count.
+        /// </summary>
+        [TestCase(true)]
+        [TestCase(false)]
+        public void AGarrisonBattle_PaysNothing_ButStillCounts(bool won)
+        {
+            (BuiltArmyFile army, BookFile _) = Started(treasuryLeft: 100);
+            StrikeTeamInfo info = army.StrikeTeam!;
+            info.NoMissionReward = true;
+            var results = army.Units.Select(u => new CampaignUnitResult(CampaignRules.Sheet(u)!.Id, Casualty: false, Kills: 0, HeroKills: 0)).ToList();
+
+            CampaignRules.AfterGame(army, results, won, CampaignNumbers.GrimdarkFuture, Dice(3));
+
+            Assert.That(info.BankedPoints, Is.EqualTo(100), "no treasury");
+            Assert.That(info.Vp, Is.Zero, "no VP");
+            Assert.That(info.Matches, Is.EqualTo(1));
+            Assert.That(info.Wins, Is.EqualTo(won ? 1 : 0));
+            Assert.That(army.Units.All(u => CampaignRules.Sheet(u)!.Xp == 1), Is.True, "+1 XP for surviving, as ever");
+        }
+
         [Test]
         public void DisbandingTheWholeArmyClearsEverything()
         {

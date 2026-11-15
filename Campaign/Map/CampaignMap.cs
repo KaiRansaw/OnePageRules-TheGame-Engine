@@ -124,6 +124,13 @@ namespace FDG.Campaign.Map
         /// <summary>Every army's books when the turn began - what the turn's claims and rolls go by, so a reload in the
         /// middle of a turn replays it exactly even though the player's battles have changed the armies since.</summary>
         public Dictionary<string, MapArmyState> Armies { get; set; } = new();
+
+        /// <summary>The player's campaign Matches count when the battle being played was set up; null when none is.
+        /// The mission is over once Matches has moved past it.</summary>
+        public int? BattleAtMatch { get; set; }
+
+        /// <summary>The garrison army file made for the battle being played, deleted once it is recorded.</summary>
+        public string? GarrisonFile { get; set; }
     }
 
     /// <summary>A finished turn's report.</summary>

@@ -56,7 +56,7 @@ namespace FDG.Campaign.Map
             info.BankedPoints -= reserve;
             try { log.AddRange(CampaignBot.Spend(army, book, n, biggestOtherArmy, d6)); }
             finally { info.BankedPoints += reserve; }
-            if (reserve > 0) log.Add($"{info.Name} keeps {reserve} pts back to buy land.");
+            if (reserve > 0) log.Add($"Keeps {reserve} pts back to buy land.");
             info.History.AddRange(log);
             return log;
         }

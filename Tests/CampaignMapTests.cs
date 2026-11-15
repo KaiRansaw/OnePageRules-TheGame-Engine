@@ -75,6 +75,7 @@ namespace FDG.Tests
         [Test]
         public void Generate_ManySeeds_AreConnectedFairAndUncrossed()
         {
+            int roomy = 0, touching = 0;
             for (int seed = 0; seed < 150; seed++)
             {
                 int rivals = 1 + seed % 3;
@@ -101,11 +102,19 @@ namespace FDG.Tests
                 // Ids in links exist; no duplicate links.
                 Assert.That(map.Links.All(l => map.Region(l.A) != null && map.Region(l.B) != null), Is.True);
                 Assert.That(map.Links.Select(l => string.CompareOrdinal(l.A, l.B) < 0 ? l.A + l.B : l.B + l.A).Distinct().Count(), Is.EqualTo(map.Links.Count));
+                // On a Medium or Large map armies should rarely border each other on turn 1 (counted below).
+                if (size != EMapSize.Small)
+                {
+                    roomy++;
+                    if (map.Factions.Any(f => map.Factions.Where(o => o != f).Any(o => CampaignMapRules.HasMet(map, f.Id, o.Id)))) touching++;
+                }
                 // Capitals aren't next to each other.
                 var caps = map.Regions.Where(r => r.Capital).ToList();
                 foreach (var c in caps)
                     Assert.That(caps.Any(o => o != c && CampaignMapRules.Adjacent(map, c.Id, o.Id)), Is.False, "capitals apart - " + where);
             }
+            TestContext.WriteLine($"turn-1 contact on {touching} of {roomy} Medium/Large maps");
+            Assert.That(touching, Is.LessThanOrEqualTo(roomy / 5), "armies mostly start apart on the bigger maps");
         }
 
         [Test]

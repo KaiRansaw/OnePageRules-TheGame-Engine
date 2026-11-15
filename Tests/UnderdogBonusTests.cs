@@ -266,6 +266,32 @@ namespace FDG.Tests
                 "the second seat is not even asked once the roll's one point is spent.");
         }
 
+        /// <summary>
+        /// #467 - a map campaign's land adds underdog points on top of the book's, for a player's seat only.
+        /// </summary>
+        [Test]
+        public void MapLand_AddsUnderdogPoints_ButNeverToABot()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var you = new PlayerID(Guid.NewGuid());
+            var bot = new PlayerID(Guid.NewGuid());
+            store.Create(new PlayerSlotInfo(you, slotID: 0, teamNumber: 0, name: "You", isFilled: true));
+            store.Create(new PlayerSlotInfo(bot, slotID: 1, teamNumber: 1, name: "Bot", isFilled: true));
+            var ctx = new TestGameContext(store, new FixedDiceRoller(4));
+
+            UnderdogPool.Seed(ctx,
+                new[]
+                {
+                    (0, new CampaignEntrant("You", 1000, HasCaster: false), false),
+                    (1, new CampaignEntrant("Bot", 1130, HasCaster: false), true),
+                },
+                CampaignNumbers.For(EGameSystem.GrimdarkFuture),
+                new Dictionary<int, int> { [0] = 3, [1] = 2 });
+
+            Assert.That(UnderdogPool.Remaining(ctx, you), Is.EqualTo(2 + 3), "130 behind = 2, plus 3 from the land");
+            Assert.That(UnderdogPool.Remaining(ctx, bot), Is.Zero, "a bot never gets underdog points (house rule B10)");
+        }
+
         /// <summary>Spending across several rolls drains the pool, and the offers stop when it is empty.</summary>
         [Test]
         public async Task ThePoolRunsOut_AndThenNobodyIsAsked()

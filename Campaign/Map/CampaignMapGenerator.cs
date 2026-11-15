@@ -34,6 +34,20 @@ namespace FDG.Campaign.Map
         {
             if (factions.Count == 0 || !factions[0].IsPlayer) throw new ArgumentException("The player's army comes first.", nameof(factions));
             var rng = new Random(seed);
+            // A layout where two armies border each other from turn 1 skips the land grab the rivals are there for; on
+            // the bigger maps try a few layouts for one where everyone starts apart (still one map per seed).
+            CampaignMap map = Layout(system, size, factions, seed, rng);
+            for (int attempt = 0; attempt < 12 && size != EMapSize.Small && AnyContact(map); attempt++)
+                map = Layout(system, size, factions, seed, rng);
+            return map;
+        }
+
+        /// <summary>Whether any two armies border each other.</summary>
+        public static bool AnyContact(CampaignMap map) =>
+            map.Factions.Any(f => map.Factions.Any(o => o != f && CampaignMapRules.HasMet(map, f.Id, o.Id)));
+
+        private static CampaignMap Layout(EGameSystem system, EMapSize size, IReadOnlyList<MapFaction> factions, int seed, Random rng)
+        {
             EMapStyle style = CampaignMapRules.StyleFor(system);
             int count = RegionCount(size, factions.Count);
 
@@ -168,12 +182,19 @@ namespace FDG.Campaign.Map
                 pick.Capital = true;
                 pick.Starred = true;
                 capitals.Add(pick);
+            }
 
-                // One starting region beside it - preferably not next to anyone else's capital.
-                var near = CampaignMapRules.Neighbours(map, pick.Id).Select(id => map.Region(id)!).Where(r => r.Owner == null).ToList();
-                var calm = near.Where(r => !CampaignMapRules.Neighbours(map, r.Id).Any(x => map.Region(x)!.Capital && map.Region(x)!.Owner != f.Id)).ToList();
+            // Then one starting region beside each capital - every capital is placed first, so each can be chosen away
+            // from everyone else's land: nobody should border a rival on turn 1 when the map has room (Kai: the land grab
+            // before the first fight is what more rivals were for - it shouldn't be skipped by a bad roll either).
+            foreach (MapRegion cap in capitals)
+            {
+                string f = cap.Owner!;
+                var near = CampaignMapRules.Neighbours(map, cap.Id).Select(id => map.Region(id)!).Where(r => r.Owner == null).ToList();
+                bool Others(MapRegion r) => CampaignMapRules.Neighbours(map, r.Id).Any(x => map.Region(x)!.Owner is { } o && o != f);
+                var calm = near.Where(r => !Others(r)).ToList();
                 var from = calm.Count > 0 ? calm : near;
-                if (from.Count > 0) from[rng.Next(from.Count)].Owner = f.Id;
+                if (from.Count > 0) from[rng.Next(from.Count)].Owner = f;
             }
         }
 
