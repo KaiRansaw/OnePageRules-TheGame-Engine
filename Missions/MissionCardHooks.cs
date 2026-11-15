@@ -142,8 +142,8 @@ namespace FDG.Missions
     /// <summary>
     /// The Mission Cards round by round (Mission Cards v3.6.0, Battle of Wits and Total Domination): deal at
     /// the start of each round (and the one free redraw in round 1), score and discard at the end.
-    /// Bots score their cards like anyone, but do not play towards them (Kai, 2026-11-05) - their only
-    /// decisions here are to keep what they drew.
+    /// Bots take the engine's advice on their card choices (MissionCardBotPicks.cs) and play towards their
+    /// cards (MissionCardIntent, Kai 2026-11-15; before that they only scored them).
     /// </summary>
     public sealed partial class MissionCardRoundHooks : IRoundHooks
     {
@@ -321,8 +321,10 @@ namespace FDG.Missions
                     options.Add(label);
                     descriptions[label] = Describe(card, seat.SlotID);
                 }
+                int? hopeless = keep.Cast<int?>().FirstOrDefault(c => Hopeless(c!.Value, seat.SlotID));
                 string picked = await Ask(seat, "Round 1: you may discard any of your mission cards and draw again once.",
-                    options, descriptions, "Choosing mission cards to redraw");
+                    options, descriptions, "Choosing mission cards to redraw",
+                    hopeless is int h ? $"Discard {CardName(h)}" : options[0]);
                 int index = options.IndexOf(picked);
                 if (index <= 0) break;
                 toDiscard.Add(keep[index - 1]);
@@ -359,16 +361,21 @@ namespace FDG.Missions
                 options.Add(label);
                 descriptions[label] = Describe(card, prioritySlot);
             }
-            string picked = await Ask(seat, instructions, options, descriptions, "Choosing a mission card to discard");
+            int? worst = WorstCard(table, seat.SlotID);
+            string picked = await Ask(seat, instructions, options, descriptions, "Choosing a mission card to discard",
+                worst is int w ? $"Discard {CardName(w)}" : KeepCards);
             int index = options.IndexOf(picked);
             return index <= 0 ? null : table[index - 1];
         }
 
         private async Task<string> Ask(IPlayerSlotInfo seat, string instructions, List<string> options,
-            Dictionary<string, string> descriptions, string displayName)
+            Dictionary<string, string> descriptions, string displayName, string? recommended = null)
         {
             var request = new StringSelectionRequest(seat.PlayerID, instructions, options,
-                Array.Empty<StringSelectionRequest.InvalidOption>(), descriptions, displayName: displayName);
+                Array.Empty<StringSelectionRequest.InvalidOption>(), descriptions, displayName: displayName)
+            {
+                Recommended = recommended,
+            };
             return await _gameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
         }
 

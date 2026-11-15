@@ -1,3 +1,4 @@
+using FDG.Missions;
 using FDG.Rules.Foundation;
 using FDG.Utilities;
 
@@ -105,7 +106,7 @@ namespace FDG.Ai.Solo
                 .Where(e => AiCombatMath.Distance(unit, e) <= range + reachInches)
                 .Where(e => AiCombatMath.Sees(unit, e, terrain))
                 .ToList();
-            return SoloAiTargeting.PickShootTarget(table, unit, candidates);
+            return SoloAiTargeting.PickShootTarget(table, unit, CardTargetsFirst(table, me, candidates));
         }
 
         /// <summary>The closest target worth charging, by the book's melee priority.</summary>
@@ -123,7 +124,7 @@ namespace FDG.Ai.Solo
                 .Where(e => stayNear is not { } at
                             || AiCombatMath.DistanceToPoint(e, at) <= ObjectiveReachInches)
                 .ToList();
-            return SoloAiTargeting.PickChargeTarget(unit, candidates);
+            return SoloAiTargeting.PickChargeTarget(unit, CardTargetsFirst(table, me, candidates));
         }
 
         // Read-only and non-logging: the movement queries ask the rule graph what Fast, Slow, Rapid Advance
@@ -154,6 +155,42 @@ namespace FDG.Ai.Solo
         /// </summary>
         public static Action<IUnit, SoloAiPlan>? DecisionTrace;
 
+        // ── #462: mission cards (Kai, 2026-11-15: bots play towards their cards) ───────────────────────────
+        // The Solo & Co-Op book is silent on mission cards, so the tree's steps stay as printed; the cards only
+        // decide what the steps leave open - which objective, which target, shoot or charge. House rule C.
+
+        /// <summary>When a card pays for killing some of these units, only those are considered.</summary>
+        internal static List<IUnit> CardTargetsFirst(ITableState table, PlayerID me, List<IUnit> candidates)
+        {
+            if (candidates.Count < 2 || MissionCardIntent.For(table, me) is not { WantsKills: true } intent) return candidates;
+            var wanted = candidates.Where(intent.IsCardTarget).ToList();
+            return wanted.Count > 0 ? wanted : candidates;
+        }
+
+        /// <summary>Ranks objectives by distance, with a card's objectives counted as nearer (<see cref="MissionCardIntent.PullInchesPerVp"/>).</summary>
+        private static IEnumerable<IObjective> NearestFirst(ITableState table, IUnit unit, IEnumerable<IObjective> objectives,
+                                                           MissionCardIntent? intent) =>
+            objectives.OrderBy(o => intent == null
+                ? AiCombatMath.DistanceToPoint(unit, o.Position)
+                : intent.Pulled(table, o, AiCombatMath.DistanceToPoint(unit, o.Position)));
+
+        /// <summary>Charge beats shooting when it deals more damage - and a card that pays for one or the other weighs it by half again.</summary>
+        private static bool ChargeBeatsShooting(IUnit unit, IUnit? charge, IUnit? shoot, MissionCardIntent? intent)
+        {
+            if (charge == null) return false;
+            if (shoot == null) return true;
+            float melee = AiCombatMath.ExpectedWounds(unit, charge, melee: true);
+            float ranged = AiCombatMath.ExpectedWounds(unit, shoot, melee: false);
+            if (intent != null && intent.WantsMelee != intent.WantsShootingKills)
+            {
+                if (intent.WantsMelee) melee *= CardModeWeight; else ranged *= CardModeWeight;
+            }
+            return melee > ranged;
+        }
+
+        /// <summary>How much a card that pays for melee (or shooting) kills tips the charge-or-shoot choice.</summary>
+        public const float CardModeWeight = 1.5f;
+
         /// <summary>The whole tree for one unit.</summary>
         public static SoloAiPlan Plan(ITableState table, PlayerID me, IUnit unit)
         {
@@ -170,6 +207,7 @@ namespace FDG.Ai.Solo
             float advance = AdvanceReach(unit, table);
             float range = AiCombatMath.MaxRange(unit);
             List<IObjective> contested = Contested(table, me);
+            MissionCardIntent? cards = MissionCardIntent.For(table, me);
 
             // ── Step 1: standing on a contested objective? ──────────────────────────────────────────────
             IObjective? here = contested
@@ -188,9 +226,7 @@ namespace FDG.Ai.Solo
                 IUnit? shoot = ShootTarget(table, me, unit, slack);
                 IUnit? charge = ChargeTarget(table, me, unit, stayNear: here.Position);
 
-                if (charge != null && (shoot == null
-                        || AiCombatMath.ExpectedWounds(unit, charge, melee: true)
-                           > AiCombatMath.ExpectedWounds(unit, shoot, melee: false)))
+                if (ChargeBeatsShooting(unit, charge, shoot, cards))
                     return new SoloAiPlan(ESoloAiMove.Charge, charge, here.Position, 0f,
                         $"holding objective - charge {charge.Name}");
                 if (shoot != null)
@@ -200,9 +236,7 @@ namespace FDG.Ai.Solo
             }
 
             // ── Step 3: an unattended contested objective to go and take? ───────────────────────────────
-            IObjective? target = contested
-                .Where(o => Unattended(table, me, o))
-                .OrderBy(o => AiCombatMath.DistanceToPoint(unit, o.Position))
+            IObjective? target = NearestFirst(table, unit, contested.Where(o => Unattended(table, me, o)), cards)
                 .FirstOrDefault();
 
             if (target != null)
@@ -211,9 +245,7 @@ namespace FDG.Ai.Solo
                 IUnit? shoot = ShootTarget(table, me, unit, advance);
                 IUnit? charge = ChargeTarget(table, me, unit);
 
-                if (charge != null && (shoot == null
-                        || AiCombatMath.ExpectedWounds(unit, charge, melee: true)
-                           > AiCombatMath.ExpectedWounds(unit, shoot, melee: false)))
+                if (ChargeBeatsShooting(unit, charge, shoot, cards))
                     return new SoloAiPlan(ESoloAiMove.Charge, charge, target.Position, 0f,
                         $"charge {charge.Name} on the way to an objective");
                 if (shoot != null)
@@ -227,16 +259,18 @@ namespace FDG.Ai.Solo
             IUnit? anyShoot = ShootTarget(table, me, unit, advance);
             IUnit? anyCharge = ChargeTarget(table, me, unit);
 
-            if (anyCharge != null && (anyShoot == null
-                    || AiCombatMath.ExpectedWounds(unit, anyCharge, melee: true)
-                       > AiCombatMath.ExpectedWounds(unit, anyShoot, melee: false)))
+            if (ChargeBeatsShooting(unit, anyCharge, anyShoot, cards))
                 return new SoloAiPlan(ESoloAiMove.Charge, anyCharge, null, 0f, $"charge {anyCharge.Name}");
             if (anyShoot != null)
                 return new SoloAiPlan(ESoloAiMove.AdvanceAndShoot, anyShoot, null, range,
                     $"advance and shoot {anyShoot.Name}");
 
-            IObjective? closest = table.Objectives.Objects
-                .OrderBy(o => AiCombatMath.DistanceToPoint(unit, o.Position)).FirstOrDefault();
+            // Infiltrate: with nothing to take and nothing in reach, a spare unit walks into the enemy's zone.
+            if (cards?.InfiltrateGoal(table, me, unit) is { } infiltrate)
+                return new SoloAiPlan(ESoloAiMove.RushToObjective, null, infiltrate, 0f,
+                    "nothing in range - rush into the enemy's zone (Infiltrate card)");
+
+            IObjective? closest = NearestFirst(table, unit, table.Objectives.Objects, cards).FirstOrDefault();
             if (closest != null)
                 return new SoloAiPlan(ESoloAiMove.RushToObjective, null, closest.Position, 0f,
                     "nothing in range - rush the closest objective");

@@ -66,6 +66,10 @@ namespace FDG.Ai.Resolvers
 
         public Task<string> Resolve(StringSelectionRequest request)
         {
+            // #462: the engine said what a bot should pick (mission card choices).
+            if (request.Recommended is { } recommended && request.ValidOptions.Contains(recommended))
+                return Task.FromResult(recommended);
+
             // Ambush hold-or-deploy: the AI's reserve placement isn't tactical (it drops the unit at the
             // first legal row from a table edge, ignoring objectives and the enemy), so holding only
             // strands the unit. Always deploy normally instead until reserve placement is smarter.

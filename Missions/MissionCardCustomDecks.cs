@@ -18,8 +18,8 @@ namespace FDG.Missions
     ///   don't already have a card that is face down on the table."</i></item>
     ///   <item>Scoring and discarding as Battle of Wits, from the cards on the table.</item>
     /// </list>
-    /// Bots build the suggested deck, keep their cards face up and take no optional picks (Kai, 2026-11-05:
-    /// bots score but don't chase cards).
+    /// Bots take the engine's advice on every pick (MissionCardBotPicks.cs - Kai, 2026-11-15: bots play towards
+    /// their cards); they still play every card face up and pick no paragon.
     /// </summary>
     public sealed partial class MissionCardRoundHooks
     {
@@ -74,7 +74,8 @@ namespace FDG.Missions
                 {
                     List<string> drop = await AskMany(seat,
                         "Round 1: you may discard any of the cards in your hand and draw again once.",
-                        side.Hand.Select(Label).ToList(), 0, side.Hand.Count, Array.Empty<string>(),
+                        side.Hand.Select(Label).ToList(), 0, side.Hand.Count,
+                        side.Hand.Where(c => Hopeless(c, seat.SlotID)).Select(Label).ToList(),
                         Descriptions(side.Hand, seat.SlotID), "Discarding mission cards to redraw");
                     if (drop.Count > 0)
                     {
@@ -109,7 +110,7 @@ namespace FDG.Missions
                 $"Build your mission deck: pick {MissionCardCatalog.CustomDeckSize} of the 36 cards. " +
                 "Hover a card to read it.",
                 all.Select(Label).ToList(), MissionCardCatalog.CustomDeckSize, MissionCardCatalog.CustomDeckSize,
-                MissionCardCatalog.SuggestedDeck.Select(Label).ToList(), Descriptions(all, seat.SlotID),
+                SuggestedDeckFor(seat.SlotID).Select(Label).ToList(), Descriptions(all, seat.SlotID),
                 "Building a mission deck");
             side.Deck = Shuffle(picked.Select(FromLabel).ToList());
             side.DeckBuilt = true;
@@ -159,7 +160,7 @@ namespace FDG.Missions
             if (need <= 0) return;
             List<string> picks = await AskMany(seat,
                 $"Place {need} mission card{(need == 1 ? "" : "s")} from your hand on the table.",
-                side.Hand.Select(Label).ToList(), need, need, side.Hand.Take(need).Select(Label).ToList(),
+                side.Hand.Select(Label).ToList(), need, need, PlaceOrder(side.Hand, seat.SlotID, need).Select(Label).ToList(),
                 Descriptions(side.Hand, seat.SlotID), "Placing mission cards");
             var placed = picks.Select(FromLabel).ToList();
             side.Hand = side.Hand.Where(c => !placed.Contains(c)).ToList();
@@ -201,8 +202,11 @@ namespace FDG.Missions
                     }
                 }
                 if (targets.Count == 0) continue;
+                MissionBoard gambitBoard = Board(Math.Max(1, state.Round));
+                int bestTarget = targets.Select((t, i) => (I: i, V: ValueToOpponent(state, state.Sides[t.Opp.SlotID], t.Card, gambitBoard)))
+                    .OrderByDescending(x => x.V).First().I;
                 string picked = await Ask(seat, "Planned Gambit: you may send one of your opponent's cards back to their hand.",
-                    options, new Dictionary<string, string>(), "Planned Gambit");
+                    options, new Dictionary<string, string>(), "Planned Gambit", options[bestTarget + 1]);
                 int index = options.IndexOf(picked);
                 if (index <= 0) continue;
 
@@ -217,7 +221,7 @@ namespace FDG.Missions
                 if (replacements.Count == 0) continue;
                 List<string> chosen = await AskMany(target,
                     $"{seat.Name} sent {Label(sent)} back to your hand. Place another card in its place.",
-                    replacements.Select(Label).ToList(), 1, 1, new[] { Label(replacements[0]) },
+                    replacements.Select(Label).ToList(), 1, 1, PlaceOrder(replacements, target.SlotID, 1).Select(Label).ToList(),
                     Descriptions(replacements, target.SlotID), "Replacing a mission card");
                 int card = FromLabel(chosen[0]);
                 side.Hand = side.Hand.Where(c => c != card).ToList();
@@ -238,9 +242,13 @@ namespace FDG.Missions
                     MissionCardSide oppSide = state.Sides[opp.SlotID];
                     if (oppSide.Table.Count == 0) continue;
                     var options = oppSide.Table.Select(c => $"Challenge {opp.Name}: {SeenBy(oppSide, c)}").ToList();
+                    MissionBoard challengeBoard = Board(Math.Max(1, state.Round));
+                    int hardest = oppSide.Table.Select((c, i) => (I: i, V: ValueToOpponent(state, oppSide, c, challengeBoard)))
+                        .OrderBy(x => x.V).First().I;
                     string picked = await Ask(seat,
                         $"Direct Challenge: pick one of {opp.Name}'s cards as their challenge card this round " +
-                        "(+1 VP to them if they score it).", options, new Dictionary<string, string>(), "Direct Challenge");
+                        "(+1 VP to them if they score it).", options, new Dictionary<string, string>(), "Direct Challenge",
+                        options[hardest]);
                     int index = Math.Max(0, options.IndexOf(picked));
                     oppSide.Challenge = oppSide.Table[index];
                     _gameContext.Log($"Direct Challenge: {seat.Name} challenges {opp.Name} with {SeenBy(oppSide, oppSide.Challenge)}.");
@@ -353,7 +361,9 @@ namespace FDG.Missions
                 {
                     List<string> back = await AskMany(seat,
                         "Coordinated Recovery: you may shuffle up to two of your discarded cards back into your deck.",
-                        side.Discard.Distinct().Select(Label).ToList(), 0, 2, Array.Empty<string>(),
+                        side.Discard.Distinct().Select(Label).ToList(), 0, 2,
+                        side.Discard.Distinct().Where(c => !Hopeless(c, seat.SlotID))
+                            .OrderByDescending(c => Feasibility(c, seat.SlotID)).Take(2).Select(Label).ToList(),
                         Descriptions(side.Discard.Distinct(), seat.SlotID), "Coordinated Recovery");
                     if (back.Count > 0)
                     {

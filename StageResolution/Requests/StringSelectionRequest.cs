@@ -96,6 +96,12 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public bool AllowCancel { get; }
 
+        /// <summary>
+        /// The engine's own advice for a bot (#462: which mission card to throw away). AI resolvers take it when it
+        /// is one of <see cref="ValidOptions"/>; a person's screen ignores it, so option order stays as written.
+        /// </summary>
+        public string? Recommended { get; set; }
+
         // displayName: game wording for the #322 "Waiting on" HUD line - the shared TaskName literal
         // makes the action menu, weapon picks, and hold-or-deploy prompts indistinguishable to a
         // waiting opponent.

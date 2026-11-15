@@ -293,7 +293,7 @@ namespace FDG.Tests
         }
 
         private static async Task<(List<string> Log, MissionCardState? State, GameResult Result)> PlayAGame(int seed,
-            EGameSystem system, EMissionCardGame game)
+            EGameSystem system, EMissionCardGame game, FDG.Ai.EAiProfile profile = FDG.Ai.EAiProfile.SoloRules)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var bus = new InProcessBus();
@@ -304,8 +304,9 @@ namespace FDG.Tests
                 ArmyListFile army = TestArmies.MakeRichArmy(i == 0 ? "Ours" : "Theirs");
                 slots[i] = new PlayerSlot(i, teamNumber: i, new PlayerID(Guid.NewGuid()), army, store);
                 var aiGame = new FDGGame_AsLocal(store, bus);
-                IPlayerController ai = AiResolverRegistryFactory.CreateSoloRulesController(
-                    $"AI {i}", slots[i].PlayerID, aiGame, seed, slots[i].SlotID);
+                IPlayerController ai = profile == FDG.Ai.EAiProfile.SoloRules
+                    ? AiResolverRegistryFactory.CreateSoloRulesController($"AI {i}", slots[i].PlayerID, aiGame, seed, slots[i].SlotID)
+                    : FDG.Ai.AiProfileFactory.CreateController(profile, $"AI {i}", slots[i].PlayerID, aiGame, seed, slots[i].SlotID);
                 slots[i].AssignPlayerController(new LogCapturingController(ai, log));
             }
 
@@ -376,6 +377,71 @@ namespace FDG.Tests
             int top = state.Vp.Values.Max();
             bool tie = state.Vp.Values.Count(v => v == top) > 1;
             Assert.That(result.Outcome == EGameOutcome.Tie, Is.EqualTo(tie), $"VP {string.Join("/", state.Vp.Values)} - the winner is the one with most VP");
+        }
+
+        /// <summary>
+        /// #462 (Kai, 2026-11-15): bots throw away cards they can't score. The test armies have no Hero, Caster,
+        /// Flying or Tough model, so the cards asking to kill one (or to cast a spell) are dead cards - and those
+        /// are the only ones a bot discards. Custom decks: they never make it into the deck at all.
+        /// </summary>
+        [TestCase(EGameSystem.GrimdarkFuture, EMissionCardGame.BattleOfWits, 4620)]
+        [TestCase(EGameSystem.GrimdarkFuture, EMissionCardGame.DirectChallenge, 4624)]
+        public async Task BotsOnlyThrowAwayCardsTheyCannotScore(EGameSystem system, EMissionCardGame game, int seed)
+        {
+            var (log, state, _) = await PlayAGame(seed, system, game);
+            var cannot = new HashSet<int> { 56, 61, 62, 63, 64, 65 };
+            var discarded = new List<int>();
+            foreach (string line in log.Where(l => l.StartsWith("AI ", StringComparison.Ordinal) && l.Contains(" discards ")))
+            {
+                TestContext.WriteLine(line);
+                foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(line, @"\b(\d\d) [A-Z]"))
+                    discarded.Add(int.Parse(m.Groups[1].Value));
+            }
+            Assert.That(discarded.Where(c => !cannot.Contains(c)), Is.Empty, "only dead cards are thrown away");
+
+            if (MissionCardCatalog.IsCustom(game))
+            {
+                foreach (MissionCardSide side in state!.Sides.Values)
+                {
+                    var all = side.Deck.Concat(side.Hand).Concat(side.Table).Concat(side.Discard).ToList();
+                    Assert.That(all.Intersect(cannot), Is.Empty, $"slot {side.Slot}");
+                }
+            }
+            else
+            {
+                Assert.That(discarded, Is.Not.Empty, "this seed deals a bot a dead card, and it is thrown away");
+            }
+        }
+
+        /// <summary>
+        /// #462: the lobby's bot (the official Solo &amp; Co-Op AI) plays card games to the end, and playing
+        /// towards its cards scores at least as many card VP as ignoring them, over the same seeds.
+        /// </summary>
+        [Test]
+        public async Task TheOfficialAi_ScoresMoreCardsWhenItPlaysTowardsThem()
+        {
+            // Same seeds twice, swapping which side ignores its cards, so armies, dice and sides even out.
+            int chaser = 0, ignorer = 0;
+            int[] seeds = Enumerable.Range(4630, int.TryParse(Environment.GetEnvironmentVariable("FDG_CARD_SEEDS"), out int n) ? n : 20).ToArray();
+            foreach (int ignored in new[] { 0, 1 })
+            {
+                MissionCardIntent.IgnoreSlot = ignored;
+                try
+                {
+                    foreach (int seed in seeds)
+                    {
+                        EGameSystem system = seed % 2 == 0 ? EGameSystem.GrimdarkFuture : EGameSystem.GFFirefight;
+                        var (_, state, _) = await PlayAGame(seed, system, EMissionCardGame.BattleOfWits, FDG.Ai.EAiProfile.SoloCoOp);
+                        foreach (MissionScore score in state!.Scored)
+                        {
+                            if (score.Slot == ignored) ignorer += score.Vp; else chaser += score.Vp;
+                        }
+                    }
+                }
+                finally { MissionCardIntent.IgnoreSlot = null; }
+            }
+            TestContext.WriteLine($"card VP over {seeds.Length * 2} games: playing to the cards {chaser}, ignoring them {ignorer}");
+            Assert.That(chaser, Is.GreaterThan(ignorer));
         }
     }
 }

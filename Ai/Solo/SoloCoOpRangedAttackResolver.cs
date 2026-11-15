@@ -70,8 +70,14 @@ namespace FDG.Ai.Solo
                 ? null
                 : SoloCoOpProfile.For(_table.Progress.GameSystem);
 
+            // #462: a mission card that pays for killing a kind of unit (Hero, Caster, Flying, Tough) picks
+            // it first; the book's own keys still order everything inside that.
+            FDG.Missions.MissionCardIntent? cards = _table == null ? null
+                : FDG.Missions.MissionCardIntent.For(_table, shooter.PlayerID);
+
             var best = options
-                .OrderBy(o => profile == null
+                .OrderBy(o => cards != null && cards.IsCardTarget(o.Stats.TargetUnit.GetValue()) ? 0 : 1)
+                .ThenBy(o => profile == null
                     ? 0
                     : SoloAiSpecialRuleClauses.TargetBand(profile, o.Weapon, o.Stats.TargetUnit.GetValue()))
                 .ThenBy(o => o.Stats.HasCover ? 1 : 0)
