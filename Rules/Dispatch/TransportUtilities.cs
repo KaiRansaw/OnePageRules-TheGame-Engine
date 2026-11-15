@@ -369,7 +369,7 @@ public static class TransportUtilities
     /// a host unit (#006), or the lone model of a solo Hero unit. Drives the per-model ride cap
     /// (<see cref="HeroToughCap"/> vs <see cref="NonHeroToughCap"/>).
     /// </summary>
-    private static bool IsHeroModel(IModel model, IUnit unit)
+    internal static bool IsHeroModel(IModel model, IUnit unit)
     {
         if (unit is UnitData host && host.HeroAttachment != null)
         {

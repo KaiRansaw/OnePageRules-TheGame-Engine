@@ -152,9 +152,13 @@ namespace FDG.Stages
         /// </summary>
         private static ETerrainType WithQuestTypes(IMapSetupContext context, ETerrainType declared,
             string? pieceName, float heightInches)
-            => QuestTerrainTypes.AppliesTo(context.GameContext.Settings.GameSystem)
+        {
+            ETerrainType types = QuestTerrainTypes.AppliesTo(context.GameContext.Settings.GameSystem)
                 ? TerrainBook.WithClimbableHeight(declared | QuestTerrainTypes.ExtraFlagsFor(pieceName), heightInches)
                 : declared;
+            // #460 Fast-Play Simplified Terrain: "all pieces of terrain must be treated like solid buildings".
+            return FastPlay.SimplifiedTerrain(context.GameContext.Settings) ? SolidBuildings.Simplified(types) : types;
+        }
 
         private static void PlaceAutoLayout(IMapSetupContext context, TerrainLayoutFile layout, float keepFraction = 1f)
         {

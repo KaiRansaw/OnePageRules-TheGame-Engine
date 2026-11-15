@@ -114,10 +114,20 @@ namespace FDG.Stages
                 throw new RequestResponseInvalidException(
                     $"Response to {nameof(DefinePathStage)} movement request was invalid: {why}");
 
+            // #460 Fast-Play Simplified Terrain: the whole unit goes in, the building has room, 6" to leave.
+            if (BuildingProblem(context.GameContext.TableState, context.MovingUnit.GetValue(), movements) is { } building)
+                throw new RequestResponseInvalidException(
+                    $"Response to {nameof(DefinePathStage)} movement request was invalid: {building}");
+
             context.SubmitValidPathTemplate(movements);
 
             await OnPathDefined.Activate(context);
         }
+
+        /// <summary>#460 - the Solid Buildings rules for a move, null when it keeps them (no buildings: always null).</summary>
+        public static string? BuildingProblem(ITableState table, IUnit unit, List<ModelMoveEntry> movements) =>
+            SolidBuildings.MoveProblem(unit, movements, table.Terrain.Objects.ToList(), table.Units.Objects,
+                other => ITeamExtensions.AreAllied(table.Teams.Objects, unit.PlayerID, other.PlayerID));
 
         internal static string? LeaderMissedACharge(IMovementActionContext context, DefineMovementPathRequest request,
             List<ModelMoveEntry> movements) =>
@@ -164,7 +174,8 @@ namespace FDG.Stages
                 // Movement. Under Melee alone an ordinary move is measured for every model, as usual.
                 measured: pathRequest.LeaderOnlyMovement
                     ? entry => pathRequest.IsMeasured(entry.Model.GetValue().ID)
-                    : null);
+                    : null,
+                buildingEntry: true);
         }
 
         // #029: turn an Aircraft's Advance into a forced straight-line move (GF Core 3.6.0). The player picks the

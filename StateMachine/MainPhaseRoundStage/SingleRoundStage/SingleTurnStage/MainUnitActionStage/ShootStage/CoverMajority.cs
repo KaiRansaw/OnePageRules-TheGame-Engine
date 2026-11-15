@@ -54,8 +54,9 @@ namespace FDG.Stages
                 // or Dangerous) - which also leaves out the sight-blocker footprints the shooting stage adds
                 // for other units' models, typed Blocking only.
                 const ETerrainType Enterable = ETerrainType.Cover | ETerrainType.Difficult | ETerrainType.Dangerous;
-                int inside = living.Count(m => terrain.Any(t => (t.TerrainType & Enterable) != 0
-                    && !t.TerrainType.HasFlag(ETerrainType.Impassible)
+                // #460: a solid building (every piece, under Simplified Terrain) is entered, Impassable or not.
+                int inside = living.Count(m => terrain.Any(t => (SolidBuildings.Is(t)
+                        || ((t.TerrainType & Enterable) != 0 && !t.TerrainType.HasFlag(ETerrainType.Impassible)))
                     && t.Shape.IsPointWithinZone(new Float2(m.Position.x, m.Position.z))));
                 return new Result(inside, living.Count);
             }

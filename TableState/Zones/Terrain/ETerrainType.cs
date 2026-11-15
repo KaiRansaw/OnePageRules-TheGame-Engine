@@ -50,5 +50,12 @@ namespace FDG
         /// (Godot port step 6), same as <see cref="Steep"/>, so it is crossed like open ground until then.
         /// </summary>
         Climbable  = 1 << 9,
+
+        /// <summary>
+        /// #460 - Fast-Play Simplified Terrain: "all pieces of terrain must be treated like solid buildings, with clearly
+        /// defined areas that can be entered and exited" (GF / AoF Advanced Rulebooks 3.6.0, p17 and p33). Units go
+        /// inside instead of walking through: see <see cref="FDG.SolidBuildings"/>.
+        /// </summary>
+        SolidBuilding = 1 << 10,
     }
 }

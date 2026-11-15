@@ -146,7 +146,8 @@ namespace FDG.Stages
             IEnumerable<ITerrain>? terrain, out List<ReasonForInvalidMove> errors,
             IEnumerable<EnemyModelFootprint>? friendlyFootprints = null,
             bool lenientCoherency = false,
-            Func<ModelMoveEntry, bool>? measured = null)
+            Func<ModelMoveEntry, bool>? measured = null,
+            bool buildingEntry = false)
         {
             var __probe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
             try
@@ -154,7 +155,7 @@ namespace FDG.Stages
                 var sink = new FaultSink { Errors = new List<ReasonForInvalidMove>() };
                 ValidateCore(moves, budgetFor, AsReadOnly(enemyFootprints), canMoveThroughEnemies,
                     ignoresDifficultTerrain, ignoresImpassibleTerrain, terrain, AsReadOnly(friendlyFootprints),
-                    lenientCoherency, ref sink, measured);
+                    lenientCoherency, ref sink, measured, buildingEntry);
                 errors = sink.Errors!;
                 return errors.Count == 0;
             }
@@ -192,12 +193,13 @@ namespace FDG.Stages
             IReadOnlyList<EnemyModelFootprint> enemies, bool canMoveThroughEnemies,
             bool ignoresDifficultTerrain, bool ignoresImpassibleTerrain,
             IEnumerable<ITerrain>? terrain, IReadOnlyList<EnemyModelFootprint> friendlies,
-            bool lenientCoherency, ref FaultSink sink, Func<ModelMoveEntry, bool>? measured = null)
+            bool lenientCoherency, ref FaultSink sink, Func<ModelMoveEntry, bool>? measured = null,
+            bool buildingEntry = false)
         {
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, move => budgetFor(move).MaxDistanceInches, ref sink);
-            ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
+            ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink, buildingEntry);
             // #459 Fast-Play Leader-Based Movement: the difficult-terrain cap is a distance, and "no distances
             // are measured for any other models except the leader" - so only the measured model counts, both
             // for touching difficult terrain and for going over 6".
@@ -705,8 +707,12 @@ namespace FDG.Stages
             }
         }
 
+        /// <param name="buildingEntry">#460 Simplified Terrain: a model may cross the solid building it starts in
+        /// (leaving) or ends in (entering) - the stage's own check and the player's move screen pass true; the bots'
+        /// planners leave it false and so never enter one. The unit-level rules (capacity, the whole unit, 6" exit)
+        /// are <see cref="SolidBuildings.MoveProblem"/>.</param>
         private static void ValidateMovingThroughImpassibleTerrain(MoveGeometry[] geometry,
-            IEnumerable<ITerrain>? terrain, bool ignoresImpassibleTerrain, ref FaultSink sink)
+            IEnumerable<ITerrain>? terrain, bool ignoresImpassibleTerrain, ref FaultSink sink, bool buildingEntry = false)
         {
             if (terrain == null) return;
             if (ignoresImpassibleTerrain) return;
@@ -716,7 +722,13 @@ namespace FDG.Stages
 
             for (int i = 0; i < geometry.Length; i++)
             {
-                if (FindFirstTerrainCrossing(geometry[i].Move, impassable, ELegAttitudeRule.EitherAttitudeClears) != null)
+                List<ITerrain> blocking = impassable;
+                if (buildingEntry && geometry[i].Move.Positions.Count > 0)
+                {
+                    Position start = geometry[i].Move.Model.GetValue().Position, end = geometry[i].Move.Positions[^1];
+                    blocking = impassable.Where(t => !SolidBuildings.MayCross(t, start, end)).ToList();
+                }
+                if (FindFirstTerrainCrossing(geometry[i].Move, blocking, ELegAttitudeRule.EitherAttitudeClears) != null)
                 {
                     sink.Add(EErrorReasonType.MovingThroughImpassibleTerrain, geometry[i].Move.Model);
                     if (sink.Done(EErrorReasonType.MovingThroughImpassibleTerrain)) return;
