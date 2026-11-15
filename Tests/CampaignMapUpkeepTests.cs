@@ -115,6 +115,65 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void AForgeWorld_WaivesTheVeteranSurcharge_Once()
+        {
+            CampaignMap map = Map();
+            BookFile book = Book();
+            BuiltArmyFile army = Rival(600, book);
+            map.Regions.First(r => r.Owner == "r1" && !r.Capital).Type = ERegionType.Forge;
+            CampaignMapUpkeep.EndOfTurnPerks(map, "r1", army);
+            Assert.That(army.StrikeTeam!.FreeVeteranSurcharge, Is.True);
+
+            var wanted = new BuilderUnit { RosterUnitId = "trooper", ModelCount = 5 };
+            CampaignPurchase bought = CampaignEconomy.Recruit(army, book, wanted, GF, veteran: true, d6: Threes());
+            Assert.That(bought.Ok, Is.True);
+            Assert.That(bought.Points, Is.EqualTo(100), "no surcharge");
+            Assert.That(army.StrikeTeam.FreeVeteranSurcharge, Is.False, "spent");
+
+            map.Regions.Where(r => r.Owner == "r1" && r.Type == ERegionType.Forge).ToList().ForEach(r => r.Type = ERegionType.Wild);
+            CampaignMapUpkeep.EndOfTurnPerks(map, "r1", army);
+            Assert.That(army.StrikeTeam.FreeVeteranSurcharge, Is.False, "no Forge, no waiver");
+        }
+
+        [Test]
+        public void AMedicalStation_BringsUnitsBackSooner()
+        {
+            CampaignMap map = Map();
+            BuiltArmyFile army = Rival(0, Book());
+            UnitFileEntry hurt = army.Units[0];
+            StrikeUnit sheet = CampaignRules.Sheet(hurt)!;
+            sheet.MissionsOut = 2;
+            CampaignRules.Save(hurt, sheet);
+
+            CampaignMapUpkeep.EndOfTurnPerks(map, "r1", army);
+            Assert.That(CampaignRules.Sheet(hurt)!.MissionsOut, Is.EqualTo(2), "no Medical Station held");
+
+            map.Regions.First(r => r.Owner == "r1" && !r.Capital).Type = ERegionType.Medical;
+            List<string> log = CampaignMapUpkeep.EndOfTurnPerks(map, "r1", army);
+            Assert.That(CampaignRules.Sheet(hurt)!.MissionsOut, Is.EqualTo(1));
+            Assert.That(log.Single(), Does.Contain("recovers faster"));
+        }
+
+        [Test]
+        public void AnOffScreenBattle_CostsCasualtiesAndEarnsXp_ButPaysNothing()
+        {
+            BuiltArmyFile army = Rival(200, Book());
+            StrikeTeamInfo info = army.StrikeTeam!;
+            // Every roll a 1: the loser loses every unit to the casualty roll; the book's casualty table on a 1 is dead.
+            List<string> log = CampaignMapUpkeep.OffScreenBattle(army, won: false, GF, () => 1);
+            Assert.That(info.BankedPoints, Is.EqualTo(200), "no treasury - the map paid");
+            Assert.That(info.Vp, Is.Zero);
+            Assert.That(info.Matches, Is.EqualTo(1));
+            Assert.That(info.NoMissionReward, Is.False, "the flag is put back");
+            Assert.That(log, Is.Not.Empty);
+
+            BuiltArmyFile winner = Rival(200, Book());
+            CampaignMapUpkeep.OffScreenBattle(winner, won: true, GF, () => 6); // no casualties
+            Assert.That(winner.Units.All(u => CampaignRules.Sheet(u)!.Xp >= 1), Is.True, "survivors earn XP");
+            Assert.That(winner.StrikeTeam!.Wins, Is.EqualTo(1));
+        }
+
+        [Test]
         public void AKnockedOutRival_DoesNothing()
         {
             CampaignMap map = Map();

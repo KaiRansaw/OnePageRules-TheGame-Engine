@@ -302,8 +302,8 @@ namespace FDG.Campaign
                 // #467 - a map campaign's garrison battle pays nothing (house rule B24): the region is the prize. The
                 // record still counts the result; the random events' treasury and VP are dropped with it.
                 if (won) info.Wins++;
-                log.Add(won ? "Beat the garrison: the region is the prize - no treasury or VP (map campaign)."
-                            : "Driven off by the garrison: no treasury or VP (map campaign).");
+                log.Add("No treasury or VP from this match (map campaign: a garrison battle pays nothing, and a battle "
+                        + "between rivals is paid on the map).");
                 eventPoints = eventVp = 0;
             }
             else if (won)

@@ -205,8 +205,10 @@ namespace FDG.Campaign
                 return CampaignPurchase.No("Only one new recruit after each mission may start with 5 XP.");
 
             UnitFileEntry unit = ListCompiler.CompileUnitDetailed(book, wanted).Unit;
-            int price = unit.PointCost + (veteran ? n.VeteranRecruitCost : 0);
             StrikeTeamInfo info = Info(army);
+            // #467: a Forge World / Mine held on the campaign map waives the surcharge (house rule B24).
+            bool freeVeteran = veteran && info.FreeVeteranSurcharge;
+            int price = unit.PointCost + (veteran && !freeVeteran ? n.VeteranRecruitCost : 0);
             if (price > info.BankedPoints)
                 return CampaignPurchase.No($"That costs {price} pts and the treasury holds {info.BankedPoints}.");
 
@@ -225,8 +227,9 @@ namespace FDG.Campaign
             info.BankedPoints -= price;
             if (sheet.IsHero) info.HeroRecruitedAfterMission = info.Matches;
             if (veteran) info.VeteranRecruitedAfterMission = info.Matches;
+            if (freeVeteran) info.FreeVeteranSurcharge = false;
 
-            string line = $"Recruited {unit.Name} for {price} pts.";
+            string line = $"Recruited {unit.Name} for {price} pts" + (freeVeteran ? " (5 XP, no surcharge - Forge World)." : ".");
             if (veteran && d6 != null)
             {
                 // The veteran recruit starts at 5 XP, which is a level, so it rolls its trait now.

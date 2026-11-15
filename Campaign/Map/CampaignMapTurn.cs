@@ -46,6 +46,10 @@ namespace FDG.Campaign.Map
 
         /// <summary>The turn report so far (ASCII - game text).</summary>
         public List<string> Lines { get; init; } = new();
+
+        /// <summary>Battles settled off the table (rivals against each other or a garrison), and who won - their
+        /// armies' casualties and XP are worked out from these (<see cref="CampaignMapUpkeep.OffScreenBattle"/>).</summary>
+        public List<(MapBattle Battle, bool AttackerWon)> OffScreen { get; init; } = new();
     }
 
     /// <summary>
@@ -101,6 +105,7 @@ namespace FDG.Campaign.Map
             var rng = new Random(unchecked(map.Seed * 17 + map.Turn * 104_729 + 3));
             var lines = new List<string>();
             var changes = m.Factions.ToDictionary(f => f.Id, _ => new MapArmyChange());
+            var offScreen = new List<(MapBattle, bool)>();
             int playerResult = 0;
             string you = CampaignMap.PlayerId;
 
@@ -220,7 +225,7 @@ namespace FDG.Campaign.Map
             m.History.Add(new MapTurnRecord { Turn = m.Turn, Lines = lines.ToList() });
             m.Pending = null;
             m.Turn++;
-            return new MapTurnResult { Map = m, Changes = changes, Lines = lines };
+            return new MapTurnResult { Map = m, Changes = changes, Lines = lines, OffScreen = offScreen };
 
             // ---- helpers
 
@@ -238,6 +243,7 @@ namespace FDG.Campaign.Map
                 double a = Math.Max(1, Snap(b.Attacker).Points);
                 double d = b.Defender == null ? a * CampaignMapRules.GarrisonShare : Math.Max(1, Snap(b.Defender).Points);
                 bool attackerWins = rng.NextDouble() < a / (a + d);
+                offScreen.Add((b, attackerWins));
                 // Off-screen army battles pay the book's rewards (win: 2 VP + the win payout; loss: the loss payout). A
                 // garrison pays nothing (house rule).
                 if (b.Defender != null)

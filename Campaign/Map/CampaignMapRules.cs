@@ -53,7 +53,7 @@ namespace FDG.Campaign.Map
         public static string PerkText(ERegionType t, EMapStyle s, CampaignNumbers n) => t switch
         {
             ERegionType.Hive => $"+{n.SpecialObjectiveBonus} pts to your treasury every turn.",
-            ERegionType.Forge => "One recruit per turn may start with 5 XP without the surcharge.",
+            ERegionType.Forge => $"Your 5-XP recruit costs no surcharge (saves {n.VeteranRecruitCost} pts; the book allows one per mission).",
             ERegionType.Shrine => "+1 underdog point in every battle.",
             ERegionType.Fortress => "Starred (1 VP while held). +1 underdog point when defending it.",
             ERegionType.Medical => "Units sitting out come back one turn sooner.",

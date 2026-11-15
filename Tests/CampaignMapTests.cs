@@ -332,6 +332,7 @@ namespace FDG.Tests
             map.Pending!.Orders.RemoveAll(o => o.Faction != "you");
             map.Pending.Orders.Add(new MapOrder("r1", EOrderKind.Attack, r2Start.Id));
             MapTurnResult r = Play(map);
+            Assert.That(r.OffScreen.Single().Battle, Is.EqualTo(new MapBattle(r2Start.Id, "r1", "r2", EMapBattleKind.Attack, false)), "reported for the armies' books");
             int vp = r.Changes["r1"].MissionVp + r.Changes["r2"].MissionVp;
             Assert.That(vp, Is.EqualTo(CampaignNumbers.WinVp), "one winner, 2 VP");
             string winner = r.Changes["r1"].MissionVp > 0 ? "r1" : "r2", loser = winner == "r1" ? "r2" : "r1";

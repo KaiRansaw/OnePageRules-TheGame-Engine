@@ -116,6 +116,12 @@ namespace FDG.Campaign
         /// the write-back.
         /// </summary>
         public int MapUnderdogBonus { get; set; }
+
+        /// <summary>
+        /// #467 - the army holds a Forge World / Mine on the campaign map: its next 5-XP recruit costs no surcharge. Set
+        /// at the end of each map turn (true while one is held), spent by that recruit.
+        /// </summary>
+        public bool FreeVeteranSurcharge { get; set; }
         /// <summary>
         /// The special objective rolled for the next mission, worth
         /// <see cref="CampaignNumbers.SpecialObjectiveBonus"/> if it is completed. Empty until one is
