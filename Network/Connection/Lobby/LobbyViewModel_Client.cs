@@ -702,6 +702,8 @@ namespace FDG.Network.Connection.Lobby
             _lastSettings is { MapTableWidthInches: > 0f, MapTableHeightInches: > 0f } settings
                 ? (settings.MapTableWidthInches!.Value, settings.MapTableHeightInches!.Value) : null;
 
+        public string? MapMat => string.IsNullOrEmpty(_lastSettings?.MapMat) ? null : _lastSettings?.MapMat;
+
         public void SetTableSize((float W, float H)? size)
         {
             throw new InvalidOperationException("Tried to set the table size when not the host.");

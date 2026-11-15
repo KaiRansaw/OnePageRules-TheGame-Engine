@@ -34,6 +34,13 @@ namespace FDG.SaveLoad
 
         public float TableHeightInches { get; set; } = GameWideConstants.STANDARD_TABLE_HEIGHT_INCHES;
 
+        /// <summary>
+        /// The battle mat the map is drawn on (Kai, 2026-11-14): a picture id such as <c>wh-mat:1234</c> (one of the
+        /// Warhammer Map Builder mod's mats, downloaded on the player's computer), or empty for the plain felt.
+        /// Cosmetic - a computer without the picture draws the felt.
+        /// </summary>
+        public string Mat { get; set; } = string.Empty;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
 
         /// <summary>

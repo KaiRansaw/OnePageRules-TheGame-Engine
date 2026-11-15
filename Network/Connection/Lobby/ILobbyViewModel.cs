@@ -272,6 +272,9 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The table size the chosen map was drawn for, or null when no map is chosen.</summary>
         (float W, float H)? MapTableSize { get; }
 
+        /// <summary>The chosen map's battle mat (a picture id, see <see cref="SaveLoad.TerrainLayoutFile.Mat"/>), or null. Cosmetic.</summary>
+        string? MapMat { get; }
+
         /// <summary>Picks a table size (host only). Null = automatic, by army points.</summary>
         void SetTableSize((float W, float H)? size);
 

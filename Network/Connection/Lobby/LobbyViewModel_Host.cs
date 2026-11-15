@@ -1519,6 +1519,8 @@ namespace FDG.Network.Connection.Lobby
             _gameSettings is { MapTableWidthInches: > 0f, MapTableHeightInches: > 0f }
                 ? (_gameSettings.MapTableWidthInches!.Value, _gameSettings.MapTableHeightInches!.Value) : null;
 
+        public string? MapMat => string.IsNullOrEmpty(_gameSettings.MapMat) ? null : _gameSettings.MapMat;
+
         public void SetTableSize((float W, float H)? size)
         {
             _gameSettings.TableWidthInches = size is { W: > 0f, H: > 0f } ? size.Value.W : null;
@@ -1535,9 +1537,11 @@ namespace FDG.Network.Connection.Lobby
         {
             _gameSettings.MapTableWidthInches = null;
             _gameSettings.MapTableHeightInches = null;
+            _gameSettings.MapMat = null;
             if (string.IsNullOrWhiteSpace(_gameSettings.TerrainLayoutPath)) return;
             SaveLoad.TerrainLayoutFile? layout =
                 SaveLoad.TerrainLayoutLoader.TryLoadFromFile(_gameSettings.TerrainLayoutPath, out _);
+            if (layout != null && !string.IsNullOrEmpty(layout.Mat)) _gameSettings.MapMat = layout.Mat;
             if (layout is not { TableWidthInches: > 0f, TableHeightInches: > 0f }) return;
             _gameSettings.MapTableWidthInches = layout.TableWidthInches;
             _gameSettings.MapTableHeightInches = layout.TableHeightInches;

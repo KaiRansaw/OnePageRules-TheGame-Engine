@@ -142,6 +142,13 @@ namespace FDG
         public float? MapTableHeightInches;
 
         /// <summary>
+        /// The chosen map's battle mat - the picture the table is drawn with (Kai, 2026-11-14: the Warhammer Map
+        /// Builder's mats), copied from the map like its size so every player draws the same table. A player without
+        /// that picture sees the plain felt. Null when the map has none. Cosmetic.
+        /// </summary>
+        public string? MapMat;
+
+        /// <summary>
         /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games
         /// keep their own lengths. A house rule when set (see claude/house-rules.md).
         /// </summary>
