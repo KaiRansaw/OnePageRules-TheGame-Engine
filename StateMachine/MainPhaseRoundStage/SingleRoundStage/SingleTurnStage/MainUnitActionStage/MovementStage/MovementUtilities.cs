@@ -211,7 +211,7 @@ namespace FDG.Stages
                 ValidateCoherencyNotWorsened(moves, ref sink);
             else
                 ValidateCoherency(moves, ref sink);
-            ValidateChargeReach(geometry, move => budgetFor(move).MaxRushDistance, enemies, ref sink);
+            ValidateChargeReach(geometry, move => budgetFor(move).MaxRushDistance, enemies, ref sink, terrain);
             ValidateEndsOnFriendly(geometry, friendlies, ref sink, enemies);
             ValidateNoSelfOverlap(geometry, ref sink);
             ValidateEndsOnTable(geometry, ref sink);
@@ -432,7 +432,7 @@ namespace FDG.Stages
 
         private static void ValidateChargeReach(MoveGeometry[] geometry,
             Func<ModelMoveEntry, float> maxRushDistanceFor,
-            IReadOnlyList<EnemyModelFootprint> enemyFootprints, ref FaultSink sink)
+            IReadOnlyList<EnemyModelFootprint> enemyFootprints, ref FaultSink sink, IEnumerable<ITerrain>? terrain = null)
         {
             int culprit = -1;
             for (int i = 0; i < geometry.Length && culprit < 0; i++)
@@ -443,6 +443,23 @@ namespace FDG.Stages
 
             float meleeRange = GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL;
             float reject = meleeRange + 0.0001f + REJECT_MARGIN_INCHES;
+
+            // #460 Simplified Terrain: "To charge the building, simply move models in base contact with it" - a model
+            // at the wall of a building the enemy holds has reached its charge.
+            if (terrain != null)
+            {
+                var held = terrain.Where(t => SolidBuildings.Is(t) && enemyFootprints.Any(e =>
+                    t.Shape.IsPointWithinZone(new Float2(e.Center.x, e.Center.z)))).ToList();
+                foreach (ITerrain building in held)
+                    for (int i = 0; i < geometry.Length; i++)
+                    {
+                        Position end = geometry[i].Move.Positions.Count > 0 ? geometry[i].Move.Positions[^1]
+                            : geometry[i].Move.Model.GetValue().Position;
+                        float radius = geometry[i].Move.Model.GetValue().BaseShape.CircumscribedRadiusInches;
+                        if (building.Shape.DoesPathIntersectZone(new Float2(end.x, end.z), new Float2(end.x + 0.001f, end.z),
+                                radius + meleeRange)) return;
+                    }
+            }
             for (int i = 0; i < geometry.Length; i++)
             {
                 MoveGeometry g = geometry[i];

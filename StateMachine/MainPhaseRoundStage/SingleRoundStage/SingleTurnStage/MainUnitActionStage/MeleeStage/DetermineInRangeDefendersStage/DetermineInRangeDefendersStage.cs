@@ -36,6 +36,10 @@ namespace FDG.Stages
             // two units ARE in melee - a charge where nobody reached contact is still no melee.
             if (inRange.Count > 0 && FastPlay.Melee(GameContext.Settings))
                 inRange = MeleeRangeUtilities.AllLiving(defenderModels);
+            // #460 Simplified Terrain: a fight through a building wall - every model of both units strikes (Kai).
+            if (SolidBuildings.EngagedThrough(context.AttackingUnit.GetValue(), context.DefendingUnit.GetValue(),
+                    GameContext.TableState.Terrain.Objects.ToList()) != null)
+                inRange = MeleeRangeUtilities.AllLiving(defenderModels);
             context.SetInRangeDefenders(inRange);
 
             GameContext.Log($"Determine In Range Defenders: {inRange.Count} of {MeleeRangeUtilities.AllLiving(defenderModels).Count} living models in melee range.");

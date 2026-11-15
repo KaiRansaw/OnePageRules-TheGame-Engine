@@ -29,9 +29,11 @@ namespace FDG
     /// sight passes into and out of it but not through it (the Dense rule), and models inside are in Cover.
     /// Capacity by size (Kai, 2026-11-15, the book's guideline): small 6, medium 11, large 21.</para>
     ///
-    /// <para><b>Not yet (#460 slice 2):</b> charging a unit inside ("only one unit inside of it is targeted, and the
-    /// defender may choose which"), and the bots entering buildings - they treat every piece as a wall. The book's
-    /// optional Building Destruction and Collateral Damage are left out (Kai, 2026-11-15: not now).</para>
+    /// <para><b>Fighting (slice 2):</b> a unit inside is charged by moving into contact with the building; "only one
+    /// unit inside of it is targeted, and the defender may choose which" (ChooseMeleeDefenderStage asks); every model
+    /// of both units strikes (Kai). Bots enter a building only to take an objective in it or beside it (Kai), via
+    /// <c>SoloCoOpBuildingEntry</c>. The book's optional Building Destruction and Collateral Damage are left out
+    /// (Kai, 2026-11-15: not now).</para>
     /// </summary>
     public static class SolidBuildings
     {
@@ -147,6 +149,44 @@ namespace FDG
             if (used + mine > capacity)
                 return $"That building holds {capacity} spaces; {used} are taken and this unit needs {mine}.";
             return null;
+        }
+
+        // ------------------------------------------------------------------ fighting (#460 slice 2)
+
+        /// <summary>"To charge the building, simply move models in base contact with it": melee range (2") of its wall.</summary>
+        public static bool Touches(IModel model, ITerrain building) =>
+            model.GetIsAlive() && building.Shape.DoesPathIntersectZone(new Float2(model.Position.x, model.Position.z),
+                new Float2(model.Position.x + 0.001f, model.Position.z),
+                model.BaseShape.CircumscribedRadiusInches + GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL);
+
+        /// <summary>
+        /// The building two units fight through: one is inside it and the other has a model at its wall. Null when
+        /// neither is in a building, or both are in the same one (impossible - a building held by one side can't be
+        /// entered by the other), or nobody touches it.
+        /// </summary>
+        public static ITerrain? EngagedThrough(IUnit a, IUnit b, IReadOnlyList<ITerrain> terrain)
+        {
+            if (!terrain.Any(Is)) return null;
+            ITerrain? inA = Holding(a, terrain), inB = Holding(b, terrain);
+            if (inB != null && !ReferenceEquals(inA, inB) && a.Models.Any(m => Touches(m, inB))) return inB;
+            if (inA != null && !ReferenceEquals(inA, inB) && b.Models.Any(m => Touches(m, inA))) return inA;
+            return null;
+        }
+
+        /// <summary>
+        /// Melee range with buildings: the usual model-to-model range, or a fight through a building wall. Kai,
+        /// 2026-11-15: in a building fight every model of both units strikes (see <see cref="EngagedThrough"/>).
+        /// </summary>
+        public static bool InMeleeRange(IUnit a, IUnit b, IReadOnlyList<ITerrain> terrain) =>
+            Stages.MeleeRangeUtilities.AreUnitsInMeleeRange(a, b)
+            || (a.GetIsOnBattlefield() && b.GetIsOnBattlefield() && EngagedThrough(a, b, terrain) != null);
+
+        /// <summary>The point a bot heads for to take an objective that is in a building or within 3" of one, or null.</summary>
+        public static ITerrain? ForObjective(Position objective, IReadOnlyList<ITerrain> terrain)
+        {
+            var point = new Float2(objective.x, objective.z);
+            return terrain.Where(Is).FirstOrDefault(t => t.Shape.IsPointWithinZone(point))
+                ?? terrain.Where(Is).FirstOrDefault(t => t.Shape.DoesPathIntersectZone(point, new Float2(point.X + 0.001f, point.Y), 3f));
         }
     }
 }

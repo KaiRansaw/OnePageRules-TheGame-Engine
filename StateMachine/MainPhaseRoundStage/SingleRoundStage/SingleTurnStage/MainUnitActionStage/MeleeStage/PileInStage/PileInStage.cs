@@ -17,6 +17,15 @@ namespace FDG.Stages
             var chargingUnit = context.AttackingUnit.GetValue();
             var defendingUnit = context.DefendingUnit.GetValue();
 
+            // #460 Simplified Terrain: a fight through a building wall has nobody to pile in - the defenders stay
+            // inside, the chargers stay at the wall, and everyone strikes (Kai, 2026-11-15).
+            if (SolidBuildings.EngagedThrough(chargingUnit, defendingUnit, GameContext.TableState.Terrain.Objects.ToList()) != null)
+            {
+                GameContext.Log($"{chargingUnit.Name} fights {defendingUnit.Name} through the building wall.");
+                await OnPiledIn.Activate(context);
+                return;
+            }
+
             // #159: every enemy of the defender OTHER than the charging unit — third parties, or a unit it is
             // already engaged with — is a hard obstacle the defender must not pile through on its way to the
             // charger. Without this a defender plowed straight into a different enemy's base (deeply overlapping).

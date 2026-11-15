@@ -80,7 +80,8 @@ namespace FDG.Stages
                         continue;
                     }
 
-                    if(MeleeRangeUtilities.AreUnitsInMeleeRange(context.AttackingUnit.GetValue(), potentialDefender.GetValue()))
+                    if(SolidBuildings.InMeleeRange(context.AttackingUnit.GetValue(), potentialDefender.GetValue(),
+                           GameContext.TableState.Terrain.Objects.ToList()))
                     {
                         validDefenders.Add(new CancellableSelectionRequest<UnitData>.ValidOption(potentialDefender, potentialDefender.GetValue().Name));
                     }
@@ -157,7 +158,42 @@ namespace FDG.Stages
                 return;
             }
 
-            await ChooseDefender(((Selected<DataBinding<UnitData>>)defenderResult).Value);
+            DataBinding<UnitData> picked = ((Selected<DataBinding<UnitData>>)defenderResult).Value;
+            await ChooseDefender(await DefenderPicksInsideBuilding(context, picked, validDefenders));
+        }
+
+        /// <summary>
+        /// #460 Simplified Terrain, Solid Buildings: "When charging units inside a building, only one unit inside of
+        /// it is targeted, and the defender may choose which." The attacker picked a unit inside a building; when
+        /// its side has more than one unit in there, the defending player names the one that fights.
+        /// </summary>
+        private async Task<DataBinding<UnitData>> DefenderPicksInsideBuilding(ICombatActionContext context,
+            DataBinding<UnitData> picked, List<CancellableSelectionRequest<UnitData>.ValidOption> valid)
+        {
+            var terrain = GameContext.TableState.Terrain.Objects.ToList();
+            UnitData attacker = context.AttackingUnit.GetValue();
+            if (SolidBuildings.EngagedThrough(attacker, picked.GetValue(), terrain) is not { } building) return picked;
+            if (!ReferenceEquals(SolidBuildings.Holding(picked.GetValue(), terrain), building)) return picked;
+
+            var inside = valid.Select(v => v.Option)
+                .Where(u => ReferenceEquals(SolidBuildings.Holding(u.GetValue(), terrain), building)
+                            && u.GetValue().PlayerID.Equals(picked.GetValue().PlayerID))
+                .ToList();
+            if (inside.Count < 2) return picked;
+
+            var names = inside.Select((u, i) => $"{u.GetValue().Name} ({i + 1})").ToList();
+            var request = new StringSelectionRequest(picked.GetValue().PlayerID,
+                $"{attacker.Name} charges your building. Pick which unit inside fights it.", names,
+                Array.Empty<StringSelectionRequest.InvalidOption>(), displayName: "Choosing who defends the building")
+            {
+                Recommended = names[inside.IndexOf(picked)],
+            };
+            string answer = await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
+            int index = names.IndexOf(answer);
+            DataBinding<UnitData> chosen = index >= 0 ? inside[index] : picked;
+            if (!ReferenceEquals(chosen, picked))
+                GameContext.Log($"The defender sends {chosen.GetValue().Name} to hold the building against {attacker.Name}.");
+            return chosen;
         }
     }
 }

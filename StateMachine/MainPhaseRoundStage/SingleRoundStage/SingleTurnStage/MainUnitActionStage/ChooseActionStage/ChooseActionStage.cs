@@ -898,7 +898,7 @@ namespace FDG.Stages
             UnitData unit = context.ActivatingUnit.GetValue();
             return GameContext.TableState.Units.Objects.OfType<UnitData>()
                 .Any(enemy => context.HeavyChargeTargets.Contains(enemy.ID) && enemy.GetIsAlive()
-                    && MeleeRangeUtilities.AreUnitsInMeleeRange(unit, enemy));
+                    && SolidBuildings.InMeleeRange(unit, enemy, GameContext.TableState.Terrain.Objects.ToList()));
         }
 
         /// <summary>
@@ -1046,8 +1046,8 @@ namespace FDG.Stages
                 .SelectMany(a => a.UnitBindings)
                 .Where(enemyUnit => !Rules.Dispatch.AircraftRules.IsAircraft(enemyUnit.GetValue()))
                 .Where(enemyUnit => !QuestFlags.CannotBeTargeted(GameContext.TableState.Progress.Quest, enemyUnit.GetValue(), context.ActivatingUnit.GetValue()))
-                .Any(enemyUnit => MeleeRangeUtilities.AreUnitsInMeleeRange(
-                    context.ActivatingUnit.GetValue(), enemyUnit.GetValue()));
+                .Any(enemyUnit => SolidBuildings.InMeleeRange(
+                    context.ActivatingUnit.GetValue(), enemyUnit.GetValue(), GameContext.TableState.Terrain.Objects.ToList()));
 
             if (!anyInRange)
             {

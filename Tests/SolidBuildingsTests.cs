@@ -1,4 +1,5 @@
 using FDG.Ai;
+using FDG.Ai.Tactician;
 using FDG.Data;
 using FDG.GameModel;
 using FDG.SaveLoad;
@@ -19,6 +20,7 @@ namespace FDG.Tests
         private GameDataStore _store = null!;
         private PlayerID _me, _them;
         private readonly List<UnitData> _units = new();
+        private readonly Dictionary<UnitData, DataBinding<UnitData>> _bindings = new();
 
         [SetUp]
         public void SetUp()
@@ -42,7 +44,9 @@ namespace FDG.Tests
                 bindings.Add(_store.GetDataBinding<ModelData>(_store.Create(model)));
             }
             var unit = new UnitData(owner, "Squad", quality: 4, defense: 4, modelBindings: bindings);
-            UnitData made = _store.GetDataBinding<UnitData>(_store.Create(unit)).GetValue();
+            DataBinding<UnitData> b = _store.GetDataBinding<UnitData>(_store.Create(unit));
+            UnitData made = b.GetValue();
+            _bindings[made] = b;
             _units.Add(made);
             return made;
         }
@@ -177,6 +181,59 @@ namespace FDG.Tests
             var pieces = new TableState(store).Terrain.Objects.ToList();
             Assert.That(pieces, Is.Not.Empty);
             Assert.That(pieces.All(SolidBuildings.Is), Is.True, "every piece is a building");
+        }
+
+        // ------------------------------------------------------------------ slice 2: fighting and bots
+
+        [Test]
+        public void ChargersAtTheWall_FightTheUnitInside()
+        {
+            TerrainData house = House(10, 10);
+            UnitData inside = Unit(_them, 11f, 13f);
+            UnitData charger = Unit(_me, 4f, 13f);
+            var terrain = new List<ITerrain> { house };
+            Assert.That(SolidBuildings.InMeleeRange(charger, inside, terrain), Is.False, "6\" from the wall");
+
+            foreach (var m in charger.ModelBindings) m.GetValue().SetPosition(new Position(m.GetValue().Position.x + 4.6f, 13f));
+            Assert.That(SolidBuildings.EngagedThrough(charger, inside, terrain), Is.SameAs(house));
+            Assert.That(SolidBuildings.InMeleeRange(charger, inside, terrain), Is.True);
+            Assert.That(SolidBuildings.InMeleeRange(inside, charger, terrain), Is.True, "both ways - the defender strikes back");
+        }
+
+        [Test]
+        public void AChargeMove_ReachesWhenItTouchesTheEnemysBuilding()
+        {
+            TerrainData house = House(10, 10, 10f);   // a big one: the defenders are deep inside
+            UnitData inside = Unit(_them, 16f, 15f, models: 1);
+            UnitData charger = Unit(_me, 0f, 15f, models: 1);
+            var enemies = MovementPlanner.UnitFootprints(inside);
+            bool Charge(float dx, ITerrain? t) => MovementUtilities.ValidatePaths(MoveBy(charger, dx, 0),
+                _ => new ModelMoveBudget(6f, 12f), enemies, false, false, false,
+                t == null ? new List<ITerrain>() : new List<ITerrain> { t }, out _);
+
+            Assert.That(Charge(9f, house), Is.True, "at the wall, 7\" from the model inside");
+            Assert.That(Charge(9f, new TerrainData(ETerrainType.Cover, new RectangularZone(10, 20, 10, 20))), Is.False,
+                "an ordinary piece is no wall to touch");
+        }
+
+        [Test]
+        public void ABot_GoesIntoTheBuilding_ToTakeItsObjective()
+        {
+            var table = new TableState(_store);
+            TerrainData house = House(10, 10);
+            _store.Create(house);
+            _store.Create(new TeamData(0, new List<PlayerID> { _me }));
+            _store.Create(new TeamData(1, new List<PlayerID> { _them }));
+            UnitData squad = Unit(_me, 4f, 12f);
+            var binding = _bindings[squad];
+            var request = new DefineMovementPathRequest(_me, "Move", binding, maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f);
+
+            List<ModelMoveEntry>? moves = FDG.Ai.Solo.SoloCoOpBuildingEntry.Try(request, table, _me, new Position(13f, 13f), 12f);
+
+            Assert.That(moves, Is.Not.Null);
+            Assert.That(moves!.All(m => house.Shape.IsPointWithinZone(new Float2(m.Positions[^1].x, m.Positions[^1].z))), Is.True);
+            Assert.That(FDG.Ai.Solo.SoloCoOpBuildingEntry.Try(request, table, _me, new Position(40f, 40f), 12f), Is.Null,
+                "no building at that objective");
         }
     }
 }

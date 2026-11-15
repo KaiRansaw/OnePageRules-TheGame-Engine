@@ -65,11 +65,16 @@ namespace FDG.Ai.Solo
                     return _baseline.ResolveToward(request, plan.Target);
 
                 case ESoloAiMove.RushToObjective when plan.Goal is { } rushGoal:
+                    // #460 Simplified Terrain: an objective in (or beside) a building is taken by going in.
+                    if (SoloCoOpBuildingEntry.Try(request, _table, _me, rushGoal, request.MaxDistanceInches) is { } intoRush)
+                        return Done(intoRush);
                     // Every inch: the unit is crossing ground, not setting up a shot.
                     return Done(TowardWithTerrain(request, unit, rushGoal,
                         SoloAiBrain.ObjectiveReachInches, request.MaxDistanceInches));
 
                 case ESoloAiMove.AdvanceToObjective when plan.Goal is { } advanceGoal:
+                    if (SoloCoOpBuildingEntry.Try(request, _table, _me, advanceGoal, request.MaxAdvanceDistance) is { } intoAdvance)
+                        return Done(intoAdvance);
                     // Capped at the Advance budget so the shot the plan promised is still legal.
                     return Done(TowardWithTerrain(request, unit, advanceGoal,
                         SoloAiBrain.ObjectiveReachInches, request.MaxAdvanceDistance));
