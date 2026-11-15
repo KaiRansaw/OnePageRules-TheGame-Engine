@@ -96,6 +96,13 @@ namespace FDG.Campaign
         /// is what gives the campaign an arc: it levels, recruits and remembers losing.
         /// </summary>
         public string? EnemyArmyFile { get; set; }
+
+        /// <summary>
+        /// #467 - a map campaign's map file (.fdgmap), or null for an ordinary campaign. Set on the PLAYER's army; the map
+        /// names every rival's army file itself (a map campaign has 1-3 rivals, so <see cref="EnemyArmyFile"/> is only the
+        /// first of them, kept so the screens that show "you vs them" still have someone to show).
+        /// </summary>
+        public string? CampaignMapFile { get; set; }
         /// <summary>
         /// The special objective rolled for the next mission, worth
         /// <see cref="CampaignNumbers.SpecialObjectiveBonus"/> if it is completed. Empty until one is
