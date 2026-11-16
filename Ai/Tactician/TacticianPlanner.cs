@@ -59,6 +59,13 @@ namespace FDG.Ai.Tactician
         // routes start at the unit's current centroid, and the grid only depends on the terrain and
         // the unit's base size. One A* per objective, one grid build, per activation.
         private readonly Dictionary<(float X, float Z), List<Position>> _objectiveRoutes = new();
+        // #462: this activation's mission-card wants, read once (the objective terms run per candidate).
+        private (bool Read, FDG.Missions.MissionCardIntent? Intent) _cards;
+        private FDG.Missions.MissionCardIntent? Cards(UnitData self)
+        {
+            if (!_cards.Read) _cards = (true, FDG.Missions.MissionCardIntent.For(_tableState, self.PlayerID));
+            return _cards.Intent;
+        }
         // The same, per ENEMY, for the melee approach gradient (issue 1's melee half). Keyed by the
         // enemy rather than its centroid because that centroid is fixed for the activation anyway.
         private readonly Dictionary<DataReference, List<Position>> _enemyRoutes = new();
@@ -273,6 +280,7 @@ namespace FDG.Ai.Tactician
             _enemyMaxRange.Clear();
             _posture = null;
             _objectiveRoutes.Clear();
+            _cards = default;
             _enemyRoutes.Clear();
             _enemyFacts.Clear();
             _meleeSelfVsEnemy.Clear();
@@ -1229,6 +1237,7 @@ namespace FDG.Ai.Tactician
             float baseline = ObjectiveUrgency(round, totalRounds);
 
             float best = 0f;
+            FDG.Missions.MissionCardIntent? cards = Cards(self);
             foreach (ObjectiveProjection projection in Projections())
             {
                 // #296: an ALLY-held marker is not a gradient target - it is already the side's
@@ -1252,7 +1261,9 @@ namespace FDG.Ai.Tactician
 
                 float gapEnd = Math.Max(0f,
                     RouteMetrics.RemainingFrom(route, end, terrain, baseRadius) - onIt);
-                best = Math.Max(best, urgency * Math.Clamp((gapNow - gapEnd) / gapNow, 0f, 1f));
+                float cardWeight = cards != null && cards.VpFor(_tableState, projection.Objective) is int vp and > 0
+                    ? 1f + TacticianWeights.CardObjectivePerVp * vp : 1f;   // #462
+                best = Math.Max(best, cardWeight * urgency * Math.Clamp((gapNow - gapEnd) / gapNow, 0f, 1f));
             }
             return best;
         }
@@ -1439,8 +1450,10 @@ namespace FDG.Ai.Tactician
         {
             Position end = candidate.ProjectedCentroid;
             float delta = 0f;
+            FDG.Missions.MissionCardIntent? cards = Cards(self);
             foreach (ObjectiveProjection projection in Projections())
             {
+                float before = delta;
                 bool projectedOurs = TacticalAnalysis.IsProjectedOwnerAllied(
                     _tableState, projection, self.PlayerID);
                 bool projectedMine = projection.ProjectedOwner.HasValue
@@ -1467,6 +1480,9 @@ namespace FDG.Ai.Tactician
                 if (endInSupportBand
                     && (!projectedOurs || MarkerContestable(projection.Objective.Position)))
                     delta += TacticianWeights.MoveObjectiveSupport;
+                // #462: a marker on one of our mission cards counts for more, both ways.
+                if (cards != null && cards.VpFor(_tableState, projection.Objective) is int vp and > 0)
+                    delta = before + (delta - before) * (1f + TacticianWeights.CardObjectivePerVp * vp);
             }
             return delta;
         }

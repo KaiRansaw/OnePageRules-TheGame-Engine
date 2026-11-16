@@ -431,7 +431,9 @@ namespace FDG.Tests
                     foreach (int seed in seeds)
                     {
                         EGameSystem system = seed % 2 == 0 ? EGameSystem.GrimdarkFuture : EGameSystem.GFFirefight;
-                        var (_, state, _) = await PlayAGame(seed, system, EMissionCardGame.BattleOfWits, FDG.Ai.EAiProfile.SoloCoOp);
+                        var profile = Environment.GetEnvironmentVariable("FDG_CARD_PROFILE") == "Tactician"
+                            ? FDG.Ai.EAiProfile.Tactician : FDG.Ai.EAiProfile.SoloCoOp;
+                        var (_, state, _) = await PlayAGame(seed, system, EMissionCardGame.BattleOfWits, profile);
                         foreach (MissionScore score in state!.Scored)
                         {
                             if (score.Slot == ignored) ignorer += score.Vp; else chaser += score.Vp;

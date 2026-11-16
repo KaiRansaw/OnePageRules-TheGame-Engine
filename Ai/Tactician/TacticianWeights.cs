@@ -195,6 +195,12 @@ namespace FDG.Ai.Tactician
         // objective we do not already own; below MoveObjective so ARRIVING still dominates.
         public static float MoveObjectiveApproach = 0.4f;
 
+        // ADDED 2026-11-15 (#462, Kai: the Tactical / Expert bots back in the lobby): mission cards. An objective a
+        // card pays for weighs 1 + CardObjectivePerVp x VP in the objective terms (a Seize marker 2x, a Hold 3x),
+        // and a card's kill target is worth CardTargetFactor x as much to shoot.
+        public static float CardObjectivePerVp = 1f;
+        public static float CardTargetFactor = 2f;
+
         // --- Anti-horde play (A5-4: screening + mob breaking + round-scaled objectives) -------------
         // From the 49%-cell loss reading: elite gunlines got CAUGHT holding markers in the horde's
         // path. The Block/Escort candidates always existed (M8/M9 line walls across the threat

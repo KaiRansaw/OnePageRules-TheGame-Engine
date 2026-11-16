@@ -40,6 +40,8 @@ namespace FDG.Ai.Tactician.Resolvers
         {
             Weapon? bestWeapon = null;
             WeaponTargetStats? bestStats = null;
+            FDG.Missions.MissionCardIntent? cards = _tableState == null ? null
+                : FDG.Missions.MissionCardIntent.For(_tableState, request.AttackingUnit.GetValue().PlayerID);
             float bestScore = float.NegativeInfinity;
 
             foreach (WeaponOption option in request.WeaponOptions)
@@ -77,7 +79,9 @@ namespace FDG.Ai.Tactician.Resolvers
                     float score = fractionKilled * targetValue
                         * (wounds >= remaining ? TacticianWeights.ShootingKillBonus
                            : breaks ? TacticianWeights.MoraleBreakBonus : 1f)
-                        * (threatensUs ? TacticianWeights.ShootThreatFactor : 1f);
+                        * (threatensUs ? TacticianWeights.ShootThreatFactor : 1f)
+                        // #462: a kill a mission card pays for (Hero, Caster, Flying, Tough...).
+                        * (cards != null && cards.IsCardTarget(target) ? TacticianWeights.CardTargetFactor : 1f);
 
                     if (score > bestScore)
                     {
