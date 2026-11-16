@@ -152,6 +152,51 @@ namespace FDG.Tests
                 "a dangling spec name does nothing rather than throwing mid-stage");
         }
 
+        // 2026-11-16 AoF sweep: Split's Changelings had no clear spot in a crowded melee and were committed 0.17"
+        // into an enemy unit. "You MAY place" - with no room fully within 6", nothing is placed.
+        [Test]
+        public async Task NoRoomWithinTheRadius_NothingIsPlacedOrCreated()
+        {
+            (DataBinding<UnitData> spawner, DataBinding<ArmyData> army) = MakeSpawnerArmy();
+            FillAroundWithEnemies(20f, 20f, halfWidth: 8f);
+            var requester = new SpawnRequester { Accept = true, DestX = 22f, DestZ = 20f };
+            int unitsBefore = new TableState(_store).Units.Objects.Count();
+
+            await RunActivationStart(requester, spawner);
+
+            Assert.That(army.GetValue().UnitBindings, Has.Count.EqualTo(1), "no spawned unit joins the army");
+            Assert.That(requester.PlaceRequest, Is.Null, "the player is never asked to place a unit that can't fit");
+            Assert.That(new TableState(_store).Units.Objects.Count(), Is.EqualTo(unitsBefore),
+                "nothing was created on the real table to find out");
+        }
+
+        [Test]
+        public async Task EnemiesNearbyButRoomLeft_StillPlaces()
+        {
+            // Control for the test above: the same wall of enemies, but only on one side - there is room.
+            (DataBinding<UnitData> spawner, DataBinding<ArmyData> army) = MakeSpawnerArmy();
+            FillAroundWithEnemies(28f, 20f, halfWidth: 4f);
+
+            await RunActivationStart(new SpawnRequester { Accept = true, DestX = 16f, DestZ = 20f }, spawner);
+
+            Assert.That(army.GetValue().UnitBindings, Has.Count.EqualTo(2));
+        }
+
+        // A packed enemy unit covering a square around (cx, cz), leaving the spawner's own spot at (20, 20) free.
+        private void FillAroundWithEnemies(float cx, float cz, float halfWidth)
+        {
+            var enemy = new PlayerID(System.Guid.NewGuid());
+            var bindings = new List<DataBinding<ModelData>>();
+            for (float x = cx - halfWidth; x <= cx + halfWidth; x += 1.5f)
+            for (float z = cz - halfWidth; z <= cz + halfWidth; z += 1.5f)
+            {
+                if (System.MathF.Abs(x - 20f) < 1.6f && System.MathF.Abs(z - 20f) < 1.6f) continue;
+                var m = new ModelData(0.75f, new List<Weapon>(), new Position(x, z), _store);
+                bindings.Add(_store.GetDataBinding<ModelData>(_store.Create(m)));
+            }
+            _store.Create(new UnitData(enemy, "Wall", quality: 4, defense: 4, modelBindings: bindings));
+        }
+
         [Test]
         public void RoundStartSnapshot_SweepsAStrayJoinMarker()
         {

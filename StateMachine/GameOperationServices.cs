@@ -331,6 +331,18 @@ namespace FDG.Stages
             Rules.Dispatch.IRuleResolver resolver = _gameContext.RuleEvaluator.RuleResolver
                 ?? new Rules.Dispatch.RuleResolver();
             var persisted = army.RestoreRuleData();
+
+            // Split / Spawn say "you MAY place a new unit ... fully within X of it". When there is no room for
+            // it anywhere in that circle (a crowded melee), it can't be placed, so it isn't - rather than being
+            // pushed onto the least-bad spot overlapping other models (found by the 2026-11-16 AoF sweep:
+            // Changelings committed 0.17" into an enemy unit).
+            Position probeCenter = PlacerCenter(placer);
+            if (!await HasRoomToPlace(placer, spec, resolver, persisted, probeCenter, radiusInches))
+            {
+                _gameContext.Log($"There is no room to place {spec.Name} fully within {radiusInches:0.##}\" of " +
+                    $"{placer.Name} without touching other models - it is not placed.");
+                return;
+            }
             var unit = new UnitData(placer.PlayerID, spec, _gameContext.GameDataStore, resolver,
                 persisted?.DefaultRangedEffectSet, persisted?.DefaultMeleeEffectSet);
             GameModel.GameBootstrap.AttachRulesFromArmyList(unit, spec, resolver);
@@ -368,6 +380,31 @@ namespace FDG.Stages
                 Rules.Foundation.TokenType.JoinsRoundInProgress));
 
             await _gameContext.Announce($"{placer.Name} spawns {unit.Name}!", RecoveryBannerColor);
+        }
+
+        /// <summary>
+        /// Whether a spawned unit built from <paramref name="spec"/> has a clear spot fully within
+        /// <paramref name="radiusInches"/> of <paramref name="center"/>. Asked on a throwaway copy of the table, with
+        /// the same placement sweep the commit guard uses, so nothing is created on the real table to find out.
+        /// True when the table can't be copied (the old behaviour: place it and let the commit guard cope).
+        /// </summary>
+        private async Task<bool> HasRoomToPlace(IUnit placer, SaveLoad.UnitFileEntry spec,
+            Rules.Dispatch.IRuleResolver resolver, FDG.Rules.Serialization.ArmyRuleDataPersistence.PersistedArmyRuleData? persisted, Position center,
+            float radiusInches)
+        {
+            if (_gameContext.GameDataStore is not GameDataStore live) return true;
+            GameDataStore scratch = SaveLoad.StoreClone.Clone(live);
+            var table = new TableState(scratch);
+            var probe = new UnitData(placer.PlayerID, spec, scratch, resolver,
+                persisted?.DefaultRangedEffectSet, persisted?.DefaultMeleeEffectSet);
+            scratch.Create(probe);
+            var zone = new CircularZone(new Float2(center.x, center.z), radiusInches);
+            var request = new PlaceObjectsRequest<ModelData>(placer.PlayerID, $"Placing {probe.Name}", zone,
+                probe.ModelBindings);
+            var sweep = new Ai.Resolvers.AiPlaceObjectsResolver<ModelData>(table);
+            if (await sweep.Resolve(request) is not Selected<List<PlacedObjectEntry<ModelData>>> placed) return true;
+            (_, float depth) = PlacementCommitGuard.WorstOverlap(table, request, placed.Value);
+            return depth <= PlacementCommitGuard.OverlapToleranceInches;
         }
 
         public async Task ReinforceUnit(IUnit unit, string? sourceRuleName)
