@@ -303,5 +303,31 @@ namespace FDG.Tests
             Assert.That(plan.Kind, Is.EqualTo(ESoloAiMove.AdvanceAndShoot));
             Assert.That(plan.Target?.Name, Is.EqualTo(prey.GetValue().Name));
         }
+
+        // ── #364: a charge has to get round walls ─────────────────────────────────────────────────────
+
+        [Test]
+        public void AnEnemyBehindALongWall_IsNotInChargeRange()
+        {
+            // 8" apart in a straight line - inside a 12" charge - but a wall runs between them the whole width of
+            // the fight, and the walk round it is far more than 12".
+            DataBinding<UnitData> ai = Brute(_ai, "Berserkers", 10f, 24f);
+            Unit(_player, "Troops", 18f, 24f, rangeInches: 0f);
+            Assert.That(SoloAiBrain.ChargeTarget(Table, _ai, ai.GetValue()), Is.Not.Null, "open ground: in reach");
+
+            _store.Create(new TerrainData(ETerrainType.Impassible | ETerrainType.Blocking, new RectangularZone(13f, 15f, 4f, 44f)));
+
+            Assert.That(SoloAiBrain.ChargeTarget(Table, _ai, ai.GetValue()), Is.Null, "the walk round is too far");
+            Assert.That(SoloAiBrain.Plan(Table, _ai, ai.GetValue()).Kind, Is.Not.EqualTo(ESoloAiMove.Charge));
+        }
+
+        [Test]
+        public void AShortWall_StillLetsTheChargeRoundIt()
+        {
+            DataBinding<UnitData> ai = Brute(_ai, "Berserkers", 10f, 24f);
+            Unit(_player, "Troops", 18f, 24f, rangeInches: 0f);
+            _store.Create(new TerrainData(ETerrainType.Impassible, new RectangularZone(13f, 15f, 23f, 25f)));
+            Assert.That(SoloAiBrain.ChargeTarget(Table, _ai, ai.GetValue()), Is.Not.Null);
+        }
     }
 }

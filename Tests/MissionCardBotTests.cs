@@ -192,5 +192,20 @@ namespace FDG.Tests
             Assert.That(goal!.Value.z, Is.EqualTo(39f).Within(0.01f), "3\" inside the enemy's zone edge");
             Assert.That(goal.Value.x, Is.EqualTo(24f).Within(0.01f), "straight ahead");
         }
+
+        [Test]
+        public void ACardOnAnObjectiveItHolds_KeepsAGuardOnIt()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Raiders", 24f, 24f);
+            Objective(24f, 24f, 1);
+            _store.GetAllValues<ObjectiveData>().First().SetOwner(_ai);
+            Objective(24f, 34f, 2);
+            Unit(_player, "Troops", 70f, 46f);
+
+            Assert.That(SoloAiBrain.Plan(Table, _ai, ai.GetValue()).Kind, Is.EqualTo(ESoloAiMove.RushToObjective),
+                "the book: its own objective is no reason to stay");
+            Cards(11);   // Seize 1
+            Assert.That(SoloAiBrain.Plan(Table, _ai, ai.GetValue()).Kind, Is.EqualTo(ESoloAiMove.Hold), "guards the card's marker");
+        }
     }
 }

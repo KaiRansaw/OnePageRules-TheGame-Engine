@@ -119,8 +119,10 @@ namespace FDG.Ai.Solo
         public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null)
         {
             float reach = ChargeReach(unit, table);
+            // #364: straight-line first (cheap), then the walk round any wall - a charge it can't get round is no charge.
             var candidates = AiCombatMath.Enemies(table, me)
                 .Where(e => AiCombatMath.Distance(unit, e) <= reach)
+                .Where(e => SoloAiReach.ChargeGap(table, unit, e) <= reach)
                 .Where(e => stayNear is not { } at
                             || AiCombatMath.DistanceToPoint(e, at) <= ObjectiveReachInches)
                 .ToList();
@@ -188,6 +190,30 @@ namespace FDG.Ai.Solo
             return melee > ranged;
         }
 
+        /// <summary>
+        /// #462 (Kai, 2026-11-15): an objective the AI already holds that one of its cards pays for (Seize: control at
+        /// the end of the round; Hold: at the start AND the end) is no use if the unit standing on it walks off and an
+        /// enemy takes it before the round ends. The book's step 1 sends a unit on with its own objective, so with a
+        /// card on that marker the closest non-Shaken unit stays and guards it as if it were contested.
+        /// </summary>
+        private static IObjective? CardObjectiveToGuard(ITableState table, PlayerID me, IUnit unit, MissionCardIntent? cards)
+        {
+            if (cards == null || cards.ObjectiveVp.Count == 0 || unit.Tokens.HasToken(TokenType.Shaken)) return null;
+            foreach (IObjective o in table.Objectives.Objects
+                         .Where(o => ControlledByAi(table, me, o) && cards.VpFor(table, o) > 0)
+                         .OrderBy(o => AiCombatMath.DistanceToPoint(unit, o.Position)))
+            {
+                float mine = AiCombatMath.DistanceToPoint(unit, o.Position);
+                if (mine > ObjectiveReachInches) break;
+                bool closerGuard = table.Units.Objects.Any(u => !ReferenceEquals(u, unit) && u.GetIsAlive() && u.GetIsOnBattlefield()
+                    && ITeamExtensions.AreAllied(table.Teams.Objects, me, u.PlayerID)
+                    && !u.Tokens.HasToken(TokenType.Shaken)
+                    && AiCombatMath.DistanceToPoint(u, o.Position) < mine);
+                if (!closerGuard) return o;
+            }
+            return null;
+        }
+
         /// <summary>How much a card that pays for melee (or shooting) kills tips the charge-or-shoot choice.</summary>
         public const float CardModeWeight = 1.5f;
 
@@ -213,7 +239,8 @@ namespace FDG.Ai.Solo
             IObjective? here = contested
                 .Where(o => AiCombatMath.DistanceToPoint(unit, o.Position) <= ObjectiveReachInches)
                 .OrderBy(o => AiCombatMath.DistanceToPoint(unit, o.Position))
-                .FirstOrDefault();
+                .FirstOrDefault()
+                ?? CardObjectiveToGuard(table, me, unit, cards);
 
             if (here != null)
             {
