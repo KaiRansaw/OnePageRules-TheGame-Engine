@@ -18,12 +18,13 @@ namespace FDG.ArmyBuilding
         /// An army from <paramref name="book"/> at up to <paramref name="pointsLimit"/>, or null when not even one unit
         /// fits. Deterministic for a given <paramref name="rng"/> seed.
         /// </summary>
-        public static BuiltArmyFile? Build(BookFile book, int pointsLimit, Random rng, string? name = null)
+        /// <param name="forceOrg">Keep to the optional Force Organisation caps (the lobby's switch).</param>
+        public static BuiltArmyFile? Build(BookFile book, int pointsLimit, Random rng, string? name = null, bool forceOrg = true)
         {
             if (pointsLimit <= 0 || book.Units.Count == 0) return null;
             var list = new BuilderList { Name = name ?? $"Random {book.Name}", BookName = book.Name, PointsLimit = pointsLimit };
 
-            int Problems() => ListValidator.Validate(book, list, ListCompiler.Compile(book, list))
+            int Problems() => ListValidator.Validate(book, list, ListCompiler.Compile(book, list), forceOrg)
                 .Count(i => !i.Message.Contains("no published points cost", StringComparison.Ordinal)
                             // the Hero goes in first, so "no non-Hero units" is true until the second unit
                             && !i.Message.Contains("no non-Hero units", StringComparison.Ordinal));

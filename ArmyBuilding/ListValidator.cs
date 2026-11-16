@@ -15,7 +15,9 @@ namespace FDG.ArmyBuilding
 
     public static class ListValidator
     {
-        public static IReadOnlyList<ListIssue> Validate(BookFile book, BuilderList list, BuiltArmyFile compiled)
+        /// <param name="forceOrg">Whether the optional Force Organisation caps are checked (Kai, 2026-11-15: a switch).
+        /// Off in a campaign - "players may bring any number of their units".</param>
+        public static IReadOnlyList<ListIssue> Validate(BookFile book, BuilderList list, BuiltArmyFile compiled, bool forceOrg = true)
         {
             var issues = new List<ListIssue>();
 
@@ -124,6 +126,7 @@ namespace FDG.ArmyBuilding
             // a combined pair is ONE squad toward the copy cap (Chris, 2026-07-10 - doubled-up
             // squads must not count twice; supersedes the earlier count-as-two-copies reading).
             // The points cap is already an Error above, so drop its duplicate from the warning set.
+            if (forceOrg)
             foreach (string warning in ForceOrgValidator.Validate(compiled))
                 if (!warning.StartsWith("Over points limit"))
                     issues.Add(new ListIssue(warning, ListIssueSeverity.Warning));

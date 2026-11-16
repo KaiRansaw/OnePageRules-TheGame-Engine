@@ -162,6 +162,15 @@ namespace FDG
         public bool FastPlaySimplifiedTerrain;
 
         /// <summary>
+        /// Force Organisation (Advanced Rulebooks 3.6.0, Preparation: "Optionally you and your opponent may agree to use
+        /// the force organisation rules"): hero, copy, 35%, unit-count and model/Tough caps. Off by default - the book's
+        /// own default is "no limitations as to how many units you can take" (Kai, 2026-11-15: toggleable). When on, the
+        /// launch check lists any army breaking them and a made-up Random Army keeps to them. Never in a campaign
+        /// mission: the campaign books say "players may bring any number of their units".
+        /// </summary>
+        public bool ForceOrg;
+
+        /// <summary>
         /// Multiplayer: King of the Hill (Advanced Rulebooks 3.6.0, Multiplayer Games). A free-for-all where
         /// attacking the king - the player whose army is worth the most - earns combat bonus points, each
         /// spendable once per activation for +1 to all dice in one roll. Only plays with three or more sides.

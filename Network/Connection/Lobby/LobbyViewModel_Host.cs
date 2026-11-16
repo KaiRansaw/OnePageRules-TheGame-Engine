@@ -97,6 +97,7 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlayShooting => _gameSettings.FastPlayShooting;
         public int? NumberOfRounds => _gameSettings.NumberOfRounds;
         public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;
+        public bool ForceOrg => _gameSettings.ForceOrg;
         public bool KingOfTheHill => _gameSettings.KingOfTheHill;
         public bool PickDangerousTerrain => _gameSettings.PickDangerousTerrain;
         public EExtraActions ExtraActions => _gameSettings.ExtraActions;
@@ -881,7 +882,7 @@ namespace FDG.Network.Connection.Lobby
         }
 
         public IReadOnlyList<string> ValidateArmiesForLaunch() =>
-            ArmyBuilding.LaunchGate.OverridableProblems(LoadedArmies());
+            ArmyBuilding.LaunchGate.OverridableProblems(LoadedArmies(), _gameSettings.ForceOrg);
 
         private IEnumerable<(string PlayerName, SaveLoad.ArmyListFile? Army)> LoadedArmies() =>
             _playerInfosFull.Values.Select(info => (info.PlayerName, info.ArmyListFile));
@@ -1545,6 +1546,12 @@ namespace FDG.Network.Connection.Lobby
         public void SetFastPlaySimplifiedTerrain(bool enabled)
         {
             _gameSettings.FastPlaySimplifiedTerrain = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetForceOrg(bool enabled)
+        {
+            _gameSettings.ForceOrg = enabled;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

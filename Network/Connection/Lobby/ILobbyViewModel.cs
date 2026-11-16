@@ -292,6 +292,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetFastPlaySimplifiedTerrain(bool enabled);
 
+        /// <summary>Force Organisation - see <see cref="GameSettings.ForceOrg"/>.</summary>
+        bool ForceOrg { get; }
+
+        void SetForceOrg(bool enabled);
+
         /// <summary>Multiplayer King of the Hill - see <see cref="GameSettings.KingOfTheHill"/>.</summary>
         bool KingOfTheHill { get; }
 

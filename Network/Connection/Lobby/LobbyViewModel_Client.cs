@@ -114,6 +114,7 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlayShooting { get; private set; }
         public int? NumberOfRounds { get; private set; }
         public bool FastPlaySimplifiedTerrain { get; private set; }
+        public bool ForceOrg { get; private set; }
         public bool KingOfTheHill { get; private set; }
         public bool PickDangerousTerrain { get; private set; }
         public EExtraActions ExtraActions { get; private set; }
@@ -552,6 +553,7 @@ namespace FDG.Network.Connection.Lobby
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;
             FastPlaySimplifiedTerrain = gameSettingsUpdate.GameSettings.FastPlaySimplifiedTerrain;
+            ForceOrg = gameSettingsUpdate.GameSettings.ForceOrg;
             KingOfTheHill = gameSettingsUpdate.GameSettings.KingOfTheHill;
             PickDangerousTerrain = gameSettingsUpdate.GameSettings.PickDangerousTerrain;
             ExtraActions = gameSettingsUpdate.GameSettings.ExtraActions;
@@ -715,6 +717,11 @@ namespace FDG.Network.Connection.Lobby
         public void SetFastPlaySimplifiedTerrain(bool enabled)
         {
             throw new InvalidOperationException("Tried to set the Fast-Play rules when not the host.");
+        }
+
+        public void SetForceOrg(bool enabled)
+        {
+            throw new InvalidOperationException("Tried to set Force Organisation when not the host.");
         }
 
         public void SetNumberOfRounds(int? rounds)

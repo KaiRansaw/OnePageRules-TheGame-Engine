@@ -62,6 +62,33 @@ public class ListValidatorTests
         Assert.That(issues.Any(i => i.Severity == ListIssueSeverity.Warning && i.Message.Contains("copies")), Is.True);
     }
 
+    /// <summary>Kai, 2026-11-15: Force Org is a switch; off (and always in a campaign) there are no such warnings.</summary>
+    [Test]
+    public void ForceOrgOff_NoCapWarnings_ButRealErrorsStay()
+    {
+        BookFile book = DemoBook.Build();
+        BuilderList list = List(2000, U("gunners"), U("gunners"), U("gunners"), U("gunners"));
+        var off = ListValidator.Validate(book, list, ListCompiler.Compile(book, list), forceOrg: false);
+        Assert.That(off.Any(i => i.Message.Contains("copies")), Is.False);
+
+        BuilderList over = List(10, U("gunners"));
+        var stillOver = ListValidator.Validate(book, over, ListCompiler.Compile(book, over), forceOrg: false);
+        Assert.That(stillOver.Any(i => i.Severity == ListIssueSeverity.Error && i.Message.StartsWith("Over points limit")), Is.True,
+            "the points limit is not a Force Org rule");
+    }
+
+    [Test]
+    public void LaunchGate_ListsForceOrgBreaks_OnlyWhenTheLobbySwitchIsOn()
+    {
+        BookFile book = DemoBook.Build();
+        BuilderList list = List(2000, U("gunners"), U("gunners"), U("gunners"), U("gunners"));
+        BuiltArmyFile army = ListCompiler.Compile(book, list);
+        army.Book = book; army.Selections = list;
+        var players = new[] { ("Kai", (FDG.SaveLoad.ArmyListFile?)army) };
+        Assert.That(LaunchGate.OverridableProblems(players), Is.Empty);
+        Assert.That(LaunchGate.OverridableProblems(players, forceOrg: true).Any(p => p.Contains("copies")), Is.True);
+    }
+
     // ── Unique (one copy per army) ──────────────────────────────────────────────────────────────────────
 
     private static BookFile UniqueBook() => new()

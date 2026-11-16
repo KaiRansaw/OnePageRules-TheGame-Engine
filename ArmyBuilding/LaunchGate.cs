@@ -95,15 +95,22 @@ namespace FDG.ArmyBuilding
         /// Hand-authored armies have no catalog to validate against and never appear here. Empty means
         /// the launch is clean.
         /// </summary>
+        /// <param name="forceOrg">The lobby's Force Organisation switch: its caps join the confirm when on.</param>
         public static IReadOnlyList<string> OverridableProblems(
-            IEnumerable<(string PlayerName, ArmyListFile? Army)> players)
+            IEnumerable<(string PlayerName, ArmyListFile? Army)> players, bool forceOrg = false)
         {
             var problems = new List<string>();
             foreach ((string playerName, ArmyListFile? army) in players)
             {
+                if (army == null) continue;
+                // #Force Org (Kai, 2026-11-15): with the switch on, every army's caps are checked - hand-made ones too.
+                if (forceOrg)
+                    foreach (string warning in SaveLoad.ForceOrgValidator.Validate(army))
+                        if (!warning.StartsWith("Over points limit"))
+                            problems.Add($"{playerName}: {warning}");
                 if (army is not BuiltArmyFile { Book: not null, Selections: not null } built) continue;
 
-                foreach (ListIssue issue in ListValidator.Validate(built.Book, built.Selections, built))
+                foreach (ListIssue issue in ListValidator.Validate(built.Book, built.Selections, built, forceOrg: false))
                 {
                     // The catalog validator's own points line is builder-time advice against the saved
                     // list's limit — BlockingProblems makes the authoritative call against the lobby's.
