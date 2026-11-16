@@ -235,5 +235,42 @@ namespace FDG.Tests
             Assert.That(FDG.Ai.Solo.SoloCoOpBuildingEntry.Try(request, table, _me, new Position(40f, 40f), 12f), Is.Null,
                 "no building at that objective");
         }
-    }
+    
+        [Test]
+        public void TheTacticalBots_GoIntoTheBuilding_WhenTheirPlanIsToTakeItsObjective()
+        {
+            // Kai, 2026-11-15: the Tactical and Expert bots planned around buildings as walls, so a unit sent to an
+            // objective inside one stopped outside. The planned move (to the wall) is now taken in - for an objective
+            // move only.
+            var table = new TableState(_store);
+            TerrainData house = House(10, 10);
+            _store.Create(house);
+            _store.Create(new TeamData(0, new List<PlayerID> { _me }));
+            _store.Create(new TeamData(1, new List<PlayerID> { _them }));
+            _store.Create(new ObjectiveData(new Position(13f, 13f), _store));
+            UnitData squad = Unit(_me, 6f, 12f);
+            var request = new DefineMovementPathRequest(_me, "Move", _bindings[squad], maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f);
+            List<ModelMoveEntry> toTheWall = MoveBy(squad, 1.5f, 0);   // the planner's move: up to the wall
+
+            var inside = FDG.Ai.Tactician.Resolvers.TacticianMovementResolver.IntoBuilding(
+                FDG.Ai.Tactician.EMacroIntent.AdvanceOnObjective, request, table, toTheWall);
+            Assert.That(inside, Is.Not.Null, "an Advance on the objective goes in");
+            Assert.That(inside!.All(m => house.Shape.IsPointWithinZone(new Float2(m.Positions[^1].x, m.Positions[^1].z))), Is.True);
+
+            Assert.That(FDG.Ai.Tactician.Resolvers.TacticianMovementResolver.IntoBuilding(
+                FDG.Ai.Tactician.EMacroIntent.ChargeToContact, request, table, toTheWall), Is.Null, "a charge is left alone");
+            Assert.That(FDG.Ai.Tactician.Resolvers.TacticianMovementResolver.IntoBuilding(
+                FDG.Ai.Tactician.EMacroIntent.EngageAtRange, request, table, toTheWall), Is.Null, "a firing position is left alone");
+            Assert.That(FDG.Ai.Tactician.Resolvers.TacticianMovementResolver.IntoBuilding(
+                FDG.Ai.Tactician.EMacroIntent.AdvanceOnObjective, request, table, MoveBy(squad, 0, 20f)), Is.Null,
+                "a move heading nowhere near the objective is left alone");
+
+            // From further off, an Advance can't reach inside - going in would cost the shot the plan was for.
+            UnitData far = Unit(_me, 1f, 14f);
+            var farRequest = new DefineMovementPathRequest(_me, "Move", _bindings[far], maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f);
+            Assert.That(FDG.Ai.Tactician.Resolvers.TacticianMovementResolver.IntoBuilding(
+                FDG.Ai.Tactician.EMacroIntent.AdvanceOnObjective, farRequest, table, MoveBy(far, 5.9f, 0)), Is.Null,
+                "out of Advance reach: it stays an Advance");
+        }
+}
 }

@@ -234,6 +234,22 @@ namespace FDG.Ai.Solo
             // offer, and it auto-passes when the list is empty, so options[0] is always safe.
             // Extra Actions: a unit that would only stand idle takes the idle action that does something.
             pick ??= IdleExtraAction(unit, Has);
+            // No Pass on the menu: within 1" of an enemy the unit must charge (#206). If the tree's own pick was
+            // declined, try the Charge it hasn't tried; failing that, the move is made as a stand-still, which ends
+            // the activation. Taking options[0] here re-picked the declined Move forever (bench, 2026-11-15).
+            if (pick == null && Has(ChooseActionStage.PASS_CHOICE_NAME) == null)
+            {
+                if (!_triedCharge && Has(ChooseActionStage.CHARGE_CHOICE_NAME) is { } forcedCharge)
+                {
+                    _triedCharge = true;
+                    pick = forcedCharge;
+                }
+                else if (Has(ChooseActionStage.MOVEMENT_CHOICE_NAME) is { } standStill)
+                {
+                    _latch?.RequestStandStill();
+                    pick = standStill;
+                }
+            }
             pick ??= Has(ChooseActionStage.PASS_CHOICE_NAME) ?? options[0];
             return Task.FromResult(pick);
         }

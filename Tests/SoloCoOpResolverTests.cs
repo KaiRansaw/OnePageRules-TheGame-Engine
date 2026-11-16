@@ -83,6 +83,34 @@ namespace FDG.Tests
             ChooseActionStage.PASS_CHOICE_NAME,
         };
 
+        // Bench, 2026-11-15: Ork Berserkers within 1" of an enemy may not Pass (#206) and were offered only Move and
+        // Charge. Their move was declined, the latch then kept them off Charge too, and the fallback picked Move
+        // again - for ever, until the watchdog ended the game. Now: an untried Charge first, then a stand-still.
+        [Test]
+        public async Task NoPass_AndEveryMoveDeclined_TheUnitStandsStill_InsteadOfLooping()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Berserkers", 10f, 24f, rangeInches: 0f);
+            Unit(_player, "Raiders", 11.6f, 24f);    // base to base inside the 1" standoff band
+            Unit(_player, "Far Raiders", 20f, 24f);
+
+            var latch = new SoloMoveDeclineLatch();
+            SoloCoOpActionResolver resolver = NewActionResolver(latch);
+            string[] menu = { ChooseActionStage.MOVEMENT_CHOICE_NAME, ChooseActionStage.CHARGE_CHOICE_NAME };
+
+            var picks = new List<string>();
+            bool stoodStill = false;
+            for (int ask = 0; ask < 4 && !stoodStill; ask++)
+            {
+                picks.Add(await resolver.Resolve(Menu(ai, menu)));
+                stoodStill = latch.TakeStandStill();
+                latch.Arm();                         // the move (or charge move) it picked is declined
+            }
+
+            Assert.That(stoodStill, Is.True, $"picks: {string.Join(", ", picks)} - it must end, not loop");
+            Assert.That(picks, Does.Contain(ChooseActionStage.CHARGE_CHOICE_NAME), "the owed charge is tried first");
+            Assert.That(picks.Count, Is.LessThanOrEqualTo(3));
+        }
+
         // ── #423 General Special Rules: "always use their special rules as soon as they are activated" ──
         //
         // The last of the seven clauses, and the same shape of fault as Caster: the switch over the

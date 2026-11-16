@@ -1,4 +1,6 @@
+using FDG.Ai.Solo;
 using FDG.Data;
+using FDG.Rules;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
@@ -57,6 +59,12 @@ namespace FDG.Ai.Tactician.Resolvers
                 request.IgnoresImpassibleTerrain, _tableState.Terrain.Objects.ToList(), out _, friendlies,
                 lenientCoherency: true);
 
+            // #460 Simplified Terrain (Kai, 2026-11-15: "bots enter for objectives"): the planner sees a building as
+            // a wall, so a move toward an objective in or beside one stops at the wall. Go in instead, under the same
+            // distance the planned move used, so the action the planner chose (an Advance that shoots) stays legal.
+            if (request.MainActivationMove && IntoBuilding(request, planned) is { } inside)
+                return Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(new Selected<List<ModelMoveEntry>>(inside));
+
             if (valid)
                 return Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(
                     new Selected<List<ModelMoveEntry>>(planned));
@@ -75,6 +83,49 @@ namespace FDG.Ai.Tactician.Resolvers
 
             return DegradeToSolo(request, "the planned move failed this request's per-model re-check "
                 + "and could not be re-planned within its budgets");
+        }
+
+        /// <summary>How near the planned move must end to an objective for it to count as going for that objective.</summary>
+        public const float ObjectiveGoalInches = 6f;
+
+        /// <summary>
+        /// The planned move, taken into the building that holds (or stands within 3" of) the objective it was heading
+        /// for - or null when there is no such building, the unit is in it already, or it can't get in this turn
+        /// (the official AI's own entry check: whole unit fits, in reach, nothing in the way).
+        /// </summary>
+        private List<ModelMoveEntry>? IntoBuilding(DefineMovementPathRequest request, List<ModelMoveEntry> planned) =>
+            IntoBuilding((_planner as TacticianPlanner)?.LastMacro?.Intent, request, _tableState, planned, _log);
+
+        /// <summary>The test seam of <see cref="IntoBuilding(DefineMovementPathRequest, List{ModelMoveEntry})"/>.</summary>
+        internal static List<ModelMoveEntry>? IntoBuilding(EMacroIntent? intent, DefineMovementPathRequest request, ITableState table,
+            List<ModelMoveEntry> planned, Action<string>? log = null)
+        {
+            // Only a move the planner chose to take an objective - not a charge, a fall-back or a firing position.
+            if (intent is not (EMacroIntent.AdvanceOnObjective or EMacroIntent.RushObjective)) return null;
+            var terrain = table.Terrain.Objects.ToList();
+            if (!terrain.Any(SolidBuildings.Is)) return null;
+            var ends = planned.Where(e => e.Positions.Count > 0).Select(e => e.Positions[^1]).ToList();
+            if (ends.Count == 0) return null;
+            var goal = new Position(ends.Average(p => p.x), ends.Average(p => p.z));
+            var objective = table.Objectives.Objects
+                .Select(o => o.Position)
+                .Where(o => Position.GetDistance2D(o, goal) <= ObjectiveGoalInches)
+                .OrderBy(o => Position.GetDistance2D(o, goal))
+                .Cast<Position?>().FirstOrDefault();
+            if (objective is not { } at) return null;
+
+            // The distance the planned move used: within the Advance allowance keeps it an Advance.
+            float longest = planned.Max(e =>
+            {
+                var start = e.Model.GetValue().Position;
+                float d = 0;
+                foreach (var p in e.Positions) { d += Position.GetDistance2D(start, p); start = p; }
+                return d;
+            });
+            float cap = longest <= request.MaxAdvanceDistance + 0.01f ? request.MaxAdvanceDistance : request.MaxDistanceInches;
+            List<ModelMoveEntry>? inside = SoloCoOpBuildingEntry.Try(request, table, request.UnitDataBinding.GetValue().PlayerID, at, cap);
+            if (inside != null) log?.Invoke($"building {request.UnitDataBinding.GetValue().Name}: goes in to take the objective");
+            return inside;
         }
 
         private Task<CancellableResult<List<ModelMoveEntry>>> DegradeToSolo(

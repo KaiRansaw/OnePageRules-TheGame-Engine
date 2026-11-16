@@ -21,6 +21,24 @@ namespace FDG.Ai.Resolvers
 
         public void Arm() => _armed = true;
 
+        private bool _standStill;
+
+        /// <summary>
+        /// The action menu has nothing left but a move that keeps being declined - a unit within 1" of an enemy may
+        /// not Pass (#206), and if its charge and its move both fail it would be offered them forever (bench,
+        /// 2026-11-15: Ork Berserkers looped until the watchdog). The next main move is made as a stand-still
+        /// instead, which is always legal and ends the activation.
+        /// </summary>
+        public void RequestStandStill() => _standStill = true;
+
+        /// <summary>True exactly once per <see cref="RequestStandStill"/> - reading clears it.</summary>
+        public bool TakeStandStill()
+        {
+            bool was = _standStill;
+            _standStill = false;
+            return was;
+        }
+
         /// <summary>True exactly once per <see cref="Arm"/> - reading clears it.</summary>
         public bool Consume()
         {

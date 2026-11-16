@@ -35,6 +35,7 @@ namespace FDG.Ai.Solo
         private readonly AiDefineMovementResolver _baseline;
 
         private readonly SoloChargeMemory? _charges;
+        private readonly SoloMoveDeclineLatch? _latch;
 
         public SoloCoOpMovementResolver(ITableState table, PlayerID me, SoloMoveDeclineLatch? latch,
             SoloChargeMemory? charges = null)
@@ -42,6 +43,7 @@ namespace FDG.Ai.Solo
             _table = table;
             _me = me;
             _charges = charges;
+            _latch = latch;
             _baseline = new AiDefineMovementResolver(table, me, latch);
         }
 
@@ -52,6 +54,9 @@ namespace FDG.Ai.Solo
             if (!request.MainActivationMove) return _baseline.Resolve(request);
 
             UnitData unit = request.UnitDataBinding.GetValue();
+            // The action menu ran out of anything but a declined move (see SoloMoveDeclineLatch.RequestStandStill).
+            if (_latch?.TakeStandStill() == true)
+                return Done(AiMoveExecutor.Toward(request, _table, _me, CentreOf(unit), 0f, 0f));
             SoloAiPlan plan = SoloAiBrain.Plan(_table, _me, unit);
 
             switch (plan.Kind)
