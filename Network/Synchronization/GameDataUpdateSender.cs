@@ -18,6 +18,11 @@ namespace FDG.Network.Synchronization
             _gameDataStore = gameDataStore;
             _messageBusHost = messageBusHost;
 
+            // Performance sweep (2026-11-15): a simulated game (the Expert bot's look-ahead) has no one to send
+            // updates to - its bus drops every message - but subscribing made the store turn every single change
+            // into JSON first (~6% of the Expert bot's search time). Nothing is listening, so nothing is lost.
+            if (messageBusHost is Simulation.SimulationMessageBus) return;
+
             _gameDataStore.OnDataAddedAsJson += SendDataAddedMessageToAll;
             _gameDataStore.OnDataUpdatedAsJson += SendDataUpdatedMessageToAll;
             _gameDataStore.OnDataRemoved += SendDataRemovedMessageToAll;

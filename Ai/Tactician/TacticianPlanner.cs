@@ -1274,13 +1274,13 @@ namespace FDG.Ai.Tactician
         private (List<Position> Route, List<ITerrain> Terrain, float BaseRadius) RouteToObjective(
             Position now, Position marker)
         {
-            var terrain = _tableState.Terrain.Objects.ToList();
-            List<IModel> alive = _activeUnit!.GetValue().Models.Where(m => m.GetIsAlive()).ToList();
+            // Performance sweep (2026-11-15): the activation's terrain snapshot (#363) instead of a fresh copy per
+            // call - this ran once per candidate x objective and its list copies were ~3% of the Expert search.
+            List<ITerrain> terrain = TerrainSnapshot();
             // #361: circumscribed - the gradient must route with the same clearance the move
             // planner does (see MovementPlanner.TerrainClearanceRadius), or the score steers
             // toward corridors the candidates cannot take.
-            float baseRadius = alive.Count == 0
-                ? 0.5f : alive.Max(m => m.BaseShape.CircumscribedRadiusInches);
+            float baseRadius = ActiveRouteRadius();
 
             (float X, float Z) key = (marker.x, marker.z);
             if (!_objectiveRoutes.TryGetValue(key, out List<Position>? route))
@@ -1299,11 +1299,11 @@ namespace FDG.Ai.Tactician
         private (List<Position> Route, List<ITerrain> Terrain, float BaseRadius) RouteToEnemy(
             Position now, DataBinding<UnitData> enemyBinding, Position enemyPos)
         {
-            var terrain = _tableState.Terrain.Objects.ToList();
-            List<IModel> alive = _activeUnit!.GetValue().Models.Where(m => m.GetIsAlive()).ToList();
+            // Performance sweep (2026-11-15): shared snapshot, no copies - this ran once per candidate x enemy and its
+            // list copies were ~9% of the Expert search.
+            List<ITerrain> terrain = TerrainSnapshot();
             // #361: circumscribed, same rationale as RouteToObjective.
-            float baseRadius = alive.Count == 0
-                ? 0.5f : alive.Max(m => m.BaseShape.CircumscribedRadiusInches);
+            float baseRadius = ActiveRouteRadius();
 
             if (!_enemyRoutes.TryGetValue(enemyBinding.Reference, out List<Position>? route))
             {
@@ -1327,6 +1327,22 @@ namespace FDG.Ai.Tactician
         /// planner about where "toward the goal" lies.
         /// </para>
         /// </summary>
+        // The largest circumscribed base radius among the active unit's living models (0.5 with none) - the same
+        // number the two Route* helpers used to get from a Where/ToList/Max chain, without the allocations.
+        private float ActiveRouteRadius()
+        {
+            float best = 0f;
+            bool any = false;
+            foreach (IModel m in _activeUnit!.GetValue().Models)
+            {
+                if (!m.GetIsAlive()) continue;
+                float r = m.BaseShape.CircumscribedRadiusInches;
+                if (!any || r > best) best = r;
+                any = true;
+            }
+            return any ? best : 0.5f;
+        }
+
         private List<Position> UnitRoute(List<ITerrain> terrain, Position from, Position to,
             float baseRadius)
         {
@@ -1795,9 +1811,20 @@ namespace FDG.Ai.Tactician
 
         private static Position Centroid(UnitData unit)
         {
-            var alive = unit.Models.Where(m => m.GetIsAlive()).ToList();
-            if (alive.Count == 0) return new Position(0f, 0f);
-            return new Position(alive.Average(m => m.Position.x), alive.Average(m => m.Position.z));
+            // Performance sweep (2026-11-15): the same sums Enumerable.Average makes (double running total,
+            // divided by the count, cast back to float) without building a list per call (~5% of search time).
+            double sx = 0, sz = 0;
+            long n = 0;
+            foreach (IModel m in unit.Models)
+            {
+                if (!m.GetIsAlive()) continue;
+                Position p = m.Position;
+                sx += p.x;
+                sz += p.z;
+                n++;
+            }
+            if (n == 0) return new Position(0f, 0f);
+            return new Position((float)(sx / n), (float)(sz / n));
         }
 
         private static float Distance(Position a, Position b)

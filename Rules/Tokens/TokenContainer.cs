@@ -6,7 +6,15 @@ namespace FDG.Rules.Tokens;
 
 public class TokenContainer : ITokenContainer
 {
+    // Performance sweep (2026-11-15): COPY-ON-WRITE. A list, once published in this field, is never changed
+    // again - every write builds a new list under _lock and swaps it in. Reads take no lock at all: they read the
+    // field once and walk that list, which nobody can change under them, so the #328 snapshot guarantee holds for
+    // free. The profile had HasToken at ~18% of the Expert bot's search time, nearly all of it the lock (eight
+    // search workers reading the same units); the tokens themselves are immutable records, so sharing is safe.
     [JsonProperty] private List<Token> _tokens = new();
+
+    private List<Token> Current => Volatile.Read(ref _tokens);
+    private void Publish(List<Token> next) => Volatile.Write(ref _tokens, next);
 
     /// <summary>
     /// #328. Tokens are written on the engine thread and READ on the render thread (the token chips over
@@ -32,10 +40,7 @@ public class TokenContainer : ITokenContainer
     internal TokenContainer Clone()
     {
         TokenContainer clone = new TokenContainer();
-        lock (_lock)
-        {
-            clone._tokens = new List<Token>(_tokens);
-        }
+        clone._tokens = Current; // copy-on-write: the published list is never changed, so it can be shared
         return clone;
     }
 
@@ -52,6 +57,7 @@ public class TokenContainer : ITokenContainer
         Token? changed = null;
         lock (_lock)
         {
+        List<Token> next = new List<Token>(Current); // copy-on-write: change a copy, then publish it
 
         //If we already have tokens of the same type, owner, payload, AND clear trigger, just add to that
         //pile. The payload must match too: distinct RuleGrant payloads (different granted rules) on the
@@ -67,42 +73,43 @@ public class TokenContainer : ITokenContainer
         //Type, owner and clear trigger still have to match, for the same reasons as the general case.
         if (token.Payload is TokenPayload.Magnitude incoming)
         {
-            int magnitudeIndex = _tokens.FindIndex(t => t.Type == token.Type
+            int magnitudeIndex = next.FindIndex(t => t.Type == token.Type
                 && t.OwnerUnitID == token.OwnerUnitID
                 && t.Payload is TokenPayload.Magnitude
                 && Equals(t.ClearTrigger, token.ClearTrigger));
 
             if (magnitudeIndex < 0)
             {
-                _tokens.Add(token);
+                next.Add(token);
                 added = token;
             }
             else
             {
-                Token existingMagnitude = _tokens[magnitudeIndex];
+                Token existingMagnitude = next[magnitudeIndex];
                 float summed = ((TokenPayload.Magnitude)existingMagnitude.Payload!).Value + incoming.Value;
                 Token merged = existingMagnitude with { Payload = new TokenPayload.Magnitude(summed) };
-                _tokens[magnitudeIndex] = merged;
+                next[magnitudeIndex] = merged;
                 changed = merged;
             }
         }
         else
         {
-            int existingIndex = _tokens.FindIndex(t => t.Type == token.Type && t.OwnerUnitID == token.OwnerUnitID
+            int existingIndex = next.FindIndex(t => t.Type == token.Type && t.OwnerUnitID == token.OwnerUnitID
                 && Equals(t.Payload, token.Payload) && Equals(t.ClearTrigger, token.ClearTrigger));
             if (existingIndex < 0)
             {
-                _tokens.Add(token);
+                next.Add(token);
                 added = token;
             }
             else
             {
-                Token existing = _tokens[existingIndex];
+                Token existing = next[existingIndex];
                 Token updated = existing with { Count = existing.Count + token.Count };
-                _tokens[existingIndex] = updated;
+                next[existingIndex] = updated;
                 changed = updated;
             }
         }
+        Publish(next);
         } // lock
 
         if (added is { } a) OnTokenAdded?.Invoke(a);
@@ -142,9 +149,10 @@ public class TokenContainer : ITokenContainer
 
         lock (_lock)
         {
-            for (int i = 0; i < _tokens.Count && totalRemoved < count;)
+            List<Token> next = new List<Token>(Current); // copy-on-write: change a copy, then publish it
+            for (int i = 0; i < next.Count && totalRemoved < count;)
             {
-                Token entry =  _tokens[i];
+                Token entry =  next[i];
                 if (!match(entry))
                 {
                     i++;
@@ -158,17 +166,18 @@ public class TokenContainer : ITokenContainer
 
                 if (newCount == 0) //Drained all tokens from this.
                 {
-                    _tokens.RemoveAt(i);
+                    next.RemoveAt(i);
                     announce.Add((entry, true));
                 }
                 else
                 {
                     Token updated = entry with { Count = newCount };
-                    _tokens[i] = updated;
+                    next[i] = updated;
                     announce.Add((updated, false));
                     i++;
                 }
             }
+            if (totalRemoved > 0) Publish(next);
         }
 
         foreach ((Token token, bool removed) in announce)
@@ -180,94 +189,68 @@ public class TokenContainer : ITokenContainer
         return totalRemoved;
     }
 
-    // #191 search perf pass (2026-09-08): the profile put this container at ~19% of the search's CPU,
-    // almost all of it reads on units that carry NO tokens (the common case, asked millions of times
-    // per search through rule dispatch and the planner). Each read below first checks the count
-    // outside the lock: List<T>.Count is a plain field read, and if an add or remove is in flight on
-    // another thread, "empty" is a legitimate answer from just before it - the same answer the locked
-    // read would give a moment earlier. Everything that returns tokens still snapshots under the lock.
-    private bool IsEmptyUnlocked => _tokens.Count == 0;
-
+    // #191 search perf pass (2026-09-08) put this container at ~19% of the search's CPU; the empty check below
+    // was the first fix. Since 2026-11-15 the reads are lock-free (copy-on-write, see _tokens), so every read
+    // simply walks the list it found in the field.
     public bool HasToken(TokenType tokenType)
     {
-        if (IsEmptyUnlocked) return false;
-        // A plain loop, not LINQ: this is the Tactician's hottest token read (CanSeizeObjectives /
-        // IsInReserve per unit per evaluation) and the lambda allocated a closure every call.
-        lock (_lock)
+        List<Token> tokens = Current;
+        // A plain loop, not LINQ: this is the Tactician's hottest token read.
+        for (int i = 0; i < tokens.Count; i++)
         {
-            for (int i = 0; i < _tokens.Count; i++)
-            {
-                if (_tokens[i].Type == tokenType) return true;
-            }
-            return false;
+            if (tokens[i].Type == tokenType) return true;
         }
+        return false;
     }
 
     public int GetTokenCount(TokenType tokenType)
     {
-        if (IsEmptyUnlocked) return 0;
+        List<Token> tokens = Current;
         int total = 0;
-        lock (_lock)
+        for (int i = 0; i < tokens.Count; i++)
         {
-            foreach (Token token in _tokens)
-            {
-                if (token.Type == tokenType) total += token.Count;
-            }
+            if (tokens[i].Type == tokenType) total += tokens[i].Count;
         }
-
         return total;
     }
 
     public float GetTokenMagnitude(TokenType tokenType)
     {
-        if (IsEmptyUnlocked) return 0f;
+        List<Token> tokens = Current;
         float total = 0f;
-        lock (_lock)
+        for (int i = 0; i < tokens.Count; i++)
         {
-            foreach (Token token in _tokens)
+            if (tokens[i].Type == tokenType && tokens[i].Payload is TokenPayload.Magnitude magnitude)
             {
-                if (token.Type == tokenType && token.Payload is TokenPayload.Magnitude magnitude)
-                {
-                    total += magnitude.Value * token.Count;
-                }
+                total += magnitude.Value * tokens[i].Count;
             }
         }
-
         return total;
     }
 
     /// <summary>
-    /// A SNAPSHOT of the matching tokens (#328) — never the live list and never a lazy view over it, so
-    /// the caller may enumerate at leisure (including on the render thread) while the engine keeps
-    /// mutating. Callers that used to defend themselves with <c>.ToList()</c> no longer need to; that
-    /// copy never actually helped, since it enumerated the live list to make the copy.
+    /// A SNAPSHOT of the matching tokens (#328) - never a live view, so the caller may enumerate at leisure
+    /// (including on the render thread) while the engine keeps mutating. Copy-on-write makes the unfiltered
+    /// read a read-only wrapper over the published list rather than a copy of it.
     /// </summary>
     public IEnumerable<Token> GetAllTokens(TokenType? tokenType = null)
     {
-        if (IsEmptyUnlocked) return Array.Empty<Token>();
-        lock (_lock)
+        List<Token> tokens = Current;
+        if (tokens.Count == 0) return Array.Empty<Token>();
+        if (tokenType == null) return tokens.AsReadOnly();
+        List<Token>? matching = null;
+        for (int i = 0; i < tokens.Count; i++)
         {
-            if (_tokens.Count == 0) return Array.Empty<Token>();
-            if (tokenType == null) return new List<Token>(_tokens);
-            var matching = new List<Token>();
-            for (int i = 0; i < _tokens.Count; i++)
-            {
-                if (_tokens[i].Type == tokenType) matching.Add(_tokens[i]);
-            }
-            return matching;
+            if (tokens[i].Type == tokenType) (matching ??= new List<Token>()).Add(tokens[i]);
         }
+        return (IEnumerable<Token>?)matching ?? Array.Empty<Token>();
     }
 
     /// <summary>A snapshot, for the same reason as <see cref="GetAllTokens"/> (#328).</summary>
     public IEnumerable<Token> TokensWithOwner(UnitID owningUnitID)
     {
-        if (IsEmptyUnlocked) return Array.Empty<Token>();
-        lock (_lock)
-        {
-            if (_tokens.Count == 0) return Array.Empty<Token>();
-            return _tokens.Where(token => token.OwnerUnitID == owningUnitID).ToList();
-        }
+        List<Token> tokens = Current;
+        if (tokens.Count == 0) return Array.Empty<Token>();
+        return tokens.Where(token => token.OwnerUnitID == owningUnitID).ToList();
     }
-
-
 }
