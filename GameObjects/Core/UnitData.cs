@@ -318,6 +318,8 @@ namespace FDG
                 ModelData modelData = new ModelData(baseShape, modelWeapons, new Position(), gameDataStore);
                 if (unitFileEntry.ModelLooks is { } looks && i < looks.Count && !string.IsNullOrEmpty(looks[i]))
                     modelData.Look = looks[i];
+                if (unitFileEntry.ModelPaints is { } paints && i < paints.Count && !string.IsNullOrEmpty(paints[i]))
+                    modelData.Paint = paints[i];
 
                 DataReference modelReference = gameDataStore.Create(modelData);
                 DataBinding<ModelData> modelBinding = gameDataStore.GetDataBinding<ModelData>(modelReference);

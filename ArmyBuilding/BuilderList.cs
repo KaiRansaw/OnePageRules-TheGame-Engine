@@ -49,6 +49,11 @@ namespace FDG.ArmyBuilding
         /// <c>UnitFileEntry.ModelLooks</c>; never affects rules or points.</summary>
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<string?>? ModelLooks { get; set; }
+
+        /// <summary>Cosmetic: each model's colour swaps, "RRGGBB>RRGGBB;..." (Kai, 2026-11-15). Compiled onto
+        /// <c>UnitFileEntry.ModelPaints</c>; never affects rules or points.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<string?>? ModelPaints { get; set; }
     }
 
     /// <summary>A selected option within a section. <see cref="Count"/> is the number of applications for

@@ -34,6 +34,12 @@ namespace FDG.SaveLoad
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public List<string?>? ModelLooks { get; set; }
 
+        /// <summary>Cosmetic: each model's colour swaps (see <see cref="IModel.Paint"/>), in model order. Null / null
+        /// entries = the model's own colours.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public List<string?>? ModelPaints { get; set; }
+
         /// <summary>
         /// The base footprint shared by all this unit's models (#149). Defaults to a 28mm circle, so a
         /// pre-#149 army file (no <c>base</c> property) is unchanged.

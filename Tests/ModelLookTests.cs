@@ -102,6 +102,39 @@ namespace FDG.Tests
             }
         }
 
+        /// <summary>Kai, 2026-11-15: the colour painter - each model's colour swaps ride the same road as its look,
+        /// builder list -> army file -> model in play -> save and clone, so every player sees them.</summary>
+        [Test]
+        public void Paint_RidesFromTheListToTheTable_AndThroughSaves()
+        {
+            var list = new BuilderList
+            {
+                Units =
+                {
+                    new BuilderUnit { RosterUnitId = "warriors", ModelCount = 5, Id = "a", ModelPaints = new List<string?> { "C02020>2050D0" } },
+                    new BuilderUnit { RosterUnitId = "warriors", ModelCount = 5, Id = "b", CombinedWithId = "a",
+                        ModelPaints = new List<string?> { null, "112233>445566" } },
+                },
+            };
+            BuiltArmyFile army = ListCompiler.Compile(DemoBook.Build(), list);
+            UnitFileEntry merged = army.Units.Single();
+            Assert.That(merged.ModelPaints, Has.Count.EqualTo(10));
+            Assert.That(merged.ModelPaints![0], Is.EqualTo("C02020>2050D0"));
+            Assert.That(merged.ModelPaints[6], Is.EqualTo("112233>445566"), "the absorbed copy's second model");
+
+            string json = JsonSerializer.Serialize(army, RuleJson.Options);
+            BuiltArmyFile back = JsonSerializer.Deserialize<BuiltArmyFile>(json, RuleJson.Options)!;
+            Assert.That(back.Units.Single().ModelPaints![0], Is.EqualTo("C02020>2050D0"));
+
+            GameDataStore store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var unit = new UnitData(new PlayerID(Guid.NewGuid()), back.Units.Single(), store);
+            store.Create(unit);
+            Assert.That(((IUnit)unit).Models[0].Paint, Is.EqualTo("C02020>2050D0"));
+            Assert.That(((IUnit)unit).Models[1].Paint, Is.Null);
+            foreach (GameDataStore s in new[] { GameSaveSerializer.Load(GameSaveSerializer.Save(store)), StoreClone.Clone(store) })
+                Assert.That(s.GetAllValues<ModelData>().Count(m => m.Paint == "C02020>2050D0"), Is.EqualTo(1));
+        }
+
         /// <summary>A Quest hero's unit is named after the hero, so its model comes through its look: the picked file,
         /// or the base hero's folder (its first version).</summary>
         [Test]

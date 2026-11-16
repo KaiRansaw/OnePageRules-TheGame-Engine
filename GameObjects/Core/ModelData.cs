@@ -91,6 +91,10 @@ namespace FDG
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string? Look { get; set; }
 
+        /// <inheritdoc cref="IModel.Paint"/>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string? Paint { get; set; }
+
         // The base footprint (#149). Serialized (Newtonsoft TypeNameHandling.Auto records the concrete
         // shape via $type); legacy saves with no base fall back to the default circle in the ctor.
         public IBaseShape BaseShape { get; }
@@ -206,6 +210,7 @@ namespace FDG
             FacingBinding = facingBinding;
             BaseShape = source.BaseShape;
             Look = source.Look;
+            Paint = source.Paint;
             if (source.Weapons != null)
             {
                 Weapons = new List<Weapon>(source.Weapons.Count);

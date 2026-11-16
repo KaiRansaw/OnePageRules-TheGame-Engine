@@ -156,6 +156,8 @@ namespace FDG.ArmyBuilding
 
                 if (host.ModelLooks != null || absorbed.ModelLooks != null)
                     host.ModelLooks = Pad(host.ModelLooks, host.ModelCount).Concat(Pad(absorbed.ModelLooks, absorbed.ModelCount)).ToList();
+                if (host.ModelPaints != null || absorbed.ModelPaints != null)
+                    host.ModelPaints = Pad(host.ModelPaints, host.ModelCount).Concat(Pad(absorbed.ModelPaints, absorbed.ModelCount)).ToList();
                 host.ModelCount += absorbed.ModelCount;
                 host.PointCost += absorbed.PointCost;
                 foreach (WeaponFileEntry weapon in absorbed.Weapons)
@@ -344,6 +346,7 @@ namespace FDG.ArmyBuilding
                 weapon.EffectSet ??= WeaponEffectAssigner.Match(book.Faction, weapon, book.GameSystem);
 
             unit.ModelLooks = LooksFor(bu.ModelLooks, unit.ModelCount);
+            unit.ModelPaints = LooksFor(bu.ModelPaints, unit.ModelCount);
             return (unit, items);
         }
 

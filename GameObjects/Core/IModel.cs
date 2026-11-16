@@ -86,6 +86,10 @@ namespace FDG
         /// read it; it rides saves and the network so every player sees the same looks.</summary>
         public string? Look { get; }
 
+        /// <summary>Cosmetic only: this model's colour swaps, "RRGGBB>RRGGBB;..." (the army builder's colour painter,
+        /// Kai 2026-11-15). Null = the model's own colours. Rides saves and the network like <see cref="Look"/>.</summary>
+        public string? Paint => null;
+
         public IReadOnlyList<Weapon> Weapons { get; }
 
         public IMeshProvider MeshProvider { get; }
