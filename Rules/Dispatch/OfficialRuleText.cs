@@ -149,6 +149,36 @@ namespace FDG.Rules.Dispatch
         }
 
         /// <summary>
+        /// OPR's wording for a rule, or - for a rule OPR only ever hands out through another rule - the wording of the
+        /// rule that hands it out, said so (Kai, 2026-11-17: Weapon Experts got "Precision Shooter" from a Director's
+        /// Precision Shooter Aura and nothing told the player what it does). Army Forge publishes no "Precision Shooter"
+        /// for Grimdark Future: the book's only words for it are the aura's own, "This model and its unit get +1 to hit
+        /// rolls when shooting." So that is what is shown, verbatim, as
+        /// <c>"Given by Precision Shooter Aura: This model and its unit get +1 to hit rolls when shooting."</c>
+        ///
+        /// <para><paramref name="grantedBy"/> names the rules known to hand this one out (the definitions on the table or
+        /// in the book); "&lt;name&gt; Aura" and "&lt;name&gt; Buff" are tried after them. Null when none has text.</para>
+        /// </summary>
+        public static string? TextOrGrantedBy(string? ruleName, string? systemSlug, IEnumerable<string>? grantedBy = null)
+        {
+            if (string.IsNullOrWhiteSpace(ruleName)) return null;
+            if (Text(ruleName, systemSlug) is { } own) return own;
+            string bare = ruleName.Trim();
+            int paren = bare.IndexOf('(');
+            if (paren > 0) bare = bare[..paren].TrimEnd();
+            if (!string.Equals(bare, ruleName.Trim(), StringComparison.Ordinal) && Text(bare, systemSlug) is { } bareText) return bareText;
+
+            IEnumerable<string> sources = (grantedBy ?? Array.Empty<string>())
+                .Concat(new[] { bare + " Aura", bare + " Buff" })
+                .Where(n => !string.IsNullOrWhiteSpace(n) && !string.Equals(n, bare, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (string source in sources)
+                if (Text(source, systemSlug) is { } text)
+                    return $"Given by {source}: {text}";
+            return null;
+        }
+
+        /// <summary>
         /// The text to show a player for a rule: OPR's wording where it exists, the authored
         /// description otherwise. <b>Every display site should call this rather than reading
         /// <see cref="SpecialRuleDefinition.Description"/> directly</b>, so there is one answer to

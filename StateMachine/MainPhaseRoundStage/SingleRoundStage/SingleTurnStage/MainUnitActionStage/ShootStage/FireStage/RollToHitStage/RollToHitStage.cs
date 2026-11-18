@@ -125,7 +125,7 @@ namespace FDG.Stages
             // Show the natural to-hit roll (the synthetic extra-hits below aren't dice), enriched with
             // the #245 glance metadata: who is rolling at whom, how the threshold came to be (chips
             // composed in DetermineHitRollStage), and which face-triggered rules fired on it.
-            List<string> procTags = ComposeProcTags(named);
+            List<string> procTags = ComposeProcTags(named, HazardousWoundsPerOne(metaData.WeaponType));
             await GameContext.Presenter.Present(
                 DiceRolledBeat.From(rollToHitResults, hitRollNeeded, GameContext.Settings.RandomnessType,
                     HitBeatLabel(metaData.WeaponType),
@@ -393,9 +393,31 @@ namespace FDG.Stages
             // have landed. Owner-ruled 2026-07-29: the shot the models paid for resolves first, and the
             // attacking unit is never torn down while later stages of its own attack are still running.
             // The player learns of it at the moment of the roll, via the proc chip on the to-hit beat above.
-            results.SelfWounds = operations.OfType<RuleOperation.InflictSelfWounds>().Sum(op => op.Wounds);
+            // Kai, 2026-11-17 (3.6.0 wording): "on unmodified results of 1 to hit this model takes one wound, or X
+            // wounds if this weapon has the Blast(X)/Deadly(X) rule" - each 1 on a Blast(3) gun costs 3 wounds, not 1.
+            results.SelfWounds = operations.OfType<RuleOperation.InflictSelfWounds>().Sum(op => op.Wounds)
+                * HazardousWoundsPerOne(metaData.WeaponType);
 
             await onFinished(results);
+        }
+
+        /// <summary>
+        /// Hazardous's wounds per unmodified 1: X when the weapon has Blast(X) or Deadly(X) (the larger, should a weapon
+        /// ever carry both), else 1. Internal for tests.
+        /// </summary>
+        internal static int HazardousWoundsPerOne(IWeapon? weapon)
+        {
+            if (weapon == null) return 1;
+            int x = 1;
+            foreach (ResolvedRule rule in weapon.RuleDefinitions)
+            {
+                string name = rule.Definition.Name;
+                string asked = rule.RequestedName.Contains('(') ? rule.RequestedName[..rule.RequestedName.IndexOf('(')].Trim() : rule.RequestedName.Trim();
+                bool blastOrDeadly = name.Equals("Blast", StringComparison.OrdinalIgnoreCase) || name.Equals("Deadly", StringComparison.OrdinalIgnoreCase)
+                    || asked.Equals("Blast", StringComparison.OrdinalIgnoreCase) || asked.Equals("Deadly", StringComparison.OrdinalIgnoreCase);
+                if (blastOrDeadly && rule.Arguments.Count > 0 && rule.Arguments[0] is RuleArgument.Int n && n.Value > x) x = n.Value;
+            }
+            return x;
         }
 
         // The to-hit beat's header names the weapon being rolled with, mirroring how the save beat is
@@ -416,7 +438,7 @@ namespace FDG.Stages
         // Extra hits (Furious/Surge/Relentless) trigger on the top face; per-hit AP (Rending/Crack)
         // names its own face. The front-end highlights top-face successes when any chip is present.
         // Internal for tests.
-        internal static List<string> ComposeProcTags(IReadOnlyList<(RuleOperation Op, string RuleName)> named)
+        internal static List<string> ComposeProcTags(IReadOnlyList<(RuleOperation Op, string RuleName)> named, int selfWoundsPerOne = 1)
         {
             List<string> tags = new List<string>();
             foreach ((RuleOperation op, string ruleName) in named)
@@ -433,8 +455,9 @@ namespace FDG.Stages
                     // #197 Hazardous: the self-wound is applied after the attack resolves, but it is the
                     // 1s on THIS roll that caused it, so the chip belongs on this beat.
                     case RuleOperation.InflictSelfWounds self when self.Wounds > 0f:
-                        tags.Add($"{RollTags.NameOr(ruleName, "self-wound")} {self.Wounds:0.##} " +
-                            $"self-wound{(self.Wounds == 1f ? "" : "s")}");
+                        float w = self.Wounds * selfWoundsPerOne;
+                        tags.Add($"{RollTags.NameOr(ruleName, "self-wound")} {w:0.##} " +
+                            $"self-wound{(w == 1f ? "" : "s")}");
                         break;
                 }
             }

@@ -72,6 +72,31 @@ namespace FDG.Tests
         }
 
         [Test]
+        public async Task OnABlastWeapon_EachOneCostsXWounds()
+        {
+            // 3.6.0: "...this model takes one wound, or X wounds if this weapon has the Blast(X)/Deadly(X) rule."
+            // Kai, 2026-11-17: Weapon Experts' Plas-Charge Cannons (Blast(3), Hazardous) rolled two 1s and lost
+            // only one model - two 1s on a Blast(3) gun are 6 wounds.
+            var cannon = new Weapon("Plas-Charge Cannon", rangeInches: 30f, attacks: 2, armorPenetration: 0);
+            cannon.AttachRuleDefinition(new ResolvedRule("Blast(3)", CoreRuleCatalog.Blast, new RuleArgument[] { new RuleArgument.Int(3) }));
+            RollToHitResults results = await RunHitRollOnly(MakeUnit("Weapon Experts", modelCount: 3),
+                MakeUnit("Targets", modelCount: 5), face: 1, attacks: 2, hazardous: true, weapon: cannon);
+
+            Assert.That(results.SelfWounds, Is.EqualTo(6f), "two 1s x Blast(3)");
+        }
+
+        [Test]
+        public async Task OnADeadlyWeapon_EachOneCostsXWounds()
+        {
+            var gun = new Weapon("Fusion Lance", rangeInches: 12f, attacks: 1, armorPenetration: 0);
+            gun.AttachRuleDefinition(new ResolvedRule("Deadly(3)", CoreRuleCatalog.Deadly, new RuleArgument[] { new RuleArgument.Int(3) }));
+            RollToHitResults results = await RunHitRollOnly(MakeUnit("Crew", modelCount: 3),
+                MakeUnit("Targets", modelCount: 3), face: 1, attacks: 1, hazardous: true, weapon: gun);
+
+            Assert.That(results.SelfWounds, Is.EqualTo(3f));
+        }
+
+        [Test]
         public async Task WithoutTheRule_TheSameOnesCostNothing()
         {
             DataBinding<UnitData> attacker = MakeUnit("Plague Crew", modelCount: 3);
