@@ -58,6 +58,18 @@ namespace FDG.GameModel
         /// </summary>
         public void Stop() => _stoppable?.Stop();
 
+        private PresentationRelayer? _presentationRelayer;
+
+        /// <summary>A watch-only screen (no seat) that should see every beat - see <see cref="PresentationRelayer.AddSpectator"/>.</summary>
+        public void AddSpectator(FDG.EngineInterface.IFDGGame game) => _presentationRelayer?.AddSpectator(game);
+
+        /// <summary>Pauses the game at its next on-screen beat (bot vs bot - Kai, 2026-11-18).</summary>
+        public bool Paused
+        {
+            get => _presentationRelayer?.Paused ?? false;
+            set { if (_presentationRelayer != null) _presentationRelayer.Paused = value; }
+        }
+
         // #280: validates + re-broadcasts remote clients' live decision previews. Held only for
         // ownership/lifetime clarity - nothing else reads it (it lives on its bus registrations).
         private PreviewRelayer _previewRelayer;
@@ -195,6 +207,7 @@ namespace FDG.GameModel
             // unfolds at a presentable tempo. State computation is never paced — only emission.
             IPresentationClock presentationClock_ = _presentationClock ?? new InstantPresentationClock();
             PresentationRelayer presentationRelayer = new PresentationRelayer(_playerSlotManager, presentationClock_);
+            _presentationRelayer = presentationRelayer;
 
             // #191 B1 5c: a simulation answers decisions straight from the target slot's registry
             // (DirectPlayerRequester) instead of serializing them onto the bus. RequestMessageSender

@@ -893,6 +893,13 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>Take Back: quietly stops the running game (see <see cref="FDGServer.Stop"/>).</summary>
         public void StopGame() => _server?.Stop();
 
+        /// <summary>Pause / resume the running game at its next on-screen beat (bot vs bot - Kai, 2026-11-18).</summary>
+        public bool GamePaused
+        {
+            get => _server?.Paused ?? false;
+            set { if (_server != null) _server.Paused = value; }
+        }
+
         /// <summary>Take Back: who plays each slot, so a relaunch can seat everyone the same way.</summary>
         public sealed record SlotCrew(PlayerID PlayerID, EPlayerType PlayerType, FDG.Ai.EAiProfile AiProfile,
             string PlayerName, int ColorIndex);
@@ -996,6 +1003,8 @@ namespace FDG.Network.Connection.Lobby
             if (_playerInfosFull.Values.Any(info => info.PlayerType == EPlayerType.Local)) return null;
 
             FDGGame_AsLocal spectator = new FDGGame_AsLocal(_gameDataStore, _messageBus);
+            // It sits in no player slot, so the server must be told to show it the beats too (Kai, 2026-11-18).
+            _server?.AddSpectator(spectator);
             OnLaunched?.Invoke(spectator);
             return spectator;
         }

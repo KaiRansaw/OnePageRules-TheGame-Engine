@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FDG.Players;
@@ -24,7 +25,51 @@ namespace FDG.Presentation
             _clock = clock;
         }
 
-        public Task Present(PresentationBeat beat, CancellationToken ct = default)
+        /// <summary>
+        /// Watch-only screens (every seat a bot - Kai, 2026-11-18: the bot vs bot report showed only "Held, nothing
+        /// else"): they sit in no player slot, so the per-slot fan-out below never reached them. Their sink is read
+        /// at each beat, because a front end assigns it after the game has started.
+        /// </summary>
+        private readonly List<FDG.EngineInterface.IFDGGame> _spectators = new List<FDG.EngineInterface.IFDGGame>();
+        private readonly object _gate = new object();
+
+        public void AddSpectator(FDG.EngineInterface.IFDGGame game)
+        {
+            lock (_gate) _spectators.Add(game);
+        }
+
+        /// <summary>
+        /// Pause (Kai, 2026-11-18, bot vs bot): while set, the next beat waits here before it is shown, and with it the
+        /// engine thread that produced it - so the game stops at the next thing that would have appeared on screen.
+        /// </summary>
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                lock (_gate)
+                {
+                    _paused = value;
+                    if (!value) { _resume.TrySetResult(true); _resume = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); }
+                }
+            }
+        }
+        private volatile bool _paused;
+        private TaskCompletionSource<bool> _resume = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task Present(PresentationBeat beat, CancellationToken ct = default)
+        {
+            while (_paused)
+            {
+                Task wait;
+                lock (_gate) wait = _paused ? _resume.Task : Task.CompletedTask;
+                await Task.WhenAny(wait, Task.Delay(Timeout.Infinite, ct)).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+            }
+            await PresentNow(beat, ct).ConfigureAwait(false);
+        }
+
+        private Task PresentNow(PresentationBeat beat, CancellationToken ct)
         {
             // Deliver to each DISTINCT sink once. Two local players on one machine share a single
             // on-screen sink (both LocalPlayerControllers resolve to the same PresentationPlayer), so
@@ -38,6 +83,14 @@ namespace FDG.Presentation
                 {
                     sink.OnBeat(beat);
                 }
+            }
+
+            List<FDG.EngineInterface.IFDGGame> watching;
+            lock (_gate) watching = _spectators.ToList();
+            foreach (FDG.EngineInterface.IFDGGame game in watching)
+            {
+                IPresentationSink? sink = game.PresentationSink;
+                if (sink != null && delivered.Add(sink)) sink.OnBeat(beat);
             }
 
             // A held beat only paces its lead-in (see PresentationBeat.Held).
