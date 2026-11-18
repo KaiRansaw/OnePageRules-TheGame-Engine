@@ -25,10 +25,21 @@ namespace FDG.SaveLoad
 
         public float HeightInches { get; set; } = BaseShapeDefaults.RectangleHeightInches;
 
-        public IBaseShape ToBaseShape() => Shape switch
-        {
-            EBaseShapeKind.Rectangle => new RectangleBase(WidthInches, HeightInches),
-            _ => new CircleBase(DiameterInches / 2f),
-        };
+        /// <summary>
+        /// Kai, 2026-11-18 (house rule): every model stands on a ROUND base. Army Forge gives big models an oval
+        /// ("120x92") and vehicles only a square/rectangle ("175x125"); both become a circle as wide as the LONG
+        /// side, so the model never hangs off its base. A Rectangle entry left in an older army file is read the
+        /// same way, so lists saved before the change play on circles too.
+        /// </summary>
+        public IBaseShape ToBaseShape() => new CircleBase(RoundDiameterInches / 2f);
+
+        /// <summary>The diameter this entry plays at: its circle, or the long side of a rectangle/oval.</summary>
+        public float RoundDiameterInches =>
+            Shape == EBaseShapeKind.Rectangle ? Math.Max(WidthInches, HeightInches) : DiameterInches;
+
+        /// <summary>This entry as a circle (see <see cref="ToBaseShape"/>).</summary>
+        public BaseFileEntry AsRound() => Shape == EBaseShapeKind.Circle
+            ? this
+            : new BaseFileEntry { Shape = EBaseShapeKind.Circle, DiameterInches = RoundDiameterInches };
     }
 }

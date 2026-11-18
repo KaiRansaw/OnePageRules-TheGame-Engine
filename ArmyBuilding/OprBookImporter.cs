@@ -826,7 +826,9 @@ namespace FDG.ArmyBuilding
         {
             BaseFileEntry? declared = TryParseBase(bases?.Round, preferCircle: true)
                 ?? TryParseBase(bases?.Square, preferCircle: false);
-            if (declared != null) return declared;
+            // Kai, 2026-11-18 (house rule): all bases are round - an oval or rectangle becomes a circle as wide
+            // as its long side (BaseFileEntry.ToBaseShape).
+            if (declared != null) return declared.AsRound();
 
             // #225 defect B: OPR emits "none" for vehicles/superheavies, so there is nothing to import.
             // Estimating beats the old silent 28mm-circle fallback, which put every titan and tank on an
@@ -834,7 +836,7 @@ namespace FDG.ArmyBuilding
             BaseFileEntry estimated = DefaultBaseEstimator.Estimate(
                 rules ?? Enumerable.Empty<SpecialRuleEntry>(), out string describe);
             warn?.Invoke($"no base declared for '{unitName ?? "unit"}' - estimated {describe}");
-            return estimated;
+            return estimated.AsRound();
         }
 
         private static BaseFileEntry? TryParseBase(string? spec, bool preferCircle)

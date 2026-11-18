@@ -75,8 +75,10 @@ namespace FDG.Tests
         // --- Army-load: file entry → live models -----------------------------------------------------
 
         [Test]
-        public void UnitData_RectangleBase_AllModelsGetTheRectangle()
+        public void UnitData_RectangleBase_PlaysAsACircleOfItsLongSide()
         {
+            // Kai, 2026-11-18 (house rule): every base is round. A Rectangle left in an older army file
+            // becomes a circle as wide as its long side, so saved lists change with the shipped books.
             UnitData unit = BuildUnit(new BaseFileEntry
             {
                 Shape = EBaseShapeKind.Rectangle, WidthInches = 1f, HeightInches = 2f,
@@ -85,10 +87,8 @@ namespace FDG.Tests
             Assert.That(unit.Models, Has.Count.EqualTo(3));
             foreach (IModel model in unit.Models)
             {
-                Assert.That(model.BaseShape, Is.TypeOf<RectangleBase>());
-                RectangleBase rect = (RectangleBase)model.BaseShape;
-                Assert.That(rect.WidthInches, Is.EqualTo(1f).Within(Tol));
-                Assert.That(rect.HeightInches, Is.EqualTo(2f).Within(Tol));
+                Assert.That(model.BaseShape, Is.TypeOf<CircleBase>());
+                Assert.That(((CircleBase)model.BaseShape).RadiusInches, Is.EqualTo(1f).Within(Tol));
             }
         }
 

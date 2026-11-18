@@ -340,36 +340,26 @@ public class OprBookImporterTests
         Assert.That(Base("a").Shape, Is.EqualTo(EBaseShapeKind.Circle));
         Assert.That(Base("a").DiameterInches, Is.EqualTo(32f / MmPerInch).Within(0.001f));
 
-        // round "120x92" — an oval → our rectangle footprint. #225: OPR writes LENGTH first, and the
-        // engine runs HeightInches along the facing, so 120 (length) is the Height and 92 the Width.
-        Assert.That(Base("b").Shape, Is.EqualTo(EBaseShapeKind.Rectangle));
-        Assert.That(Base("b").HeightInches, Is.EqualTo(120f / MmPerInch).Within(0.001f));
-        Assert.That(Base("b").WidthInches, Is.EqualTo(92f / MmPerInch).Within(0.001f));
-
-        // round "none" → fall back to the square "175x125".
-        Assert.That(Base("c").Shape, Is.EqualTo(EBaseShapeKind.Rectangle));
-        Assert.That(Base("c").HeightInches, Is.EqualTo(175f / MmPerInch).Within(0.001f));
-        Assert.That(Base("c").WidthInches, Is.EqualTo(125f / MmPerInch).Within(0.001f));
-
-        // A 60x35 bike base is the unambiguous case: a bike is 60mm long and 35mm wide, so it must face
-        // along its 60mm axis. Height > Width here is the invariant every real rectangular base satisfies.
-        Assert.That(Base("f").Shape, Is.EqualTo(EBaseShapeKind.Rectangle));
-        Assert.That(Base("f").HeightInches, Is.EqualTo(60f / MmPerInch).Within(0.001f));
-        Assert.That(Base("f").WidthInches, Is.EqualTo(35f / MmPerInch).Within(0.001f));
-        Assert.That(Base("f").HeightInches, Is.GreaterThan(Base("f").WidthInches),
-            "a rectangular base must be longer along its facing axis than it is wide");
+        // Kai, 2026-11-18 (house rule): every base is ROUND - an oval or rectangle becomes a circle as
+        // wide as its LONG side (the first number: OPR writes length first, #225).
+        void Circle(string id, float mm)
+        {
+            Assert.That(Base(id).Shape, Is.EqualTo(EBaseShapeKind.Circle), id);
+            Assert.That(Base(id).DiameterInches, Is.EqualTo(mm / MmPerInch).Within(0.001f), id);
+        }
+        Circle("b", 120f); // round "120x92" (an oval)
+        Circle("c", 175f); // round "none" -> the square "175x125"
+        Circle("f", 60f);  // a 60x35 bike base
 
         // Both empty, or no bases field at all → #225 defect B ESTIMATES a base from the unit's rules
         // rather than silently falling through to the 28mm circle, which used to put tanks and titans on
-        // an infantry dot. These fixtures carry no rules, so they estimate as the smallest vehicle.
-        // (DefaultBaseEstimatorTests covers the estimate itself; this pins that the importer routes to it.)
+        // an infantry dot. These fixtures carry no rules, so they estimate as the smallest vehicle (90x52),
+        // played round at its 90mm length. (DefaultBaseEstimatorTests covers the estimate itself.)
         foreach (string id in new[] { "d", "e" })
         {
             Assert.That(DefaultBaseEstimator.IsUnsizedDefault(Base(id)), Is.False,
                 "an undeclared base must be estimated, never left as the 28mm placeholder");
-            Assert.That(Base(id).Shape, Is.EqualTo(EBaseShapeKind.Rectangle));
-            Assert.That(Base(id).HeightInches, Is.EqualTo(90f / MmPerInch).Within(0.001f));
-            Assert.That(Base(id).WidthInches, Is.EqualTo(52f / MmPerInch).Within(0.001f));
+            Circle(id, 90f);
         }
     }
 

@@ -261,8 +261,9 @@ public class OprListImporterTests
         // Tough(3) survives the string-typed rating.
         Assert.That(support.SpecialRules, Has.One.EqualTo(new SpecialRuleEntry_CoreNumeric("Tough", 3)));
 
-        // Rectangle base from "60x35".
-        Assert.That(support.Base.Shape, Is.EqualTo(EBaseShapeKind.Rectangle));
+        // "60x35" plays round at its 60mm long side (house rule, Kai 2026-11-18: every base is a circle).
+        Assert.That(support.Base.Shape, Is.EqualTo(EBaseShapeKind.Circle));
+        Assert.That(support.Base.DiameterInches, Is.EqualTo(60f / 25.4f).Within(0.001f));
     }
 
     [Test]
