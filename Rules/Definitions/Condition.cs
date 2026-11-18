@@ -42,6 +42,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(UnmodifiedRollEquals), "unmodifiedRollEquals")]
 [JsonDerivedType(typeof(DistanceGreaterThan), "distanceGreaterThan")]
 [JsonDerivedType(typeof(AttackedFromOverInches), "attackedFromOverInches")]
+[JsonDerivedType(typeof(AttackedFromBeyond), "attackedFromBeyond")]
 [JsonDerivedType(typeof(StatGreaterOrEqualTo), "statGreaterOrEqualTo")]
 [JsonDerivedType(typeof(TargetMajorityHasTough), "targetMajorityHasTough")]
 [JsonDerivedType(typeof(TargetAboveHalfStrength), "targetAboveHalfStrength")]
@@ -367,6 +368,35 @@ public abstract record Condition
         {
             return context.AttackOriginDistanceInches > DistanceInches;
         }
+    }
+
+    /// <summary>
+    /// 3.6.0's paired band - <i>"when this model <b>shoots/charges</b> enemies over <b>9"/6"</b> away"</i> and its
+    /// defender mirror <i>"<b>shot/charged</b> from over 9"/6" away"</i> - Devout, Ferocious, Warbound, Destroyer,
+    /// Havocbound, Changebound, Sturdy, Guarded, Machine-Fog, Screened, Knightborn, the Versatile family and more.
+    /// A shot counts when it is fired from over <see cref="ShotInches"/>; a melee swing counts when its unit
+    /// CHARGED from over <see cref="ChargedInches"/> (the activation-start distance - a melee resolves in base
+    /// contact, so the live distance can never pass). A melee the unit was not charged into reports 0 and is out.
+    ///
+    /// <para>Kai, 2026-11-18 rules audit: these rules had been built from the 3.5 wording, "over 9"" for both, so a
+    /// charge from 7-9" missed out - and several had lost the band altogether (Devout, Warbound, Destroyer always on;
+    /// Gloom-Mist measured the melee's live distance and never applied).</para>
+    /// </summary>
+    public sealed record AttackedFromBeyond(float ShotInches, float ChargedInches) : Condition
+    {
+        public override bool Evaluate(RuleInvocation invocation)
+        {
+            if (invocation.Hook is not IHasAttackOriginDistance origin || invocation.Hook is not IHasCombatKind kind)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(AttackedFromBeyond)} requires {nameof(IHasAttackOriginDistance)} and {nameof(IHasCombatKind)}, but the firing "
+                    + $"context ({invocation.Hook.GetType().Name}) does not provide both.");
+            }
+            return origin.AttackOriginDistanceInches > (kind.IsMelee ? ChargedInches : ShotInches);
+        }
+
+        public override IReadOnlyCollection<Type> RequiredCapabilities =>
+            [typeof(IHasAttackOriginDistance), typeof(IHasCombatKind)];
     }
 
     /// <summary>
