@@ -163,7 +163,8 @@ namespace FDG.GameModel
             // The per-army call naturally enforces the rule's "part of one multi-model unit" being from the
             // same army. Tough still lands per-unit later in the creation-rules loop, hero-aware.
             IReadOnlyList<UnitData> survivors = HeroJoinResolver.Apply(built, message => Debug.WriteLine(message),
-                HeroJoinResolver.JoinCapFor(armyListFile.GameSystem));
+                HeroJoinResolver.JoinCapFor(armyListFile.GameSystem),
+                HeroJoinResolver.SkillsCoverHostUnitFor(armyListFile.GameSystem));
 
             List<DataBinding<UnitData>> unitBindings = new List<DataBinding<UnitData>>(survivors.Count);
             foreach (UnitData unitData in survivors)

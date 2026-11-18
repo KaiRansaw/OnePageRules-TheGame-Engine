@@ -15,11 +15,10 @@ namespace FDG.Rules.Dispatch;
 /// effect - 3.6 wins for anything created from now on.
 /// </para>
 /// <para>
-/// Eleven of the eighteen hero skills are "once per game" effects (Explorer, Idol, Berserker,
-/// Sharpshooter, Healer, Tactician, Strategist, Mastermind) or need a hook context the engine does not
-/// expose yet (Motivator and Leader need to know what triggered a morale test; Duellist needs to know
-/// the hero was the one charged). Those are plain markers here, named and described so they show on the
-/// unit card and in the Battle Report, with no mechanical effect. This is the same gap already recorded
+/// Some hero skills are "once per game" effects with no engine offer yet (Tactician,
+/// Strategist, Mastermind). Those are plain markers here, named and described so they show on the
+/// unit card and in the Battle Report, with no mechanical effect. (Motivator, Leader, Duellist, Suppressor and
+/// Destroyer were markers too until 2026-11-18 - the contexts they needed turned out to exist or were added.) This is the same gap already recorded
 /// for Elite's once-per-game re-roll: the engine has no general per-unit once-per-game offer. Deferred
 /// deliberately, recorded in WorkItems/410.
 /// </para>
@@ -193,23 +192,54 @@ public static class Campaign36RuleCatalog
 
     // -- Captain skills ------------------------------------------------------------------------------
 
-    public static SpecialRuleDefinition Motivator { get; } = Marker("Skill: Motivator",
-        "Campaign skill: +1 to Morale Test rolls triggered by shooting "
-        + "(not wired up - a morale test does not record what triggered it yet).");
+    // The morale test has carried its cause since #442 (PreMoraleTestContext.Trigger) - these two were left as
+    // markers from before that, and wired on 2026-11-18. A melee test is "in melee" whether the unit charged or
+    // was charged; the book makes no such split.
+    public static SpecialRuleDefinition Motivator { get; } = new("Skill: Motivator",
+        new[]
+        {
+            new HookEntry(EHookID.Morale_OnPreMoraleTest,
+                new Condition.MoraleTriggerIs(EMoraleTrigger.Shooting),
+                new Effect.RollModifier(ERollKind.Morale, Delta: +1),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Campaign skill: +1 to Morale Test rolls triggered by shooting.");
 
-    public static SpecialRuleDefinition Leader { get; } = Marker("Skill: Leader",
-        "Campaign skill: +1 to Morale Test rolls in melee "
-        + "(not wired up - a morale test does not record what triggered it yet).");
+    public static SpecialRuleDefinition Leader { get; } = new("Skill: Leader",
+        new[]
+        {
+            new HookEntry(EHookID.Morale_OnPreMoraleTest,
+                new Condition.MoraleTriggerIs(EMoraleTrigger.Melee),
+                new Effect.RollModifier(ERollKind.Morale, Delta: +1),
+                ELifetime.ThisActivation),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Campaign skill: +1 to Morale Test rolls in melee.");
 
+    // Idol and Berserker carry no hooks: the question is asked where the token would land
+    // (Stages.OncePerGameIgnore, from ApplyShakenWithPresentation / ApplyFatigueStage), 2026-11-18.
     public static SpecialRuleDefinition Idol { get; } = Marker("Skill: Idol",
-        "Campaign skill: once per game, may ignore becoming Shaken "
-        + "(not wired up - the engine has no once-per-game offer yet).");
+        "Campaign skill: once per game, may ignore becoming Shaken.");
 
     // -- Warrior skills ------------------------------------------------------------------------------
 
-    public static SpecialRuleDefinition Duellist { get; } = Marker("Skill: Duellist",
-        "Campaign skill: AP(+1) in melee when charged "
-        + "(not wired up - a melee strike-back does not record that this unit was the one charged).");
+    // "When charged" = striking back. Every melee in the four campaign games starts with a charge, so a unit that
+    // fights in melee without charging is the one that was charged - the same reading Fanatic's "when charging"
+    // takes from the other side (2026-11-18).
+    public static SpecialRuleDefinition Duellist { get; } = new("Skill: Duellist",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                new Condition.And(new Condition.IsMelee(), new Condition.Not(new Condition.IsCharging())),
+                new Effect.RollModifier(ERollKind.Save, Delta: -1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Campaign skill: AP(+1) in melee when charged.");
 
     public static SpecialRuleDefinition Fanatic { get; } = new("Skill: Fanatic",
         new[]
@@ -224,23 +254,36 @@ public static class Campaign36RuleCatalog
         Description: "Campaign skill: AP(+1) in melee when charging.");
 
     public static SpecialRuleDefinition Berserker { get; } = Marker("Skill: Berserker",
-        "Campaign skill: once per game, may ignore becoming Fatigued "
-        + "(not wired up - the engine has no once-per-game offer yet).");
+        "Campaign skill: once per game, may ignore becoming Fatigued.");
 
     // -- Hunter skills -------------------------------------------------------------------------------
 
-    // Suppressor and Destroyer both want AP(+1), which is a modifier on the TARGET's Defense roll, so
-    // it has to be applied at Shooting_OnHitRollComplete. That hook's context does not carry whether
-    // the attacker moved, so neither "when using Hold and shooting" nor "when using move actions and
-    // shooting" can be expressed there - the catalog fire-lint catches it. Markers until the save-roll
-    // context carries the attacker's action. Recorded in WorkItems/410.
-    public static SpecialRuleDefinition Suppressor { get; } = Marker("Skill: Suppressor",
-        "Campaign skill: AP(+1) when using Hold and shooting "
-        + "(not wired up - the Defense roll does not know whether the attacker moved).");
+    // Suppressor and Destroyer both want AP(+1), a modifier on the TARGET's Defense roll, so they sit at
+    // Shooting_OnHitRollComplete - whose context carries AttackerMoved since 2026-11-18 (they were markers
+    // until then, WorkItems/410).
+    public static SpecialRuleDefinition Suppressor { get; } = new("Skill: Suppressor",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                new Condition.And(new Condition.Not(new Condition.IsMelee()), new Condition.Not(new Condition.AfterMoving())),
+                new Effect.RollModifier(ERollKind.Save, Delta: -1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Campaign skill: AP(+1) when using Hold and shooting.");
 
-    public static SpecialRuleDefinition Destroyer { get; } = Marker("Skill: Destroyer",
-        "Campaign skill: AP(+1) when using move actions and shooting "
-        + "(not wired up - the Defense roll does not know whether the attacker moved).");
+    public static SpecialRuleDefinition Destroyer { get; } = new("Skill: Destroyer",
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                new Condition.And(new Condition.Not(new Condition.IsMelee()), new Condition.AfterMoving()),
+                new Effect.RollModifier(ERollKind.Save, Delta: -1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Campaign skill: AP(+1) when using move actions and shooting.");
 
     /// <summary>
     /// Once per game, +12" range when shooting, for an activation.
@@ -311,9 +354,19 @@ public static class Campaign36RuleCatalog
         Valence: EValence.Positive,
         Description: "Campaign skill: +1 to Defense rolls when shot.");
 
-    public static SpecialRuleDefinition Healer { get; } = Marker("Skill: Healer",
-        "Campaign skill: once per game, when activated, may restore D3 models/wounds "
-        + "(not wired up - the engine has no once-per-game offer yet).");
+    // "Once per game, when the Hero's unit is activated, it may restore D3 models/wounds." Offered only when
+    // something is missing, so the one use is never wasted on a full-strength unit (2026-11-18).
+    public static SpecialRuleDefinition Healer { get; } = new("Skill: Healer",
+        Array.Empty<HookEntry>(),
+        new[]
+        {
+            new ActivatedAbility(EHookID.Activation_OnActivationStart, new Cost.OncePerGame(),
+                new TargetSelector(0f, 1, 1, ETargetAffinity.Self, false),
+                new Effect.RestoreD3(),
+                new Condition.BearerIsMissingWounds()),
+        },
+        Valence: EValence.Positive,
+        Description: "Campaign skill: once per game, when activated, may restore D3 models/wounds.");
 
     // -- Overseer skills -----------------------------------------------------------------------------
 

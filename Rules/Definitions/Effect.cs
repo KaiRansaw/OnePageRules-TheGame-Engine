@@ -80,6 +80,7 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(SpawnUnit), "spawnUnit")]
 [JsonDerivedType(typeof(ReinforceUnit), "reinforceUnit")]
 [JsonDerivedType(typeof(RestoreWounds), "restoreWounds")]
+[JsonDerivedType(typeof(RestoreD3), "restoreD3")]
 [JsonDerivedType(typeof(TargetIndividualModel), "targetIndividualModel")]
 [JsonDerivedType(typeof(RestrictActions), "restrictActions")]
 [JsonDerivedType(typeof(RangeModifier), "rangeModifier")]
@@ -1516,6 +1517,16 @@ public abstract record Effect
     /// roll is DECISIVE (the ClearTokenOnRoll/Storm precedent): each die's outcome is binary, so a
     /// histogram would want to restore fractions of a model.
     /// </summary>
+    /// <summary>Restores D3 models/wounds to the bearer's unit - the campaign Healer skill.</summary>
+    public sealed record RestoreD3 : Effect
+    {
+        public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
+        {
+            operations.Add(new RuleOperation.InvokeRestoreD3(ruleInvocation.Bearer,
+                ruleInvocation.Definition?.Name ?? "Healer"));
+        }
+    }
+
     public sealed record RestoreWounds(int MinRoll = 5) : Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)

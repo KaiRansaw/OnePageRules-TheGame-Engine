@@ -58,6 +58,8 @@ namespace FDG.Rules.Definitions;
 [JsonDerivedType(typeof(MostModelsWithinInchesOfTerrain), "mostModelsWithinInchesOfTerrain")]
 [JsonDerivedType(typeof(IsMelee), "isMelee")]
 [JsonDerivedType(typeof(MoraleTriggeredByCombat), "moraleTriggeredByCombat")]
+[JsonDerivedType(typeof(MoraleTriggerIs), "moraleTriggerIs")]
+[JsonDerivedType(typeof(BearerIsMissingWounds), "bearerIsMissingWounds")]
 [JsonDerivedType(typeof(MoraleAttackedFromBeyond), "moraleAttackedFromBeyond")]
 [JsonDerivedType(typeof(IsCharging), "isCharging")]
 [JsonDerivedType(typeof(IsNotSpell), "isNotSpell")]
@@ -490,6 +492,17 @@ public abstract record Condition
     /// the "do they have any?" case ergonomic; values &gt; 1 support stacking-
     /// marker thresholds (e.g. "do they have 2+ Piercing Frenzy markers?").
     /// </summary>
+    /// <summary>
+    /// The bearer's unit has lost at least one whole wound (a dead model counts). Gates "may restore" offers
+    /// (campaign Healer) so a once-per-game heal is never offered - and never spent by a bot, which takes the
+    /// first option - on a unit with nothing to restore.
+    /// </summary>
+    public sealed record BearerIsMissingWounds : Condition
+    {
+        public override bool Evaluate(RuleInvocation invocation) =>
+            invocation.Bearer.Models.Sum(m => m.WoundsDealt) >= 0.999f;
+    }
+
     public sealed record TokenPresent(TokenType TType, int MinCount = 1) : Condition
     {
         public override bool Evaluate(RuleInvocation invocation)
@@ -660,6 +673,16 @@ public abstract record Condition
     {
         protected override bool EvaluateCore(IHasMoraleTrigger context) =>
             context.MoraleTrigger.IsCombat();
+    }
+
+    /// <summary>
+    /// The morale test came from one particular cause. Campaign Rules 3.6.0 split the Captain skills by it:
+    /// Motivator is <i>"+1 to Morale Test rolls triggered by shooting"</i>, Leader <i>"+1 to Morale Test rolls
+    /// in melee"</i>.
+    /// </summary>
+    public sealed record MoraleTriggerIs(EMoraleTrigger Trigger) : CapabilityCondition<IHasMoraleTrigger>
+    {
+        protected override bool EvaluateCore(IHasMoraleTrigger context) => context.MoraleTrigger == Trigger;
     }
 
     /// <summary>

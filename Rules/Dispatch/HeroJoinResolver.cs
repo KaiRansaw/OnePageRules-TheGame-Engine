@@ -29,6 +29,13 @@ public static class HeroJoinResolver
     /// The join cap for the system an army belongs to (its slug) - 6 in GF/AoF, 18 in Firefight and
     /// Skirmish, 0 (no joining) in both Quest games. See <see cref="CoreRulesProfile.HeroJoinToughCap"/>.
     /// </summary>
+    /// <summary>Whether a joined hero's campaign skills cover its whole unit in this army's game.</summary>
+    public static bool SkillsCoverHostUnitFor(string? armySystemSlug) =>
+        GameSystemInfo.FromSlug(armySystemSlug) is { } system && CoreRulesProfile.For(system).CampaignSkillsCoverHeroUnit;
+
+    private static bool IsCampaignSkill(ResolvedRule rule) =>
+        rule.Definition.Name.StartsWith("Skill: ", StringComparison.Ordinal);
+
     public static int JoinCapFor(string? armySystemSlug) =>
         GameSystemInfo.FromSlug(armySystemSlug) is { } system
             ? CoreRulesProfile.For(system).HeroJoinToughCap
@@ -43,7 +50,8 @@ public static class HeroJoinResolver
     public static IReadOnlyList<UnitData> Apply(
         IReadOnlyList<(UnitFileEntry Entry, UnitData Unit)> built,
         Action<string>? warn = null,
-        int maxHeroTough = MaxHeroToughForJoin)
+        int maxHeroTough = MaxHeroToughForJoin,
+        bool skillsCoverHostUnit = false)
     {
         // Hosts are addressed by their authorable Id. Duplicate Ids are a data error; first one wins and
         // the rest are unaddressable (a hero targeting a duplicated Id resolves to the first).
@@ -143,6 +151,14 @@ public static class HeroJoinResolver
                 if (CoreRuleCatalog.IsHeroRuleName(rule.Definition.Name)
                     || CoreRuleCatalog.IsHeroRuleName(rule.RequestedName))
                 {
+                    continue;
+                }
+
+                // Grimdark Future / Age of Fantasy campaign skills read "the Hero and its unit" - they stay
+                // unit-wide (CoreRulesProfile.CampaignSkillsCoverHeroUnit). Firefight / Skirmish: hero only.
+                if (skillsCoverHostUnit && IsCampaignSkill(rule))
+                {
+                    host.AttachRuleDefinition(rule);
                     continue;
                 }
 

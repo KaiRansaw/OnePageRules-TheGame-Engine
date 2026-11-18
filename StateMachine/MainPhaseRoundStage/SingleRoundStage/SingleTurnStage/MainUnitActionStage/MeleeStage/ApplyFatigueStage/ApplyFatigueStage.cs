@@ -25,14 +25,20 @@ namespace FDG.Stages
             //                     did not attack, so it is not Fatigued (until 1.94 it was, for charging - the
             //                     3.5.1 wording, "at the end of an activation in which they charged").
             IUnit swinger = context.AttackingUnit.GetValue();
-            FatigueUtilities.ApplyFatigued(swinger);
-            GameContext.Log($"{swinger.Name} is Fatigued.");
+            if (!await OncePerGameIgnore.Offer(GameContext, swinger, OncePerGameIgnore.Berserker, TokenType.Fatigued, "Fatigued"))
+            {
+                FatigueUtilities.ApplyFatigued(swinger);
+                GameContext.Log($"{swinger.Name} is Fatigued.");
+            }
 
             if (context.DefenderStruckBack)
             {
                 IUnit striker = context.DefendingUnit.GetValue();
-                FatigueUtilities.ApplyFatigued(striker);
-                GameContext.Log($"{striker.Name} struck back and is Fatigued.");
+                if (!await OncePerGameIgnore.Offer(GameContext, striker, OncePerGameIgnore.Berserker, TokenType.Fatigued, "Fatigued"))
+                {
+                    FatigueUtilities.ApplyFatigued(striker);
+                    GameContext.Log($"{striker.Name} struck back and is Fatigued.");
+                }
             }
 
             // #381: both combatants also get the round-scoped "was in melee" fact. Distinct from Fatigued

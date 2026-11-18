@@ -361,7 +361,7 @@ namespace FDG.Ai.Tactician
             var __completeProbe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
             IReadOnlyList<RuleOperation> completeOps = Ops(evaluator.EvaluateAllNamed(
                 new HitRollCompleteContext(atk, def, rulesSeeRolls, context.DistanceInches,
-                    context.IsMelee, context.IsCharging),
+                    context.IsMelee, context.IsCharging, AttackerMoved: context.AttackerMoved),
                 attackerBatch,
                 defenderSeat));
 

@@ -198,7 +198,8 @@ namespace FDG.Stages
             }
 
             IReadOnlyList<UnitData> survivors = HeroJoinResolver.Apply(built, message => gameContext.Log("  " + message),
-                CoreRulesProfile.For(gameContext).HeroJoinToughCap);
+                CoreRulesProfile.For(gameContext).HeroJoinToughCap,
+                CoreRulesProfile.For(gameContext).CampaignSkillsCoverHeroUnit);
             gameContext.Log($"  Recruited: {string.Join(", ", recruits.Units.Select(u => $"{u.Name} ({u.PointCost} pts)"))}.");
 
             foreach (UnitData unit in survivors)

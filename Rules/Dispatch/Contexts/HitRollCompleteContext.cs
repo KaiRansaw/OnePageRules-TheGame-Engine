@@ -24,6 +24,10 @@ namespace FDG.Rules.Dispatch.Contexts
     /// <param name="ChargeOriginDistanceInches">How far the defender was when the charging unit's
     /// activation began, i.e. where the charge was declared from. 0 for shooting and for a melee swing
     /// that isn't a charge. See <see cref="IHasAttackOriginDistance"/>.</param>
+    /// <param name="AttackerMoved">Whether the attacking unit used a move action this activation (Advance, or the
+    /// strafing run) rather than Hold. AP(+1) is a modifier on the target's Defense roll, so it is applied here,
+    /// and the campaign Hunter skills gate it on the action: Suppressor "when using Hold and shooting",
+    /// Destroyer "when using move actions and shooting" (Campaign Rules 3.6.0).</param>
     /// <param name="TerrainPieces">The table's terrain pieces, for terrain-proximity conditions (the
     /// Grounded family). Null/empty on paths that cannot supply it; see <see cref="IHasTerrain"/>.</param>
     public sealed record HitRollCompleteContext(
@@ -31,9 +35,10 @@ namespace FDG.Rules.Dispatch.Contexts
         float DistanceInches = 0f, bool IsMelee = false, bool IsCharging = false, bool IsSpell = false,
         float ChargeOriginDistanceInches = 0f,
         EUnpredictableBranch UnpredictableBranch = EUnpredictableBranch.None,
-        IReadOnlyList<ITerrain>? TerrainPieces = null, float HitsScored = 0f)
+        IReadOnlyList<ITerrain>? TerrainPieces = null, float HitsScored = 0f, bool AttackerMoved = false)
         : IHookContext, IHasUnmodifiedHitRolls, IHasDistance, IHasCombatKind, IHasCharging, IHasTarget,
-            IHasIsSpell, IHasAttackOriginDistance, IHasUnpredictableBranch, IHasTerrain, IHasHitsScored
+            IHasIsSpell, IHasAttackOriginDistance, IHasUnpredictableBranch, IHasTerrain, IHasHitsScored,
+            IHasAttackerMoved
     {
         public EHookID Hook => EHookID.Shooting_OnHitRollComplete;
 

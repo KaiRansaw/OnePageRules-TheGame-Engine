@@ -116,10 +116,11 @@ namespace FDG.Stages
                 unitBinding.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ForcedMoveThisRound));
         }
 
-        public Task ApplyFatigue(IUnit unit)
+        public async Task ApplyFatigue(IUnit unit)
         {
+            if (await OncePerGameIgnore.Offer(_gameContext, unit, OncePerGameIgnore.Berserker, TokenType.Fatigued, "Fatigued"))
+                return;
             FatigueUtilities.ApplyFatigued(unit);
-            return Task.CompletedTask;
         }
 
         // #197 P8: the immediate arm of Dangerous Terrain Debuff - the victim tests where it stands, no
@@ -524,12 +525,40 @@ namespace FDG.Stages
                 }
             }
 
+            var (healed, revived) = SpendRestores(unit, successes);
+
+            _gameContext.Log($"{unit.Name}: Reanimation rolled {pool} dice, {successes} at {minRoll}+ - " +
+                $"restored {healed} wound{(healed == 1 ? "" : "s")}, revived {revived} " +
+                $"model{(revived == 1 ? "" : "s")}.");
+            await _gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(new DiceResults(perSide),
+                minRoll, "Reanimation",
+                successes > 0 ? $"restored {successes}" : "no effect"));
+        }
+
+        public async Task RestoreD3(IUnit unit, string source)
+        {
+            int face = _gameContext.DiceRoller.RollDecisiveFace();
+            int amount = (face + 1) / 2; // D3 off a decisive d6: 1-2 -> 1, 3-4 -> 2, 5-6 -> 3
+            var (healed, revived) = SpendRestores(unit, amount);
+            _gameContext.Log($"{unit.Name}: {source} rolled {amount} on a D3 - restored {healed} " +
+                $"wound{(healed == 1 ? "" : "s")}, revived {revived} model{(revived == 1 ? "" : "s")}.");
+            float[] perSide = new float[IDiceRollerExtensions.DEFAULT_SIDE_COUNT];
+            perSide[face - 1] = 1f;
+            await _gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(new DiceResults(perSide), 1, source,
+                $"restored {healed + revived}"));
+        }
+
+        /// <summary>
+        /// Spends <paramref name="count"/> restores on <paramref name="unit"/>, wounds first (owner-ruled for
+        /// Reanimation): top up the first wounded LIVING model; with none, revive a dead model at one wound beside
+        /// the unit. A model revived is then itself the wounded living model the next restore tops up, so revives
+        /// go one at a time and fill before the next body returns. Stops when nothing is missing.
+        /// </summary>
+        private (int healed, int revived) SpendRestores(IUnit unit, int count)
+        {
             int healed = 0, revived = 0;
-            for (int i = 0; i < successes; i++)
+            for (int i = 0; i < count; i++)
             {
-                // Wounds first (owner-ruled): top up the first wounded LIVING model. A model revived
-                // below is then itself the wounded living model the next success tops up, so revives
-                // proceed one at a time and fill before the next body returns.
                 ModelData? wounded = unit.Models.OfType<ModelData>()
                     .FirstOrDefault(m => m.GetIsAlive() && m.WoundsDealt > 0.999f);
                 if (wounded != null)
@@ -542,20 +571,14 @@ namespace FDG.Stages
                 ModelData? corpse = unit.Models.OfType<ModelData>().FirstOrDefault(m => !m.GetIsAlive());
                 if (corpse == null)
                 {
-                    break; // fully healed - surplus successes are wasted, per the wording's cap
+                    break; // fully healed - surplus is wasted, per the wording's cap
                 }
 
                 corpse.DealWounds(-(1f - (corpse.TotalWounds - corpse.WoundsDealt)));
                 PlaceRevivedInCoherency(unit, corpse);
                 revived++;
             }
-
-            _gameContext.Log($"{unit.Name}: Reanimation rolled {pool} dice, {successes} at {minRoll}+ - " +
-                $"restored {healed} wound{(healed == 1 ? "" : "s")}, revived {revived} " +
-                $"model{(revived == 1 ? "" : "s")}.");
-            await _gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(new DiceResults(perSide),
-                minRoll, "Reanimation",
-                successes > 0 ? $"restored {successes}" : "no effect"));
+            return (healed, revived);
         }
 
         // A revived model returns beside the unit's first living model (base-to-base 0.1", eight

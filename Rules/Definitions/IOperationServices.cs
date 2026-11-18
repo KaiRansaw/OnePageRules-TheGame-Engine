@@ -102,6 +102,14 @@ public interface IOperationServices
     Task RestoreWounds(IUnit unit, int minRoll);
 
     /// <summary>
+    /// Campaign Healer (Campaign Rules 3.6.0): "restore D3 models/wounds". Rolls the D3 and restores that many,
+    /// one at a time the way <see cref="RestoreWounds"/> spends its successes - wounded living models topped up
+    /// first, then dead models revived at one wound each beside the unit. Surplus is wasted.
+    /// Resolution of <see cref="RuleOperation.InvokeRestoreD3"/>.
+    /// </summary>
+    Task RestoreD3(IUnit unit, string source);
+
+    /// <summary>
     /// #197 P8: <paramref name="unit"/> takes a dangerous-terrain test on the spot, without moving —
     /// one batched d6 per living model, a wound on a 1, landed through the same dice beat, casualty
     /// animation and destruction seam a real terrain crossing uses. A target that ignores all terrain

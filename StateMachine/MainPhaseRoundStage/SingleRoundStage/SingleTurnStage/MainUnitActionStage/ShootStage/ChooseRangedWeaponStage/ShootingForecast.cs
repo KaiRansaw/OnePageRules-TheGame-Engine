@@ -134,7 +134,7 @@ namespace FDG.Stages
             IReadOnlyList<(RuleOperation Op, string RuleName)> completeNamed =
                 gameContext.RuleEvaluator.EvaluateAllNamed(
                     new HitRollCompleteContext(attacker, defender, EmptyRolls(), distance,
-                        TerrainPieces: terrain),
+                        TerrainPieces: terrain, AttackerMoved: attackerMoved),
                     actor, subject);
             List<RuleOperation> completeOps = completeNamed.Select(n => n.Op).ToList();
 

@@ -577,6 +577,10 @@ public static class RuleFireLint
             case Condition.TokenPresent token when positive:
                 SeedTokens(world.Bearer, token.TType, token.MinCount);
                 break;
+            // Campaign Healer's "may restore" offer: give the bearer a wound to restore.
+            case Condition.BearerIsMissingWounds when positive:
+                if (world.Bearer.Models.OfType<ModelData>().FirstOrDefault() is { } hurt) hurt.DealWounds(1f);
+                break;
         }
     }
 
@@ -758,6 +762,9 @@ public static class RuleFireLint
                         // Star Quest "if it deals at least one hit" rules need hits to have landed.
                         HitsScored: 3f);
                 }
+                // Campaign Destroyer: AP(+1) "when using move actions and shooting" needs a shot after moving.
+                yield return new HitRollCompleteContext(attacker, defender, OneOfEachFace(), NearInches,
+                    HitsScored: 3f, AttackerMoved: true);
                 // #197 misc: one terrain-populated variant for the Grounded family (not distance-gated).
                 yield return new HitRollCompleteContext(attacker, defender, OneOfEachFace(), FarInches,
                     TerrainPieces: OriginTerrain);

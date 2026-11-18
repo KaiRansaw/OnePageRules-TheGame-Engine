@@ -104,7 +104,10 @@ namespace FDG.Stages
             // op carries its rule name so the beat's chips can say which rule shifted the test.
             IReadOnlyList<(RuleOperation Op, string RuleName)> named = gameContext.RuleEvaluator.EvaluateAllNamedLive(
                 new PreMoraleTestContext(testingUnit, trigger, attackerLaunchDistanceInches),
-                RuleParticipant.Actor(testingUnit));
+                // The living models too: a joined hero's own rules live on its model (HeroJoinResolver), and
+                // without them a joined hero's morale rules (campaign Motivator / Leader in Firefight and
+                // Skirmish) never reached the test (2026-11-18). AnyOwner - any living model brings its rule.
+                RuleParticipant.Actor(testingUnit, models: testingUnit.Models.Where(m => m.GetIsAlive()).ToList()));
             RollModifierSink modifiers = new RollModifierSink();
             modifiers.ApplyFrom(named.Select(n => n.Op).ToList());
             // #033 granted morale modifiers (e.g. a spell's "-1 to morale" debuff) fold in with the same
@@ -418,6 +421,12 @@ namespace FDG.Stages
                     return;
                 }
             }
+            if (await OncePerGameIgnore.Offer(gameContext, unitBinding.GetValue(), OncePerGameIgnore.Idol,
+                    TokenType.Shaken, "Shaken"))
+            {
+                return;
+            }
+
             ApplyShaken(unitBinding);
             await gameContext.Presenter.Present(
                 new BannerBeat($"{unitBinding.GetValue().Name} fails morale - Shaken!", ShakenBannerColor,

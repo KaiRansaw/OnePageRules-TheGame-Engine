@@ -492,6 +492,15 @@ public abstract record RuleOperation
     /// (#197 P17d Reanimation - wounds-first, revives auto-placed in coherency). Resolution of
     /// <see cref="Effect.RestoreWounds"/>.
     /// </summary>
+    /// <summary>Restore D3 models/wounds to <see cref="Unit"/> (campaign Healer). Resolution of
+    /// <see cref="Effect.RestoreD3"/>.</summary>
+    public sealed record InvokeRestoreD3(IUnit Unit, string Source) : ExecutableOperation
+    {
+        public override Task Execute(IOperationServices services) => services.RestoreD3(Unit, Source);
+
+        public override string Describe() => $"restored D3 models/wounds to {Unit.Name}";
+    }
+
     public sealed record InvokeRestoreWounds(IUnit Unit, int MinRoll) : ExecutableOperation
     {
         public override Task Execute(IOperationServices services)

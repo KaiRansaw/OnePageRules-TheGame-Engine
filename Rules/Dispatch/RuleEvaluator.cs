@@ -1029,5 +1029,8 @@ public sealed class RuleEvaluator
         }
     }
 
-    private static TokenType UsedMarker(string ruleName) => new("AbilityUsed:" + ruleName);
+    /// <summary>The per-rule "already used" marker behind every once-per-X cost. Public so engine code that
+    /// offers a once-per-game choice outside an ActivatedAbility (campaign Idol / Berserker) spends the same
+    /// marker an ability would.</summary>
+    public static TokenType UsedMarker(string ruleName) => new("AbilityUsed:" + ruleName);
 }

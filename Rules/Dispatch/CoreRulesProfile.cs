@@ -43,7 +43,8 @@ namespace FDG.Rules.Dispatch
         bool HordeEliteIsPerRound = false,
         int HeroJoinToughCap = 6,
         bool WipeoutConsolidates = true,
-        bool ShakenStillContests = false)
+        bool ShakenStillContests = false,
+        bool CampaignSkillsCoverHeroUnit = false)
     {
         /// <summary>
         /// Kai, 2026-11-08: may a Hero join a unit in this system at all. Grimdark Future and Age of
@@ -90,7 +91,11 @@ namespace FDG.Rules.Dispatch
             // same narrow wording for it (#439).
             CommandGroupExtraPicks: 0,
             // AoF v3.6.0: "Each UNIT may only have one of each of the following upgrades."
-            CommandGroupCapIsPerArmy: false);
+            CommandGroupCapIsPerArmy: false,
+            // Campaign Rules 3.6.0 hero skills: GF and AoF word every one "the Hero and its unit get ..."
+            // (Healer: "the Hero's unit"); GFF and AoFS word them "the Hero gets ...". So in these two games a
+            // joined hero's skills stay on the whole unit instead of moving onto the hero model.
+            CampaignSkillsCoverHeroUnit: true);
 
         /// <summary>
         /// GF: Firefight and AoF: Skirmish. Identical to the full-scale games except that <b>Blast splits</b>:
