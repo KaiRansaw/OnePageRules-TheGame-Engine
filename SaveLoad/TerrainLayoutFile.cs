@@ -178,5 +178,11 @@ namespace FDG.SaveLoad
         /// plain block. Cosmetic; a look that is not installed on this computer draws as the block.
         /// </summary>
         public string Look { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Map Maker (2026-11-17) - the piece is locked in the editor so it can't be dragged, turned or resized by
+        /// accident. Editor-only: the game ignores it. False on every map made before it.
+        /// </summary>
+        public bool Locked { get; set; }
     }
 }
