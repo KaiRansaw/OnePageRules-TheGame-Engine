@@ -154,6 +154,9 @@ namespace FDG
         public string? MapWeather;
         /// <summary>The chosen map's ground (<see cref="SaveLoad.TerrainLayoutFile.Ground"/>), or null. Cosmetic.</summary>
         public string? MapGround;
+        /// <summary>The chosen map's sky and light (<see cref="SaveLoad.TerrainLayoutFile.Sky"/>, <see cref="SaveLoad.TerrainLayoutFile.Light"/>), or null. Cosmetic.</summary>
+        public string? MapSky;
+        public string? MapLight;
 
         /// <summary>
         /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games

@@ -61,6 +61,14 @@ namespace FDG.SaveLoad
         /// </summary>
         public string Ground { get; set; } = string.Empty;
 
+        /// <summary>The map's sky picture (Kai, 2026-11-18): "" = the horizon style's first sky, else a sky's id in the style's
+        /// folder ("sky2", "sky-sunset"). Cosmetic.</summary>
+        public string Sky { get; set; } = string.Empty;
+
+        /// <summary>The map's light (Kai, 2026-11-18): "" = the default, else "key=value" pairs joined by ';' - sun height and
+        /// turn (degrees), brightness, warmth, sky turn. Read by the front end (FdgApp MapAtmosphere.Light). Cosmetic.</summary>
+        public string Light { get; set; } = string.Empty;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
 
         /// <summary>

@@ -745,6 +745,8 @@ namespace FDG.Network.Connection.Lobby
         public string? MapHorizon => string.IsNullOrEmpty(_lastSettings?.MapHorizon) ? null : _lastSettings?.MapHorizon;
         public string? MapWeather => string.IsNullOrEmpty(_lastSettings?.MapWeather) ? null : _lastSettings?.MapWeather;
         public string? MapGround => string.IsNullOrEmpty(_lastSettings?.MapGround) ? null : _lastSettings?.MapGround;
+        public string? MapSky => string.IsNullOrEmpty(_lastSettings?.MapSky) ? null : _lastSettings?.MapSky;
+        public string? MapLight => string.IsNullOrEmpty(_lastSettings?.MapLight) ? null : _lastSettings?.MapLight;
 
         public void SetTableSize((float W, float H)? size)
         {
