@@ -290,6 +290,9 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The chosen map's weather ("rain", "snow"...), or null. Cosmetic.</summary>
         string? MapWeather => null;
 
+        /// <summary>The chosen map's ground (one id, or ids joined by '+' to mix them), or null. Cosmetic.</summary>
+        string? MapGround => null;
+
         /// <summary>Picks a table size (host only). Null = automatic, by army points.</summary>
         void SetTableSize((float W, float H)? size);
 

@@ -54,6 +54,13 @@ namespace FDG.SaveLoad
         /// </summary>
         public string Weather { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The ground the battlefield (and, with the horizon-ground mat, the play area) is drawn with (Kai, 2026-11-18):
+        /// "" = the horizon style's first ground; one ground's id (its picture's name in the style's folder, e.g.
+        /// "ground2"); or two or three ids joined with '+' to blend them across the field in big patches. Cosmetic.
+        /// </summary>
+        public string Ground { get; set; } = string.Empty;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
 
         /// <summary>

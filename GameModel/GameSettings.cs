@@ -152,6 +152,8 @@ namespace FDG
         /// <see cref="SaveLoad.TerrainLayoutFile.Weather"/>), copied like the mat. Null = none chosen. Cosmetic.</summary>
         public string? MapHorizon;
         public string? MapWeather;
+        /// <summary>The chosen map's ground (<see cref="SaveLoad.TerrainLayoutFile.Ground"/>), or null. Cosmetic.</summary>
+        public string? MapGround;
 
         /// <summary>
         /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games
