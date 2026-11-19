@@ -736,11 +736,13 @@ namespace FDG.Stages
                 string? individualTargetRule = Rules.Dispatch.SightRuleQueries.IndividualTargetSource(
                     attackingUnit.GetValue(), weapon, attackingUnit.GetValue(), gameContext.RuleEvaluator);
                 string profileKey = WeaponProfileKey.For(weapon);
+                string? dormantLos = Rules.Dispatch.SightRuleQueries.DormantLineOfSightIgnoreSource(
+                    attackingUnit.GetValue(), weapon, gameContext.RuleEvaluator);
                 if (optionsByProfile.TryAdd(profileKey,
                     new WeaponOption(weapon, new List<WeaponTargetStats>(),
                         coverIgnoreRule != null, losIgnoreRule != null, coverIgnoreRule, losIgnoreRule,
                         limitedRule, limitedSpent,
-                        individualTargetRule, availableWeapons[weapon])))
+                        individualTargetRule, availableWeapons[weapon], dormantLos)))
                 {
                     weaponIgnoresLineOfSight.Add(profileKey, losIgnoreRule != null);
                 }

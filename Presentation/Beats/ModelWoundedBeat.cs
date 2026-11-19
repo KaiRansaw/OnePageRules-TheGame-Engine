@@ -16,11 +16,15 @@ namespace FDG.Presentation.Beats
         /// pace only the stagger, the flinch plays out concurrently with the next casualty.</summary>
         public bool Overlap { get; }
 
-        public ModelWoundedBeat(ModelID model, Position position, bool overlap = false)
+        /// <summary>The wounds that landed (Kai, 2026-11-18: the battle report totals the wounds an attack dealt). 0 = not known.</summary>
+        public float Wounds { get; }
+
+        public ModelWoundedBeat(ModelID model, Position position, bool overlap = false, float wounds = 0f)
         {
             Model = model;
             Position = position;
             Overlap = overlap;
+            Wounds = wounds;
         }
 
         public override TimeSpan NominalDuration => PresentationDurations.ModelWounded;

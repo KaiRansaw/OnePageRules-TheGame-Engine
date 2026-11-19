@@ -1,3 +1,4 @@
+using System;
 using FDG.Data;
 using FDG.Presentation.Beats;
 
@@ -57,6 +58,8 @@ namespace FDG.Stages
                 // between the roll and here) has already had its death animated. Never twice.
                 if (entry.Wounds <= 0f || !entry.Model.GetIsAlive()) continue;
 
+                // What actually lands - a model can't take more than it has left (the report totals these).
+                float landed = MathF.Min(entry.Wounds, entry.Model.RemainingWounds);
                 entry.Model.DealWounds(entry.Wounds);
 
                 bool overlap = i != lastCasualtyIndex;
@@ -66,12 +69,12 @@ namespace FDG.Stages
                 if (entry.Model.GetIsDead())
                 {
                     await gameContext.Presenter.Present(
-                        new ModelDiedBeat(entry.Model.ID, unit, unitName, entry.Model.Position, overlap));
+                        new ModelDiedBeat(entry.Model.ID, unit, unitName, entry.Model.Position, overlap, landed));
                 }
                 else
                 {
                     await gameContext.Presenter.Present(
-                        new ModelWoundedBeat(entry.Model.ID, entry.Model.Position, overlap));
+                        new ModelWoundedBeat(entry.Model.ID, entry.Model.Position, overlap, landed));
                 }
             }
         }

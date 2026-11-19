@@ -53,6 +53,19 @@ namespace FDG.Rules.Dispatch
         }
 
         /// <summary>
+        /// The weapon's own rule that COULD ignore line of sight but is switched off right now (Kai, 2026-11-18: GF/GFF/
+        /// AoF/AoFS Indirect only works "when using Hold actions", so after a move it needs sight like any other gun),
+        /// or null. Lets the shot screen say why an out-of-sight enemy can't be picked.
+        /// </summary>
+        public static string? DormantLineOfSightIgnoreSource(IUnit attacker, IWeapon weapon, RuleEvaluator evaluator)
+        {
+            if (LineOfSightIgnoreSource(attacker, weapon, evaluator) != null) return null;
+            foreach (ResolvedRule r in weapon.RuleDefinitions)
+                if (r.Definition.Passive.Any(h => h.Effect is Effect.IgnoreLineOfSight)) return r.RequestedName;
+            return null;
+        }
+
+        /// <summary>
         /// Whether the attacker's weapon ignores intervening terrain for line of sight. Shared by the
         /// ranged-target enumeration, the occlusion stage, and the movement/targeting resolver builders so
         /// they agree on which targets stay shootable.

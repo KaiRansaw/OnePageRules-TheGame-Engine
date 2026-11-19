@@ -25,14 +25,19 @@ namespace FDG.Presentation.Beats
         /// </summary>
         public bool Overlap { get; }
 
+        /// <summary>The wounds that landed on this model in the blow that killed it (Kai, 2026-11-18: the battle report
+        /// totals the wounds an attack actually dealt - a Tough model can take several before it dies). 0 = not known.</summary>
+        public float Wounds { get; }
+
         public ModelDiedBeat(ModelID model, UnitID unit, string unitName, Position position,
-            bool overlap = false)
+            bool overlap = false, float wounds = 0f)
         {
             Model = model;
             Unit = unit;
             UnitName = unitName;
             Position = position;
             Overlap = overlap;
+            Wounds = wounds;
         }
 
         public override TimeSpan NominalDuration => PresentationDurations.ModelDeath;

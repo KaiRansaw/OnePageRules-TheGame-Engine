@@ -2,6 +2,7 @@ using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.Stages;
 using NUnit.Framework;
 
@@ -104,6 +105,31 @@ namespace FDG.Tests
                 "Indirect → ignores LoS (flags the targeting/movement resolver requests).");
             Assert.That(SightRuleQueries.IgnoresCover(_attacker.GetValue(), weapon, ev), Is.True,
                 "Indirect → also ignores cover.");
+        }
+
+        // Kai, 2026-11-18: moved a unit with an Indirect weapon and couldn't pick an out-of-sight enemy. Right by the book
+        // (GF/GFF/AoF/AoFS 3.6.0: "When using Hold actions and shooting, may target enemies that are not in line of
+        // sight") - but the shot screen only said "out of range or out of sight". The weapon now reports its switched-off
+        // rule so the screen can name it.
+        [Test]
+        public void DormantLineOfSightRule_IsNamed_AfterAMove_AndNotOnAHold()
+        {
+            var weapon = new Weapon("Mortar", rangeInches: 48f, attacks: 1, armorPenetration: 0);
+            weapon.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
+            RuleEvaluator ev = _ctx.RuleEvaluator;
+
+            Assert.That(SightRuleQueries.IgnoresTerrain(_attacker.GetValue(), weapon, ev), Is.True, "control: on a Hold it sees past walls");
+            Assert.That(SightRuleQueries.DormantLineOfSightIgnoreSource(_attacker.GetValue(), weapon, ev), Is.Null,
+                "a working Indirect is not 'switched off'");
+
+            _attacker.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.MovedThisRound));
+
+            Assert.That(SightRuleQueries.IgnoresTerrain(_attacker.GetValue(), weapon, ev), Is.False, "after moving it needs sight");
+            Assert.That(SightRuleQueries.DormantLineOfSightIgnoreSource(_attacker.GetValue(), weapon, ev), Is.EqualTo("Indirect"));
+
+            var plain = new Weapon("Rifle", rangeInches: 24f, attacks: 1, armorPenetration: 0);
+            Assert.That(SightRuleQueries.DormantLineOfSightIgnoreSource(_attacker.GetValue(), plain, ev), Is.Null,
+                "a weapon without the rule has nothing to explain");
         }
 
         // Returns true if the shot was occluded (OnOccluded fired, no result stored), false otherwise.

@@ -138,7 +138,7 @@ namespace FDG.Tests
             var modelId = new ModelID(Guid.NewGuid());
             var unitId = new UnitID(Guid.NewGuid());
             var original = new ModelDiedBeat(modelId, unitId, "Heavy Gunners", new Position(5f, 6f),
-                overlap: true);
+                overlap: true, wounds: 3f);
 
             PresentationBeat result = RoundTrip(original);
 
@@ -151,6 +151,8 @@ namespace FDG.Tests
             Assert.That(died.Position.z, Is.EqualTo(6f).Within(0.0001f));
             // #232 cascade: the overlap flag must ride the wire so networked clients stagger too.
             Assert.That(died.Overlap, Is.True);
+            // Kai, 2026-11-18: the battle report totals the wounds each attack dealt - the count must ride the wire too.
+            Assert.That(died.Wounds, Is.EqualTo(3f));
             Assert.That(died.Held, Is.True, "an overlapped death paces only its stagger lead-in");
             Assert.That(died.HoldLeadIn, Is.EqualTo(PresentationDurations.CasualtyStagger));
         }
@@ -335,9 +337,10 @@ namespace FDG.Tests
         public void ModelWoundedBeat_SurvivesWireRoundTrip()
         {
             var modelId = new ModelID(Guid.NewGuid());
-            var original = new ModelWoundedBeat(modelId, new Position(4f, 7f), overlap: true);
+            var original = new ModelWoundedBeat(modelId, new Position(4f, 7f), overlap: true, wounds: 2f);
 
             var result = (ModelWoundedBeat)RoundTrip(original);
+            Assert.That(result.Wounds, Is.EqualTo(2f), "the wounds that landed ride the wire for the battle report");
             Assert.That(result.Model, Is.EqualTo(modelId));
             Assert.That(result.Position.x, Is.EqualTo(4f).Within(0.0001f));
             Assert.That(result.Position.z, Is.EqualTo(7f).Within(0.0001f));

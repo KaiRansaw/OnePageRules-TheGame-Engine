@@ -162,7 +162,7 @@ namespace FDG.StageResolution.Requests
             bool IgnoresCover = false, bool IgnoresTerrain = false,
             string? CoverIgnoreRule = null, string? LineOfSightIgnoreRule = null,
             string? LimitedRule = null, bool LimitedAlreadyFired = false,
-            string? AimedIndividuallyRule = null, int CopiesRemaining = 1);
+            string? AimedIndividuallyRule = null, int CopiesRemaining = 1, string? DormantLineOfSightRule = null);
 
         /// <summary>
         /// List which models can and cannot shoot at a given unit, of the models in a unit that have a specific weapon.
