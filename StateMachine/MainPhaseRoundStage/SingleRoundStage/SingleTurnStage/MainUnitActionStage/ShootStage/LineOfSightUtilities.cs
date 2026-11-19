@@ -84,8 +84,7 @@ namespace FDG.Stages
                 if (!model.GetIsAlive()) continue;
                 if (model.Position.x == 0f && model.Position.z == 0f) continue;
                 if (excluded.Contains(model)) continue;
-                candidates.Add((model, new TerrainData(ETerrainType.Blocking,
-                    model.BaseShape.ToZone(model.Position, model.Facing))));
+                candidates.Add((model, ModelBlocker(model)));
             }
             return new ModelBlockerSet(candidates);
         }
@@ -131,11 +130,17 @@ namespace FDG.Stages
                 if (excluded.Contains(model)) continue;
                 // A LoS blocker with the model's true (oriented) footprint (#150): a rectangle blocks line of
                 // sight with its real shape, not its inscribed bounding circle.
-                blockers.Add(new TerrainData(ETerrainType.Blocking,
-                    model.BaseShape.ToZone(model.Position, model.Facing)));
+                blockers.Add(ModelBlocker(model));
             }
             return blockers;
         }
+
+        /// <summary>A model's base as a sight blocker: its true footprint (#150), as tall as its base size makes it
+        /// under Volumetric Line of Sight (<see cref="VolumetricSight.HeightForBase"/>; the classic method ignores the
+        /// height).</summary>
+        public static ITerrain ModelBlocker(IModel model)
+            => new ModelSightBlocker(model.BaseShape.ToZone(model.Position, model.Facing),
+                VolumetricSight.HeightForBase(model.BaseShape));
 
         /// <summary>
         /// #384 AI-awareness helper: blockers for the models of every same-team unit OTHER than
@@ -164,14 +169,46 @@ namespace FDG.Stages
                 {
                     if (!model.GetIsAlive()) continue;
                     if (model.Position.x == 0f && model.Position.z == 0f) continue;
-                    blockers.Add(new TerrainData(ETerrainType.Blocking,
-                        model.BaseShape.ToZone(model.Position, model.Facing)));
+                    blockers.Add(ModelBlocker(model));
                 }
             }
             return blockers;
         }
 
         public static ESightLineEffect EvaluateSightLine(Position attacker, Position target,
+            IEnumerable<ITerrain>? terrain)
+            => VolumetricSight.On
+                ? EvaluateSightLine(SightEnd.Point(attacker), SightEnd.Point(target), terrain)
+                : EvaluateClassic(attacker, target, terrain);
+
+        /// <summary>
+        /// The sight line between two model volumes. Under the classic (top-down) method only the two positions
+        /// matter; under Volumetric Line of Sight (<see cref="VolumetricSight"/>) the ends' bases and heights do.
+        /// </summary>
+        public static ESightLineEffect EvaluateSightLine(SightEnd attacker, SightEnd target,
+            IEnumerable<ITerrain>? terrain)
+        {
+            ESightLineEffect classic = EvaluateClassic(attacker.Pos, target.Pos, terrain);
+            if (!VolumetricSight.On || terrain == null) return classic;
+            return VolumetricSight.Evaluate(attacker, target, terrain, classic, null, false);
+        }
+
+        /// <inheritdoc cref="EvaluateSightLine(SightEnd, SightEnd, IEnumerable{ITerrain})"/>
+        public static ESightLineEffect EvaluateSightLine(SightEnd attacker, SightEnd target,
+            IEnumerable<ITerrain>? terrain, in CoverContext coverContext, bool applyProximityExceptions)
+        {
+            ESightLineEffect classic = EvaluateClassic(attacker.Pos, target.Pos, terrain, coverContext,
+                applyProximityExceptions);
+            if (!VolumetricSight.On || terrain == null) return classic;
+            return VolumetricSight.Evaluate(attacker, target, terrain, classic, coverContext, applyProximityExceptions);
+        }
+
+        /// <summary>Whether the two model volumes see each other (Cover does not block sight).</summary>
+        public static bool HasLineOfSight(SightEnd attacker, SightEnd target, IEnumerable<ITerrain>? terrain)
+            => EvaluateSightLine(attacker, target, terrain) != ESightLineEffect.Blocking;
+
+        /// <summary>The classic top-down answer: every piece's footprint, centre to centre, at any height.</summary>
+        public static ESightLineEffect EvaluateClassic(Position attacker, Position target,
             IEnumerable<ITerrain>? terrain)
         {
             var __probe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();
@@ -212,6 +249,14 @@ namespace FDG.Stages
         /// semantics are deliberately untouched - PolarSightMap mirrors THAT function.
         /// </summary>
         public static ESightLineEffect EvaluateSightLine(Position attacker, Position target,
+            IEnumerable<ITerrain>? terrain, in CoverContext coverContext, bool applyProximityExceptions)
+            => VolumetricSight.On
+                ? EvaluateSightLine(SightEnd.Of(attacker, coverContext.ShooterBase),
+                    SightEnd.Of(target, coverContext.TargetBase), terrain, coverContext, applyProximityExceptions)
+                : EvaluateClassic(attacker, target, terrain, coverContext, applyProximityExceptions);
+
+        /// <summary>The classic top-down answer with the #201 proximity exceptions.</summary>
+        public static ESightLineEffect EvaluateClassic(Position attacker, Position target,
             IEnumerable<ITerrain>? terrain, in CoverContext coverContext, bool applyProximityExceptions)
         {
             var __probe = global::FDG.Ai.Tactician.Search.SearchTiming.Start();

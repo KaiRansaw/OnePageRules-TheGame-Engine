@@ -81,7 +81,7 @@ namespace FDG.Stages
                 foreach (IModel atkModel in attackers)
                 {
                     ESightLineEffect effect = LineOfSightUtilities.EvaluateSightLine(
-                        atkModel.Position, defPos, terrain,
+                        SightEnd.Of(atkModel), SightEnd.Of(defModel), terrain,
                         CoverContext.ForModels(atkModel, defModel), applyProximityExceptions);
                     if (effect == ESightLineEffect.Cover)
                     {

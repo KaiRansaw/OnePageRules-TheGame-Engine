@@ -32,7 +32,7 @@ namespace FDG.Ai
         /// <summary>True when any living model of <paramref name="a"/> can see any living model of <paramref name="b"/>.</summary>
         public static bool Sees(IUnit a, IUnit b, List<ITerrain> terrain) =>
             a.Models.Where(m => m.GetIsAlive()).Any(ma => b.Models.Where(m => m.GetIsAlive())
-                .Any(mb => LineOfSightUtilities.HasLineOfSight(ma.Position, mb.Position, terrain)));
+                .Any(mb => LineOfSightUtilities.HasLineOfSight(SightEnd.Of(ma), SightEnd.Of(mb), terrain)));
 
         /// <summary>The longest ranged weapon on any living model, or 0 for a melee-only unit.</summary>
         public static float MaxRange(IUnit unit) =>

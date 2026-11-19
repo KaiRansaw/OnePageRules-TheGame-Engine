@@ -107,7 +107,7 @@ namespace FDG.Ai.Solo
         {
             List<ITerrain> terrain = SightBlockers(table, shooter, target);
             return shooter.Models.Where(m => m.GetIsAlive()).Any(a => target.Models.Where(m => m.GetIsAlive())
-                .Any(d => LineOfSightUtilities.HasLineOfSight(a.Position, d.Position, terrain)));
+                .Any(d => LineOfSightUtilities.HasLineOfSight(SightEnd.Of(a), SightEnd.Of(d), terrain)));
         }
 
         private static GameSettings? Settings(ITableState table) =>

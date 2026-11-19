@@ -305,6 +305,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetFastPlaySimplifiedTerrain(bool enabled);
 
+        /// <summary>Volumetric Line of Sight - see <see cref="GameSettings.VolumetricLineOfSight"/>.</summary>
+        bool VolumetricLineOfSight { get; }
+
+        void SetVolumetricLineOfSight(bool enabled);
+
         /// <summary>Force Organisation - see <see cref="GameSettings.ForceOrg"/>.</summary>
         bool ForceOrg { get; }
 

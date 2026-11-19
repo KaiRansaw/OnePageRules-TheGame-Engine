@@ -152,7 +152,7 @@ namespace FDG.Stages
             var terrain = context.TableState.Terrain.Objects.ToList();
             var at = new Position(token.X, 0.5f, token.Z);
             return hero.Models.Any(m => m.GetIsAlive()
-                && LineOfSightUtilities.HasLineOfSight(m.Position, at, terrain));
+                && LineOfSightUtilities.HasLineOfSight(SightEnd.Of(m), SightEnd.Point(at), terrain));
         }
 
         /// <summary>Search tokens within range and in sight (or any token within 1" when <paramref name="pickUpTreasure"/>).</summary>

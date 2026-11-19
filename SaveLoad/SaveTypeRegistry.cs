@@ -50,6 +50,9 @@ namespace FDG.SaveLoad
             Add(typeof(UnitData), "unit");
             Add(typeof(ArmyData), "army");
             Add(typeof(TerrainData), "terrain");
+            // A model's base as a sight blocker (Volumetric Line of Sight) - built per sight test, never saved, but it
+            // is an IZone concrete, so it gets a stable id like the rest.
+            Add(typeof(FDG.Stages.ModelSightBlocker), "modelSightBlocker");
             Add(typeof(RectangularZone), "rectangularZone");
             // An odd-shaped deployment zone (Kai, 2026-11-02): a RectangularZone subclass, so it is
             // stored wherever a deployment zone is and needs its own stable id or a saved game with an

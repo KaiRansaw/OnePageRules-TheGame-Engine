@@ -83,7 +83,7 @@ namespace FDG.Stages
                     fromShape, fromFacing, target.BaseShape, target.Facing);
                 if (distance > maxRangeInches) continue;
                 if (distance >= bestDistance) continue;
-                if (blockers != null && !LineOfSightUtilities.HasLineOfSight(from, target.Position, blockers))
+                if (blockers != null && !LineOfSightUtilities.HasLineOfSight(SightEnd.Of(from, fromShape), SightEnd.Of(target), blockers))
                     continue;
 
                 bestDistance = distance;
@@ -125,7 +125,7 @@ namespace FDG.Stages
                 if (distance >= bestDistance) continue;
                 if (blockers != null)
                 {
-                    bool visible = sight[i] ??= LineOfSightUtilities.HasLineOfSight(from, target.Position, blockers);
+                    bool visible = sight[i] ??= LineOfSightUtilities.HasLineOfSight(SightEnd.Of(from, fromShape), SightEnd.Of(target), blockers);
                     if (!visible) continue;
                 }
 

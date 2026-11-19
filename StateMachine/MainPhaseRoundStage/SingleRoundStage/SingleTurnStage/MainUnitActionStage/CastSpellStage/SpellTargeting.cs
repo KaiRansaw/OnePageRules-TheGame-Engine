@@ -131,7 +131,7 @@ namespace FDG.Stages
                         originPos, targetPos, om.BaseShape, om.Facing, tm.BaseShape, tm.Facing);
                     if (distance > selector.RangeInches + extraRange) continue;
                     if (!selector.RequireLineOfSight) return true;
-                    if (LineOfSightUtilities.HasLineOfSight(originPos, targetPos, blockers)) return true;
+                    if (LineOfSightUtilities.HasLineOfSight(SightEnd.Of(originPos, om.BaseShape), SightEnd.Of(targetPos, tm.BaseShape), blockers)) return true;
                 }
             }
             return false;

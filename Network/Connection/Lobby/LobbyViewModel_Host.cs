@@ -97,6 +97,7 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlayShooting => _gameSettings.FastPlayShooting;
         public int? NumberOfRounds => _gameSettings.NumberOfRounds;
         public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;
+        public bool VolumetricLineOfSight => _gameSettings.VolumetricLineOfSight;
         public bool ForceOrg => _gameSettings.ForceOrg;
         public bool KingOfTheHill => _gameSettings.KingOfTheHill;
         public bool PickDangerousTerrain => _gameSettings.PickDangerousTerrain;
@@ -1555,6 +1556,12 @@ namespace FDG.Network.Connection.Lobby
         public void SetFastPlaySimplifiedTerrain(bool enabled)
         {
             _gameSettings.FastPlaySimplifiedTerrain = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetVolumetricLineOfSight(bool enabled)
+        {
+            _gameSettings.VolumetricLineOfSight = enabled;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 

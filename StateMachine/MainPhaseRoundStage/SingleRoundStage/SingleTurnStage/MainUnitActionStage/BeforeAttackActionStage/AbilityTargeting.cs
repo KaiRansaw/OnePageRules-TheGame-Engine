@@ -83,7 +83,7 @@ namespace FDG.Stages
                     }
 
                     if (selector.RequireLineOfSight && nearActing != null && nearCandidate != null
-                        && !LineOfSightUtilities.HasLineOfSight(nearActing.Position, nearCandidate.Position, terrain))
+                        && !LineOfSightUtilities.HasLineOfSight(SightEnd.Of(nearActing), SightEnd.Of(nearCandidate), terrain))
                     {
                         continue;
                     }

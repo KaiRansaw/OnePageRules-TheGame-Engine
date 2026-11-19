@@ -103,7 +103,7 @@ namespace FDG.Ai.StarQuest
             // Phantasm Grenade: enemies treat the marker as a hero - a visible one closer than any hero draws them in.
             QuestProgress? quest = table.Progress.Quest;
             var phantasms = QuestTreasure.MarkerSpots(quest, "phantasm")
-                .Where(p => unit.Models.Where(m => m.GetIsAlive()).Any(m => LineOfSightUtilities.HasLineOfSight(m.Position, p, terrain)))
+                .Where(p => unit.Models.Where(m => m.GetIsAlive()).Any(m => LineOfSightUtilities.HasLineOfSight(SightEnd.Of(m), SightEnd.Point(p), terrain)))
                 .OrderBy(p => DistanceToPoint(unit, p)).ToList();
             if (phantasms.Count > 0 && (engaged.Count == 0 || DistanceToPoint(unit, phantasms[0]) < Distance(unit, engaged[0])))
                 return new(EQuestAiMove.RushToGoal, null, phantasms[0], 0f, "drawn to a phantasm");

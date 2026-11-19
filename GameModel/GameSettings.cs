@@ -172,6 +172,15 @@ namespace FDG
         public bool FastPlaySimplifiedTerrain;
 
         /// <summary>
+        /// Volumetric Line of Sight (Advanced Rulebooks 3.6.0, Tournament Guidelines - one of the book's three line of
+        /// sight methods): every model is a cylinder as tall as its base size says, terrain pieces are as tall as their
+        /// height, and a model sees a target when any straight line between their volumes misses every obstacle and
+        /// every other unit. Off = the classic top-down method (every piece and every other unit blocks at any height).
+        /// See <see cref="Stages.VolumetricSight"/>. Off by default; old saves load with it off.
+        /// </summary>
+        public bool VolumetricLineOfSight;
+
+        /// <summary>
         /// Force Organisation (Advanced Rulebooks 3.6.0, Preparation: "Optionally you and your opponent may agree to use
         /// the force organisation rules"): hero, copy, 35%, unit-count and model/Tough caps. Off by default - the book's
         /// own default is "no limitations as to how many units you can take" (Kai, 2026-11-15: toggleable). When on, the

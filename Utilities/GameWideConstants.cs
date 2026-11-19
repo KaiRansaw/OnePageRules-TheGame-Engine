@@ -147,12 +147,17 @@ namespace FDG
         {
             (float width, float height) = TableSizing.Resolve(settings);
             ConfigureTable(settings.GameSystem, settings.FriendlyUnitsMayOverlap, width, height);
+            // Only the games with an Advanced Rulebook have the method; a remembered tick never reaches a Quest game.
+            FDG.Stages.VolumetricSight.On = settings.VolumetricLineOfSight
+                && !GameSystemInfo.IsQuest(settings.GameSystem) && !GameSystemInfo.IsQuestMode(settings.GameMode);
         }
 
         public static void ConfigureTable(EGameSystem system, bool friendlyUnitsMayOverlap = false,
             float? tableWidthInches = null, float? tableHeightInches = null)
         {
             FRIENDLY_UNITS_MAY_OVERLAP = friendlyUnitsMayOverlap;
+            // Classic line of sight unless the game's settings say otherwise (the GameSettings overload sets it after).
+            FDG.Stages.VolumetricSight.On = false;
             (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);
             if (tableWidthInches is > 0f && tableHeightInches is > 0f)
                 (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = (tableWidthInches.Value, tableHeightInches.Value);
