@@ -284,6 +284,12 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The chosen map's battle mat (a picture id, see <see cref="SaveLoad.TerrainLayoutFile.Mat"/>), or null. Cosmetic.</summary>
         string? MapMat { get; }
 
+        /// <summary>The chosen map's horizon theme (a <see cref="FDG.TerrainBook.ETheme"/> name), or null. Cosmetic.</summary>
+        string? MapHorizon => null;
+
+        /// <summary>The chosen map's weather ("rain", "snow"...), or null. Cosmetic.</summary>
+        string? MapWeather => null;
+
         /// <summary>Picks a table size (host only). Null = automatic, by army points.</summary>
         void SetTableSize((float W, float H)? size);
 

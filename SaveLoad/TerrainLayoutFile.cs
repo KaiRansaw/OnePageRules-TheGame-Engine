@@ -41,6 +41,19 @@ namespace FDG.SaveLoad
         /// </summary>
         public string Mat { get; set; } = string.Empty;
 
+        /// <summary>
+        /// What lies beyond the table when it is played as a battlefield (Kai, 2026-11-18: "look off into the distance
+        /// and the landscape never ends"): one of the generator themes ("Generic", "Hospitable", "Wasteland", "Death"),
+        /// or empty to follow <see cref="GeneratedFrom"/> (then Generic). Cosmetic - the playable table is unchanged.
+        /// </summary>
+        public string Horizon { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The map's weather (Kai, 2026-11-18): "", "rain", "heavy-rain", "storm", "snow", "blizzard", "fog", "ash",
+        /// "dust". Cosmetic - drawn over the table, no rules (a player can switch weather effects off in Settings).
+        /// </summary>
+        public string Weather { get; set; } = string.Empty;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
 
         /// <summary>

@@ -1575,6 +1575,8 @@ namespace FDG.Network.Connection.Lobby
                 ? (_gameSettings.MapTableWidthInches!.Value, _gameSettings.MapTableHeightInches!.Value) : null;
 
         public string? MapMat => string.IsNullOrEmpty(_gameSettings.MapMat) ? null : _gameSettings.MapMat;
+        public string? MapHorizon => string.IsNullOrEmpty(_gameSettings.MapHorizon) ? null : _gameSettings.MapHorizon;
+        public string? MapWeather => string.IsNullOrEmpty(_gameSettings.MapWeather) ? null : _gameSettings.MapWeather;
 
         public void SetTableSize((float W, float H)? size)
         {
@@ -1593,10 +1595,18 @@ namespace FDG.Network.Connection.Lobby
             _gameSettings.MapTableWidthInches = null;
             _gameSettings.MapTableHeightInches = null;
             _gameSettings.MapMat = null;
+            _gameSettings.MapHorizon = null;
+            _gameSettings.MapWeather = null;
             if (string.IsNullOrWhiteSpace(_gameSettings.TerrainLayoutPath)) return;
             SaveLoad.TerrainLayoutFile? layout =
                 SaveLoad.TerrainLayoutLoader.TryLoadFromFile(_gameSettings.TerrainLayoutPath, out _);
             if (layout != null && !string.IsNullOrEmpty(layout.Mat)) _gameSettings.MapMat = layout.Mat;
+            if (layout != null)
+            {
+                string horizon = !string.IsNullOrEmpty(layout.Horizon) ? layout.Horizon : layout.GeneratedFrom;
+                if (!string.IsNullOrEmpty(horizon)) _gameSettings.MapHorizon = horizon;
+                if (!string.IsNullOrEmpty(layout.Weather)) _gameSettings.MapWeather = layout.Weather;
+            }
             if (layout is not { TableWidthInches: > 0f, TableHeightInches: > 0f }) return;
             _gameSettings.MapTableWidthInches = layout.TableWidthInches;
             _gameSettings.MapTableHeightInches = layout.TableHeightInches;

@@ -148,6 +148,11 @@ namespace FDG
         /// </summary>
         public string? MapMat;
 
+        /// <summary>The chosen map's horizon theme and weather (<see cref="SaveLoad.TerrainLayoutFile.Horizon"/>,
+        /// <see cref="SaveLoad.TerrainLayoutFile.Weather"/>), copied like the mat. Null = none chosen. Cosmetic.</summary>
+        public string? MapHorizon;
+        public string? MapWeather;
+
         /// <summary>
         /// How many rounds a standard game lasts, when not the books' 4. Null = 4. Horde and the Quest games
         /// keep their own lengths. A house rule when set (see claude/house-rules.md).
