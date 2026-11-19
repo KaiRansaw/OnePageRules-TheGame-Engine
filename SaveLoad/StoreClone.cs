@@ -35,6 +35,7 @@ namespace FDG.SaveLoad
         public static GameDataStore Clone(GameDataStore source)
         {
             GameDataStore target = GameDataStore.CreateFromTypeMap(source.GetTypeMapWithCapacities());
+            GameProgressUtilities.CarryGameSettings(source, target);
 
             List<ReferenceJsonValuePair>? fallback = null;
             IReadOnlyList<Type> types = source.RegisteredTypes;

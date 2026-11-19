@@ -195,6 +195,8 @@ namespace FDG.GameModel
         {
             // Star Quest plays on a 4' x 4' table; everything else on 6' x 4'.
             GameWideConstants.ConfigureTable(gameSettings);
+            // Which game this is, known to everything that reads the store from now on - set-up and deployment included.
+            GameProgressUtilities.SetGameSettings(_gameDataStore, gameSettings);
 
             LogAndChatMessageRelayer chatMessageRelayer = new LogAndChatMessageRelayer(_playerSlotManager);
 

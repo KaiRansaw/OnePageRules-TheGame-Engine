@@ -105,16 +105,17 @@ namespace FDG
 
         public GameProgress(IReadableGameDataStore store) => _store = store;
 
-        public int TotalRounds => GameProgressUtilities.TryGetProgress(_store)?.Settings is { } settings
+        // The three "which game is this?" answers come from the game's settings, which are known from the moment the
+        // game is built (GameProgressUtilities.SettingsOf) - not only from the progress record, which starts at round 1.
+        public int TotalRounds => GameProgressUtilities.SettingsOf(_store) is { } settings
             ? StateMachine.HordeRules.RoundLimit(settings)
             : StateMachine.HordeRules.RoundLimit(EGameMode.Standard);
 
         public int? RoundCount => GameProgressUtilities.TryGetProgress(_store)?.RoundCount;
 
-        public EGameMode GameMode => GameProgressUtilities.TryGetProgress(_store)?.Settings.GameMode ?? EGameMode.Standard;
+        public EGameMode GameMode => GameProgressUtilities.SettingsOf(_store)?.GameMode ?? EGameMode.Standard;
 
-        public EGameSystem GameSystem =>
-            GameProgressUtilities.TryGetProgress(_store)?.Settings.GameSystem ?? EGameSystem.GrimdarkFuture;
+        public EGameSystem GameSystem => GameProgressUtilities.SettingsOf(_store)?.GameSystem ?? EGameSystem.GrimdarkFuture;
 
         public int? HordePointsEarned => GameMode == EGameMode.Horde
             ? GameProgressUtilities.TryGetProgress(_store)?.Horde?.PointsEarned ?? 0

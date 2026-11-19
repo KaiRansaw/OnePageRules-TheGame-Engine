@@ -117,6 +117,37 @@ namespace FDG
         /// <summary>#429 - deployment zones written during deployment, waiting for the first progress record.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, ZoneRect>> PendingZones = new();
 
+        /// <summary>
+        /// The settings the game in a store was built with, noted when the host builds it. The progress record carries
+        /// the settings too, but it does not exist until round 1 - so all through objective placement and deployment
+        /// "which game is this?" had no answer, and <see cref="GameProgress"/> said Grimdark Future / Standard / 4 rounds
+        /// whatever was being played (Kai's bug hunt, 2026-11-19: the official bot deployed an Age of Fantasy: Skirmish
+        /// army over 3 sections of its table edge, where that game's Solo & Co-Op book says 2).
+        /// </summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, System.Runtime.CompilerServices.StrongBox<GameSettings>> BuiltWith = new();
+
+        /// <summary>Notes the settings a game is being built with, for the time before its first progress record.</summary>
+        public static void SetGameSettings(IReadableGameDataStore store, GameSettings settings)
+        {
+            BuiltWith.Remove(store);
+            BuiltWith.Add(store, new System.Runtime.CompilerServices.StrongBox<GameSettings>(settings));
+        }
+
+        /// <summary>
+        /// The settings of the game in <paramref name="store"/>: the progress record's once the main phase has begun
+        /// (a loaded game's are there), before that the ones the game was built with. Null for a store no game was built
+        /// on (a bare test store).
+        /// </summary>
+        public static GameSettings? SettingsOf(IReadableGameDataStore store) =>
+            TryGetProgress(store)?.Settings
+            ?? (BuiltWith.TryGetValue(store, out System.Runtime.CompilerServices.StrongBox<GameSettings>? built) ? built.Value : (GameSettings?)null);
+
+        /// <summary>A copy of a store (a bot's look-ahead) is the same game: it carries the built-with settings over.</summary>
+        public static void CarryGameSettings(IReadableGameDataStore from, IReadableGameDataStore to)
+        {
+            if (BuiltWith.TryGetValue(from, out System.Runtime.CompilerServices.StrongBox<GameSettings>? built)) SetGameSettings(to, built.Value);
+        }
+
         /// <summary>#434 - the underdog pool written at mission setup, waiting for the first progress record.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, Dictionary<int, int>> PendingUnderdog = new();
 
