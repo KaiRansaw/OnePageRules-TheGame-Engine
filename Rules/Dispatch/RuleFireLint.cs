@@ -906,8 +906,9 @@ public static class RuleFireLint
         public UnitData Bearer { get; private init; } = null!;
         public UnitData Other { get; private init; } = null!;
 
-        /// <summary> An opposing unit whose models are all Tough(9), for targetMajorityHasTough
-        /// conditions (#377) — 9 satisfies every gate the corpus uses (3 and 9). </summary>
+        /// <summary> An opposing unit whose models are all Tough(27), for targetMajorityHasTough
+        /// conditions (#377) — 27 satisfies every gate the corpus uses (3, 9, and since #468 the Quest
+        /// games' 27). </summary>
         public UnitData ToughOther { get; private init; } = null!;
 
         /// <summary> #412: an opposing unit carrying both a Shaken and a Fatigued token, for
@@ -950,7 +951,7 @@ public static class RuleFireLint
             UnitData toughOther = BuildUnit(store, "Lint tough opponent", carriedWeapon: null);
             foreach (var model in toughOther.Models)
             {
-                model.SetMaxWounds(9);
+                model.SetMaxWounds(27);
             }
 
             // #412: a defender already Shaken AND Fatigued, so both arms of the "against Shaken or

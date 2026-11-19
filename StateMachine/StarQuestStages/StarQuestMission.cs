@@ -832,6 +832,7 @@ namespace FDG.Stages
                 new TextColor(255, 120, 80, 255), EBannerTier.Headline);
             context.Log($"Star Quest Mission: reinforcements {q.Reinforcements} ({wave.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", wave.Select(u => u.Name))}.");
             await HordePlacement.PlaceWaveAtCorners(context, wave, $"reinforcements {q.Reinforcements}", StarQuestMissionRules.EnemyRadii);
+            QuestWaveMarkers.Clear(context);
             await QuestChallenges.AdvanceTimeAndWeather(context);
             await QuestChallenges.RollRandomEvent(context);
         }

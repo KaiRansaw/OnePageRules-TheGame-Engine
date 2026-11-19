@@ -176,6 +176,7 @@ namespace FDG.StateMachine
             bool boss = (wave == 4 || wave == 7 || wave == 10)
                 && await QuestChallenges.OfferBossFight(_gameContext, $"Wave {wave}:");
             List<UnitData> deployed = await DeployWave(wave, boss ? 2 : 1);
+            if (wave > 1) QuestWaveMarkers.Clear(_gameContext);
             if (boss) QuestChallenges.StartBossWave(_gameContext, deployed);
             await QuestChallenges.RollRandomEvent(_gameContext);
         }
