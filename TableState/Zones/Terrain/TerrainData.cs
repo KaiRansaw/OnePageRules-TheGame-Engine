@@ -51,11 +51,15 @@ namespace FDG
         /// <summary>The look the map picked for this piece, or empty for the game's own pick. Cosmetic.</summary>
         public string Look { get; }
 
+        /// <summary>Where the piece's 3D model is drawn, when the rules play on a smaller part of it (a Warhammer model's
+        /// solid parts, <see cref="SaveLoad.TerrainPieceEntry.Solid"/>). Null = <see cref="Shape"/>. Cosmetic.</summary>
+        public IZone? DrawShape { get; }
+
         //name is optional and last so pre-existing positional call sites (and saves/wire payloads
         //written before the field existed) keep working unchanged.
         [JsonConstructor]
         public TerrainData(ETerrainType terrainType, IZone shape, float heightInches, string? name = null,
-            string? kind = null, string? look = null)
+            string? kind = null, string? look = null, IZone? drawShape = null)
         {
             if (shape == null)
             {
@@ -68,6 +72,7 @@ namespace FDG
             Name = name ?? string.Empty;
             Kind = kind ?? string.Empty;
             Look = look ?? string.Empty;
+            DrawShape = drawShape;
         }
 
         public TerrainData(ETerrainType terrainType, IZone shape) : this(terrainType, shape, 0f) { }

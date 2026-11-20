@@ -110,8 +110,11 @@ namespace FDG.Stages
             {
                 if (entry.Shape == null) continue;
                 if (!FitsTable(entry.Shape)) continue;
+                // A model's solid parts play the rules; the whole footprint is only where it is drawn (2026-11-19).
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches), entry.Shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look));
+                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches),
+                        entry.Solid ?? entry.Shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look,
+                        drawShape: entry.Solid != null ? entry.Shape : null));
             }
         }
 

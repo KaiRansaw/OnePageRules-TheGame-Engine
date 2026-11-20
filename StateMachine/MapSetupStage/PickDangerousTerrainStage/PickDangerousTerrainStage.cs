@@ -110,7 +110,7 @@ namespace FDG.Stages
                 TerrainData old = chosen.GetValue();
                 context.GameContext.GameDataStore.Destroy(chosen.Reference);
                 context.GameContext.GameDataStore.Create(new TerrainData(old.TerrainType | ETerrainType.Dangerous,
-                    old.Shape, old.HeightInches, old.Name, old.Kind, old.Look));
+                    old.Shape, old.HeightInches, old.Name, old.Kind, old.Look, old.DrawShape));
 
                 string pieceName = string.IsNullOrWhiteSpace(old.Name) ? "a piece of terrain" : old.Name;
                 context.Log($"{context.GetPlayerName(picker)} makes {pieceName} Dangerous.");

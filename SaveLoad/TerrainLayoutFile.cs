@@ -212,5 +212,14 @@ namespace FDG.SaveLoad
         /// accident. Editor-only: the game ignores it. False on every map made before it.
         /// </summary>
         public bool Locked { get; set; }
+
+        /// <summary>
+        /// Map Maker (Kai, 2026-11-19: "JUST the L shaped building should be impassable") - for a piece drawn as a
+        /// 3D model, the parts of the footprint the model actually stands on, worked out from the model's shape when the
+        /// map is saved. When set, the game plays the piece's rules on THIS shape and <see cref="Shape"/> is only where
+        /// the model is drawn. Null = the whole footprint plays (every map made before it, and plain pieces).
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public IZone? Solid { get; set; }
     }
 }
