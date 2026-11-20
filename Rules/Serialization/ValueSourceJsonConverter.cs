@@ -83,6 +83,9 @@ public sealed class ValueSourceJsonConverter : JsonConverter<ValueSource>
             case RuleCarrierCountKind:
                 return new ValueSource.RuleCarrierCount();
 
+            case StartingRuleCarrierCountKind:
+                return new ValueSource.StartingRuleCarrierCount();
+
             case NegateKind:
             {
                 if (!element.TryGetProperty("inner", out JsonElement inner))
@@ -126,6 +129,9 @@ public sealed class ValueSourceJsonConverter : JsonConverter<ValueSource>
             case ValueSource.RuleCarrierCount:
                 writer.WriteString("kind", RuleCarrierCountKind);
                 break;
+            case ValueSource.StartingRuleCarrierCount:
+                writer.WriteString("kind", StartingRuleCarrierCountKind);
+                break;
             case ValueSource.Negate negate:
                 writer.WriteString("kind", NegateKind);
                 writer.WritePropertyName("inner");
@@ -146,10 +152,11 @@ public sealed class ValueSourceJsonConverter : JsonConverter<ValueSource>
     public const string ArgKind = "arg";
     public const string RuleCarrierCountKind = "ruleCarrierCount";
     public const string NegateKind = "negate";
+    public const string StartingRuleCarrierCountKind = "startingRuleCarrierCount";
 
     /// <summary> The kinds this converter handles, for the drift guard. </summary>
     public static IReadOnlyCollection<string> HandledKinds { get; } =
-        new[] { LiteralKind, ArgKind, RuleCarrierCountKind, NegateKind };
+        new[] { LiteralKind, ArgKind, RuleCarrierCountKind, NegateKind, StartingRuleCarrierCountKind };
 
     /// <summary>
     /// The ValueSource subtypes that actually exist, for the drift guard - read off the type rather than

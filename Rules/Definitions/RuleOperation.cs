@@ -976,7 +976,8 @@ public abstract record RuleOperation
     /// own. Resolution of <see cref="Effect.EnableBuffRelay"/> (#197 Extended Buff Range). Read by
     /// <c>AbilityTargeting</c>.
     /// </summary>
-    public sealed record EnableBuffRelay(float RangeInches) : CapabilityOperation;
+    public sealed record EnableBuffRelay(float RangeInches, float TargetWithinInches = 0f,
+        float HeroWithinInches = 0f, bool OncePerGame = false) : CapabilityOperation;
 
     /// <summary>
     /// The bearer must attack when able, and its attack must go to the closest valid target. Resolution of

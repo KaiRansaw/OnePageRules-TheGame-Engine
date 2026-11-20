@@ -202,6 +202,116 @@ namespace FDG.Tests
                 "the buff reached a unit 20\" away through the 10\"-away radio");
         }
 
+        // --- #468: the 3.6.0 wording -------------------------------------------------------------------
+        // "If this unit is within 24\" of another friendly unit with this rule that has a Hero in it [GF/AoF] /
+        // that is within 6\" of a friendly Hero [GFF/AoFS/Quest], then that Hero may use special rules that allow
+        // it to pick friendly units within 12\" (except for spells) on this unit as if it was in range."
+
+        private static SpecialRuleDefinition Rule360(float heroWithin = 0f, bool oncePerGame = false) =>
+            new("Extended Buff Range",
+                new[]
+                {
+                    new HookEntry(EHookID.Lifecycle_OnCapabilityQuery, new Condition.Always(),
+                        new Effect.EnableBuffRelay(12f, 24f, heroWithin, oncePerGame), ELifetime.UntilEndOfGame),
+                },
+                Array.Empty<ActivatedAbility>());
+
+        private static void MakeHero(DataBinding<UnitData> unit) =>
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule("Hero", CoreRuleCatalog.Hero));
+
+        private static void Give(DataBinding<UnitData> unit, SpecialRuleDefinition rule) =>
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule(rule.Name, rule));
+
+        [Test]
+        public void Gf_AHeroInAUnitWithTheRule_ReachesAnotherUnitWithTheRuleWithin24()
+        {
+            DataBinding<UnitData> heroUnit = MakeUnitAt(new Position(0f, 0f), Rule360());
+            MakeHero(heroUnit);
+            DataBinding<UnitData> farWithRule = MakeUnitAt(new Position(20f, 0f), Rule360());
+            DataBinding<UnitData> farWithout = MakeUnitAt(new Position(20f, 3f), null);
+            DataBinding<UnitData> tooFar = MakeUnitAt(new Position(30f, 0f), Rule360());
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+
+            List<DataBinding<UnitData>> eligible = AbilityTargeting.EligibleTargets(heroUnit, FriendPick(), ctx);
+
+            Assert.That(eligible, Does.Contain(farWithRule), "20\" away, both units have the rule, the Hero is in one");
+            Assert.That(eligible, Does.Not.Contain(farWithout), "the far unit must have the rule too");
+            Assert.That(eligible, Does.Not.Contain(tooFar), "30\" is beyond the 24\"");
+        }
+
+        [Test]
+        public void Gf_WithoutAHeroInTheUnit_NothingIsRelayed()
+        {
+            DataBinding<UnitData> plain = MakeUnitAt(new Position(0f, 0f), Rule360());
+            DataBinding<UnitData> far = MakeUnitAt(new Position(20f, 0f), Rule360());
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+
+            Assert.That(AbilityTargeting.EligibleTargets(plain, FriendPick(), ctx), Does.Not.Contain(far));
+        }
+
+        [Test]
+        public void Gff_AHeroWithin6OfAUnitWithTheRule_ReachesAnotherWithin24OfThatUnit()
+        {
+            DataBinding<UnitData> hero = MakeUnitAt(new Position(0f, 0f), null);
+            MakeHero(hero);
+            MakeUnitAt(new Position(5f, 0f), Rule360(heroWithin: 6f));
+            DataBinding<UnitData> far = MakeUnitAt(new Position(27f, 0f), Rule360(heroWithin: 6f));
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+
+            Assert.That(AbilityTargeting.EligibleTargets(hero, FriendPick(), ctx), Does.Contain(far),
+                "hero 5\" from the radio, the far unit 22\" from the radio");
+        }
+
+        [Test]
+        public void Gff_AHeroOver6FromTheUnitWithTheRule_IsNotRelayed()
+        {
+            DataBinding<UnitData> hero = MakeUnitAt(new Position(0f, 0f), null);
+            MakeHero(hero);
+            MakeUnitAt(new Position(8f, 0f), Rule360(heroWithin: 6f));
+            DataBinding<UnitData> far = MakeUnitAt(new Position(27f, 0f), Rule360(heroWithin: 6f));
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+
+            Assert.That(AbilityTargeting.EligibleTargets(hero, FriendPick(), ctx), Does.Not.Contain(far),
+                "8\" is beyond the 6\" the Hero must be within");
+        }
+
+        [Test]
+        public void ANonHeroUser_IsNeverRelayed_In360()
+        {
+            DataBinding<UnitData> user = MakeUnitAt(new Position(0f, 0f), null);
+            MakeUnitAt(new Position(5f, 0f), Rule360(heroWithin: 6f));
+            DataBinding<UnitData> far = MakeUnitAt(new Position(27f, 0f), Rule360(heroWithin: 6f));
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+
+            Assert.That(AbilityTargeting.EligibleTargets(user, FriendPick(), ctx), Does.Not.Contain(far),
+                "\"then that Hero may use\" - only a Hero's picks reach");
+        }
+
+        [Test]
+        public async Task Quest_OncePerGame_IsSpentByARelayedPick()
+        {
+            (SpecialRuleDefinition buffDef, TokenType marker) = MakeFriendBuffRule();
+            DataBinding<UnitData> hero = MakeUnitAt(new Position(0f, 0f), buffDef);
+            MakeHero(hero);
+            DataBinding<UnitData> radio = MakeUnitAt(new Position(5f, 0f), Rule360(6f, oncePerGame: true));
+            DataBinding<UnitData> far = MakeUnitAt(new Position(27f, 0f), Rule360(6f, oncePerGame: true));
+
+            var ctx = new TriggeredMoveTestContext(_store, new OfferedTargetRequester(far));
+            UnitActionContext unitCtx = new UnitActionContext(ctx, hero);
+            unitCtx.Reset(hero);
+            AbilityOffer offer = ctx.RuleEvaluator.GatherOffers(
+                new Rules.Dispatch.Contexts.BeforeAttackActionContext(hero.GetValue()))[0];
+            unitCtx.SetPendingCustomAction(offer);
+            var stage = new BeforeAttackActionStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+            await stage.Enter(unitCtx);
+
+            Assert.That(far.GetValue().Tokens.HasToken(marker), Is.True, "the first relayed pick lands");
+            Assert.That(radio.GetValue().Tokens.HasToken(AbilityTargeting.BuffRelayUsed), Is.True);
+            Assert.That(AbilityTargeting.EligibleTargets(hero, FriendPick(), ctx), Does.Not.Contain(far),
+                "\"Only one use per game.\" - the relay is spent");
+        }
+
         // --- helpers ----------------------------------------------------------------------------------
 
         // A Friend-targeted before-attack ability: pick one friendly unit within 12\" and grant a marker -

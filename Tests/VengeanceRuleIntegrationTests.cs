@@ -178,6 +178,49 @@ namespace FDG.Tests
                 "a living-carrier count is a guaranteed no-op at the destruction hook");
         }
 
+        // #468, the 3.6.0 wording: "as many Vengeance tokens ... as models with this rule in this unit at the
+        // beginning of the game". The item folds onto the UNIT, so the count comes from the army file's record.
+        private static SpecialRuleDefinition StartingCountVengeance() => new("Vengeance",
+            new[]
+            {
+                new HookEntry(EHookID.Shooting_OnUnitDestroyed, new Condition.Always(),
+                    new Effect.GrantTokenToKiller(TokenType.PersistentHitBonus, new ValueSource.StartingRuleCarrierCount(),
+                        new TokenClearTrigger.ManualOnly()),
+                    ELifetime.UntilEndOfGame, ERuleSeat.Subject),
+            },
+            Array.Empty<ActivatedAbility>());
+
+        [Test]
+        public async Task TwoModelsBoughtIt_TheKillerGetsTwoTokens()
+        {
+            _resolver = CoreRuleCatalog.CreateResolver();
+            _resolver.Register(StartingCountVengeance());
+            IUnit victim = MakeVengefulUnit("Warriors (Combined)", definition: StartingCountVengeance());
+            ((UnitData)victim).StartingRuleCarriers = new Dictionary<string, int> { ["Vengeance"] = 2 };
+            (_, IUnit slayer) = MakeUnits();
+            KillEveryModel(victim);
+
+            await UnitDestructionNotifier.NotifyUnitDestroyed(Ctx(), victim, slayer);
+
+            Assert.That(slayer.Tokens.GetTokenCount(TokenType.PersistentHitBonus), Is.EqualTo(2),
+                "a combined unit that bought Vengeance on both halves had two models with the rule");
+        }
+
+        [Test]
+        public async Task NoRecord_IsOneToken_NotTheUnitsModelCount()
+        {
+            _resolver = CoreRuleCatalog.CreateResolver();
+            _resolver.Register(StartingCountVengeance());
+            IUnit victim = MakeVengefulUnit("Warriors", definition: StartingCountVengeance());
+            (_, IUnit slayer) = MakeUnits();
+            KillEveryModel(victim);
+
+            await UnitDestructionNotifier.NotifyUnitDestroyed(Ctx(), victim, slayer);
+
+            Assert.That(slayer.Tokens.GetTokenCount(TokenType.PersistentHitBonus), Is.EqualTo(1),
+                "an older army file (no record) keeps the one token every book's one upgraded model gives");
+        }
+
         private TriggeredMoveTestContext Ctx() =>
             new(_store, new NoRequester(), ruleResolver: _resolver);
 
@@ -204,7 +247,7 @@ namespace FDG.Tests
             return (victim, slayer);
         }
 
-        private IUnit MakeVengefulUnit(string name, bool attachVengeance = true)
+        private IUnit MakeVengefulUnit(string name, bool attachVengeance = true, SpecialRuleDefinition? definition = null)
         {
             // Five models, matching the corpus unit the rule is bought on - so a count that reads the
             // unit's models instead of the item cannot pass by coincidence.
@@ -219,7 +262,7 @@ namespace FDG.Tests
             if (attachVengeance)
             {
                 // Attached at unit scope, which is where ListCompiler folds an item's rules.
-                unit.AttachRuleDefinition(new ResolvedRule("Vengeance", VengeanceDefinition(),
+                unit.AttachRuleDefinition(new ResolvedRule("Vengeance", definition ?? VengeanceDefinition(),
                     Array.Empty<RuleArgument>()));
             }
 

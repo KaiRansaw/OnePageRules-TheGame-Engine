@@ -40,6 +40,15 @@ namespace FDG.SaveLoad
         [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public List<string?>? ModelPaints { get; set; }
 
+        /// <summary>#468: how many of this unit's models carry each rule an ITEM folded onto the unit, by rule
+        /// name, when the list was compiled ("Upgrade one model with: Honor-Bound (Vengeance)" = Vengeance 1; a
+        /// combined unit that bought it on both halves = 2). Item rules land on the unit, not on the model that
+        /// bought them, so without this the game can't answer "models with this rule in this unit at the
+        /// beginning of the game". Null on hand-written and older army files.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public Dictionary<string, int>? RuleCarriers { get; set; }
+
         /// <summary>
         /// The base footprint shared by all this unit's models (#149). Defaults to a 28mm circle, so a
         /// pre-#149 army file (no <c>base</c> property) is unchanged.

@@ -87,6 +87,12 @@ namespace FDG
         /// <summary>Star Quest: once-per-game class features already used this mission.</summary>
         public List<string> QuestFeatsUsed { get; set; } = new();
 
+        /// <summary>#468: from <see cref="SaveLoad.UnitFileEntry.RuleCarriers"/> - how many models carried each
+        /// item-granted rule when the game began (Vengeance's "as many tokens as models with this rule in this unit
+        /// at the beginning of the game"). Null when the army file did not record it.</summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public Dictionary<string, int>? StartingRuleCarriers { get; set; }
+
         // #029/#150: an Aircraft's fixed flight heading is no longer a unit field — it lives on the models'
         // per-model IModel.Facing (set once toward the table centre, never turned), read back via
         // ForcedAircraftMove.EnsureHeading and gated by the AircraftHeadingSet token.
@@ -210,6 +216,7 @@ namespace FDG
             QuestPower = source.QuestPower;
             QuestStatBonus = source.QuestStatBonus;
             QuestFeatsUsed = source.QuestFeatsUsed.ToList();
+            StartingRuleCarriers = source.StartingRuleCarriers;
             _ruleDefinitions.AddRange(source._ruleDefinitions);
             _ruleDefinitionsJson = source._ruleDefinitionsJson;
             _heroAttachment = source._heroAttachment?.Clone();
@@ -247,6 +254,8 @@ namespace FDG
             PointCost = unitFileEntry.PointCost;
             QuestHeroJson = unitFileEntry.QuestHeroJson;
             StrikeUnitJson = unitFileEntry.StrikeUnitJson;
+            StartingRuleCarriers = unitFileEntry.RuleCarriers is { Count: > 0 } carriers
+                ? new Dictionary<string, int>(carriers) : null;
 
             ModelBindings = new List<DataBinding<ModelData>>(unitFileEntry.ModelCount);
 

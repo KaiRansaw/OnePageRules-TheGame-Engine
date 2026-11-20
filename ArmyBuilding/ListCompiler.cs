@@ -159,6 +159,12 @@ namespace FDG.ArmyBuilding
                 if (host.ModelPaints != null || absorbed.ModelPaints != null)
                     host.ModelPaints = Pad(host.ModelPaints, host.ModelCount).Concat(Pad(absorbed.ModelPaints, absorbed.ModelCount)).ToList();
                 host.ModelCount += absorbed.ModelCount;
+                if (absorbed.RuleCarriers != null)
+                {
+                    host.RuleCarriers ??= new Dictionary<string, int>();
+                    foreach ((string rule, int n) in absorbed.RuleCarriers)
+                        host.RuleCarriers[rule] = host.RuleCarriers.GetValueOrDefault(rule) + n;
+                }
                 host.PointCost += absorbed.PointCost;
                 foreach (WeaponFileEntry weapon in absorbed.Weapons)
                     AddWeapon(host.Weapons, weapon, applications: 1);
@@ -337,7 +343,12 @@ namespace FDG.ArmyBuilding
             foreach (ItemEntry item in items)
                 foreach (SpecialRuleEntry rule in item.Rules)
                     if (!placedOnWeapons.Contains((item.Name, rule)))
+                    {
                         AddGrantedRule(unit.SpecialRules, rule);
+                        unit.RuleCarriers ??= new Dictionary<string, int>();
+                        string carried = RuleLookupName(rule);
+                        unit.RuleCarriers[carried] = unit.RuleCarriers.GetValueOrDefault(carried) + Math.Max(1, item.Quantity);
+                    }
 
             // #239: bake effect-set keys. An explicit book key survives the clone; anything still
             // unset gets its keyword/override match, so cross-faction tech (plasma, fusion...) beats

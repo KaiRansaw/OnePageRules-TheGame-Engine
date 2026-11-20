@@ -190,6 +190,23 @@ namespace FDG.Stages
             return dictionary;
         }
 
+        // #468: the Quest books' Extended Buff Range is "Only one use per game." - a pick that reached its target
+        // only through such a relay spends it (a token on the relay unit, which the targeting then skips).
+        private void SpendOncePerGameRelay(IUnitActionContext context, TargetSelector selector,
+            DataBinding<UnitData> picked)
+        {
+            IUnit? relay = AbilityTargeting.HeroRelayUsedFor(context.ActivatingUnit, selector, picked.GetValue(), GameContext);
+            if (relay == null) return;
+            bool oncePerGame = FDG.Rules.Dispatch.CapabilityRuleQueries.BuffRelayOffers(relay, GameContext.RuleEvaluator)
+                .Any(o => o.OncePerGame && o.TargetWithinInches > 0f);
+            if (oncePerGame && !relay.Tokens.HasToken(AbilityTargeting.BuffRelayUsed))
+            {
+                relay.Tokens.AddToken(new FDG.Rules.Tokens.Token(AbilityTargeting.BuffRelayUsed, 1,
+                    new FDG.Rules.Foundation.TokenClearTrigger.ManualOnly()));
+                GameContext.Log($"{relay.Name}'s Extended Buff Range is used (once per game).");
+            }
+        }
+
         /// <summary>
         /// Resolves the ability's <see cref="TargetSelector"/> into the chosen target unit(s): the bearer
         /// for Self; otherwise the player picks between MinCount and MaxCount eligible units one at a time
@@ -233,6 +250,7 @@ namespace FDG.Stages
                 DataBinding<UnitData> picked = ((Selected<DataBinding<UnitData>>)result).Value;
                 chosen.Add(picked);
                 remaining.Remove(picked);
+                SpendOncePerGameRelay(context, selector, picked);
             }
 
             return chosen.Count >= selector.MinCount ? chosen : null;

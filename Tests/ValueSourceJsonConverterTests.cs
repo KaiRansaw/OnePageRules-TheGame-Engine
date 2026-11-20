@@ -74,6 +74,7 @@ namespace FDG.Tests
             yield return new ValueSource.Arg(0);
             yield return new ValueSource.Arg(2);
             yield return new ValueSource.RuleCarrierCount();
+            yield return new ValueSource.StartingRuleCarrierCount();
             yield return new ValueSource.Negate(new ValueSource.Arg(1));
             yield return new ValueSource.Negate(new ValueSource.Negate(new ValueSource.Literal(3)));
         }

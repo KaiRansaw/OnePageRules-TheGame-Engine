@@ -1379,12 +1379,22 @@ public abstract record Effect
     /// <para>Authored at <see cref="EHookID.Lifecycle_OnCapabilityQuery"/> like every other capability, so a
     /// wording gate (Conduit's "isn't Shaken") would be a plain <see cref="Condition"/> on the entry - the
     /// corpus rule carries none.</para>
+    ///
+    /// <para>#468, the 3.6.0 wording: "If this unit is within 24\" of another friendly unit with this rule that
+    /// has a Hero in it [GF / AoF] / that is within 6\" of a friendly Hero [Firefight, Skirmish, both Quest
+    /// games], then that Hero may use special rules that allow it to pick friendly units within 12\" (except for
+    /// spells) on this unit as if it was in range." Authored with <see cref="TargetWithinInches"/> (24) set, the
+    /// relay is the OTHER unit with the rule and the far unit must carry the rule too; <see cref="HeroWithinInches"/>
+    /// 0 = the Hero is in the relay unit, else the Hero is within that many inches of it. <see cref="OncePerGame"/>:
+    /// the Quest books' "Only one use per game." With <see cref="TargetWithinInches"/> 0 the old reading stands
+    /// (saved games written before the change still load and play as they did).</para>
     /// </summary>
-    public sealed record EnableBuffRelay(float RangeInches) : Effect
+    public sealed record EnableBuffRelay(float RangeInches, float TargetWithinInches = 0f,
+        float HeroWithinInches = 0f, bool OncePerGame = false) : Effect
     {
         public override void Apply(RuleInvocation ruleInvocation, List<RuleOperation> operations)
         {
-            operations.Add(new RuleOperation.EnableBuffRelay(RangeInches));
+            operations.Add(new RuleOperation.EnableBuffRelay(RangeInches, TargetWithinInches, HeroWithinInches, OncePerGame));
         }
     }
 

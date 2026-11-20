@@ -108,4 +108,34 @@ public abstract record ValueSource
                 && (unitWide || model.RuleDefinitions.Any(rule => rule.Definition == definition)));
         }
     }
+
+    /// <summary>
+    /// #468: how many models of the bearer's unit carried the firing rule AT THE BEGINNING OF THE GAME, dead or
+    /// alive - Vengeance's "as many Vengeance tokens ... as models with this rule in this unit at the beginning of
+    /// the game" (GF / GFF / AoF / AoFS 3.6.0), read at the moment the unit is destroyed, when no model is left.
+    ///
+    /// <para>In order: the army file's record of an item-granted rule (<see cref="UnitData.StartingRuleCarriers"/>:
+    /// "Upgrade one model with: Honor-Bound (Vengeance)" is one model even though the rule sits on the unit; a
+    /// combined unit that bought it on both halves is two); else the models that hold the rule themselves, dead
+    /// or alive; else - a unit-held rule nothing recorded, i.e. a hand-written or pre-2.93 army file - one, which
+    /// is what every book's only source of Vengeance (one upgraded model) gives and what those files always did.</para>
+    /// </summary>
+    public sealed record StartingRuleCarrierCount : ValueSource
+    {
+        public override int Resolve(RuleInvocation invocation)
+        {
+            SpecialRuleDefinition? definition = invocation.Definition;
+            if (definition == null) return 0;
+
+            IUnit unit = invocation.Bearer;
+            if (unit is FDG.UnitData data && data.StartingRuleCarriers is { } carriers
+                && carriers.TryGetValue(definition.Name, out int recorded) && recorded > 0)
+            {
+                return recorded;
+            }
+
+            int holders = unit.Models.Count(model => model.RuleDefinitions.Any(rule => rule.Definition == definition));
+            return holders > 0 ? holders : 1;
+        }
+    }
 }
