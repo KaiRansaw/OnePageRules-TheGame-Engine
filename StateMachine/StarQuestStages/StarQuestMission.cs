@@ -313,7 +313,7 @@ namespace FDG.StateMachine
                 quest = QuestMission.Progress(_context);
                 quest.Outcome = "success";
                 QuestMission.Save(_context, quest);
-                _context.Log($"Star Quest Mission: the heroes leave by corner {exitCorner}.");
+                _context.Log($"{GameSystemInfo.QuestName(_context.Settings.GameSystem)} Mission: the heroes leave by corner {exitCorner}.");
                 return true;
             }
 
@@ -322,7 +322,7 @@ namespace FDG.StateMachine
             int gain = StarQuestMissionRules.AlertnessGain(secondarySetUpThisRound, enemiesOnTable) + QuestChallenges.ExtraAlertness(_context);
             quest.Alertness = Math.Min(StarQuestHordeRules.AlertnessToEndWave, quest.Alertness + gain);
             QuestMission.Save(_context, quest);
-            _context.Log($"Star Quest Mission: alertness +{gain} ({quest.Alertness}/6).");
+            _context.Log($"{GameSystemInfo.QuestName(_context.Settings.GameSystem)} Mission: alertness +{gain} ({quest.Alertness}/6).");
             if (quest.Alertness >= StarQuestHordeRules.AlertnessToEndWave && quest.BossFight == 0)
                 await QuestMission.DeployReinforcements(_context);
             else if (quest.Alertness >= StarQuestHordeRules.AlertnessToEndWave)
@@ -374,7 +374,10 @@ namespace FDG.StateMachine
             }
             else
             {
-                message = "Mission failed - every hero went down. They all suffer injuries.";
+                // Only say "went down" when they did: a mission can also stop at the round cap with heroes standing.
+                message = heroes.All(h => !h.GetIsAlive())
+                    ? "Mission failed - every hero went down. They all suffer injuries."
+                    : "Mission failed - the heroes never got out. They all suffer injuries.";
                 await context.Announce(message, new TextColor(255, 120, 90, 255), EBannerTier.Headline);
                 foreach (UnitData hero in heroes)
                 {
@@ -703,7 +706,7 @@ namespace FDG.Stages
             string name = secondary ? StarQuestMissionRules.SecondaryNames[q.Secondary] : StarQuestMissionRules.PrimaryNames[q.Primary];
             if (leftOver > 0)
                 context.Log($"{name} is complete, so its other {(leftOver == 1 ? "marker is" : leftOver + " markers are")} taken off the table.");
-            context.Log($"Star Quest Mission: {(secondary ? "secondary" : "primary")} objective {name} complete.");
+            context.Log($"{GameSystemInfo.QuestName(context.Settings.GameSystem)} Mission: {(secondary ? "secondary" : "primary")} objective {name} complete.");
             await context.Announce($"{(secondary ? "Secondary" : "Primary")} objective complete: {name}!", Gold, EBannerTier.Headline);
             if (!secondary)
                 await context.Announce("Gather every hero within 6\" of one table corner to end the mission (a secondary objective appears at the end of the round).", Blue, EBannerTier.Notice);
@@ -770,7 +773,7 @@ namespace FDG.Stages
                 var p = new Position(m.X, m.Z);
                 if (!heroes.Any(h => DistanceToPoint(h, p) <= 3f) || enemies.Any(e => DistanceToPoint(e, p) <= 3f)) continue;
                 m.Tokens++;
-                context.Log($"Star Quest Mission: the heroes hold the marker ({m.Tokens}/{m.TokensNeeded}).");
+                context.Log($"{GameSystemInfo.QuestName(context.Settings.GameSystem)} Mission: the heroes hold the marker ({m.Tokens}/{m.TokensNeeded}).");
                 if (m.Tokens >= m.TokensNeeded) completed.Add(m.ForSecondary);
             }
             Save(context, q);
@@ -830,7 +833,7 @@ namespace FDG.Stages
             await context.Announce(wave.Count == 0 ? $"Reinforcements (wave {q.Reinforcements}): no enemies are left to send."
                     : boss ? "Boss fight! A double wave arrives!" : $"Reinforcements arrive! (wave {q.Reinforcements})",
                 new TextColor(255, 120, 80, 255), EBannerTier.Headline);
-            context.Log($"Star Quest Mission: reinforcements {q.Reinforcements} ({wave.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", wave.Select(u => u.Name))}.");
+            context.Log($"{GameSystemInfo.QuestName(context.Settings.GameSystem)} Mission: reinforcements {q.Reinforcements} ({wave.Sum(u => u.PointCost)}/{budget} pts): {string.Join(", ", wave.Select(u => u.Name))}.");
             await HordePlacement.PlaceWaveAtCorners(context, wave, $"reinforcements {q.Reinforcements}", StarQuestMissionRules.EnemyRadii);
             QuestWaveMarkers.Clear(context);
             await QuestChallenges.AdvanceTimeAndWeather(context);
