@@ -625,7 +625,8 @@ namespace FDG.Stages
                 bool fresh = !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
                     && context.QuestSkillsUsed == 0;
                 if (QuestActions.AvailableFeat(GameContext, questHero) is { } feat)
-                    AddQuest(feat.Name + QuestActions.FeatSuffix, "Class feature, free: " + feat.Description);
+                    AddQuest(FDG.Quest.QuestItemSkin.SkinText(GameContext.Settings.GameSystem, feat.Name) + QuestActions.FeatSuffix,
+                        "Class feature, free: " + FDG.Quest.QuestItemSkin.SkinText(GameContext.Settings.GameSystem, feat.Description));
                 if (fresh)
                     AddQuest(QuestActions.RestOption,
                         $"Restore all power ({questHero.QuestPower}/{maxPower}). The hero stays idle for the rest of its activation.");

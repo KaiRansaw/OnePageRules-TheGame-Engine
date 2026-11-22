@@ -159,7 +159,7 @@ namespace FDG.Tests
         {
             // Custom items, and names from books that do not exist yet, must pass through rather than
             // being mangled into something the engine thinks it recognises.
-            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, "Frag Grenade"), Is.EqualTo("Frag Grenade"));
+            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, "Laser Sword of Nothing"), Is.EqualTo("Laser Sword of Nothing"));
             Assert.That(QuestItemSkin.Canonical("Vorpal Sword of Nothing"),
                 Is.EqualTo("Vorpal Sword of Nothing"));
             Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, ""), Is.Empty);
@@ -174,6 +174,56 @@ namespace FDG.Tests
             {
                 Assert.That(QuestItems.Find(canonical), Is.Not.Null, canonical);
             }
+        }
+
+        // ── Kai, 2026-11-22: "Rename" - the whole shop and the class features, from Army Forge ─────────────
+
+        [Test]
+        public void EveryShopItem_HasItsAoFQuestName()
+        {
+            // Army Forge's AoF: Quest list (/api/quest/rules/7) has a fantasy name for every one of the 33.
+            var unnamed = QuestItems.All.Where(i => QuestItemSkin.Name(EGameSystem.AoFQuest, i.Name) == i.Name).Select(i => i.Name).ToList();
+            Assert.That(unnamed, Is.Empty, "still Star Quest's word in an AoF: Quest shop: " + string.Join(", ", unnamed));
+            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, "Frag Grenade"), Is.EqualTo("Gunpowder Bomb"));
+            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, "Advanced Med Kit"), Is.EqualTo("Great Health Potion"));
+            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, "Psychic Kit"), Is.EqualTo("Mana Potion"));
+            foreach (QuestItemInfo item in QuestItems.All)
+                Assert.That(QuestItems.Find(QuestItemSkin.Name(EGameSystem.AoFQuest, item.Name)), Is.SameAs(item), item.Name);
+        }
+
+        [Test]
+        public void AnAoFQuestHero_CanUseWhatItCarries()
+        {
+            // The bug this found: the pack holds "Health Potion", the action list only knew "Item: Med Kit", so an AoF
+            // hero's potion said "isn't in the game yet". Every item, under its AoF name, must find its action.
+            foreach (QuestSkill itemSkill in QuestTreasure.ItemSkills)
+            {
+                string canonical = itemSkill.Name[QuestTreasure.ItemPrefix.Length..];
+                string aof = QuestTreasure.ItemPrefix + QuestItemSkin.Name(EGameSystem.AoFQuest, canonical);
+                Assert.That(QuestSkill.Find(aof), Is.SameAs(itemSkill), aof);
+            }
+        }
+
+        [TestCase("Monk's Meditation", "Sentinel Meditation")]
+        [TestCase("Fighting Might", "Soldier's Might")]
+        [TestCase("Sorcerous Bolts", "Techno-Bolts")]
+        [TestCase("Rogue Step", "Infiltrating Step")]
+        public void AClassFeature_UnderItsAoFQuestName_IsTheSameSkill(string aof, string canonical)
+        {
+            Assert.That(QuestSkill.Find(canonical), Is.Not.Null, "the engine plays it");
+            Assert.That(QuestSkill.Find(aof), Is.SameAs(QuestSkill.Find(canonical)));
+            Assert.That(QuestItemSkin.Name(EGameSystem.AoFQuest, canonical), Is.EqualTo(aof));
+            Assert.That(QuestItemSkin.Name(EGameSystem.GFStarQuest, canonical), Is.EqualTo(canonical));
+        }
+
+        [Test]
+        public void GameText_IsRenamedInAoFQuestOnly()
+        {
+            const string line = "Krrek uses Advanced Med Kit, then a Med Kit, and throws Frag Grenade! Sentinel Meditation.";
+            Assert.That(QuestItemSkin.SkinText(EGameSystem.AoFQuest, line),
+                Is.EqualTo("Krrek uses Great Health Potion, then a Health Potion, and throws Gunpowder Bomb! Monk's Meditation."));
+            Assert.That(QuestItemSkin.SkinText(EGameSystem.GFStarQuest, line), Is.EqualTo(line));
+            Assert.That(QuestItemSkin.SkinText(EGameSystem.AoFQuest, "Item: Med Kit"), Is.EqualTo("Item: Health Potion"));
         }
     }
 }

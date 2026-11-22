@@ -42,7 +42,13 @@ namespace FDG.Quest
     /// </summary>
     public static class QuestItemSkin
     {
-        /// <summary>Canonical (Star Quest) name -> AoF: Quest name, from the 2.1.0 Campaign Builder.</summary>
+        /// <summary>
+        /// Canonical (Star Quest) name -> AoF: Quest name, for all 33 shop items. Read from Army Forge's own
+        /// AoF: Quest data (<c>/api/quest/rules/7</c>, the list its Hero Builder shop uses), paired with Star
+        /// Quest's (<c>/api/quest/rules/9</c>) by their rules text, which is word for word the same in every
+        /// pair - only the names differ (Kai, 2026-11-22: "Rename"). The nine the Hidden Treasure table can
+        /// give agree with <c>AoFQ - Campaign Builder v2.1.0</c>.
+        /// </summary>
         private static readonly Dictionary<string, string> AoFNames =
             new(StringComparer.OrdinalIgnoreCase)
             {
@@ -58,6 +64,53 @@ namespace FDG.Quest
                 ["Curing Kit"] = "Curing Potion",
                 ["Teleport Kit"] = "Teleport Potion",
                 ["Med Kit"] = "Health Potion",
+                // The rest of the shop (Army Forge).
+                ["Advanced Med Kit"] = "Great Health Potion",
+                ["Resting Kit"] = "Resting Potion",
+                ["Advanced Resting Kit"] = "Great Resting Potion",
+                ["Reviving Kit"] = "Reviving Potion",
+                ["Recon Kit"] = "Insight Potion",
+                ["Psychic Kit"] = "Mana Potion",
+                ["Advanced Psychic Kit"] = "Great Mana Potion",
+                ["Speed Injector"] = "Speed Elixir",
+                ["Advanced Speed Injector"] = "Great Speed Elixir",
+                ["Agility Injector"] = "Agility Elixir",
+                ["Optical Injector"] = "Trueshot Elixir",
+                ["Adrenaline Injector"] = "Energy Elixir",
+                ["Nanoplate Injector"] = "Stoneskin Elixir",
+                ["Advanced Nanoplate Injector"] = "Great Stoneskin Elixir",
+                ["Frag Grenade"] = "Gunpowder Bomb",
+                ["Flash Grenade"] = "Blinding Bomb",
+                ["Concussive Grenade"] = "Thunder Bomb",
+                ["Phantasm Grenade"] = "Phantasm Bomb",
+                ["Poison Grenade"] = "Poison Bomb",
+                ["Smoke Grenade"] = "Smoke Bomb",
+                ["Web Grenade"] = "Web Bomb",
+                ["Fire Grenade"] = "Fire Bomb",
+                ["Silence Grenade"] = "Silence Bomb",
+                ["Pheromone Grenade"] = "Pheromone Bomb",
+            };
+
+        /// <summary>
+        /// Canonical (Star Quest) class feature -> AoF: Quest's, the same Army Forge data (class features are
+        /// the skills it lists per class; same id, same rules text, two names). The engine plays them by the
+        /// canonical name; heroes built from the AoF: Quest data carry these.
+        /// </summary>
+        private static readonly Dictionary<string, string> AoFSkillNames =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Instigated Restoration"] = "Bardic Restoration",
+                ["Commanding Shout"] = "Paladin Shout",
+                ["Ritual Pact"] = "Warlock's Pact",
+                ["Psychic Focus"] = "Wizarding Focus",
+                ["Techno-Bolts"] = "Sorcerous Bolts",
+                ["Sentinel Meditation"] = "Monk's Meditation",
+                ["Bio-Trap"] = "Druidic Trap",
+                ["Berserker Frenzy"] = "Barbaric Frenzy",
+                ["Guarding Blessing"] = "Cleric's Blessing",
+                ["Infiltrating Step"] = "Rogue Step",
+                ["Pathfinder's Precision"] = "Ranger's Precision",
+                ["Soldier's Might"] = "Fighting Might",
             };
 
         /// <summary>The reverse map, over BOTH the items and the table entries - a treasure-table entry
@@ -71,6 +124,7 @@ namespace FDG.Quest
             var reverse = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, string> pair in AoFNames) reverse[pair.Value] = pair.Key;
             foreach (KeyValuePair<string, string> pair in AoFTreasureEntries) reverse[pair.Value] = pair.Key;
+            foreach (KeyValuePair<string, string> pair in AoFSkillNames) reverse[pair.Value] = pair.Key;
             return reverse;
         }
 
@@ -97,7 +151,26 @@ namespace FDG.Quest
             if (!IsAoF(system) || string.IsNullOrEmpty(canonical)) return canonical;
             if (AoFNames.TryGetValue(canonical, out string? skinned)) return skinned;
             if (AoFTreasureEntries.TryGetValue(canonical, out string? entry)) return entry;
+            if (AoFSkillNames.TryGetValue(canonical, out string? skill)) return skill;
             return canonical;
+        }
+
+        private static System.Text.RegularExpressions.Regex? _skinPattern;
+
+        /// <summary>
+        /// A line of game text in this system's words: every canonical item, treasure-entry and class-feature
+        /// name in it is swapped for AoF: Quest's ("Med Kit" -> "Health Potion"). Star Quest text comes back
+        /// unchanged. The engine speaks canonical names everywhere (one rules definition per item); this is
+        /// applied where text reaches the player - the log, banners and the skill menu.
+        /// </summary>
+        public static string SkinText(EGameSystem system, string text)
+        {
+            if (!IsAoF(system) || string.IsNullOrEmpty(text)) return text;
+            _skinPattern ??= new System.Text.RegularExpressions.Regex(
+                @"(?<![A-Za-z'])(" + string.Join("|", AoFNames.Keys.Concat(AoFTreasureEntries.Keys).Concat(AoFSkillNames.Keys)
+                    .OrderByDescending(k => k.Length).Select(System.Text.RegularExpressions.Regex.Escape)) + @")(?![A-Za-z])",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            return _skinPattern.Replace(text, m => Name(system, m.Value));
         }
 
         /// <summary>
@@ -127,6 +200,9 @@ namespace FDG.Quest
         /// <summary>Every name this skin can produce, for a fixture that wants to prove a system never
         /// shows the other's words.</summary>
         public static IEnumerable<string> AllAoFNames => AoFNames.Values.Concat(AoFTreasureEntries.Values);
+
+        /// <summary>AoF: Quest's class-feature names (see <see cref="AoFSkillNames"/>).</summary>
+        public static IEnumerable<string> AllAoFSkillNames => AoFSkillNames.Values;
 
         /// <summary>Every canonical name that has a skin.</summary>
         public static IEnumerable<string> AllCanonicalNames =>

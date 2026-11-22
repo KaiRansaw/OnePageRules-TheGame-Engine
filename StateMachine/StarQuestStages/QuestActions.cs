@@ -560,7 +560,8 @@ namespace FDG.Stages
         {
             QuestHero? sheet = Sheet(hero);
             if (sheet == null || string.IsNullOrEmpty(sheet.ClassFeat)) return null;
-            if (hero.QuestFeatsUsed.Contains(sheet.ClassFeat)) return null;
+            // Spent feats are recorded by the engine's name; a sheet may hold AoF: Quest's.
+            if (hero.QuestFeatsUsed.Contains(sheet.ClassFeat) || hero.QuestFeatsUsed.Contains(QuestItemSkin.Canonical(sheet.ClassFeat))) return null;
             QuestSkill? feat = QuestSkill.Find(sheet.ClassFeat);
             return feat != null && feat.Unavailable(context, hero) == null ? feat : null;
         }
@@ -741,7 +742,17 @@ namespace FDG.Stages
         public static string Line(string heroName, string text) =>
             Speaking is { Length: > 0 } skill ? $"{heroName}: {skill} - {text}." : $"{heroName}: {text}.";
 
-        public static QuestSkill? Find(string name) =>
+        public static QuestSkill? Find(string name) => FindExact(name) ?? FindExact(Canonical(name));
+
+        /// <summary>The engine's name for a skill or "Item: x" line, whichever system's words it arrives in
+        /// (AoF: Quest's "Monk's Meditation" / "Item: Health Potion" are Star Quest's "Sentinel Meditation" /
+        /// "Item: Med Kit" - one rules definition each, see <see cref="QuestItemSkin"/>).</summary>
+        public static string Canonical(string name) =>
+            name.StartsWith(QuestTreasure.ItemPrefix, StringComparison.Ordinal)
+                ? QuestTreasure.ItemPrefix + QuestItemSkin.Canonical(name[QuestTreasure.ItemPrefix.Length..])
+                : QuestItemSkin.Canonical(name);
+
+        private static QuestSkill? FindExact(string name) =>
             All.FirstOrDefault(s => s.Name == name)
             ?? QuestTreasure.SearchSkills.FirstOrDefault(s => s.Name == name)
             ?? QuestTreasure.ItemSkills.FirstOrDefault(s => s.Name == name)
@@ -1180,7 +1191,7 @@ namespace FDG.Stages
                 QuestSkill? feat = QuestSkill.Find(name);
                 if (feat != null)
                 {
-                    hero.QuestFeatsUsed.Add(name);
+                    hero.QuestFeatsUsed.Add(feat.Name);
                     context.MarkIrreversibleAction();
                     await feat.Use(GameContext, hero);
                 }
@@ -1190,16 +1201,22 @@ namespace FDG.Stages
 
             // Skill: pick one.
             var (usable, unusable) = QuestActions.SkillsFor(GameContext, hero);
+            // Shown in this game's words (AoF: Quest says "Item: Health Potion"), matched back by label.
+            EGameSystem system = GameContext.Settings.GameSystem;
+            string Label(string name) => QuestItemSkin.SkinText(system, name);
+            var byLabel = new Dictionary<string, QuestSkill>();
+            foreach (QuestSkill s in usable) byLabel.TryAdd(Label(s.Name), s);
             var request = new StringSelectionRequest(hero.PlayerID, $"{hero.Name}: choose a skill ({hero.QuestPower} power)",
-                usable.Select(s => s.Name).ToList(),
-                unusable.Select(u => new StringSelectionRequest.InvalidOption(u.Name, u.Why)).ToList(),
-                optionDescriptions: usable.ToDictionary(s => s.Name,
-                    s => (s.Stat >= 0 ? $"({QuestActions.StatName(s.Stat)} test) " : "")
-                        + s.DescriptionIn(GameContext)),
+                byLabel.Keys.ToList(),
+                unusable.Select(u => new StringSelectionRequest.InvalidOption(Label(u.Name), u.Why)).ToList(),
+                optionDescriptions: byLabel.ToDictionary(kv => kv.Key,
+                    kv => (kv.Value.Stat >= 0 ? $"({QuestActions.StatName(kv.Value.Stat)} test) " : "")
+                        + Label(kv.Value.DescriptionIn(GameContext))),
                 allowCancel: true, displayName: $"{hero.Name}: Skill");
             string? choice = usable.Count == 0 ? null
                 : await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
-            QuestSkill? skill = choice == null ? null : usable.FirstOrDefault(s => s.Name == choice);
+            QuestSkill? skill = choice == null ? null
+                : byLabel.TryGetValue(choice, out QuestSkill? picked) ? picked : QuestSkill.Find(choice);
             if (skill != null)
             {
                 context.QuestSkillsUsed++;

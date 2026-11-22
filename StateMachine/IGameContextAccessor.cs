@@ -18,8 +18,15 @@ namespace FDG
     {
         public static void Log(this IGameContextAccessor contextAccessor, string message, TextColor? color = null)
         {
-            contextAccessor.GameContext.TextOutput.Log(message, color);
+            contextAccessor.GameContext.TextOutput.Log(Skin(contextAccessor, message), color);
         }
+
+        /// <summary>#418 / Kai 2026-11-22: in AoF: Quest every item and class-feature name the engine speaks reaches the
+        /// player in AoF: Quest's words ("Health Potion", not "Med Kit"). Nothing changes for any other game.</summary>
+        private static string Skin(IGameContextAccessor contextAccessor, string text) =>
+            contextAccessor.GameContext?.Settings is { GameSystem: EGameSystem.AoFQuest }
+                ? FDG.Quest.QuestItemSkin.SkinText(EGameSystem.AoFQuest, text)
+                : text;
 
         /// <summary>
         /// Log a developer-facing detail line to the Debug category — hidden in the front end unless the
@@ -57,6 +64,10 @@ namespace FDG
             IReadOnlyList<string>? details = null)
         {
             TextColor resolved = color ?? TextColor.White;
+            text = Skin(contextAccessor, text);
+            // Hover words follow the text they sit in.
+            if (terms != null && contextAccessor.GameContext?.Settings is { GameSystem: EGameSystem.AoFQuest })
+                terms = terms.Select(t => t with { Name = Skin(contextAccessor, t.Name), Text = Skin(contextAccessor, t.Text) }).ToList();
             contextAccessor.Log(text, resolved);
             return contextAccessor.GameContext.Presenter.Present(
                 new BannerBeat(text, resolved, tier, referencedRules, terms, details), ct);

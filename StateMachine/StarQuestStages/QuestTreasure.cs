@@ -851,7 +851,12 @@ namespace FDG.Stages
             Func<IGameContext, UnitData, Task> use) =>
             new(ItemPrefix + name, -1, QuestItems.Find(name)?.Description ?? name, unavailable, async (c, h) =>
             {
-                EditSheet(h, s => s.Items.Remove(name));
+                // The pack holds this system's name ("Health Potion" in AoF: Quest) - remove the one that IS this item.
+                EditSheet(h, s =>
+                {
+                    int at = s.Items.FindIndex(i => QuestItemSkin.Canonical(i) == name);
+                    if (at >= 0) s.Items.RemoveAt(at);
+                });
                 // One standard form for every item, so the report reads the same way each time
                 // (Kai, QA 3.17-3.20): a grenade is THROWN, everything else is used. No "a"/"an"
                 // guessing, and the item keeps its own name so it can be looked up.
