@@ -141,6 +141,61 @@ namespace FDG
             return hi - lo <= FlatInches;
         }
 
+        /// <summary>
+        /// The battle report's line for a move over heights (before the move is committed): how far the furthest
+        /// climber climbed and where the unit ends up standing. Null when the move touched no heights.
+        /// </summary>
+        public static string? Describe(IUnit unit, IReadOnlyList<StageResolution.Requests.ModelMoveEntry> paths, IEnumerable<ITerrain> terrain)
+        {
+            IReadOnlyList<ITerrain> pieces = terrain as IReadOnlyList<ITerrain> ?? terrain.ToList();
+            if (!pieces.Any(t => (t.TerrainType & (ETerrainType.Climbable | ETerrainType.Steep)) != 0)) return null;
+            float climbed = 0f, high = 0f, wasHigh = 0f;
+            int raised = 0;
+            bool onSteep = false;
+            foreach (StageResolution.Requests.ModelMoveEntry e in paths)
+            {
+                if (e.Positions.Count == 0) continue;
+                Float2 start = e.Model.GetValue().Position.Position2D;
+                var path = new List<Float2> { start };
+                foreach (Position p in e.Positions) path.Add(p.Position2D);
+                climbed = MathF.Max(climbed, ClimbAlong(path, pieces));
+                wasHigh = MathF.Max(wasHigh, StandingHeight(pieces, start));
+                float h = StandingHeight(pieces, path[^1]);
+                if (h > 0f) { raised++; high = MathF.Max(high, h); }
+                onSteep |= MovesOntoSteep(start, path.Skip(1).ToList(), pieces);
+            }
+            var parts = new List<string>();
+            if (climbed > 0f) parts.Add($"climbed {climbed:0.#}\" (up and down count against the move)");
+            if (onSteep) parts.Add("moved onto Steep terrain (Difficult going up)");
+            if (raised > 0) parts.Add($"{raised} model{(raised == 1 ? "" : "s")} now stand{(raised == 1 ? "s" : "")} up to {high:0.#}\" high");
+            else if (wasHigh > 0f) parts.Add("came down to the ground");
+            return parts.Count == 0 ? null : $"Heights: {unit.Name} " + string.Join(", ", parts) + ".";
+        }
+
+        /// <summary>Dev check (env FDG_HEIGHTS_AUDIT=1, the heights sweep): after every activation, every model on the table
+        /// must stand flat - never part way up a climb or hanging over a top's edge. Logs "[HEIGHTS AUDIT]" lines.</summary>
+        public static void Audit(IGameContext c)
+        {
+            if (Environment.GetEnvironmentVariable("FDG_HEIGHTS_AUDIT") != "1") return;
+            List<ITerrain> terrain = c.TableState.Terrain.Objects.ToList();
+            if (!terrain.Any(IsClimbable)) return;
+            foreach (IUnit u in c.TableState.Units.Objects)
+            {
+                // Flying units hover over terrain (an Aircraft's 30" straight line ends where it ends).
+                if (u is UnitData ud && Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(ud, c.RuleEvaluator)) continue;
+                if (u is UnitData art && art.RuleDefinitions.Any(r => r.Definition == Rules.Dispatch.CoreRuleCatalog.Artillery)
+                    && art.Models.FirstOrDefault(m => m.GetIsAlive()) is { } first && !(first.Position.x == 0f && first.Position.z == 0f))
+                    c.Log($"[HEIGHTS AUDIT] artillery {u.Name} stands at {StandingHeight(terrain, first.Position.Position2D):0.0}\" " +
+                        $"({first.Position.x:0.0}, {first.Position.z:0.0}).");
+                foreach (IModel m in u.Models)
+                {
+                    if (!m.GetIsAlive() || (m.Position.x == 0f && m.Position.z == 0f)) continue;
+                    if (!MayEndAt(m.Position.Position2D, m.BaseShape.BoundingRadiusInches, terrain))
+                        c.Log($"[HEIGHTS AUDIT] {u.Name}: a model stands mid-climb at ({m.Position.x:0.0}, {m.Position.z:0.0}).");
+                }
+            }
+        }
+
         /// <summary>Whether a move from <paramref name="start"/> along <paramref name="path"/> goes onto a Steep piece from
         /// off it ("moving onto steep terrain") - counted as Difficult terrain. Moving off it, or about on top, is open.</summary>
         public static bool MovesOntoSteep(Float2 start, IReadOnlyList<Float2> path, IEnumerable<ITerrain> terrain)

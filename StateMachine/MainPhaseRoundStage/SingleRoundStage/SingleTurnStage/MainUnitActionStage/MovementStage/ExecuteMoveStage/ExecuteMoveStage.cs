@@ -48,7 +48,12 @@ namespace FDG.Stages
                 if (modelTough > toughness) toughness = modelTough;
             }
 
+            // Heights (2026-11-22): say what the move climbed and where the unit now stands, for the battle report.
+            // Flying units (Flying / Aircraft) fly over: nothing climbed.
+            string? climbLine = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(movingUnit, GameContext.RuleEvaluator)
+                ? null : Climbing.Describe(movingUnit, paths, GameContext.TableState.Terrain.Objects);
             MovementExecutor.CommitPositions(paths);
+            if (climbLine != null) GameContext.Log(climbLine);
 
             if (moves.Count > 0)
             {

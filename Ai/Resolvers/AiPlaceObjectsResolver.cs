@@ -73,8 +73,9 @@ namespace FDG.Ai.Resolvers
             var zone = request.DeploymentZone;
             ZoneBounds bounds = zone.Bounds;
             _activeRequest = request;
+            // Climbable pieces too (2026-11-22): the check also keeps models off a climb or a top's edge.
             _impassibleTerrain = _tableState.Terrain.Objects
-                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible))
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible) || t.TerrainType.HasFlag(ETerrainType.Climbable))
                 .ToList();
             float minEnemyDist = request.MinDistanceFromEnemiesInches;
             var enemies = minEnemyDist > 0f

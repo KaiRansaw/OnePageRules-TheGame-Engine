@@ -32,6 +32,7 @@ namespace FDG.Stages
             await Task.Yield();
 
             GameContext.LogDebug($"ReconcileEndOfActivationStage entrance {_enterCount}");
+            Climbing.Audit(GameContext);
 
             // Clear the just-activated unit's "used this activation" markers (once-per-activation cost gates,
             // e.g. Strafing) so they reset for its next activation.

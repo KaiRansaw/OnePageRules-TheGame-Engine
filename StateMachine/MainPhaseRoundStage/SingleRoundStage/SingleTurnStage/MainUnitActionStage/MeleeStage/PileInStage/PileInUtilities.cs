@@ -92,8 +92,9 @@ namespace FDG.Stages
             if (liveChargers.Count == 0 || liveDefenders.Count == 0)
                 return new List<PileInMove>();
 
+            // Climbable pieces ride along (2026-11-22): a pile-in never climbs, nor ends part way up a climb.
             List<ITerrain> impassable = terrain?
-                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible))
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible) || t.TerrainType.HasFlag(ETerrainType.Climbable))
                 .ToList() ?? new List<ITerrain>();
 
             // Working positions: defender -> current planned position. Updated as we accept moves so later
@@ -640,10 +641,16 @@ namespace FDG.Stages
             if (impassable.Count == 0) return false;
             Float2 a = new Float2(from.x, from.z);
             Float2 b = new Float2(to.x, to.z);
+            bool climbable = false;
             foreach (ITerrain piece in impassable)
             {
+                if (!piece.TerrainType.HasFlag(ETerrainType.Impassible)) { climbable = true; continue; }
                 if (SweptBaseGeometry.DoesSweptBaseIntersectZone(piece.Shape, a, b, movingShape, movingFacing)) return true;
             }
+            // Heights: a pile-in is a short shuffle into contact - it neither climbs nor stops part way up a climb.
+            if (climbable && (Climbing.ClimbAlong(new[] { a, b }, impassable) > 0f
+                              || !Climbing.MayEndAt(b, movingShape.BoundingRadiusInches, impassable)))
+                return true;
             return false;
         }
 
