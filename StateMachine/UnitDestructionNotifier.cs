@@ -37,6 +37,9 @@ namespace FDG.Stages
             // killer-less (Rout) path, which previously bypassed spillout entirely.
             await SpilloutExecutor.SpillIfDestroyedTransport(gameContext, dead);
 
+            // Brutal Damage - Death Zone: a Tough(6)+ unit going down hurts everything near it.
+            await BrutalDamage.UnitDestroyed(gameContext, dead);
+
             // #441: the Command Group obituary runs BEFORE the sweep below, because the sweep is what
             // removes the grants - afterwards there is nothing left to name. It reads the same
             // OwnerUnitID the sweep matches on, so the units it names are exactly the ones about to lose

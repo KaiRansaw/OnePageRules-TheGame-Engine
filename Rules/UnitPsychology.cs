@@ -134,13 +134,24 @@ namespace FDG
                 foreach (IUnit friend in c.TableState.Units.Objects.Where(u => u.GetIsAlive() && !ReferenceEquals(u, dead)
                              && !u.ID.Equals(dead.ID) && u.PlayerID.Equals(dead.PlayerID) && !ReserveRules.IsInReserve(u)))
                 {
-                    if (UnitCompareUtilities.MinDistanceBetweenUnits(friend, dead, out _, out _, includeVertical: true) > 6f + 0.001f) continue;
+                    if (DistanceToFallen(friend, dead) > 6f + 0.001f) continue;
                     AddMarker(c, friend, $"{dead.Name} was destroyed within 6\"");
                 }
             }
         }
 
         public static bool IsFrenzied(IUnit unit) => unit.Tokens.HasToken(TokenType.Frenzied);
+
+        /// <summary>Distance from a living unit to a unit that has just been destroyed: its models are all dead, so the
+        /// usual measure (living models only) can't see them - this one measures to where they fell.</summary>
+        internal static float DistanceToFallen(IUnit living, IUnit fallen)
+        {
+            float best = float.PositiveInfinity;
+            foreach (IModel a in living.Models.Where(m => m.GetIsAlive()))
+                foreach (IModel b in fallen.Models)
+                    best = MathF.Min(best, a.BaseDistanceToOtherModel_3D(b));
+            return best;
+        }
 
         /// <summary>The closest enemy unit on the table - a frenzied unit's only legal target.</summary>
         public static IUnit? ClosestEnemy(IGameContext c, IUnit unit)

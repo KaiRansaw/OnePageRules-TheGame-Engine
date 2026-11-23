@@ -33,6 +33,14 @@ namespace FDG
         // the first cut of this rule passed its tests and did nothing in a real game.) 0 when none fired.
         public float SelfWounds;
 
+        /// <summary>Brutal Damage - Critical Hits: wounds the target takes on top of the attack (no save). Applied with
+        /// the self-wounds at the end of the chain.</summary>
+        public float ExtraTargetWounds;
+
+        /// <summary>Brutal Damage - Directional Damage: the shots came into the target's rear facing (D3 extra wounds
+        /// if it takes wounds).</summary>
+        public bool RearFacingHit;
+
         /// <summary>
         /// Pierce was used ("ignores all positive Defense modifiers on the target"). <see cref="SaveModifier"/> has already
         /// lost the rule-based bonuses; the save stage drops the rest - cover and the granted "+1 Defense" buffs, which

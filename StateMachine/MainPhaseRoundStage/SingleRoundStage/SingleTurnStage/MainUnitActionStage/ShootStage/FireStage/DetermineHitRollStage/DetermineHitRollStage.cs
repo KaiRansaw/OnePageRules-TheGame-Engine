@@ -196,7 +196,7 @@ namespace FDG.Stages
                 float extraDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _,
                     includeVertical: true);
                 IReadOnlyList<GrantedModifier> extra = ExtraActions.HitModifiers(attacker, defender,
-                    metaData.IsMelee, metaData.IsSpell, extraDistance);
+                    metaData.IsMelee, metaData.IsSpell, extraDistance, GameContext.Settings);
                 if (extra.Count > 0)
                 {
                     results.HitRollNeeded -= ExtraActions.Net(extra);

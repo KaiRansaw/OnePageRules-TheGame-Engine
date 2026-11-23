@@ -102,6 +102,7 @@ namespace FDG.Stages
                 }
             }
 
+            await ApplyBrutalDamage(metaData, totalWoundsApplied);
             await ApplySelfWounds(metaData);
 
             await onFinished(new ApplyWoundsResults(modelsKilled));
@@ -119,6 +120,23 @@ namespace FDG.Stages
         /// and wound-ignore pipeline, matching dangerous terrain and No Retreat.
         /// </para>
         /// </summary>
+        /// <summary>Brutal Damage: Critical Hits' extra wounds, and Directional Damage's D3 for wounds taken in the rear.</summary>
+        private async Task ApplyBrutalDamage(ICombatMetadata metaData, float woundsApplied)
+        {
+            if (!metaData.QueryForResult(out RollToHitResults hit)) return;
+            UnitData target = metaData.DefendingUnit.GetValue();
+            float extra = hit.ExtraTargetWounds;
+            if (hit.RearFacingHit && woundsApplied > 0f)
+            {
+                int d3 = (HordePlacement.RollD6(GameContext) + 1) / 2;
+                GameContext.Log($"Directional Damage: {target.Name} was hit in its rear - {d3} extra wound{(d3 == 1 ? "" : "s")}.");
+                extra += d3;
+            }
+            if (extra <= 0f || !target.GetIsAlive()) return;
+            await QuestActions.Toast(GameContext, $"{target.Name} takes {extra:0} extra wound{(extra == 1f ? "" : "s")} (Brutal Damage).");
+            await CasualtyPresentation.ApplyUnitWounds(GameContext, target, extra);
+        }
+
         private async Task ApplySelfWounds(ICombatMetadata metaData)
         {
             if (!metaData.QueryForResult(out RollToHitResults hitResults) || hitResults.SelfWounds <= 0f)

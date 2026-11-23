@@ -398,6 +398,28 @@ namespace FDG.Stages
             results.SelfWounds = operations.OfType<RuleOperation.InflictSelfWounds>().Sum(op => op.Wounds)
                 * HazardousWoundsPerOne(metaData.WeaponType);
 
+            // Brutal Damage (GF / AoF Advanced Rulebooks): shooting only.
+            if (!metaData.IsMelee && !metaData.IsSpell)
+            {
+                results.SelfWounds += BrutalDamage.Mishaps(GameContext, (int)MathF.Round(rollToHitResults.At(1)));
+                results.ExtraTargetWounds += BrutalDamage.Criticals(GameContext, (int)MathF.Round(rollToHitResults.At(6)));
+                results.RearFacingHit = AdvancedRules.IsOn(GameContext, EAdvancedRules.DirectionalDamage)
+                    && BrutalDamage.FacingHit(attacker, defender) == BrutalDamage.EFacing.Rear;
+
+                // Friendly Fire: each hit landed on an enemy within 3" of a friend - 1-3 strays into the friend.
+                List<UnitData> friends = BrutalDamage.FriendsNear(GameContext, attacker, defender);
+                if (friends.Count > 0)
+                {
+                    int landed = (int)MathF.Round(results.SuccessfulHitList.Sum(h => h.HitCount));
+                    List<UnitData> strays = BrutalDamage.StrayHits(GameContext, landed, friends);
+                    if (strays.Count > 0)
+                    {
+                        RemoveHits(results.SuccessfulHitList, strays.Count, rollToHitResults);
+                        await BrutalDamage.ResolveStrays(GameContext, attacker, strays);
+                    }
+                }
+            }
+
             await onFinished(results);
         }
 
@@ -405,6 +427,20 @@ namespace FDG.Stages
         /// Hazardous's wounds per unmodified 1: X when the weapon has Blast(X) or Deadly(X) (the larger, should a weapon
         /// ever carry both), else 1. Internal for tests.
         /// </summary>
+        /// <summary>Friendly Fire: takes <paramref name="count"/> hits off the end of the hit groups (the extra hits
+        /// first, then the rolled ones).</summary>
+        private static void RemoveHits(List<SuccessfulHitInfo> groups, int count, IDiceResults template)
+        {
+            for (int i = groups.Count - 1; i >= 0 && count > 0; i--)
+            {
+                SuccessfulHitInfo g = groups[i];
+                int have = (int)MathF.Round(g.HitCount);
+                if (have <= count) { groups.RemoveAt(i); count -= have; continue; }
+                groups[i] = new SuccessfulHitInfo(SyntheticHits(have - count, template), g.SaveModifier, g.Source);
+                count = 0;
+            }
+        }
+
         internal static int HazardousWoundsPerOne(IWeapon? weapon)
         {
             if (weapon == null) return 1;

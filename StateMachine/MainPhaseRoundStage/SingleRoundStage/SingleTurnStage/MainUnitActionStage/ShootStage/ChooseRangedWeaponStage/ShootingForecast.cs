@@ -118,7 +118,7 @@ namespace FDG.Stages
 
             // Extra Actions (Focused Fire, Overwatch, Last Stand, the target's Stealth Move) - the hit stage's own list.
             int grantedHit = GrantedRollModifiers.PeekNet(attacker, ERollKind.Hit)
-                + ExtraActions.Net(ExtraActions.HitModifiers(attacker, defender, isMelee: false, isSpell: false, distance))
+                + ExtraActions.Net(ExtraActions.HitModifiers(attacker, defender, isMelee: false, isSpell: false, distance, gameContext.Settings))
                 + ExtraActions.Net(ChallengeBonuses.HitModifiers(gameContext, attacker, isSpell: false));
             int persistentHitMarkers = defender.Tokens.GetTokenCount(TokenType.PersistentHitBonus);
 
@@ -150,7 +150,7 @@ namespace FDG.Stages
             int ap = Math.Max(0, weapon.ArmorPenetration - apReduction);
             int coverBonus = hasCover && !ignoresCover ? 1 : 0;
             int grantedDefense = GrantedRollModifiers.PeekNet(defender, ERollKind.Save)
-                + ExtraActions.Net(ExtraActions.SaveModifiers(defender, isMelee: false, isSpell: false))
+                + ExtraActions.Net(ExtraActions.SaveModifiers(defender, isMelee: false, isSpell: false, gameContext.Settings, attacker))
                 + ExtraActions.Net(ChallengeBonuses.SaveModifiers(gameContext, defender));
             int persistentApMarkers = defender.Tokens.GetTokenCount(TokenType.PersistentApBonus);
 

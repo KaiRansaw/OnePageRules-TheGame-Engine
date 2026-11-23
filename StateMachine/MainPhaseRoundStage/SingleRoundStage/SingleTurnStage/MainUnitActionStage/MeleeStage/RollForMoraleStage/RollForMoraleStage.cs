@@ -1,3 +1,4 @@
+using FDG.Utilities;
 ﻿using System;
 using FDG.Rules.Foundation;
 
@@ -51,6 +52,19 @@ namespace FDG.Stages
             // #442: and the distance the charge came from, which the Hold the Line family needs for its
             // "charged from over 6" away" band. 0 if this unit did the charging or nothing charged at
             // all - the band is about being charged, not about being in a melee.
+            // Brutal Damage - Unit Attrition: one test per wound the loser suffered in this melee, 2 wounds per failure,
+            // never Shaken or Routed from it.
+            if (BrutalDamage.AttritionOn(GameContext))
+            {
+                bool loserDefended = ReferenceEquals(context.DefendingUnit.GetValue(), testingUnit);
+                float took = loserDefended
+                    ? context.DefenderRemainingWoundsAtStart - context.DefendingUnit.RemainingWounds()
+                    : context.AttackerRemainingWoundsAtStart - context.AttackingUnit.RemainingWounds();
+                await BrutalDamage.Attrition(GameContext, testingUnit, took, melee: true);
+                await OnMoralePassed.Activate(context);
+                return;
+            }
+
             MoraleUtilities.MoraleTestOutcome outcome = await MoraleUtilities.TakeMoraleTest(
                 GameContext, testingUnit, determineMoraleSaveNeededResult.RollNeeded,
                 EMoraleTrigger.Melee,

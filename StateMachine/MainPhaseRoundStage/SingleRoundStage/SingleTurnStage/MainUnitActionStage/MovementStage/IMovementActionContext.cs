@@ -234,6 +234,10 @@ namespace FDG.Stages
             // Unit Psychology - Suppression: -1" Advance / -2" Rush and Charge per marker (+2" / +4" for a marker taken
             // willingly this activation). Frenzy: no Rush - a frenzied unit moves only to shoot or charge.
             (float advChange, float rushChange) = UnitPsychology.MoveChange(unit);
+            // Brutal Damage - Heavy Damage: "-2" / -4" / -6" Move" for a badly hurt Tough(6)+ unit.
+            float heavyMove = BrutalDamage.HeavyPenalty(GameContext.Settings, unit).Move;
+            advChange += heavyMove;
+            rushChange += heavyMove;
             bool frenziedMove = UnitPsychology.IsFrenzied(unit);
             if (advChange != 0f || rushChange != 0f || frenziedMove)
             {

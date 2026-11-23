@@ -124,7 +124,7 @@ namespace FDG.Stages
             // which is right, since no die is rolled there for a point to shift.
             int underdogNet = await UnderdogSpend.ConsumeNet(gameContext, ERollKind.Morale, testingUnit);
             // Extra Actions: Last Stand's "-1 to Quality ... rolls" - a morale test is a Quality roll.
-            int lastStand = ExtraActions.MoraleModifier(testingUnit);
+            int lastStand = ExtraActions.MoraleModifier(testingUnit) + BrutalDamage.HeavyPenalty(gameContext.Settings, testingUnit).Quality;
             if (lastStand != 0)
             {
                 grantedNet += lastStand;
@@ -374,6 +374,15 @@ namespace FDG.Stages
             // Firefight unit left at half strength tests like any other.
             if (!unit.GetIsAlive()) return null;                              // wiped out outright — no test
             if (!WoundsLeftUnitAtHalfStrength(remainingWoundsBefore, unit, extraWoundsCounted)) return null;
+
+            // Brutal Damage - Unit Attrition replaces this test: one test per wound suffered, failures cost wounds,
+            // and the unit is never Shaken or Routed from wounds.
+            if (BrutalDamage.AttritionOn(gameContext))
+            {
+                await BrutalDamage.Attrition(gameContext, unit, remainingWoundsBefore - unit.RemainingWounds,
+                    melee: trigger == EMoraleTrigger.Melee);
+                return true;
+            }
 
             // #006: a living joined hero takes morale on behalf of the unit (its Quality).
             // failureCausesShakenOrRout: this test's failure Shakens the unit, so a conversion rule

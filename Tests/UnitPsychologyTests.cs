@@ -127,6 +127,7 @@ namespace FDG.Tests
             UnitData near = Unit(_me, new Position(10f, 15f), 100);
             UnitData far = Unit(_me, new Position(10f, 30f), 100);
             UnitData enemy = Unit(_them, new Position(13f, 10f), 100);
+            foreach (ModelData m in dead.Models.Cast<ModelData>()) m.DealWounds(m.TotalWounds); // it is gone - measure to where it fell
             UnitPsychology.UnitDestroyed(_context, dead, enemy, EKillCause.Shooting);
             Assert.That(UnitPsychology.Markers(near), Is.EqualTo(1));
             Assert.That(UnitPsychology.Markers(far), Is.EqualTo(0), "over 6\" away");

@@ -19,6 +19,14 @@ namespace FDG
         Panic = 1UL << 2,
         Retreating = 1UL << 3,
         Suppression = 1UL << 4,
+        // Brutal Damage (GF p48, AoF p48 only)
+        DeathZone = 1UL << 5,
+        HeavyDamage = 1UL << 6,
+        DirectionalDamage = 1UL << 7,
+        UnitAttrition = 1UL << 8,
+        FriendlyFire = 1UL << 9,
+        HorribleMishaps = 1UL << 10,
+        BrutalCriticalHits = 1UL << 11,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -30,6 +38,7 @@ namespace FDG
         private static bool FourGames(EGameSystem s) => !GameSystemInfo.IsQuest(s);
 
         public const string UnitPsychologyChapter = "Unit Psychology";
+        public const string BrutalDamageChapter = "Brutal Damage";
 
         public static readonly IReadOnlyList<AdvancedRuleOption> Catalog = BuildCatalog();
 
@@ -39,6 +48,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in UnitPsychology.All)
                 list.Add(new AdvancedRuleOption(UnitPsychologyChapter, name, flag, FourGames,
                     UnitPsychology.BookText(name), UnitPsychology.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in BrutalDamage.All)
+                list.Add(new AdvancedRuleOption(BrutalDamageChapter, name, flag, BrutalDamage.BooksHaveIt,
+                    BrutalDamage.BookText(name), BrutalDamage.GameText(name)));
             return list;
         }
 
@@ -46,6 +58,7 @@ namespace FDG
         public static readonly IReadOnlyDictionary<string, string> ChapterIntro = new Dictionary<string, string>
         {
             [UnitPsychologyChapter] = "Unit psychology rules change how units behave as they are put through continuous fighting, making them less predictable. Pick any of the following.",
+            [BrutalDamageChapter] = "Brutal Damage rules make the game deadlier by modifying how units are damaged during combat. Pick any of the following.",
         };
 
         public static IEnumerable<string> Chapters(EGameSystem system) =>

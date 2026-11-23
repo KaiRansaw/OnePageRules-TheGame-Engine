@@ -169,7 +169,7 @@ namespace FDG
         /// delta makes the roll easier (the granted-modifier convention).
         /// </summary>
         public static IReadOnlyList<GrantedModifier> HitModifiers(IUnit attacker, IUnit defender, bool isMelee,
-            bool isSpell, float distanceInches)
+            bool isSpell, float distanceInches, GameSettings? settings = null)
         {
             var result = new List<GrantedModifier>();
             if (isSpell) return result;
@@ -185,11 +185,15 @@ namespace FDG
             // Unit Psychology - Suppression: -1 to hit per marker, shooting or in melee.
             int suppression = UnitPsychology.HitModifier(attacker, isSpell);
             if (suppression != 0) result.Add(new GrantedModifier(UnitPsychology.Suppression, suppression));
+            // Brutal Damage - Heavy Damage: "-1 Quality" for a badly hurt Tough(6)+ unit.
+            if (!isSpell && settings is { } s && BrutalDamage.HeavyPenalty(s, attacker).Quality is int q && q != 0)
+                result.Add(new GrantedModifier(BrutalDamage.HeavyDamage, q));
             return result;
         }
 
         /// <summary>The Defense-roll modifiers for the unit taking the hits. Positive is easier to save.</summary>
-        public static IReadOnlyList<GrantedModifier> SaveModifiers(IUnit defender, bool isMelee, bool isSpell)
+        public static IReadOnlyList<GrantedModifier> SaveModifiers(IUnit defender, bool isMelee, bool isSpell,
+            GameSettings? settings = null, IUnit? attacker = null)
         {
             var result = new List<GrantedModifier>();
             if (InLastStand(defender)) result.Add(new GrantedModifier(LastStand, -1));
@@ -197,6 +201,19 @@ namespace FDG
                 result.Add(new GrantedModifier(HunkerDown, 1));
             if (isMelee && defender.Tokens.HasToken(TokenType.DefensiveStance))
                 result.Add(new GrantedModifier(DefensiveStance, 1));
+            if (settings is { } s)
+            {
+                // Brutal Damage - Heavy Damage: "-1 Defense" / "-2 Defense".
+                int d = BrutalDamage.HeavyPenalty(s, defender).Defense;
+                if (d != 0) result.Add(new GrantedModifier(BrutalDamage.HeavyDamage, d));
+                // Brutal Damage - Directional Damage: shooting into the front +1, into the rear -1.
+                if (!isMelee && !isSpell && attacker != null && AdvancedRules.IsOn(s, EAdvancedRules.DirectionalDamage))
+                {
+                    BrutalDamage.EFacing f = BrutalDamage.FacingHit(attacker, defender);
+                    if (f == BrutalDamage.EFacing.Front) result.Add(new GrantedModifier(BrutalDamage.DirectionalDamage + " (front)", 1));
+                    else if (f == BrutalDamage.EFacing.Rear) result.Add(new GrantedModifier(BrutalDamage.DirectionalDamage + " (rear)", -1));
+                }
+            }
             return result;
         }
 
