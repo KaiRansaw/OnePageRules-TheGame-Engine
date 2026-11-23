@@ -129,6 +129,10 @@ namespace FDG
         /// </summary>
         public FDG.Missions.MissionCardState? MissionCards { get; set; }
 
+        /// <summary>Extra Missions (Advanced Rulebooks 3.6.0): the mission being played and its running state (VP,
+        /// carried and owned markers). Null outside them and in every older save.</summary>
+        public FDG.Missions.ExtraMissionState? ExtraMission { get; set; }
+
         /// <summary>One entry per finished round, oldest first (the round summary card). Carried forward by
         /// <c>GameProgressUtilities.WriteProgress</c>; null in older saves.</summary>
         public List<RoundSummary>? RoundSummaries { get; set; }

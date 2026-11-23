@@ -54,6 +54,13 @@ namespace FDG.Stages
                 return;
             }
 
+            // Extra Missions: markers held (carried ones too), VP scored, or Sabotage's destroy-and-keep.
+            if (FDG.Missions.ExtraMissions.FinalScore(GameContext) is { } mission)
+            {
+                await AnnounceByVictoryPoints(context, mission.Score, finalScores, roundsPlayed, mission.Unit);
+                return;
+            }
+
             if (objectives.Count == 0)
             {
                 await AnnounceTie(context, finalScores, roundsPlayed);
@@ -129,11 +136,11 @@ namespace FDG.Stages
         }
 
         private async Task AnnounceByVictoryPoints(IGameContext context, Dictionary<int, int> vpBySlot,
-            IReadOnlyList<PlayerObjectiveScore> finalScores, int roundsPlayed)
+            IReadOnlyList<PlayerObjectiveScore> finalScores, int roundsPlayed, string unit = "VP")
         {
             var players = CampaignMissionLength.InPlayers(GameContext.TableState).OrderBy(p => p.SlotID).ToList();
             foreach (var p in players)
-                GameContext.TextOutput.Log($"  {p.Name}: {(vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0)} VP");
+                GameContext.TextOutput.Log($"  {p.Name}: {(vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0)} {unit}");
 
             var byTeam = players.GroupBy(p => p.TeamNumber)
                 .Select(g => (Team: g.Key, Vp: g.Sum(p => vpBySlot.TryGetValue(p.SlotID, out int v) ? v : 0),
@@ -148,7 +155,7 @@ namespace FDG.Stages
             var winners = byTeam[0].Roster;
             GameResult result = GameResult.ForWin(winners.Select(p => p.PlayerID).ToList(),
                 winners.Select(p => p.Name).ToList(), finalScores, roundsPlayed);
-            await context.Announce($"{result.Message} ({byTeam[0].Vp} VP)", new TextColor(255, 215, 0, 255),
+            await context.Announce($"{result.Message} ({byTeam[0].Vp} {unit})", new TextColor(255, 215, 0, 255),
                 EBannerTier.Headline);
             GameContext.NotifyGameCompleted(result);
         }

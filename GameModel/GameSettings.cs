@@ -105,6 +105,19 @@ namespace FDG
         public FDG.Missions.EMissionCardGame MissionCardGame;
 
         /// <summary>
+        /// Advanced Missions - Extra Missions (Advanced Rulebooks 3.6.0 p24-26, Kai 2026-11-22). None = the core
+        /// rules' mission (the book's "Duel"); Random rolls one before the game. Not with Mission Cards.
+        /// </summary>
+        public FDG.Missions.EExtraMission ExtraMission;
+
+        /// <summary>
+        /// Advanced Terrain - Solid Buildings (Advanced Rulebooks 3.6.0 p33, Kai 2026-11-22): buildings (Impassable +
+        /// Sight Blocking pieces of the Building kind, or any piece ticked Solid building) can be entered and defended.
+        /// Off by default.
+        /// </summary>
+        public bool SolidBuildings;
+
+        /// <summary>
         /// House rule (lobby toggle, default ON): when true, separate friendly units may end their
         /// move within 1" of each other, and may pass through each other's bases. Models still may
         /// not END overlapping another model, the enemy standoff is untouched, and within-unit

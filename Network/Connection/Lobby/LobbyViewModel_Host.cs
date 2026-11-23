@@ -94,6 +94,20 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlayMelee => _gameSettings.FastPlayMelee;
         public EDeploymentStyle DeploymentStyle => _gameSettings.DeploymentStyle;
         public FDG.Missions.EMissionCardGame MissionCardGame => _gameSettings.MissionCardGame;
+        public FDG.Missions.EExtraMission ExtraMission => _gameSettings.ExtraMission;
+        public bool SolidBuildings => _gameSettings.SolidBuildings;
+
+        public void SetExtraMission(FDG.Missions.EExtraMission mission)
+        {
+            _gameSettings.ExtraMission = mission;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetSolidBuildings(bool enabled)
+        {
+            _gameSettings.SolidBuildings = enabled;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
         public bool FastPlayShooting => _gameSettings.FastPlayShooting;
         public int? NumberOfRounds => _gameSettings.NumberOfRounds;
         public bool FastPlaySimplifiedTerrain => _gameSettings.FastPlaySimplifiedTerrain;

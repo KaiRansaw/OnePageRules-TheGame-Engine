@@ -37,8 +37,10 @@ namespace FDG.Stages
         {
             if (ObjectiveCount.HasValue)
                 throw new InvalidOperationException("Objective count was already set.");
-            if (count < 1)
-                throw new ArgumentOutOfRangeException(nameof(count), $"Objective count must be positive (got {count}).");
+            // 0 is allowed: an Extra Mission whose markers each side sets up in its own zone after deployment zones
+            // are chosen places none here (Sabotage, Breakthrough, Demolition, Headquarters).
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count), $"Objective count must not be negative (got {count}).");
             ObjectiveCount = count;
         }
 

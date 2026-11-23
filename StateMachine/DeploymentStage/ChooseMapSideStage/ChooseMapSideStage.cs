@@ -93,6 +93,8 @@ namespace FDG.Stages
                     byTeam[team.TeamNumber] = ZoneRect.From(rect);
             }
             if (byTeam.Count > 0) GameProgressUtilities.SetDeploymentZones(context.GameContext.GameDataStore, byTeam);
+            // Extra Missions: the markers each side sets up in or on its own zone (Sabotage, Breakthrough...).
+            if (byTeam.Count == 2) await FDG.Missions.ExtraMissions.PlaceOwnedMarkers(context.GameContext, byTeam);
 
             await ToRollForFirstDeployment.Activate(context);
         }

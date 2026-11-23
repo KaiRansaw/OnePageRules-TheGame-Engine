@@ -39,6 +39,9 @@ namespace FDG.Stages
                 bottom: ObjectiveLegalBandMarginInches,
                 top: tableH - ObjectiveLegalBandMarginInches);
 
+            // King of the Hill / Mosh Pit: "over 9" away from the deployment zones and the table edges".
+            if (FDG.Missions.ExtraMissions.LegalBand(GameContext) is { } missionBand) legalBand = missionBand;
+
             return new ObjectivePlacementTurnContext(GameContext, teamOrder, count, legalBand);
         }
 

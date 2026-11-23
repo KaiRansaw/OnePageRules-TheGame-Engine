@@ -44,6 +44,20 @@ namespace FDG
 
         public static bool Is(ITerrain t) => t.TerrainType.HasFlag(ETerrainType.SolidBuilding);
 
+        /// <summary>
+        /// Advanced Terrain - Solid Buildings on its own (GF / AoF Advanced Rulebooks 3.6.0 p33, Kai 2026-11-22): "Usually,
+        /// solid buildings would be treated as a piece of Sight Blocking and Impassable terrain, however with these rules
+        /// your units will be able to enter and defend them." With the lobby switch on, a piece is a solid building when
+        /// the map maker ticked it as one, or it is of the Building kind and Impassable + Sight Blocking (a mountain or a
+        /// wall is not a building). The Advanced Rulebooks' four games only (not the Quest games).
+        /// </summary>
+        public static bool AppliesTo(GameSettings settings, ETerrainType types, string? kind) =>
+            settings.SolidBuildings
+            && settings.GameSystem is EGameSystem.GrimdarkFuture or EGameSystem.GFFirefight or EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish
+            && (types.HasFlag(ETerrainType.SolidBuilding)
+                || (string.Equals(kind, "Building", StringComparison.OrdinalIgnoreCase)
+                    && types.HasFlag(ETerrainType.Impassible) && types.HasFlag(ETerrainType.Blocking)));
+
         /// <summary>"Exiting... staying within 6"."</summary>
         public const float ExitWithinInches = 6f;
 

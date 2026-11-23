@@ -22,7 +22,12 @@ namespace FDG.Stages
 
             Position placement;
             var mapSpots = CustomMapRules.FixedObjectives(context.GameContext.Settings);
-            if (mapSpots.Count > 0)
+            if (FDG.Missions.ExtraMissions.FixedSpots(context.GameContext) is { Count: > 0 } missionSpots)
+            {
+                // Seize Ground / Domination: one marker at the centre of each quarter of the middle of the table.
+                placement = missionSpots[Math.Min(context.MarkersPlaced, missionSpots.Count - 1)];
+            }
+            else if (mapSpots.Count > 0)
             {
                 // Map maker: the custom map fixes every marker's position.
                 SaveLoad.MapObjectiveEntry spot = mapSpots[Math.Min(context.MarkersPlaced, mapSpots.Count - 1)];

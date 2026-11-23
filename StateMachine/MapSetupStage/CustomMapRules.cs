@@ -27,6 +27,10 @@ namespace FDG.Stages
             // Mission Cards: "Place 6 objective markers" - a map with some other number is placed as usual.
             if (FDG.Missions.MissionCardGame.IsOn(settings) && spots.Count != FDG.Missions.MissionCardGame.ObjectiveCount)
                 return NoObjectives;
+            // Extra Missions set up their own markers; a map's are used only where the mission leaves their number open.
+            if (spots.Count > 0 && FDG.Missions.ExtraMissions.Of(settings) != FDG.Missions.EExtraMission.None
+                && !FDG.Missions.ExtraMissions.MapMarkersAllowed(settings, spots.Count))
+                return NoObjectives;
             return spots;
         }
     }

@@ -16,6 +16,20 @@ namespace FDG.Stages
         {
             context.LogDebug($"Entered {nameof(RollForObjectiveCountStage)}.");
 
+            // Extra Missions (Advanced Rulebooks 3.6.0): the mission is settled first (a Random one rolled), and most
+            // fix their own number of markers.
+            await FDG.Missions.ExtraMissions.Begin(context.GameContext);
+            if (FDG.Missions.ExtraMissions.MarkerCount(context.GameContext) is int fixedCount)
+            {
+                context.Log(fixedCount == 0
+                    ? "Each side sets up its own markers once the deployment zones are chosen."
+                    : $"The mission sets up {fixedCount} objective{(fixedCount == 1 ? "" : "s")}; no objective roll.");
+                if (fixedCount > 0) await context.Announce($"{fixedCount} Objective{(fixedCount == 1 ? "" : "s")}", new TextColor(255, 210, 80, 255));
+                context.SetObjectiveCount(fixedCount);
+                await OnRollComplete.Activate(context);
+                return;
+            }
+
             // Map maker: a custom map with its own objectives skips the roll - its markers ARE the count.
             int mapObjectives = CustomMapRules.FixedObjectives(context.GameContext.Settings).Count;
             if (mapObjectives > 0)

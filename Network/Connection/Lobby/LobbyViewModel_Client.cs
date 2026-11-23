@@ -111,6 +111,14 @@ namespace FDG.Network.Connection.Lobby
         public bool FastPlayMelee { get; private set; }
         public EDeploymentStyle DeploymentStyle { get; private set; }
         public FDG.Missions.EMissionCardGame MissionCardGame { get; private set; }
+        public FDG.Missions.EExtraMission ExtraMission { get; private set; }
+        public bool SolidBuildings { get; private set; }
+
+        public void SetExtraMission(FDG.Missions.EExtraMission mission) =>
+            throw new InvalidOperationException("Tried to set the mission when not the host.");
+
+        public void SetSolidBuildings(bool enabled) =>
+            throw new InvalidOperationException("Tried to set Solid Buildings when not the host.");
         public bool FastPlayShooting { get; private set; }
         public int? NumberOfRounds { get; private set; }
         public bool FastPlaySimplifiedTerrain { get; private set; }
@@ -551,6 +559,8 @@ namespace FDG.Network.Connection.Lobby
             FastPlayMelee = gameSettingsUpdate.GameSettings.FastPlayMelee;
             DeploymentStyle = gameSettingsUpdate.GameSettings.DeploymentStyle;
             MissionCardGame = gameSettingsUpdate.GameSettings.MissionCardGame;
+            ExtraMission = gameSettingsUpdate.GameSettings.ExtraMission;
+            SolidBuildings = gameSettingsUpdate.GameSettings.SolidBuildings;
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;
             FastPlaySimplifiedTerrain = gameSettingsUpdate.GameSettings.FastPlaySimplifiedTerrain;

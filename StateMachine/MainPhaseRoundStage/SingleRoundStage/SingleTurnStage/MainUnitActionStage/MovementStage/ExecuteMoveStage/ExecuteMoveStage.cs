@@ -52,8 +52,21 @@ namespace FDG.Stages
             // Flying units (Flying / Aircraft) fly over: nothing climbed.
             string? climbLine = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(movingUnit, GameContext.RuleEvaluator)
                 ? null : Climbing.Describe(movingUnit, paths, GameContext.TableState.Terrain.Objects);
+            List<ITerrain> ground = GameContext.TableState.Terrain.Objects.ToList();
+            ITerrain? buildingBefore = ground.Any(SolidBuildings.Is) ? SolidBuildings.Holding(movingUnit, ground) : null;
             MovementExecutor.CommitPositions(paths);
             if (climbLine != null) GameContext.Log(climbLine);
+            // Solid buildings (2026-11-22): say when a unit goes in or comes out, for the battle report.
+            if (ground.Any(SolidBuildings.Is))
+            {
+                ITerrain? buildingAfter = SolidBuildings.Holding(movingUnit, ground);
+                static string NameOf(ITerrain t) => t is TerrainData d && !string.IsNullOrWhiteSpace(d.Name) ? d.Name : "building";
+                if (!ReferenceEquals(buildingBefore, buildingAfter))
+                {
+                    if (buildingBefore != null) GameContext.Log($"{movingUnit.Name} leaves the {NameOf(buildingBefore)}.");
+                    if (buildingAfter != null) GameContext.Log($"{movingUnit.Name} enters the {NameOf(buildingAfter)} (in Cover inside).");
+                }
+            }
 
             if (moves.Count > 0)
             {

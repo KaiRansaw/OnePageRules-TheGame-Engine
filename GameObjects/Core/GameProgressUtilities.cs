@@ -74,6 +74,13 @@ namespace FDG
                 progress.MissionCards = cards;
             PendingMissionCards.Remove(store);
 
+            if (progress.ExtraMission == null)
+                progress.ExtraMission = TryGetProgress(store)?.ExtraMission;
+            if (progress.ExtraMission == null
+                && PendingExtraMission.TryGetValue(store, out FDG.Missions.ExtraMissionState? extra))
+                progress.ExtraMission = extra;
+            PendingExtraMission.Remove(store);
+
             if (progress.RoundSummaries == null)
                 progress.RoundSummaries = TryGetProgress(store)?.RoundSummaries;
             if (progress.CombatBonus == null)
@@ -153,6 +160,25 @@ namespace FDG
 
         /// <summary>The Mission Cards' state written before the first progress record exists.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.MissionCardState> PendingMissionCards = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.ExtraMissionState> PendingExtraMission = new();
+
+        /// <summary>Extra Missions: the running state (held aside until the progress record exists).</summary>
+        public static FDG.Missions.ExtraMissionState? ExtraMission(IReadableGameDataStore store) =>
+            TryGetProgress(store)?.ExtraMission
+            ?? (PendingExtraMission.TryGetValue(store, out FDG.Missions.ExtraMissionState? pending) ? pending : null);
+
+        public static void SetExtraMission(IReadWriteableGameDataStore store, FDG.Missions.ExtraMissionState state)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress != null)
+            {
+                progress.ExtraMission = state;
+                WriteProgress(store, progress);
+                return;
+            }
+            PendingExtraMission.Remove(store);
+            PendingExtraMission.Add(store, state);
+        }
 
         /// <summary>
         /// The game's Mission Cards state - the live object, which the mission stages change in place on every

@@ -343,6 +343,16 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The Mission Cards - see <see cref="GameSettings.MissionCardGame"/>.</summary>
         FDG.Missions.EMissionCardGame MissionCardGame { get; }
 
+        /// <summary>Extra Missions - see <see cref="GameSettings.ExtraMission"/>.</summary>
+        FDG.Missions.EExtraMission ExtraMission { get; }
+
+        void SetExtraMission(FDG.Missions.EExtraMission mission);
+
+        /// <summary>Solid Buildings - see <see cref="GameSettings.SolidBuildings"/>.</summary>
+        bool SolidBuildings { get; }
+
+        void SetSolidBuildings(bool enabled);
+
         void SetMissionCardGame(FDG.Missions.EMissionCardGame game);
 
         /// <summary>See <see cref="GameSettings.FriendlyUnitsMayOverlap"/>.</summary>

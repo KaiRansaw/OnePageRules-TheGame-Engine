@@ -77,6 +77,9 @@ namespace FDG.Stages
             // Game-mode round-end steps (Horde Mode: objective damage and its mission-end checks). Run
             // BEFORE the round-end rules and token sweep below so they see the same "arrived this round"
             // and Shaken state the objective check above used. None in the standard game.
+            // Extra Missions: carried and destroyed markers, the first seizer, progressive VP.
+            await FDG.Missions.ExtraMissions.AfterSeizing(GameContext, roundJustFinished);
+
             IRoundHooks? roundHooks = (Parent as MainPhaseRoundStage)?.RoundHooks;
             // Game Master "End the game": straight to the victory screen, skipping the mode's round-end steps.
             bool gameMasterEnd = GameContext.GameMaster?.ConsumeEndGame() == true;
@@ -169,7 +172,8 @@ namespace FDG.Stages
             // banner AND writes the same line to the log, and both channels already replicate (beats via
             // PresentationRelayer, log lines via PlayerLogSender), so a networked client sees it too. The
             // call lands before the victory banner, so the two read in order.
-            if (MatchDecision.IsResultFixed(GameContext.TableState, out string headline, out string detail))
+            if (!FDG.Missions.ExtraMissions.IsOn(GameContext)
+                && MatchDecision.IsResultFixed(GameContext.TableState, out string headline, out string detail))
             {
                 GameContext.Log($"Match decided after round {roundJustFinished} of " +
                     $"{roundLimit}: {detail}.");

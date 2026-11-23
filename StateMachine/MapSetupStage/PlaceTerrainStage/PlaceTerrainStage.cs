@@ -114,7 +114,7 @@ namespace FDG.Stages
                 context.GameContext.GameDataStore.Create(
                     // Climbable's 3" limit reads the model's own tallest part when its heights were read (2026-11-22).
                     new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name,
-                            TerrainHeights.TallestPart(entry.Solid) ?? entry.HeightInches),
+                            TerrainHeights.TallestPart(entry.Solid) ?? entry.HeightInches, entry.Kind),
                         entry.Solid ?? entry.Shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look,
                         drawShape: entry.Solid != null ? entry.Shape : null));
             }
@@ -156,7 +156,7 @@ namespace FDG.Stages
         /// </para>
         /// </summary>
         private static ETerrainType WithQuestTypes(IMapSetupContext context, ETerrainType declared,
-            string? pieceName, float heightInches)
+            string? pieceName, float heightInches, string? kind = null)
         {
             ETerrainType types = QuestTerrainTypes.AppliesTo(context.GameContext.Settings.GameSystem)
                 ? TerrainBook.WithClimbableHeight(declared | QuestTerrainTypes.ExtraFlagsFor(pieceName), heightInches)
@@ -164,7 +164,11 @@ namespace FDG.Stages
                 // Quest guide), so a map's tick on either does nothing there - not even climbing (2026-11-22).
                 : declared & ~(ETerrainType.Steep | ETerrainType.Climbable);
             // #460 Fast-Play Simplified Terrain: "all pieces of terrain must be treated like solid buildings".
-            return FastPlay.SimplifiedTerrain(context.GameContext.Settings) ? SolidBuildings.Simplified(types) : types;
+            if (FastPlay.SimplifiedTerrain(context.GameContext.Settings)) return SolidBuildings.Simplified(types);
+            // Advanced Terrain - Solid Buildings (Kai, 2026-11-22): a building can be entered and defended.
+            if (SolidBuildings.AppliesTo(context.GameContext.Settings, types, kind)) return SolidBuildings.Simplified(types);
+            // A piece ticked as a solid building plays as a plain building when the rule is off.
+            return types & ~ETerrainType.SolidBuilding;
         }
 
         private static void PlaceAutoLayout(IMapSetupContext context, TerrainLayoutFile layout, float keepFraction = 1f)
@@ -183,7 +187,7 @@ namespace FDG.Stages
             var placed = new List<ITerrain>();
             void Create(TerrainPieceEntry entry, IZone shape)
             {
-                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches), shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look);
+                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches, entry.Kind), shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look);
                 placed.Add(data);
                 context.GameContext.GameDataStore.Create(data);
             }
@@ -364,7 +368,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name, template.HeightInches), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name, template.HeightInches, template.Kind), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
 
                 piecesPlaced++;
                 cursor.TryAdvance(_ => true, _ => true, out _, out _);
@@ -487,7 +491,7 @@ namespace FDG.Stages
                 IZone placedShape = TerrainTemplateUtilities.TranslateToCenter(rotated, result.Center);
 
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name, template.HeightInches), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
+                    new TerrainData(WithQuestTypes(context, template.TerrainType, template.Name, template.HeightInches, template.Kind), placedShape, template.HeightInches, template.Name, template.Kind, template.Look));
 
                 turn.RecordPlacement(cost);
                 context.Log($"  {name} placed {template.Name} for {TerrainPointsBudget.Pts(cost)} " +
