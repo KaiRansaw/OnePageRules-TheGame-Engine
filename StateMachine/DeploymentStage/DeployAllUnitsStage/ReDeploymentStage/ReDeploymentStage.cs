@@ -40,6 +40,13 @@ namespace FDG.Stages
         {
             context.LogDebug("Entered Re-Deployment stage.");
 
+            // Attack & Defend missions that replace the deployment zones: there is no zone to re-deploy into.
+            if (context.MissionPlan is { CustomZones: true })
+            {
+                await OnFinish.Activate(context);
+                return;
+            }
+
             // Players in activation order (the deployment roll order head activates first). For the common
             // 1v1 case this is [firstPlayer, secondPlayer] and the round-robin below alternates them exactly.
             List<(PlayerID Player, ITeam Team)> order = context.FirstDeploymentRollOrder

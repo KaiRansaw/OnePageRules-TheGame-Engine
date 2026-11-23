@@ -18,6 +18,23 @@ namespace FDG.Stages
         {
             context.LogDebug("Entering Determine Next Deploy Player stage.");
 
+            // Attack & Defend: the mission says who deploys what, in order.
+            if (context.MissionPlan is { } plan)
+            {
+                context.HasStarted = true;
+                PlayerID? next = plan.NextPlayer(context);
+                if (next == null)
+                {
+                    plan.Finish(GameContext, context);
+                    context.Log("All players have deployed.");
+                    await OnFinishedDeployingAllUnits.Activate(context);
+                    return;
+                }
+                context.Cursor.PointAt(next.Value);
+                await OnFinish.Activate(context);
+                return;
+            }
+
             // First time through we keep the cursor's initial state (the roll-off winner) — but only
             // if that player actually has a unit to deploy. If their whole army was set aside (e.g.
             // every unit is Scout) the pool is empty, so we fall through to the normal skip-empty

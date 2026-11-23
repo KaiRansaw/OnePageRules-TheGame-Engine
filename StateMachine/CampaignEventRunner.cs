@@ -399,7 +399,7 @@ namespace FDG.Stages
         /// ones, the area events' included), and each failure is a wound. The same shape the Quest games'
         /// out-of-attack hits use (<c>QuestActions.DealHits</c>). Returns the wounds.
         /// </summary>
-        private static async Task<float> DealHits(IGameContext gameContext, IUnit target, int hits, string source)
+        internal static async Task<float> DealHits(IGameContext gameContext, IUnit target, int hits, string source)
         {
             if (hits <= 0 || !target.GetIsAlive()) return 0f;
             CampaignEventAreas.RefreshRollBonus(gameContext, target, ERollKind.Save);

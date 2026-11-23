@@ -55,8 +55,17 @@ namespace FDG.Stages
             // is the pool removal we undo below. It is NOT offered for the other placements that share
             // this stage's shape (Scout, Ambush arrival, spillout): those are consequences of an earlier
             // committed decision, with nowhere to return to.
+            // Attack & Defend: the mission's own area for this step ("within 12\" of the marker", "over 12\" away from
+            // enemy units"...); otherwise the side's deployment zone.
+            IBoundedZone zone = deploymentZone.GetValue();
+            float minFromEnemies = 0f;
+            IReadOnlyList<PlacementDisc> keepOut = Array.Empty<PlacementDisc>();
+            if (context.MissionPlan?.Current is { } step)
+                (zone, minFromEnemies, keepOut) = FDG.Missions.AttackDefend.Zone(GameContext, step.Zone, deployingUnit, zone);
+
             var placeObjectsRequest = new PlaceObjectsRequest<ModelData>(currentPlayerID, "Place Unit Models",
-                deploymentZone.GetValue(), deployingUnit.ModelBindings, allowCancel: true,
+                zone, deployingUnit.ModelBindings, minDistanceFromEnemiesInches: minFromEnemies,
+                enemyKeepOutDiscs: keepOut, allowCancel: true,
                 cancelHint: "Go back and deploy a different unit. This one returns to the list.",
                 displayName: $"Deploying {deployingUnit.Name}");
 
@@ -85,6 +94,8 @@ namespace FDG.Stages
                 entry.Binding.GetValue().SetPosition(entry.Position);
                 FacingRules.ApplyPlaced(entry.Binding.GetValue(), entry.Facing, GameContext.Settings); // round bases face the enemy side
             }
+
+            context.MissionPlan?.Record(deployingUnit);
 
             await OfferPostDeploymentAbilities(deployingUnit, currentPlayerID);
 

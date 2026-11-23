@@ -48,6 +48,9 @@ namespace FDG.Stages
         /// </summary>
         public int CurrentDeployingUnitPoolIndex { get; set; }
 
+        /// <summary>Attack &amp; Defend: the mission's own deployment order and areas (null = the core alternation).</summary>
+        FDG.Missions.MissionDeploymentPlan? MissionPlan { get; }
+
     }
 
     public class DeploymentTurnContext : IDeploymentTurnContext
@@ -79,9 +82,13 @@ namespace FDG.Stages
 
         public int CurrentDeployingUnitPoolIndex { get; set; } = -1;
 
+        public FDG.Missions.MissionDeploymentPlan? MissionPlan { get; }
+
         public DeploymentTurnContext(IGameContext gameContext, List<ITeam> firstDeploymentRollOrder,
-            Dictionary<ITeam, DataBinding<RectangularZone>> playerDeploymentZones)
+            Dictionary<ITeam, DataBinding<RectangularZone>> playerDeploymentZones,
+            FDG.Missions.MissionDeploymentPlan? missionPlan = null)
         {
+            MissionPlan = missionPlan;
             GameContext = gameContext;
             FirstDeploymentRollOrder = firstDeploymentRollOrder;
             PlayerDeploymentZones = playerDeploymentZones;
@@ -106,7 +113,10 @@ namespace FDG.Stages
                             // later pass. Ambush-style rules (LaterRound) stay in the normal pool: the
                             // player decides per-unit at selection time whether to hold it in reserve
                             // (see ChooseUnitToDeployStage), so the unit still appears in the deploy list.
-                            if (TryGetDefer(unitBinding, out RuleOperation.DeferDeployment defer)
+                            // Attack & Defend missions that replace the deployment zones have no zone for Scout to
+                            // measure from: those units deploy with the rest (house rules C).
+                            if (missionPlan is not { CustomZones: true }
+                                && TryGetDefer(unitBinding, out RuleOperation.DeferDeployment defer)
                                 && defer.Timing == EDeferTiming.AfterNormalDeployment)
                             {
                                 _deferredUnits.Add(new DeferredUnitEntry(unitBinding, defer));

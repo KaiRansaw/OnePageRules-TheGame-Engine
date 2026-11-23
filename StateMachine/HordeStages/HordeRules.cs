@@ -23,7 +23,24 @@ namespace FDG.StateMachine
         public static int RoundLimit(GameSettings settings)
         {
             int limit = RoundLimit(settings.GameMode);
-            return limit == GameWideConstants.NUMBER_OF_ROUNDS && settings.NumberOfRounds is int n && n > 0 ? n : limit;
+            if (limit == GameWideConstants.NUMBER_OF_ROUNDS && settings.NumberOfRounds is int n && n > 0) return n;
+            // Attack & Defend: "After 6 rounds have been played the game ends".
+            if (limit == GameWideConstants.NUMBER_OF_ROUNDS
+                && FDG.Missions.ExtraMissionCatalog.IsAttackDefend(FDG.Missions.ExtraMissions.Of(settings)))
+                return FDG.Missions.AttackDefend.Rounds;
+            return limit;
+        }
+
+        /// <summary>The game's length, also seeing a Random mission that rolled an Attack &amp; Defend one (6 rounds).</summary>
+        public static int RoundLimit(GameSettings settings, FDG.Data.IReadableGameDataStore store)
+        {
+            int limit = RoundLimit(settings);
+            if (limit == GameWideConstants.NUMBER_OF_ROUNDS && settings.NumberOfRounds == null
+                && FDG.Missions.ExtraMissions.Of(settings) == FDG.Missions.EExtraMission.Random
+                && GameProgressUtilities.ExtraMission(store) is { } state
+                && FDG.Missions.ExtraMissionCatalog.IsAttackDefend(state.Mission))
+                return FDG.Missions.AttackDefend.Rounds;
+            return limit;
         }
 
         /// <summary>1-based wave a round belongs to: rounds 1-3 are wave 1, 4-6 wave 2, and so on.</summary>

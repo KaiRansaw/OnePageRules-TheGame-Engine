@@ -60,16 +60,18 @@ namespace FDG.Stages
             int roll = rollResult.SideMin;
             for (int v = rollResult.SideMin; v <= rollResult.SideMax; v++)
                 if (rollResult.At(v) > 0f) { roll = v; break; }
-            int objectiveCount = roll + 2;
+            // Attack & Defend's Ambush sets up "a total of D3" - no +2.
+            int bonus = FDG.Missions.ExtraMissions.D3Bonus(context.GameContext);
+            int objectiveCount = roll + bonus;
 
-            context.Log($"Rolled D3={roll} (+2) - {objectiveCount} objectives will be placed.");
+            context.Log($"Rolled D3={roll} (+{bonus}) - {objectiveCount} objectives will be placed.");
 
             // Show the D3 (the rolled face lights up), then a big banner with the resulting count. The
             // label carries the formula so the +2 between the rolled face and the count is understood.
             // #289: FromDecisive - the D3 above resolved to one concrete face in either roller mode, so
             // the front-end draws the die rather than a probability bar.
             await context.GameContext.Presenter.Present(
-                DiceRolledBeat.FromDecisive(rollResult, roll, "Roll for Objectives (D3 + 2)",
+                DiceRolledBeat.FromDecisive(rollResult, roll, bonus == 2 ? "Roll for Objectives (D3 + 2)" : "Roll for Objectives (D3)",
                     $"{objectiveCount} objectives"));
             await context.Announce($"{objectiveCount} Objectives", new TextColor(255, 210, 80, 255));
 

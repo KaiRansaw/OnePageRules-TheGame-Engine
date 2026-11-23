@@ -14,6 +14,9 @@ namespace FDG.Stages
 
         TeamPlayerAlternationCursor Cursor { get; }
 
+        /// <summary>When set, only this team places markers (Attack &amp; Defend: the defender).</summary>
+        ITeam? OnlyTeam { get; }
+
         PlayerID GetCurrentPlacingPlayerID();
 
         /// <summary>True until every marker has been placed.</summary>
@@ -33,6 +36,8 @@ namespace FDG.Stages
         public RectangularZone LegalBand { get; }
 
         public TeamPlayerAlternationCursor Cursor { get; }
+
+        public ITeam? OnlyTeam { get; init; }
 
         public ObjectivePlacementTurnContext(IGameContext gameContext, IReadOnlyList<ITeam> teamOrder,
             int totalMarkers, RectangularZone legalBand)

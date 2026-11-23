@@ -38,7 +38,8 @@ namespace FDG.Stages
             // Otherwise round-robin. Every team always has "remaining work" until total count is reached —
             // the bookkeeping is on the per-marker counter, not on per-team quotas.
             bool advanced = context.Cursor.TryAdvance(
-                teamHasRemainingWork: _ => context.HasRemainingMarkers(),
+                teamHasRemainingWork: team => context.HasRemainingMarkers()
+                    && (context.OnlyTeam == null || team.TeamNumber == context.OnlyTeam.TeamNumber),
                 playerHasRemainingWork: _ => context.HasRemainingMarkers(),
                 out ITeam? nextTeam,
                 out PlayerID? nextPlayerID);

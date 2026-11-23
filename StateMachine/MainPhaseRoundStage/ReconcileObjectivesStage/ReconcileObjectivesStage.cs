@@ -131,7 +131,7 @@ namespace FDG.Stages
                     + "returns to normal.");
 
             // Horde Mode (OPR v3.6.0) runs twelve rounds; the standard game runs NUMBER_OF_ROUNDS.
-            int roundLimit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings);
+            int roundLimit = FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings, GameContext.GameDataStore);
 
             if (roundHooksEndGame)
             {

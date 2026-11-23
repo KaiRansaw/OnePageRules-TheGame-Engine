@@ -11,16 +11,16 @@ namespace FDG.Tests
         [Test]
         public void EveryMission_HasTheBooksWords_AndAsciiOnly()
         {
-            Assert.That(ExtraMissionCatalog.All.Count, Is.EqualTo(12), "Duel + 5 Face-Off + 6 Progressive");
+            Assert.That(ExtraMissionCatalog.All.Count, Is.EqualTo(18), "Duel + 5 Face-Off + 6 Progressive + 6 Attack & Defend");
             foreach (ExtraMissionInfo m in ExtraMissionCatalog.All)
             {
-                Assert.That(m.BookText, Does.Contain("After 4 rounds"), m.Name);
+                Assert.That(m.BookText, Does.Contain(m.AttackDefend ? "After 6 rounds" : "After 4 rounds"), m.Name);
                 Assert.That(m.BookText.All(ch => ch < 128) && m.Name.All(ch => ch < 128), Is.True, m.Name);
             }
         }
 
         [Test]
-        public void TheRandomRoll_FollowsTheBooksTables_AndRerollsAttackAndDefend()
+        public void TheRandomRoll_FollowsTheBooksTables()
         {
             int[] Faces(params int[] f) => f;
             EExtraMission Roll(params int[] faces) { int i = 0; return ExtraMissionCatalog.Roll(() => faces[i++]); }
@@ -30,7 +30,13 @@ namespace FDG.Tests
             Assert.That(Roll(3, 1), Is.EqualTo(EExtraMission.PitchedBattle));
             Assert.That(Roll(4, 4), Is.EqualTo(EExtraMission.Demolition));
             Assert.That(Roll(4, 6), Is.EqualTo(EExtraMission.MoshPit));
-            Assert.That(Roll(6, 5, 2, 2), Is.EqualTo(EExtraMission.SeizeGround), "5-6 (Attack & Defend) is rolled again");
+            Assert.That(Roll(5, 1), Is.EqualTo(EExtraMission.TheRaid));
+            Assert.That(Roll(6, 3), Is.EqualTo(EExtraMission.Ambush));
+            Assert.That(Roll(5, 5), Is.EqualTo(EExtraMission.VipEscort));
+            Assert.That(Roll(6, 6), Is.EqualTo(EExtraMission.TheRescue));
+            int k = 0; int[] f = { 6, 5, 2, 2 };
+            Assert.That(ExtraMissionCatalog.Roll(() => f[k++], allowAttackDefend: false), Is.EqualTo(EExtraMission.SeizeGround),
+                "not two sides: Attack & Defend (5-6) is rolled again");
             _ = Faces();
         }
 

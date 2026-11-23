@@ -108,7 +108,7 @@ namespace FDG
         // The three "which game is this?" answers come from the game's settings, which are known from the moment the
         // game is built (GameProgressUtilities.SettingsOf) - not only from the progress record, which starts at round 1.
         public int TotalRounds => GameProgressUtilities.SettingsOf(_store) is { } settings
-            ? StateMachine.HordeRules.RoundLimit(settings)
+            ? StateMachine.HordeRules.RoundLimit(settings, _store)
             : StateMachine.HordeRules.RoundLimit(EGameMode.Standard);
 
         public int? RoundCount => GameProgressUtilities.TryGetProgress(_store)?.RoundCount;

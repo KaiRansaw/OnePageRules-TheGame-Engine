@@ -22,7 +22,8 @@ namespace FDG.Stages
                 throw new NullReferenceException($"{nameof(contextSelf.PlayerDeploymentZones)}");
             }
 
-            return new DeploymentTurnContext(GameContext, contextSelf.FirstDeploymentRollOrder, contextSelf.PlayerDeploymentZones);
+            return new DeploymentTurnContext(GameContext, contextSelf.FirstDeploymentRollOrder, contextSelf.PlayerDeploymentZones,
+                FDG.Missions.AttackDefend.DeploymentPlan(GameContext));
         }
 
         protected override Dictionary<string, Transition> PopulateTransitions(out StageBase<IDeploymentTurnContext> startingChild)

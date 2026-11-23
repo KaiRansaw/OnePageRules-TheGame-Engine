@@ -50,6 +50,8 @@ namespace FDG.Stages
             // ("at the beginning of the next round after Ambushers have been deployed").
             await BringOnReserves(context.RoundCount, context.TeamActivateOrder);
             await PlaceReinforcements();
+            // Attack & Defend: VIP Escort's marker move, Last Stand / The Rescue reserves.
+            await FDG.Missions.AttackDefend.RoundStart(GameContext, context.RoundCount);
             if (context.RoundCount >= 2)
             {
                 await RedeployOffTableAircraft();

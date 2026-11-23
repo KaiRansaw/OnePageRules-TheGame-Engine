@@ -95,6 +95,8 @@ namespace FDG.Stages
             if (byTeam.Count > 0) GameProgressUtilities.SetDeploymentZones(context.GameContext.GameDataStore, byTeam);
             // Extra Missions: the markers each side sets up in or on its own zone (Sabotage, Breakthrough...).
             if (byTeam.Count == 2) await FDG.Missions.ExtraMissions.PlaceOwnedMarkers(context.GameContext, byTeam);
+            // Attack & Defend: Smash & Grab's secret trap and relic; VIP Escort's starting edge.
+            await FDG.Missions.AttackDefend.AfterMarkersPlaced(context.GameContext);
 
             await ToRollForFirstDeployment.Activate(context);
         }

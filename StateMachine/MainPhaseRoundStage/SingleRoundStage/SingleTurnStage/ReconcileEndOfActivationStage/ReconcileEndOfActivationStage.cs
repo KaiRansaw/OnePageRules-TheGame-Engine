@@ -35,6 +35,7 @@ namespace FDG.Stages
             Climbing.Audit(GameContext);
             // Extra Missions: "If the unit is Shaken or destroyed at any point, the marker is dropped".
             FDG.Missions.ExtraMissions.DropCarried(GameContext);
+            FDG.Missions.AttackDefend.AfterActivation(GameContext);
 
             // Clear the just-activated unit's "used this activation" markers (once-per-activation cost gates,
             // e.g. Strafing) so they reset for its next activation.

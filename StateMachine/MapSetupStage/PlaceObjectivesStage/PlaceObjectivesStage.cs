@@ -42,6 +42,11 @@ namespace FDG.Stages
             // King of the Hill / Mosh Pit: "over 9" away from the deployment zones and the table edges".
             if (FDG.Missions.ExtraMissions.LegalBand(GameContext) is { } missionBand) legalBand = missionBand;
 
+            // Attack & Defend: the defender sets up the marker(s) (Ambush: alternating, the defender first).
+            if (FDG.Missions.AttackDefend.PlacementOrder(GameContext, teamOrder) is { } placing)
+                return new ObjectivePlacementTurnContext(GameContext, placing.Order, count, legalBand)
+                    { OnlyTeam = placing.OnlyFirst ? placing.Order[0] : null };
+
             return new ObjectivePlacementTurnContext(GameContext, teamOrder, count, legalBand);
         }
 
