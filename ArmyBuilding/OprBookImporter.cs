@@ -776,7 +776,7 @@ namespace FDG.ArmyBuilding
         {
             string consequence = kind == ECountAsTerrain.Dangerous
                 ? "each moving model rolls a d6, taking a wound on a 1"
-                : $"its move is capped at {FDG.GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES:0}\"";
+                : $"its move is capped at {FDG.GameWideConstants.DifficultTerrainMoveCapInches:0}\"";
             return new SpecialRuleDefinition($"{spellName} Effect",
                 new[]
                 {

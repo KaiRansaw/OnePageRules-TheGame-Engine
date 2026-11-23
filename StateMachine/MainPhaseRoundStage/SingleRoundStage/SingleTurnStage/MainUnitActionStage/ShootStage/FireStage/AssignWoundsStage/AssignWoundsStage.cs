@@ -122,6 +122,12 @@ namespace FDG.Stages
                 GameContext.Log($"Shred added {woundInjection.TotalExtraWounds:0.##} extra wound(s).");
             }
 
+            // Battlefield Effects - Mystical Fog: "When a unit takes a wound, roll one die, on a 6+ it may ignore that wound."
+            if (BattlefieldEffects.Is(GameContext, BattlefieldEffects.MysticalFog))
+                for (int i = 0; i < packets.Count; i++)
+                    if (packets[i].Wounds > 0f)
+                        packets[i] = packets[i].WithWounds(await BattlefieldEffects.FogIgnore(GameContext, defender, packets[i].Wounds));
+
             // Critical Hits: "if the hit isn't blocked the target takes 1 wound" (on top of the hit's own).
             if (hitResults.CriticalWoundIfUnblocked && rollToSaveResults.FailedSaveList != null
                 && rollToSaveResults.FailedSaveList.Any(f => f.RollNeededInfo.Source.Kind == EHitSourceKind.Critical && f.SaveCount > 0f))

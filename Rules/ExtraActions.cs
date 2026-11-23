@@ -186,6 +186,8 @@ namespace FDG
             int suppression = UnitPsychology.HitModifier(attacker, isSpell);
             if (suppression != 0) result.Add(new GrantedModifier(UnitPsychology.Suppression, suppression));
             // Critical Hits: "-1 to hit rolls for this melee" / "when shooting until the end of the round".
+            // Battlefield Effects - Damnation: "-1 to all their to hit ... rolls this round".
+            if (BattlefieldEffects.DamnedPenalty(attacker) != 0) result.Add(new GrantedModifier("Damnation", -1));
             int crit = CriticalHits.HitPenalty(attacker, isMelee);
             if (crit != 0) result.Add(new GrantedModifier(CriticalHits.Label, crit));
             // Brutal Damage - Heavy Damage: "-1 Quality" for a badly hurt Tough(6)+ unit.
@@ -200,6 +202,8 @@ namespace FDG
         {
             var result = new List<GrantedModifier>();
             if (InLastStand(defender)) result.Add(new GrantedModifier(LastStand, -1));
+            // Battlefield Effects - Damnation: "-1 to all their ... Defense ... rolls this round".
+            if (BattlefieldEffects.DamnedPenalty(defender) != 0) result.Add(new GrantedModifier("Damnation", -1));
             if (!isMelee && !isSpell && defender.Tokens.HasToken(TokenType.HunkerDown))
                 result.Add(new GrantedModifier(HunkerDown, 1));
             if (isMelee && defender.Tokens.HasToken(TokenType.DefensiveStance))

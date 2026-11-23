@@ -157,14 +157,18 @@ namespace FDG.Stages
             _maxAdvanceDistance += movementModifiers.Net(EActionType.Advance);
             _maxRushDistance += movementModifiers.Net(EActionType.Rush);
             _maxChargeDistance += movementModifiers.Net(EActionType.Charge);
+            // Battlefield Effects - Zero Gravity: "+2D6" in a straight line on ... Charge actions" (rolled as it activated).
+            _maxChargeDistance += BattlefieldEffects.ChargeBonus(unit);
 
             // "Counts as being in Difficult Terrain" (#153): the whole move is capped at the difficult-terrain
             // limit, after bonuses (the cap is absolute), unless the unit ignores difficult terrain outright
             // (Strider/Flying). Applied to the unit scalars here and to each per-model budget below.
+            // Battlefield Effects - Muddy Terrain: "The entire table counts as Difficult Terrain" (the book's 6").
             bool countsAsDifficult =
-                MovementRuleQueries.CountsAsInTerrain(unit, GameContext.RuleEvaluator, ECountAsTerrain.Difficult)
+                (MovementRuleQueries.CountsAsInTerrain(unit, GameContext.RuleEvaluator, ECountAsTerrain.Difficult)
+                 || BattlefieldEffects.WholeTableDifficult(GameContext))
                 && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit);
-            float difficultCap = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+            float difficultCap = GameWideConstants.BookDifficultTerrainMoveCapInches;
             if (countsAsDifficult)
             {
                 _maxAdvanceDistance = Math.Min(_maxAdvanceDistance, difficultCap);
@@ -192,7 +196,7 @@ namespace FDG.Stages
                 AccumulateModelMovementRules(unit, model, EActionType.Charge, baseCharge, perModel);
                 float modelAdvance = baseAdvance + perModel.Net(EActionType.Advance);
                 float modelRush = baseRush + perModel.Net(EActionType.Rush);
-                float modelCharge = baseCharge + perModel.Net(EActionType.Charge);
+                float modelCharge = baseCharge + perModel.Net(EActionType.Charge) + BattlefieldEffects.ChargeBonus(unit);
                 if (countsAsDifficult)
                 {
                     modelAdvance = Math.Min(modelAdvance, difficultCap);

@@ -2377,7 +2377,7 @@ public static class CoreRuleCatalog
 
     /// <summary>
     /// Strider (#102): the unit ignores the difficult-terrain movement cap — it may cross Difficult terrain
-    /// without being limited to <see cref="Utilities.GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/>.
+    /// without being limited to <see cref="Utilities.GameWideConstants.DifficultTerrainMoveCapInches"/>.
     /// A passive at <see cref="EHookID.Movement_OnMoveThroughTerrain"/> emitting
     /// <see cref="Effect.IgnoreTerrainEffects"/>, read by <see cref="MovementRuleQueries.IgnoresDifficultTerrain"/>
     /// and threaded into the movement validators (engine + every move resolver). Mirrors Strafing's fly-over

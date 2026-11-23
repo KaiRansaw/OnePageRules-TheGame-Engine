@@ -60,6 +60,8 @@ namespace FDG
             // game at all, and the carry-forward is what stops the next snapshot erasing it mid-mission.
             if (progress.EventAreas == null)
                 progress.EventAreas = TryGetProgress(store)?.EventAreas;
+            if (progress.Battlefield == null)
+                progress.Battlefield = TryGetProgress(store)?.Battlefield;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

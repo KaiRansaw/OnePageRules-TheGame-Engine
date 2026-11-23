@@ -81,7 +81,12 @@ namespace FDG
         /// </summary>
         public const float QUEST_AI_COHERENCY_INCHES = 3;
 
-        public const float DIFFICULT_TERRAIN_MOVE_CAP_INCHES = 6f;
+        /// <summary>The core books' Difficult terrain cap (6").</summary>
+        public const float BookDifficultTerrainMoveCapInches = 6f;
+
+        /// <summary>The cap a move that crosses a Difficult piece is held to: the book's 6", or 4" under the Muddy
+        /// Terrain special condition (Battlefield Effects). Reset to 6" whenever a game starts.</summary>
+        public static float DifficultTerrainMoveCapInches { get; set; } = BookDifficultTerrainMoveCapInches;
 
         /// <summary>
         /// How far a model may move into or through <see cref="ETerrainType.Unstable"/> terrain before it
@@ -91,7 +96,7 @@ namespace FDG
         /// <para>
         /// "Over" six, so a move of exactly 6" is safe and 6.1" is not - an Advance crosses it freely and
         /// a Rush or Charge does not. Shares the number with
-        /// <see cref="DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/> but not the meaning: that one CAPS a move,
+        /// <see cref="DifficultTerrainMoveCapInches"/> but not the meaning: that one CAPS a move,
         /// this one is a threshold a move can exceed.
         /// </para>
         /// </summary>
@@ -156,6 +161,7 @@ namespace FDG
             float? tableWidthInches = null, float? tableHeightInches = null)
         {
             FRIENDLY_UNITS_MAY_OVERLAP = friendlyUnitsMayOverlap;
+            DifficultTerrainMoveCapInches = BookDifficultTerrainMoveCapInches;
             // Classic line of sight unless the game's settings say otherwise (the GameSettings overload sets it after).
             FDG.Stages.VolumetricSight.On = false;
             (DEFAULT_TABLE_WIDTH_INCHES, DEFAULT_TABLE_HEIGHT_INCHES) = TableSizeFor(system);

@@ -30,6 +30,10 @@ namespace FDG
         // Critical Hits (GFF p45, AoFS p45 only)
         SkirmishCriticalHits = 1UL << 12,
         CriticalHitsByWeaponType = 1UL << 13,
+        // Battlefield Effects (all four books). Bits 20-23 hold the picked Special Condition (see BattlefieldEffects).
+        SpecialConditions = 1UL << 14,
+        TerrainObjectiveEffects = 1UL << 15,
+        RandomEvents = 1UL << 16,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -43,6 +47,7 @@ namespace FDG
         public const string UnitPsychologyChapter = "Unit Psychology";
         public const string BrutalDamageChapter = "Brutal Damage";
         public const string CriticalHitsChapter = "Critical Hits";
+        public const string BattlefieldEffectsChapter = "Battlefield Effects";
 
         public static readonly IReadOnlyList<AdvancedRuleOption> Catalog = BuildCatalog();
 
@@ -55,6 +60,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in BrutalDamage.All)
                 list.Add(new AdvancedRuleOption(BrutalDamageChapter, name, flag, BrutalDamage.BooksHaveIt,
                     BrutalDamage.BookText(name), BrutalDamage.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in BattlefieldEffects.All)
+                list.Add(new AdvancedRuleOption(BattlefieldEffectsChapter, name, flag, FourGames,
+                    BattlefieldEffects.BookText(name), BattlefieldEffects.GameText(name)));
             foreach ((string name, EAdvancedRules flag) in CriticalHits.All)
                 list.Add(new AdvancedRuleOption(CriticalHitsChapter, name, flag, CriticalHits.BooksHaveIt,
                     CriticalHits.BookText(name), CriticalHits.GameText(name)));
@@ -66,6 +74,7 @@ namespace FDG
         {
             [UnitPsychologyChapter] = "Unit psychology rules change how units behave as they are put through continuous fighting, making them less predictable. Pick any of the following.",
             [BrutalDamageChapter] = "Brutal Damage rules make the game deadlier by modifying how units are damaged during combat. Pick any of the following.",
+            [BattlefieldEffectsChapter] = "Battlefield Effects add special conditions to the whole table, effects to terrain and objectives, and random events every round. Pick any of the following.",
             [CriticalHitsChapter] = "Critical Hits rules make weapons a lot deadlier by modifying how units are damaged with a little bit of luck. Use the generic tables, or the weapon type tables instead.",
         };
 

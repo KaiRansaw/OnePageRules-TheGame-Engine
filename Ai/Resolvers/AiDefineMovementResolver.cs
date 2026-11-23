@@ -208,7 +208,7 @@ namespace FDG.Ai.Resolvers
             // validator below also skips the cap for this unit, so a clamp here would only under-move).
             if (!request.IgnoresDifficultTerrain
                 && CentroidCrossesTerrain(allTerrain, ETerrainType.Difficult, cx, cz, ndx, ndz, step, baseRadius))
-                step = Math.Min(step, GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES - 0.001f);
+                step = Math.Min(step, GameWideConstants.DifficultTerrainMoveCapInches - 0.001f);
 
             // (B) The centroid pre-filter can't see per-model paths, cohesion, enemy-unit crossings, or
             // charge-reach — so run the planner's ladder against the same MovementUtilities.ValidatePaths

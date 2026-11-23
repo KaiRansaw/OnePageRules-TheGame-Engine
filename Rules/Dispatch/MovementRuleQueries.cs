@@ -35,7 +35,7 @@ namespace FDG.Rules.Dispatch
         /// Flying rule reuses the same <see cref="RuleOperation.IgnoreTerrainEffects"/>). Drives the
         /// <c>ignoresDifficultTerrain</c> flag threaded into
         /// <see cref="Stages.MovementUtilities.ValidateMovingThroughDifficultTerrain"/>: when set, a move
-        /// crossing Difficult terrain is no longer capped at <see cref="Utilities.GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/>.
+        /// crossing Difficult terrain is no longer capped at <see cref="Utilities.GameWideConstants.DifficultTerrainMoveCapInches"/>.
         /// Non-logging — safe to call per-frame while a resolver builds its preview. Note this waives only the
         /// difficult-terrain cap; Dangerous-terrain tests and the enemy move-through block are unaffected (the
         /// "ignore all terrain" Flying facet is #029).

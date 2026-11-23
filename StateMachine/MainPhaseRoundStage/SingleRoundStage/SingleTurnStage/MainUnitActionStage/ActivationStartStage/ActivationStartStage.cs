@@ -71,6 +71,8 @@ namespace FDG.Stages
 
             // Unit Psychology - Suppression: a Hero lifts markers; the unit tests to remove its own.
             await UnitPsychology.OnActivationStart(GameContext, unit);
+            // Battlefield Effects: Deadly Vortex's die, Zero Gravity's charge reach, Dark Skies / Muddy Terrain kept right.
+            await BattlefieldEffects.OnActivation(GameContext, unit);
 
             await ResolvePassiveEntries(context, unit);
 

@@ -13,7 +13,7 @@ namespace FDG.Tests
     [TestFixture]
     public class DifficultTerrainClampTests
     {
-        private const float Cap = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+        private const float Cap = GameWideConstants.BookDifficultTerrainMoveCapInches;
         private const float Margin = MovementUtilities.DIFFICULT_TERRAIN_CLAMP_MARGIN_INCHES;
 
         private static readonly Float2 FacingZ = new Float2(0f, 1f);

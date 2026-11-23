@@ -137,6 +137,9 @@ namespace FDG
         /// keeps them. Null when none.</summary>
         public List<SavedEventArea>? EventAreas { get; set; }
 
+        /// <summary>Battlefield Effects (Advanced Rulebooks): the special condition and what it rolled. Null outside them.</summary>
+        public FDG.BattlefieldEffectsState? Battlefield { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

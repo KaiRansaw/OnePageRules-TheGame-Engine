@@ -51,7 +51,9 @@ namespace FDG.Rules.Dispatch
 
             float range = System.Math.Max(floor, weapon.RangeInches + delta);
             // Campaign event 43, Thick Clouds: halved while the shooter stands fully inside the quarter.
-            return InThickClouds(attacker) ? range / 2f : range;
+            range = InThickClouds(attacker) ? range / 2f : range;
+            // Battlefield Effects - Dark Skies: "-2D6" range when firing their ranged weapons (to a minimum of 3")".
+            return BattlefieldEffects.DarkSkiesRange(attacker, range);
         }
 
         /// <summary>

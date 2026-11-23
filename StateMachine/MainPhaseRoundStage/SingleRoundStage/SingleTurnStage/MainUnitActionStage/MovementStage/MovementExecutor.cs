@@ -79,10 +79,13 @@ namespace FDG.Stages
             // across Dangerous terrain, or that activate in it, must roll as many dice as the number of
             // wounds it would take to fully destroy them" - word for word in GF, AoF, AoFS v3.6.0 and GFSQ
             // v2.1.0. One model's path touching the piece puts the whole unit's remaining wounds on the table.
-            if (!DangerousTerrainOdds.WouldTest(paths, relevantTerrain, countsAsInDangerousTerrain))
+            // Battlefield Effects - Earthquake: "The entire table counts as Dangerous Terrain", and a real Dangerous
+            // piece "deals wounds on rolls of 1-2".
+            bool realPiece = DangerousTerrainOdds.WouldTest(paths, relevantTerrain, countsAsInDangerousTerrain);
+            if (!realPiece && !BattlefieldEffects.WholeTableDangerous(gameContext))
                 return DangerousTerrainResult.None;
 
-            return RollBatch(gameContext, UnitTesters(unit), unit);
+            return RollBatch(gameContext, UnitTesters(unit), unit, BattlefieldEffects.DangerousWoundsOn(gameContext, realPiece));
         }
 
         /// <summary>
@@ -140,7 +143,8 @@ namespace FDG.Stages
             List<ITerrain> dangerous = relevantTerrain
                 .Where(t => t.TerrainType.HasFlag(ETerrainType.Dangerous))
                 .ToList();
-            if (dangerous.Count == 0) return DangerousTerrainResult.None;
+            bool quake = BattlefieldEffects.WholeTableDangerous(gameContext);
+            if (dangerous.Count == 0 && !quake) return DangerousTerrainResult.None;
 
             ITerrain? standingIn = null;
             foreach (IModel model in unit.Models)
@@ -150,7 +154,12 @@ namespace FDG.Stages
                     Rules.Definitions.TerrainProximityQueries.IsModelWithinInches(model, new[] { t }, 0f));
                 if (standingIn != null) break;
             }
-            if (standingIn == null) return DangerousTerrainResult.None;
+            if (standingIn == null)
+            {
+                if (!quake) return DangerousTerrainResult.None;
+                gameContext.Log($"{unit.Name} activates - Earthquake: the entire table counts as Dangerous Terrain.");
+                return RollBatch(gameContext, UnitTesters(unit), unit);
+            }
 
             // Say why: "activates in it" catches a unit that did not move, and a base merely touching the
             // edge of the piece counts (QA 2026-11-06: "why did the Marksmen take a test? they didn't move").
@@ -158,7 +167,7 @@ namespace FDG.Stages
             gameContext.Log($"{unit.Name} activates with a model in {piece} - the rule tests a unit that moves "
                 + "across it OR activates in it.");
 
-            return RollBatch(gameContext, UnitTesters(unit), unit);
+            return RollBatch(gameContext, UnitTesters(unit), unit, BattlefieldEffects.DangerousWoundsOn(gameContext, realPiece: true));
         }
 
         /// <summary>
@@ -175,7 +184,7 @@ namespace FDG.Stages
         /// expected number of 1s, which N separate decisive rolls could not.
         /// </summary>
         private static DangerousTerrainResult RollBatch(IGameContext gameContext, IReadOnlyList<IModel> testers,
-            IUnit unit)
+            IUnit unit, int woundsOn = 1)
         {
             if (testers.Count == 0) return DangerousTerrainResult.None;
 
@@ -201,6 +210,7 @@ namespace FDG.Stages
 
             IDiceResults roll = gameContext.DiceRoller.Roll(6, totalDice);
             float ones = roll.At(1); // 1s are wounds (fractional under the probabilistic roller)
+            for (int f = 2; f <= woundsOn; f++) ones += roll.At(f);   // Earthquake: a real Dangerous piece wounds on 1-2
 
             List<PendingModelWound> pending = new List<PendingModelWound>();
             float woundsRolled;
@@ -308,7 +318,22 @@ namespace FDG.Stages
 
             bool wasAlive = unit.GetIsAlive();
 
-            await CasualtyPresentation.ApplyAndPresent(gameContext, result.PendingWounds,
+            IReadOnlyList<PendingModelWound> pending = result.PendingWounds;
+            if (BattlefieldEffects.Is(gameContext, BattlefieldEffects.MysticalFog) && result.Wounds > 0f)
+            {
+                // Mystical Fog: a 6 ignores a wound - taken off the last models in the list.
+                float left = await BattlefieldEffects.FogIgnore(gameContext, unit, result.Wounds);
+                float drop = result.Wounds - left;
+                var trimmed = pending.ToList();
+                for (int i = trimmed.Count - 1; i >= 0 && drop > 0f; i--)
+                {
+                    float take = MathF.Min(trimmed[i].Wounds, drop);
+                    trimmed[i] = trimmed[i] with { Wounds = trimmed[i].Wounds - take };
+                    drop -= take;
+                }
+                pending = trimmed.Where(p => p.Wounds > 0f).ToList();
+            }
+            await CasualtyPresentation.ApplyAndPresent(gameContext, pending,
                 unit.ID, unit.Name);
 
             // Dangerous terrain can finish a unit off, and that death is a destruction like any other:

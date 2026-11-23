@@ -54,6 +54,7 @@ namespace FDG.Stages
                 ? null : Climbing.Describe(movingUnit, paths, GameContext.TableState.Terrain.Objects);
             List<ITerrain> ground = GameContext.TableState.Terrain.Objects.ToList();
             ITerrain? buildingBefore = ground.Any(SolidBuildings.Is) ? SolidBuildings.Holding(movingUnit, ground) : null;
+            List<Position> zeroGravityStarts = movingUnit.Models.Where(m => m.GetIsAlive()).Select(m => m.Position).ToList();
             MovementExecutor.CommitPositions(paths);
             if (climbLine != null) GameContext.Log(climbLine);
             // Solid buildings (2026-11-22): say when a unit goes in or comes out, for the battle report.
@@ -112,6 +113,10 @@ namespace FDG.Stages
             GameContext.RuleEvaluator.ConsumeOneShotGrants(
                 new Rules.Dispatch.Contexts.MoveThroughTerrainContext(movingUnit),
                 (movingUnit, Rules.Foundation.ERuleSeat.Actor));
+
+            // Battlefield Effects - Zero Gravity: the unit carries on straight ahead (+D3" after an Advance, +2D6" after
+            // a Rush); a move that ends in contact - a charge - does not drift.
+            await BattlefieldEffects.Drift(GameContext, movingUnit, zeroGravityStarts, resolvedAction == Rules.Definitions.EActionType.Rush);
 
             await OnMoveExecuted.Activate(context);
         }

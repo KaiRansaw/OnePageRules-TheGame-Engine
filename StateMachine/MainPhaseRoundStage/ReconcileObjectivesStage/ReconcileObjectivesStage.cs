@@ -128,6 +128,7 @@ namespace FDG.Stages
             // Unit Psychology - Suppression: units that rested drop their markers now.
             UnitPsychology.RoundEnd(GameContext);
             CriticalHits.RoundEnd(GameContext);
+            BattlefieldEffects.RoundEnd(GameContext);
 
             // #432: and the terrain a campaign random event laid down for this round - a wood or a
             // minefield the event conjured. It is real terrain, so nothing else would ever take it away,

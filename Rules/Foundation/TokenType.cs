@@ -53,6 +53,11 @@ public readonly record struct TokenType(string Id)
     public const string CRIT_SHAKEN_ID = "CritShaken";
     public const string CRIT_STABBED_ID = "CritStabbed";
 
+    // Battlefield Effects (Advanced Rulebooks 3.6.0). See FDG.BattlefieldEffects.
+    public const string DARK_SKIES_ID = "DarkSkies";
+    public const string DAMNED_ID = "Damned";
+    public const string ZERO_GRAVITY_CHARGE_ID = "ZeroGravityCharge";
+
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
     // never merge, and Foundation needn't reference ERollKind, which lives in Definitions); the payload
@@ -418,4 +423,11 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType CritShaken = new(CRIT_SHAKEN_ID);
     /// <summary>Critical Hits: loses all melee special rules for this melee.</summary>
     public static readonly TokenType CritStabbed = new(CRIT_STABBED_ID);
+
+    /// <summary>Dark Skies: -1" range per token on ranged weapons (to a minimum of 3").</summary>
+    public static readonly TokenType DarkSkies = new(DARK_SKIES_ID);
+    /// <summary>Damnation: its player refused the sacrifice - -1 to hit, Defense and Morale this round.</summary>
+    public static readonly TokenType Damned = new(DAMNED_ID);
+    /// <summary>Zero Gravity: +1" charge reach per token this activation.</summary>
+    public static readonly TokenType ZeroGravityCharge = new(ZERO_GRAVITY_CHARGE_ID);
 }

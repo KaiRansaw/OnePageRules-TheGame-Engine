@@ -912,7 +912,7 @@ namespace FDG.Stages
         /// <summary>Public sibling of the Dangerous check (#155): whether the move's swept path touches any
         /// Difficult-flagged piece. Lets a move-preview resolver know a model's committed waypoints have
         /// already crossed Difficult terrain, so the rest of its move is subject to
-        /// <see cref="GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/> (see
+        /// <see cref="GameWideConstants.DifficultTerrainMoveCapInches"/> (see
         /// <see cref="ClampTravelForDifficultTerrain"/>).</summary>
         public static bool DoesPathCrossDifficultTerrain(ModelMoveEntry move, IEnumerable<ITerrain> terrain)
             => DoesPathCrossTerrainPieces(move, terrain
@@ -1114,7 +1114,7 @@ namespace FDG.Stages
         /// <item>The path so far has already crossed Difficult terrain
         /// (<paramref name="pathAlreadyCrossedDifficultTerrain"/>) OR this segment enters it with cap room to
         /// spare: the whole move is capped at
-        /// <see cref="GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES"/> total —
+        /// <see cref="GameWideConstants.DifficultTerrainMoveCapInches"/> total —
         /// <see cref="EDifficultClampKind.CappedCrossing"/>.</item>
         /// <item>The segment would enter Difficult terrain but the model has already moved too far to afford
         /// entering: it stops just short of the edge — <see cref="EDifficultClampKind.StoppedShortOfEdge"/>.</item>
@@ -1135,7 +1135,7 @@ namespace FDG.Stages
                 .ToList();
             if (difficult.Count == 0) return new DifficultClampResult(desired, EDifficultClampKind.NotLimited);
 
-            float capRemaining = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES
+            float capRemaining = GameWideConstants.DifficultTerrainMoveCapInches
                 - traveledBeforeSegmentInches - DIFFICULT_TERRAIN_CLAMP_MARGIN_INCHES;
 
             if (pathAlreadyCrossedDifficultTerrain)
@@ -1177,7 +1177,7 @@ namespace FDG.Stages
             // Cheap early-out first: nobody moved over 6", so nothing can break the cap.
             bool anyOverCap = false;
             for (int i = 0; i < geometry.Length && !anyOverCap; i++)
-                anyOverCap = geometry[i].TotalDistance > GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+                anyOverCap = geometry[i].TotalDistance > GameWideConstants.DifficultTerrainMoveCapInches;
             if (!anyOverCap) return;
 
             bool unitTouchedDifficult = false;
@@ -1192,7 +1192,7 @@ namespace FDG.Stages
 
             for (int i = 0; i < geometry.Length; i++)
             {
-                if (geometry[i].TotalDistance > GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES)
+                if (geometry[i].TotalDistance > GameWideConstants.DifficultTerrainMoveCapInches)
                 {
                     sink.Add(EErrorReasonType.ExceededDifficultTerrainMoveLimit, geometry[i].Move.Model);
                     if (sink.Done(EErrorReasonType.ExceededDifficultTerrainMoveLimit)) return;
@@ -1851,7 +1851,7 @@ namespace FDG.Stages
                 case EErrorReasonType.MovingThroughImpassibleTerrain:
                     return "Moves through impassible terrain";
                 case EErrorReasonType.ExceededDifficultTerrainMoveLimit:
-                    return $"Moved more than {GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES}\" through difficult terrain";
+                    return $"Moved more than {GameWideConstants.DifficultTerrainMoveCapInches}\" through difficult terrain";
                 case EErrorReasonType.TooFarFromAnyUnitModel:
                     return $"Breaks cohesion: Model is further than {GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES} " + 
                         "inches from the closest model";

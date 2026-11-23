@@ -32,6 +32,10 @@ namespace FDG.Stages
 
             // Majority rule: more than half of the living defending models in cover → +1 defense bonus.
             int bonus = majority.HasCover ? 1 : 0;
+            // Battlefield Effects - Heavy Storm: the whole table counts as Cover; cover pieces give +2.
+            int stormed = BattlefieldEffects.CoverBonus(GameContext, majority.HasCover, bonus);
+            if (stormed != bonus) GameContext.Log($"Heavy Storm: Defense +{stormed} from cover{(majority.HasCover ? " (in a cover piece)" : " (the whole table counts as Cover)")}.");
+            bonus = stormed;
 
             // #042 Blast: the attacking weapon ignores cover — drop the bonus. Derived from the attacker's
             // rules via the shared query so the cover stage, targeting options, and movement options agree.

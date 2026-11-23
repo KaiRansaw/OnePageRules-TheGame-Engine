@@ -125,7 +125,7 @@ namespace FDG.Tests
             foreach (ModelMoveEntry entry in move)
             {
                 float travelled = PathLength(entry);
-                Assert.That(travelled, Is.LessThanOrEqualTo(GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES),
+                Assert.That(travelled, Is.LessThanOrEqualTo(GameWideConstants.DifficultTerrainMoveCapInches),
                     "crossing difficult ground caps the whole move at 6\"");
             }
         }
@@ -226,7 +226,7 @@ namespace FDG.Tests
                 }
                 longest = MathF.Max(longest, PathLength(entry));
             }
-            Assert.That(longest, Is.GreaterThan(GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES),
+            Assert.That(longest, Is.GreaterThan(GameWideConstants.DifficultTerrainMoveCapInches),
                 "a mud-free detour must not be charged the difficult-terrain move cap");
         }
 

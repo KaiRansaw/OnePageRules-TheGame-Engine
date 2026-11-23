@@ -1016,7 +1016,7 @@ namespace FDG.Ai.Tactician
             (_, _, bool crossesDifficult) =
                 GridPathfinder.AdvanceAlongPath(path, budget, terrain, baseRadius);
             if (crossesDifficult && !ignoresDifficultTerrain)
-                budget = Math.Min(budget, GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES - 0.001f);
+                budget = Math.Min(budget, GameWideConstants.DifficultTerrainMoveCapInches - 0.001f);
             return (path, routeGrid, budget, baseRadius);
         }
             finally { global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.PlanRoute, __probe); }

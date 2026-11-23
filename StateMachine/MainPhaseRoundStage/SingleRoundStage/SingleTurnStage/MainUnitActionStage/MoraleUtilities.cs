@@ -124,7 +124,8 @@ namespace FDG.Stages
             // which is right, since no die is rolled there for a point to shift.
             int underdogNet = await UnderdogSpend.ConsumeNet(gameContext, ERollKind.Morale, testingUnit);
             // Extra Actions: Last Stand's "-1 to Quality ... rolls" - a morale test is a Quality roll.
-            int lastStand = ExtraActions.MoraleModifier(testingUnit) + BrutalDamage.HeavyPenalty(gameContext.Settings, testingUnit).Quality;
+            int lastStand = ExtraActions.MoraleModifier(testingUnit) + BrutalDamage.HeavyPenalty(gameContext.Settings, testingUnit).Quality
+                + BattlefieldEffects.MoraleModifier(gameContext, testingUnit);
             if (lastStand != 0)
             {
                 grantedNet += lastStand;
@@ -444,6 +445,8 @@ namespace FDG.Stages
             await gameContext.Presenter.Present(
                 new BannerBeat($"{unitBinding.GetValue().Name} fails morale - Shaken!", ShakenBannerColor,
                     EBannerTier.Notice));
+            // Battlefield Effects - Sinister Echoes: "When a unit is Shaken, it also takes D3 wounds."
+            await BattlefieldEffects.OnShaken(gameContext, unitBinding.GetValue());
 
             // #197 P17c Reinforcement: "when a unit where all models have this rule is Shaken ... you may
             // remove it from the table as destroyed and place a new copy ..." - the offer rides the
@@ -563,6 +566,7 @@ namespace FDG.Stages
             await gameContext.Presenter.Present(
                 new BannerBeat($"{unit.Name} fails morale - Routed!", RoutBannerColor, EBannerTier.Notice));
 
+            List<IUnit> echoes = BattlefieldEffects.FriendsNear(gameContext, unit);
             IReadOnlyList<IModel> killed = Rout(unitBinding);
             if (killed.Count == 0) return;
 
@@ -577,6 +581,8 @@ namespace FDG.Stages
             // unit-destroyed hook deliberately does not fire here (see UnitDestructionNotifier). Only a lost
             // melee routs, so for the Mission Cards it is a unit destroyed in melee.
             await UnitDestructionNotifier.NotifyUnitDestroyed(gameContext, unit, killer: null, FDG.Missions.EKillCause.Melee);
+            // Battlefield Effects - Sinister Echoes: friendly units within 6" of the routed unit take D3 wounds.
+            await BattlefieldEffects.OnRouted(gameContext, unit, echoes);
         }
     }
 }

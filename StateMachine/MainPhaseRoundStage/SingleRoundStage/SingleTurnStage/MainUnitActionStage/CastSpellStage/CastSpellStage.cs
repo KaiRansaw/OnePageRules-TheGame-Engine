@@ -259,7 +259,8 @@ namespace FDG.Stages
                 RuleParticipant.Actor(caster)).Select(entry => entry.Op));
             int passive = passiveSink.Net(ERollKind.Cast);
 
-            int netModifier = boost + assist + granted + passive + castOrigin.RollBonus;
+            // Battlefield Effects - Arcane Power: "All casters get +1 to their spell casting rolls."
+            int netModifier = boost + assist + granted + passive + castOrigin.RollBonus + BattlefieldEffects.CastBonus(GameContext);
 
             // #274 — the caster's own models, reused by every spell visual below.
             List<Position> casterPositions = AttackBeatPositions.AlivePlaced(context.ActivatingUnit);
@@ -315,6 +316,8 @@ namespace FDG.Stages
             // final and the offer had no system left to fire in. Removed rather than left behind a flag
             // nobody sets: an unreachable rule is the thing this codebase keeps getting bitten by.
             // QuestCastPowerTests pins the absence; WorkItems/418 has the 2.0.1 wording.
+            // Battlefield Effects - Arcane Power: "On an unmodified result of 1 ... the caster takes D3 wounds."
+            await BattlefieldEffects.AfterCast(GameContext, caster, DecisiveFace(castRoll));
             if (!success)
             {
                 await GameContext.Announce($"{caster.Name} failed to cast {chosen.Name}: {rollDesc}.", CastFailColor);

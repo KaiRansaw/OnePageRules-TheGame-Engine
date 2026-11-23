@@ -288,7 +288,7 @@ namespace FDG.Tests
             DataBinding<UnitData> unit = MakeUnit();
             GrantOnce(unit, "Desert Storm Effect");
 
-            float cap = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+            float cap = GameWideConstants.DifficultTerrainMoveCapInches;
             var first = new MovementActionContext(ctx, unit);
             var second = new MovementActionContext(ctx, unit);
             Assert.That(first.MaxAdvanceDistance, Is.EqualTo(cap).Within(0.001f),
@@ -333,7 +333,7 @@ namespace FDG.Tests
             unit.GetValue().AttachRuleDefinition(new ResolvedRule("Slowing Curse", CountsAsDifficultRule));
             var context = new MovementActionContext(_ctx, unit);
 
-            float cap = GameWideConstants.DIFFICULT_TERRAIN_MOVE_CAP_INCHES;
+            float cap = GameWideConstants.DifficultTerrainMoveCapInches;
             Assert.That(context.MaxAdvanceDistance, Is.EqualTo(cap).Within(0.001f));
             Assert.That(context.MaxRushDistance, Is.EqualTo(cap).Within(0.001f));
             Assert.That(context.MaxChargeDistance, Is.EqualTo(cap).Within(0.001f));
