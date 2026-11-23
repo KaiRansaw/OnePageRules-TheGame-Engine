@@ -58,6 +58,8 @@ namespace FDG
             // #434: the same two hops for the underdog pool. It is computed at mission setup - before the
             // main phase writes the first progress record - so the pending hop is what gets it into the
             // game at all, and the carry-forward is what stops the next snapshot erasing it mid-mission.
+            if (progress.EventAreas == null)
+                progress.EventAreas = TryGetProgress(store)?.EventAreas;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

@@ -1583,6 +1583,14 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
 
+        public EAdvancedRules AdvancedRules => _gameSettings.AdvancedRules;
+
+        public void SetAdvancedRules(EAdvancedRules rules)
+        {
+            _gameSettings.AdvancedRules = rules;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
         public void SetChallengeBonuses(EChallengeBonuses bonuses)
         {
             _gameSettings.ChallengeBonuses = bonuses & EChallengeBonuses.All;

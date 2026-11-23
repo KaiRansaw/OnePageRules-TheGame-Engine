@@ -27,6 +27,9 @@ namespace FDG.Stages
             IUnit attacker = context.AttackingUnit.GetValue();
             IUnit defender = context.DefendingUnit.GetValue();
 
+            // Unit Psychology - Suppression: "after they fought in melee" - a marker each.
+            UnitPsychology.FoughtInMelee(GameContext, attacker, defender);
+
             //Get wounds dealt by each side.
             float attackerWoundsDealt = context.DefenderRemainingWoundsAtStart - context.DefendingUnit.RemainingWounds();
             float defenderWoundsDealt = context.AttackerRemainingWoundsAtStart - context.AttackingUnit.RemainingWounds();

@@ -320,8 +320,8 @@ namespace FDG.Tests
         private static void AttachAi(IFDGGame game, int slotID, TableProgressWatch watch)
         {
             PlayerID playerID = game.LocalPlayerIDs.Single();
-            IStageResolverRegistry registry = AiProfileFactory.BuildRegistry(EAiProfile.SoloRules,
-                game.TableState, playerID, seed: 5150, slotID: slotID);
+            IStageResolverRegistry registry = new RecordingRegistry(AiProfileFactory.BuildRegistry(EAiProfile.SoloRules,
+                game.TableState, playerID, seed: 5150, slotID: slotID), $"seat {slotID}", watch);
             game.AssignInterfaces(null, null, registry, null, null);
             watch.Watch(game.TableState);
         }
@@ -350,6 +350,7 @@ namespace FDG.Tests
                     + $"{watch.ChangeCount} table changes were seen before it went quiet"
                     + $"{(watch.ChangeCount == 0 ? " - the game never got as far as putting anything on the table" : $", the last state being: {watch.LastFingerprint}")}. "
                     + "A networked seat stopped answering, or the host state machine stalled waiting on one. "
+                    + $"Last requests per seat: {watch.Requests()}. "
                     + "This is NOT the old wall-clock timeout - a busy box no longer fails this test, so a "
                     + "failure here means the game really did stop.");
             }
@@ -382,6 +383,35 @@ namespace FDG.Tests
         /// looked different. Keeps no history beyond the latest fingerprint - the question is only
         /// whether the game is still moving, not what it did.
         /// </summary>
+        /// <summary>Notes each request a seat's resolvers take and answer, so a stall names what hung.</summary>
+        private sealed class RecordingRegistry : IStageResolverRegistry
+        {
+            private readonly IStageResolverRegistry _inner;
+            private readonly string _seat;
+            private readonly TableProgressWatch _watch;
+
+            public RecordingRegistry(IStageResolverRegistry inner, string seat, TableProgressWatch watch)
+            { _inner = inner; _seat = seat; _watch = watch; }
+
+            public IStageResolverRegistry RegisterResolver<TRequest, TReply>(IStageResolver<TRequest, TReply> resolver)
+                where TRequest : IStageTaskRequest<TReply> => _inner.RegisterResolver(resolver);
+
+            public async Task<TReply> ResolveRequest<TRequest, TReply>(TRequest request) where TRequest : IStageTaskRequest<TReply>
+            {
+                _watch.Note($"{_seat} took {typeof(TRequest).Name}");
+                try { TReply r = await _inner.ResolveRequest<TRequest, TReply>(request); _watch.Note($"{_seat} answered {typeof(TRequest).Name}"); return r; }
+                catch (Exception e) { _watch.Note($"{_seat} FAILED {typeof(TRequest).Name}: {e.GetType().Name} {e.Message}"); throw; }
+            }
+
+            public async Task<string> ResolveRequestAsJson(string typeFullName, string requestJson, FDG.Data.IReadableGameDataStore gameDataStore)
+            {
+                string name = typeFullName[(typeFullName.LastIndexOf('.') + 1)..];
+                _watch.Note($"{_seat} took {name}");
+                try { string r = await _inner.ResolveRequestAsJson(typeFullName, requestJson, gameDataStore); _watch.Note($"{_seat} answered {name}"); return r; }
+                catch (Exception e) { _watch.Note($"{_seat} FAILED {name}: {e.GetType().Name} {e.Message}"); throw; }
+            }
+        }
+
         private sealed class TableProgressWatch
         {
             private readonly object _gate = new();
@@ -395,6 +425,16 @@ namespace FDG.Tests
             {
                 lock (_gate) _tables.Add(table);
             }
+
+            private readonly List<string> _requests = new();
+
+            /// <summary>A seat's resolver started or finished a request (the stall message lists the last few).</summary>
+            public void Note(string line)
+            {
+                lock (_gate) { _requests.Add(line); if (_requests.Count > 12) _requests.RemoveAt(0); }
+            }
+
+            public string Requests() { lock (_gate) return _requests.Count == 0 ? "none" : string.Join(" ; ", _requests); }
 
             public int ChangeCount { get { lock (_gate) { Sample(); return _changeCount; } } }
 

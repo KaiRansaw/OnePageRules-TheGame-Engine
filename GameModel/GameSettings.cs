@@ -127,6 +127,10 @@ namespace FDG
         /// </summary>
         public int AttackerTeam;
 
+        /// <summary>The optional Advanced Rulebook systems in play (Unit Psychology, Brutal Damage...). None by
+        /// default. See <see cref="FDG.AdvancedRules"/>.</summary>
+        public EAdvancedRules AdvancedRules;
+
         /// <summary>
         /// Advanced Terrain - Solid Buildings (Advanced Rulebooks 3.6.0 p33, Kai 2026-11-22): buildings (Impassable +
         /// Sight Blocking pieces of the Building kind, or any piece ticked Solid building) can be entered and defended.

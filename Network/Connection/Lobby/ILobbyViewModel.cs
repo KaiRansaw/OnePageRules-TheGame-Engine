@@ -330,6 +330,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetExtraActions(EExtraActions actions);
 
+        /// <summary>The optional Advanced Rulebook systems ticked (see <see cref="GameSettings.AdvancedRules"/>).</summary>
+        EAdvancedRules AdvancedRules { get; }
+
+        void SetAdvancedRules(EAdvancedRules rules);
+
         /// <summary>The Solo &amp; Co-Op Challenge Bonuses given to the AI - see <see cref="GameSettings.ChallengeBonuses"/>.</summary>
         EChallengeBonuses ChallengeBonuses { get; }
 

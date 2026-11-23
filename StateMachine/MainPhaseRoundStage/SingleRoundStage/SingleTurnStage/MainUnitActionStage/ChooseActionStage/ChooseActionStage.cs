@@ -114,6 +114,14 @@ namespace FDG.Stages
                 }
             }
 
+            // Unit Psychology - Panic: "the opponent may control it for that activation" (house rules C).
+            if (!context.HasMoved && context.ExtraAction == null
+                && await UnitPsychology.PanicActivation(GameContext, context.ActivatingUnit.GetValue()))
+            {
+                await ToReconcileEndOfActivation.Activate(context);
+                return;
+            }
+
             // Extra Actions: a Shaken unit may still use Last Stand, Hunker Down or Defensive Stance. Asked once,
             // on the first visit (nothing has happened yet); "Pass" is the ordinary idle-and-recover.
             if (context.StartedActivationShaken && !context.HasMoved && context.ExtraAction == null)
@@ -157,6 +165,7 @@ namespace FDG.Stages
                     await GameContext.Announce(
                         $"{activatingUnit.Name} is Shaken - stays idle this activation and recovers.",
                         ShakenRecoveryBannerColor, EBannerTier.Toast);
+                    RestIfIdle(context);
                 }
 
                 await ToReconcileEndOfActivation.Activate(context);
@@ -212,6 +221,24 @@ namespace FDG.Stages
                         cantChargeReason = "Heavy Charge - not in contact with an enemy that was 3\" to 6\" away.";
                     }
                     break;
+            }
+
+            // Unit Psychology - Frenzy: "must either shoot at the closest available enemy ... or must charge the
+            // closest enemy unit, and if neither is possible, then the unit ends its activation". It may Hold or
+            // Advance and shoot (only the closest enemy - the shooting stage holds it to that), or charge; no casting,
+            // no other ability actions, and no Pass while it can still shoot or charge.
+            bool frenzied = UnitPsychology.IsFrenzied(context.ActivatingUnit.GetValue());
+            if (frenzied)
+            {
+                const string frenzyReason = "Frenzied - must shoot or charge the closest enemy.";
+                if (canCast) { canCast = false; cantCastReason = frenzyReason; }
+                if (canPass && (canShoot || canCharge)) { canPass = false; cantPassReason = frenzyReason; }
+                if (!canShoot && !canCharge && context.HasMoved == false && !HasRangedWeapon(context))
+                {
+                    // Nothing to shoot with and no charge to make: "the unit ends its activation".
+                    canMove = false;
+                    cantMoveReason = frenzyReason;
+                }
             }
 
             // Last Stand: "can't use any special rules that require picking a target (ex.: Caster)".
@@ -319,6 +346,7 @@ namespace FDG.Stages
             {
                 customActionOffers = customActionOffers.Where(o => !ExtraActions.PicksATarget(o)).ToList();
             }
+            if (frenzied) customActionOffers = Array.Empty<AbilityOffer>();
             global::FDG.Ai.Tactician.Search.SearchTiming.Stop(global::FDG.Ai.Tactician.Search.SearchTiming.Stage.GateOffers, __gGateOffers);
 
             List<string> validOptions = new List<string>();
@@ -365,7 +393,7 @@ namespace FDG.Stages
             if(canMove)
             {
                 validOptions.Add(MOVEMENT_CHOICE_NAME);
-                outcomes.Add(MOVEMENT_CHOICE_NAME, () => ToMovement.Activate(context));
+                outcomes.Add(MOVEMENT_CHOICE_NAME, async () => { if (!context.HasMoved) await UnitPsychology.OfferBoost(GameContext, context.ActivatingUnit.GetValue()); await ToMovement.Activate(context); });
             }
             else
             {
@@ -375,7 +403,7 @@ namespace FDG.Stages
             if(canCharge)
             {
                 validOptions.Add(CHARGE_CHOICE_NAME);
-                outcomes.Add(CHARGE_CHOICE_NAME, () => ToCharge.Activate(context));
+                outcomes.Add(CHARGE_CHOICE_NAME, async () => { if (!context.HasMoved) await UnitPsychology.OfferBoost(GameContext, context.ActivatingUnit.GetValue()); await ToCharge.Activate(context); });
             }
             else
             {
@@ -684,7 +712,7 @@ namespace FDG.Stages
             if(canPass)
             {
                 validOptions.Add(PASS_CHOICE_NAME);
-                outcomes.Add(PASS_CHOICE_NAME, () => ToReconcileEndOfActivation.Activate(context));
+                outcomes.Add(PASS_CHOICE_NAME, () => { RestIfIdle(context); return ToReconcileEndOfActivation.Activate(context); });
             }
             else
             {
@@ -892,6 +920,16 @@ namespace FDG.Stages
             }
             return result;
         }
+
+        /// <summary>Unit Psychology - Suppression: staying idle for the whole activation is the Rest action.</summary>
+        private void RestIfIdle(IUnitActionContext context)
+        {
+            if (!context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken)
+                UnitPsychology.Rested(GameContext, context.ActivatingUnit.GetValue());
+        }
+
+        private static bool HasRangedWeapon(IUnitActionContext context) =>
+            context.ActivatingUnit.GetValue().Models.Any(m => m.GetIsAlive() && m.Weapons.Any(w => w.IsRanged()));
 
         private bool InContactWithHeavyChargeTarget(IUnitActionContext context)
         {

@@ -191,6 +191,22 @@ public static class TokenDefinitionCatalog
             new(TokenType.SUPPRESSED_ID, "Suppressed", EValence.Negative, ETokenProminence.Invisible,
                 DefaultClearTrigger: new TokenClearTrigger.ManualOnly()),
 
+            // Unit Psychology (Advanced Rulebooks 3.6.0) - see FDG.UnitPsychology.
+            new(TokenType.FRENZIED_ID, "Frenzied", EValence.Negative, ETokenProminence.Normal,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Frenzied - on its next activation it must shoot at or charge the closest enemy."),
+            new(TokenType.PANICKING_ID, "Panicking", EValence.Negative, ETokenProminence.Normal,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Panicking - the opponent controls it on its next activation."),
+            new(TokenType.SUPPRESSION_MARKER_ID, "Suppression", EValence.Negative, ETokenProminence.Normal,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Suppression - per marker: -1\" Advance, -2\" Rush/Charge, -1 to hit, -1 to Morale Tests."),
+            new(TokenType.SUPPRESSION_BOOST_ID, "Pushing on", EValence.Positive, ETokenProminence.Invisible,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly()),
+            new(TokenType.RESTING_ID, "Resting", EValence.Positive, ETokenProminence.Normal,
+                DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
+                Description: "Resting - its suppression markers are removed at the end of the round."),
+
             new(TokenType.MARK_ID, "Mark", EValence.Negative, ETokenProminence.Normal,
                 DefaultClearTrigger: new TokenClearTrigger.ManualOnly(),
                 Description: "Marked - a friendly attacker gains a rule against this unit until the first attack into it."),

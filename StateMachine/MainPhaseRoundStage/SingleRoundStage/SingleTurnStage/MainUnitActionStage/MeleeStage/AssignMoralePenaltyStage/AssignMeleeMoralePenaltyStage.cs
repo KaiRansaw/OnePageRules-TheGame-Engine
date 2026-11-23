@@ -55,6 +55,17 @@ namespace FDG.Stages
                     ? context.AttackingUnit.GetValue()
                     : context.DefendingUnit.GetValue();
                 await FirefightRules.TryPush(GameContext, loser, pusher);
+
+                // Unit Psychology - Retreating: "When a unit is Shaken after losing a melee, it must move X" directly
+                // away from the enemy unit it fought, where X is 2" for each wound it took."
+                if (loser.Tokens.HasToken(Rules.Foundation.TokenType.Shaken) && pusher != null)
+                {
+                    bool loserDefended = ReferenceEquals(context.DefendingUnit.GetValue(), loser);
+                    float took = loserDefended
+                        ? context.DefenderRemainingWoundsAtStart - context.DefendingUnit.RemainingWounds()
+                        : context.AttackerRemainingWoundsAtStart - context.AttackingUnit.RemainingWounds();
+                    await UnitPsychology.ShakenAfterMelee(GameContext, loser, pusher, took);
+                }
             }
 
             await OnAssignedPenalty.Activate(context);

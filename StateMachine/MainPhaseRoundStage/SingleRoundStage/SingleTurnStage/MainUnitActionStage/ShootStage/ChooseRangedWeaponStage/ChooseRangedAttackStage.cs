@@ -381,6 +381,15 @@ namespace FDG.Stages
             // every living carrier has already fired it (per-model token), so it's no longer offered.
             ApplyLimitedSpentGating(weaponOptions, attackingUnit);
 
+            // Unit Psychology - Frenzy: "must ... shoot at the closest available enemy".
+            string onlyReason = "Overwatch - may only shoot at the unit it reacted to.";
+            if (onlyTarget == null && UnitPsychology.IsFrenzied(attackingUnit.GetValue())
+                && UnitPsychology.ClosestEnemy(gameContext, attackingUnit.GetValue()) is { } closest)
+            {
+                onlyTarget = closest.ID;
+                onlyReason = $"Frenzied - may only shoot at the closest enemy, {closest.Name}.";
+            }
+
             // Extra Actions - Overwatch: the reaction shot is at one enemy, the one that moved or shot. Before
             // the resolve-first gate, for the same reason as Limited: a Deadly weapon that cannot reach the
             // one legal target must not lock out the weapons that can.
@@ -394,7 +403,7 @@ namespace FDG.Stages
                         if (stats.UnselectableReason != null || stats.TargetUnit.GetValue().ID.Equals(only)) continue;
                         option.WeaponTargetStats[i] = stats with
                         {
-                            UnselectableReason = "Overwatch - may only shoot at the unit it reacted to.",
+                            UnselectableReason = onlyReason,
                         };
                     }
                 }

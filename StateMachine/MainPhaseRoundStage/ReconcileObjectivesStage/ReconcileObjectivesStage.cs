@@ -51,6 +51,10 @@ namespace FDG.Stages
                 // side instead of contesting it to neutral (victory already pools per team, #257).
                 PlayerID? resolved = ITeamExtensions.ReconcileObjectiveOwner(
                     tableState.Teams.Objects, objective.OwnerID, nearbyPlayers);
+                // Unit Psychology - Intimidation: a contested marker goes to a side with 50% more points there.
+                if (!resolved.HasValue && nearbyPlayers.Count >= 2
+                    && UnitPsychology.Intimidate(GameContext, objective, modelToUnit, nearbyPlayers) is { } intimidator)
+                    resolved = intimidator;
 
                 if (nearbyPlayers.Count == 0)
                 {
@@ -121,6 +125,8 @@ namespace FDG.Stages
                 containers.AddRange(unit.Models.Select(model => model.Tokens));
             }
             new TokenClearService().ClearForHook(EHookID.Round_OnRoundEnd, containers);
+            // Unit Psychology - Suppression: units that rested drop their markers now.
+            UnitPsychology.RoundEnd(GameContext);
 
             // #432: and the terrain a campaign random event laid down for this round - a wood or a
             // minefield the event conjured. It is real terrain, so nothing else would ever take it away,

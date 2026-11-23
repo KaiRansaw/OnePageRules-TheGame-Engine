@@ -36,6 +36,11 @@ namespace FDG.Stages
             // Extra Missions: "If the unit is Shaken or destroyed at any point, the marker is dropped".
             FDG.Missions.ExtraMissions.DropCarried(GameContext);
             FDG.Missions.AttackDefend.AfterActivation(GameContext);
+            // Unit Psychology: retreats from this activation's shooting, and Suppression's owed Morale Tests.
+            await UnitPsychology.EndOfActivation(GameContext);
+            // "Frenzied units stop being frenzied at the end of their activation."
+            if (context.ActivatedUnit?.GetValue() is { } finished && UnitPsychology.IsFrenzied(finished))
+                finished.Tokens.RemoveTokens(Rules.Foundation.TokenType.Frenzied, finished.Tokens.GetTokenCount(Rules.Foundation.TokenType.Frenzied));
 
             // Clear the just-activated unit's "used this activation" markers (once-per-activation cost gates,
             // e.g. Strafing) so they reset for its next activation.

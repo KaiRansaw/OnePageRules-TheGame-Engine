@@ -182,6 +182,9 @@ namespace FDG
                 result.Add(new GrantedModifier(Overwatch, -1));
             if (!isMelee && defender.Tokens.HasToken(TokenType.StealthMove) && distanceInches > CloseRangeInches + 0.001f)
                 result.Add(new GrantedModifier(StealthMove, -1));
+            // Unit Psychology - Suppression: -1 to hit per marker, shooting or in melee.
+            int suppression = UnitPsychology.HitModifier(attacker, isSpell);
+            if (suppression != 0) result.Add(new GrantedModifier(UnitPsychology.Suppression, suppression));
             return result;
         }
 
@@ -198,7 +201,7 @@ namespace FDG
         }
 
         /// <summary>Last Stand's -1 to Quality applies to morale tests too (they are Quality rolls).</summary>
-        public static int MoraleModifier(IUnit unit) => InLastStand(unit) ? -1 : 0;
+        public static int MoraleModifier(IUnit unit) => (InLastStand(unit) ? -1 : 0) + UnitPsychology.MoraleModifier(unit);
 
         public static int Net(IReadOnlyList<GrantedModifier> modifiers) => modifiers.Sum(m => m.Delta);
 

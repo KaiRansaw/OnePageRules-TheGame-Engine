@@ -187,7 +187,14 @@ namespace FDG.Stages
             var placed = new List<ITerrain>();
             void Create(TerrainPieceEntry entry, IZone shape)
             {
-                var data = new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches, entry.Kind), shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look);
+                // A piece with solid parts (a named model piece) plays on them, as a drawn map does - it is never
+                // jittered (see below), so its solid parts are still where the model stands.
+                bool solid = entry.Solid != null && ReferenceEquals(shape, entry.Shape);
+                var data = solid
+                    ? new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name,
+                            TerrainHeights.TallestPart(entry.Solid) ?? entry.HeightInches, entry.Kind),
+                        entry.Solid!, entry.HeightInches, entry.Name, entry.Kind, entry.Look, drawShape: entry.Shape)
+                    : new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches, entry.Kind), shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look);
                 placed.Add(data);
                 context.GameContext.GameDataStore.Create(data);
             }
@@ -201,7 +208,7 @@ namespace FDG.Stages
                 // drawn on the book tables (keepFraction is 1), so their seeded games are unchanged.
                 if (keepFraction < 1f && rng.NextDouble() > keepFraction) continue;
 
-                if (!IsInDeploymentZone(entry.Shape, tableH, deploy))
+                if (!IsInDeploymentZone(entry.Shape, tableH, deploy) && entry.Solid == null)
                 {
                     midfield.Add(entry);
                     continue;

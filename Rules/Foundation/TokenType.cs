@@ -37,6 +37,13 @@ public readonly record struct TokenType(string Id)
     public const string OVERWATCH_SHOT_AT_ID = "OverwatchShotAt";
     public const string SUPPRESSED_ID = "Suppressed";
 
+    // Unit Psychology (Advanced Rulebooks 3.6.0). See FDG.UnitPsychology.
+    public const string FRENZIED_ID = "Frenzied";
+    public const string PANICKING_ID = "Panicking";
+    public const string SUPPRESSION_MARKER_ID = "SuppressionMarker";
+    public const string SUPPRESSION_BOOST_ID = "SuppressionBoost";
+    public const string RESTING_ID = "Resting";
+
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
     // never merge, and Foundation needn't reference ERollKind, which lives in Definitions); the payload
@@ -376,4 +383,15 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType OverwatchShotAt = new(OVERWATCH_SHOT_AT_ID);
     /// <summary>Engine bookkeeping: Covering Fire landed a 4+ on this unit; it tests morale after the shooting.</summary>
     public static readonly TokenType Suppressed = new(SUPPRESSED_ID);
+
+    /// <summary>Unit Psychology: the unit must shoot or charge the closest enemy on its next activation.</summary>
+    public static readonly TokenType Frenzied = new(FRENZIED_ID);
+    /// <summary>Unit Psychology: panicked instead of being Shaken - the opponent controls its next activation.</summary>
+    public static readonly TokenType Panicking = new(PANICKING_ID);
+    /// <summary>Unit Psychology: one suppression marker per token (stacks).</summary>
+    public static readonly TokenType SuppressionMarker = new(SUPPRESSION_MARKER_ID);
+    /// <summary>Unit Psychology: took a marker willingly for +2" / +4" this activation.</summary>
+    public static readonly TokenType SuppressionBoost = new(SUPPRESSION_BOOST_ID);
+    /// <summary>Unit Psychology: stayed idle (Rest) - its markers go at the end of the round.</summary>
+    public static readonly TokenType Resting = new(RESTING_ID);
 }

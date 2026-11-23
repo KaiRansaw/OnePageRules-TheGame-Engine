@@ -231,6 +231,25 @@ namespace FDG.Stages
                 }
             }
 
+            // Unit Psychology - Suppression: -1" Advance / -2" Rush and Charge per marker (+2" / +4" for a marker taken
+            // willingly this activation). Frenzy: no Rush - a frenzied unit moves only to shoot or charge.
+            (float advChange, float rushChange) = UnitPsychology.MoveChange(unit);
+            bool frenziedMove = UnitPsychology.IsFrenzied(unit);
+            if (advChange != 0f || rushChange != 0f || frenziedMove)
+            {
+                _maxAdvanceDistance = MathF.Max(0f, _maxAdvanceDistance + advChange);
+                _maxRushDistance = MathF.Max(0f, _maxRushDistance + rushChange);
+                _maxChargeDistance = MathF.Max(0f, _maxChargeDistance + rushChange);
+                if (frenziedMove) _maxRushDistance = MathF.Min(_maxRushDistance, _maxAdvanceDistance);
+                foreach (ModelID id in _modelBudgets.Keys.ToList())
+                {
+                    ModelBudget b = _modelBudgets[id];
+                    float adv = MathF.Max(0f, b.Advance + advChange);
+                    float rush = MathF.Max(0f, b.Rush + rushChange);
+                    _modelBudgets[id] = new ModelBudget(adv, frenziedMove ? MathF.Min(rush, adv) : rush, MathF.Max(0f, b.Charge + rushChange));
+                }
+            }
+
             // Star Quest: Crippled heroes (and Bad weather) halve movement distance. Extra Actions: so does
             // Last Stand ("halve their movement").
             float factor = QuestActions.MoveFactor(GameContext, unit) * ExtraActions.MoveFactor(unit);

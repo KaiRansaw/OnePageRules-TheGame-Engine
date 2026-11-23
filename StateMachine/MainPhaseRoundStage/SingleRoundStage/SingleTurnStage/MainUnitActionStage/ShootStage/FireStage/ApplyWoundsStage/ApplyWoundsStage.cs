@@ -77,6 +77,10 @@ namespace FDG.Stages
                 }
             }
 
+            // Unit Psychology - Retreating: shooting wounds are noted; the unit falls back at the end of the activation.
+            if (!metaData.IsMelee && !metaData.IsSpell && totalWoundsApplied > 0)
+                UnitPsychology.ShootingWounds(GameContext, defendingUnit, metaData.AttackingUnit.GetValue(), totalWoundsApplied);
+
             if(metaData.DefendingUnit.GetIsAlive())
             {
                 GameContext.Log($"Applying {totalWoundsApplied} wounds killed {modelsKilled} models.");

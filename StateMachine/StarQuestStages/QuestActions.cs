@@ -368,7 +368,7 @@ namespace FDG.Stages
         /// <paramref name="dz"/>) the unit can travel before any of its models would newly overlap impassable
         /// terrain or another unit's model base.
         /// </summary>
-        private static float FreeTravel(IGameContext context, IUnit target, List<ModelData> living,
+        internal static float FreeTravel(IGameContext context, IUnit target, List<ModelData> living,
             float dx, float dz, float maxT, float inches)
         {
             if (maxT <= 0f || living.Count == 0) return 0f;
@@ -413,7 +413,7 @@ namespace FDG.Stages
         /// How much of a move of <paramref name="d"/> from <paramref name="at"/> fits inside [min, max], as a
         /// fraction 0..1. A model already outside on that side cannot move further out, but may move back in.
         /// </summary>
-        private static float Reach(float at, float d, float min, float max)
+        internal static float Reach(float at, float d, float min, float max)
         {
             if (d > 0f) return at >= max ? 0f : MathF.Min(1f, (max - at) / d);
             if (d < 0f) return at <= min ? 0f : MathF.Min(1f, (min - at) / d);
@@ -421,7 +421,7 @@ namespace FDG.Stages
         }
 
         /// <summary>The average position of a unit's living models.</summary>
-        private static (float x, float z) Centre(IUnit unit)
+        internal static (float x, float z) Centre(IUnit unit)
         {
             float x = 0f, z = 0f;
             int n = 0;

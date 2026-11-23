@@ -49,20 +49,54 @@ namespace FDG.Stages
 
         private static readonly ConditionalWeakTable<object, List<Area>> Active = new();
 
-        public static IReadOnlyList<Area> For(IReadableGameDataStore store) =>
-            Active.TryGetValue(store, out List<Area>? areas) ? areas : (IReadOnlyList<Area>)Array.Empty<Area>();
+        public static IReadOnlyList<Area> For(IReadableGameDataStore store)
+        {
+            if (Active.TryGetValue(store, out List<Area>? areas)) return areas;
+            // A loaded save: rebuild this round's areas from the progress record once.
+            List<SavedEventArea>? saved = GameProgressUtilities.TryGetProgress(store)?.EventAreas;
+            var rebuilt = new List<Area>();
+            foreach (SavedEventArea s in saved ?? new List<SavedEventArea>())
+            {
+                CampaignEvent fired = CampaignEvents.ByCode(s.Code);
+                if (EffectOf(fired) is not { } effect) continue;
+                rebuilt.Add(new Area(fired, effect, s.Quarter, s.Quarter == null ? new Position(s.X, s.Z) : null, s.Radius));
+            }
+            if (rebuilt.Count > 0) Active.AddOrUpdate(store, rebuilt);
+            return rebuilt;
+        }
 
-        public static void Add(IReadableGameDataStore store, Area area) =>
-            Active.GetValue(store, _ => new List<Area>()).Add(area);
+        public static void Add(IReadableGameDataStore store, Area area)
+        {
+            For(store);
+            List<Area> list = Active.GetValue(store, _ => new List<Area>());
+            list.Add(area);
+            Persist(store, list);
+        }
 
-        /// <summary>End of the round: every area is gone.</summary>
         public static int Clear(IReadableGameDataStore store)
         {
-            if (!Active.TryGetValue(store, out List<Area>? areas)) return 0;
-            int n = areas.Count;
-            areas.Clear();
+            int n = For(store).Count;
+            if (Active.TryGetValue(store, out List<Area>? areas)) areas.Clear();
+            Persist(store, Array.Empty<Area>());
             return n;
         }
+
+        /// <summary>Writes the areas into the progress record so a save made this round keeps them (an empty list,
+        /// not null, once cleared - null means "keep the last record's", like the other carried fields).</summary>
+        private static void Persist(IReadableGameDataStore store, IReadOnlyList<Area> areas)
+        {
+            if (store is not IReadWriteableGameDataStore writable) return;
+            GameProgressData? progress = GameProgressUtilities.TryGetProgress(store);
+            if (progress == null) return;
+            if (areas.Count == 0 && (progress.EventAreas == null || progress.EventAreas.Count == 0)) return;
+            progress.EventAreas = areas.Select(a => new SavedEventArea
+            {
+                Code = a.Event.Code, Quarter = a.Quarter,
+                X = a.MarkerCentre?.x ?? 0f, Z = a.MarkerCentre?.z ?? 0f, Radius = a.Radius,
+            }).ToList();
+            GameProgressUtilities.WriteProgress(writable, progress);
+        }
+
 
         /// <summary>Which of the four this event is, or null for any other.</summary>
         public static EAreaEffect? EffectOf(CampaignEvent fired) => fired switch

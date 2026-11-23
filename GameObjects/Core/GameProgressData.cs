@@ -133,6 +133,10 @@ namespace FDG
         /// carried and owned markers). Null outside them and in every older save.</summary>
         public FDG.Missions.ExtraMissionState? ExtraMission { get; set; }
 
+        /// <summary>Campaign random events 36 / 44 / 45 / 46: the areas in force this round, so a save made mid-round
+        /// keeps them. Null when none.</summary>
+        public List<SavedEventArea>? EventAreas { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 
@@ -428,5 +432,15 @@ namespace FDG
         Deployment,
         MainPhase,
         VictoryCalculation,
+    }
+
+    /// <summary>One campaign-event area in a save: the event's code, and its quarter or marker circle.</summary>
+    public sealed class SavedEventArea
+    {
+        public int Code { get; set; }
+        public ZoneRect? Quarter { get; set; }
+        public float X { get; set; }
+        public float Z { get; set; }
+        public float Radius { get; set; }
     }
 }

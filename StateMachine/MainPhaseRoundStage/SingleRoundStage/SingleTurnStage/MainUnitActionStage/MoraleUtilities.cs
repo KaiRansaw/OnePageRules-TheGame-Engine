@@ -128,7 +128,8 @@ namespace FDG.Stages
             if (lastStand != 0)
             {
                 grantedNet += lastStand;
-                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(ExtraActions.LastStand, lastStand) }).ToList();
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(
+                    ExtraActions.InLastStand(testingUnit) ? ExtraActions.LastStand : UnitPsychology.Suppression, lastStand) }).ToList();
             }
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
                 - grantedNet - underdogNet);
@@ -426,6 +427,9 @@ namespace FDG.Stages
             {
                 return;
             }
+
+            // Unit Psychology - Panic: "on a 1, the unit panics instead of being Shaken".
+            if (await UnitPsychology.TryPanic(gameContext, unitBinding.GetValue())) return;
 
             ApplyShaken(unitBinding);
             await gameContext.Presenter.Present(

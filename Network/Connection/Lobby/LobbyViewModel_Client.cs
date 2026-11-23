@@ -585,6 +585,7 @@ namespace FDG.Network.Connection.Lobby
             KingOfTheHill = gameSettingsUpdate.GameSettings.KingOfTheHill;
             PickDangerousTerrain = gameSettingsUpdate.GameSettings.PickDangerousTerrain;
             ExtraActions = gameSettingsUpdate.GameSettings.ExtraActions;
+            AdvancedRules = gameSettingsUpdate.GameSettings.AdvancedRules;
             ChallengeBonuses = gameSettingsUpdate.GameSettings.ChallengeBonuses;
             if (_settings_UnlimitedSplitFire.Value != gameSettingsUpdate.GameSettings.UnlimitedSplitFire)
             {
@@ -736,6 +737,11 @@ namespace FDG.Network.Connection.Lobby
         {
             throw new InvalidOperationException("Tried to set the Extra Actions when not the host.");
         }
+
+        public EAdvancedRules AdvancedRules { get; private set; }
+
+        public void SetAdvancedRules(EAdvancedRules rules) =>
+            throw new InvalidOperationException("Tried to set the Advanced Rules when not the host.");
 
         public void SetChallengeBonuses(EChallengeBonuses bonuses)
         {

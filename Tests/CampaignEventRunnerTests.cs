@@ -652,6 +652,38 @@ namespace FDG.Tests
         }
 
         [Test]
+        public async Task AnAreaEvent_SurvivesASaveAndLoad_MidRound()
+        {
+            static GameProgressData Progress(GameDataStore store) => new(
+                EResumeStage.MainPhase, roundCount: 2, teamActivateOrder: new List<int> { 1, 2 },
+                currentRoundTeamFinishOrder: new List<int>(), currentTeamIndex: 0,
+                currentPlayerIndexPerTeam: new Dictionary<int, int>(),
+                unactivatedUnits: new List<DataBinding<UnitData>>(), settings: GameSettings.GetDefault());
+            GameProgressUtilities.WriteProgress(_store, Progress(_store));
+            var (q, inside, _) = QuarterForDieOne();
+            await Apply(46, Dice(1));
+            Assert.That(GameProgressUtilities.TryGetProgress(_store)!.EventAreas, Has.Count.EqualTo(1), "written into the save");
+
+            // "Load" it: a fresh store whose progress record came from the save.
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(GameProgressUtilities.TryGetProgress(_store)!.EventAreas);
+            GameDataStore loaded = GameDataStore.GameDataStoreBuilder.GetDefault();
+            GameProgressData p = Progress(loaded);
+            p.EventAreas = Newtonsoft.Json.JsonConvert.DeserializeObject<List<SavedEventArea>>(json);
+            GameProgressUtilities.WriteProgress(loaded, p);
+            IReadOnlyList<CampaignEventAreas.Area> back = CampaignEventAreas.For(loaded);
+            Assert.That(back, Has.Count.EqualTo(1));
+            Assert.That(back[0].Event.Code, Is.EqualTo(46));
+            Assert.That(back[0].Quarter!.Left, Is.EqualTo(q.Left));
+            Assert.That(back[0].Quarter!.Top, Is.EqualTo(q.Top));
+
+            // The round ends: cleared, and the empty list is what the next snapshot carries.
+            CampaignEventAreas.Clear(_store);
+            Assert.That(GameProgressUtilities.TryGetProgress(_store)!.EventAreas, Is.Empty);
+            GameProgressUtilities.WriteProgress(_store, Progress(_store));
+            Assert.That(GameProgressUtilities.TryGetProgress(_store)!.EventAreas, Is.Empty, "carried forward as empty, not the old one");
+        }
+
+        [Test]
         public async Task ShiftingIllusions_PlusOneMorale_AndNotDefense()
         {
             var (_, inside, _) = QuarterForDieOne();
