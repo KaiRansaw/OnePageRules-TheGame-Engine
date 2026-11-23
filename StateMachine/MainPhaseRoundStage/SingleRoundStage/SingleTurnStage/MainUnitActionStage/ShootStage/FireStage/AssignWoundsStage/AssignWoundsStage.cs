@@ -62,7 +62,12 @@ namespace FDG.Stages
             // new failures to the wound total — done BEFORE Deadly multiplies, since it finalizes the saves.
             RerollSink rerollSink = new RerollSink();
             rerollSink.ApplyFrom(saveCompleteOperations);
-            if (rerollSink.RerollSavesAtOrAbove is int rerollFrom)
+            // Critical Hits (Heat): "the target must re-roll unmodified Defense rolls of 6" - Bane's re-roll, once.
+            metaData.QueryForResult(out RollToHitResults hitResults);
+            int? rerollAt = rerollSink.RerollSavesAtOrAbove;
+            bool critReroll = hitResults.CriticalRerollSixes && rerollAt == null;
+            if (hitResults.CriticalRerollSixes) rerollAt = System.Math.Min(rerollAt ?? 6, 6);
+            if (rerollAt is int rerollFrom)
             {
                 foreach (SuccessfulSaveInfo saved in rollToSaveResults.SuccessfulSaveList)
                 {
@@ -76,7 +81,7 @@ namespace FDG.Stages
                     float newWounds = rerollResult.Below(saveNeeded);
                     totalWoundsDealt += newWounds;
                     await GameContext.Presenter.Present(DiceRolledBeat.From(rerollResult, saveNeeded,
-                        GameContext.Settings.RandomnessType, "Bane Re-roll", RollTags.Count(newWounds, "new wound"),
+                        GameContext.Settings.RandomnessType, critReroll ? "Critical Hit Re-roll" : "Bane Re-roll", RollTags.Count(newWounds, "new wound"),
                         category: ERollBeatCategory.Defense, context: $"{defender.Name} re-saves"));
                 }
             }
@@ -115,6 +120,14 @@ namespace FDG.Stages
             {
                 packets.Add(WoundPacket.Unconfined(woundInjection.TotalExtraWounds));
                 GameContext.Log($"Shred added {woundInjection.TotalExtraWounds:0.##} extra wound(s).");
+            }
+
+            // Critical Hits: "if the hit isn't blocked the target takes 1 wound" (on top of the hit's own).
+            if (hitResults.CriticalWoundIfUnblocked && rollToSaveResults.FailedSaveList != null
+                && rollToSaveResults.FailedSaveList.Any(f => f.RollNeededInfo.Source.Kind == EHitSourceKind.Critical && f.SaveCount > 0f))
+            {
+                packets.Add(WoundPacket.Unconfined(1f));
+                GameContext.Log($"Critical Hit: the hit wasn't blocked - {defender.Name} takes 1 more wound.");
             }
 
             // Star Quest (Reckless, Blood Frenzy, Spiteful Vow): extra wounds once at least one lands.

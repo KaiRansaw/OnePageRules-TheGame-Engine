@@ -41,6 +41,13 @@ namespace FDG
         /// if it takes wounds).</summary>
         public bool RearFacingHit;
 
+        /// <summary>Critical Hits (GFF / AoFS): "if the hit isn't blocked the target takes 1 wound" - the critical hit
+        /// is the hit group of kind <see cref="EHitSourceKind.Critical"/>.</summary>
+        public bool CriticalWoundIfUnblocked;
+
+        /// <summary>Critical Hits (Heat): "the target must re-roll unmodified Defense rolls of 6".</summary>
+        public bool CriticalRerollSixes;
+
         /// <summary>
         /// Pierce was used ("ignores all positive Defense modifiers on the target"). <see cref="SaveModifier"/> has already
         /// lost the rule-based bonuses; the save stage drops the rest - cover and the granted "+1 Defense" buffs, which

@@ -422,6 +422,9 @@ public sealed class RuleEvaluator
         EModelRuleScope modelScope, IHookContext context, List<TaggedOperation> sink, DedupState seen,
         List<(IUnit Unit, Token Grant)>? grantsToConsume, bool trace)
     {
+        // Critical Hits (Thrusting): "the target loses all melee special rules for this melee" - the rules it fights with.
+        if (seat == ERuleSeat.Actor && FDG.CriticalHits.LosesMeleeRules(unit, context)) return;
+
         CollectFromRules(unit.RuleDefinitions, unit, carryingWeapon: null, seat, context, sink, seen, trace);
 
         // Token-granted rules (auras, "gains rule X" buffs): the unit behaves as if it has each rule

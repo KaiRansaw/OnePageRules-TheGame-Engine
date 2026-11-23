@@ -420,7 +420,37 @@ namespace FDG.Stages
                 }
             }
 
+            // Critical Hits (GF: Firefight / AoF: Skirmish Advanced Rulebooks): one per shooting or melee, on a 6.
+            if (!metaData.IsSpell)
+            {
+                CriticalHits.Dealt? crit = await CriticalHits.Check(GameContext, attacker, defender, metaData.WeaponType,
+                    metaData.IsMelee, (int)MathF.Round(rulesSeeRolls.At(6)), hitRollNeeded);
+                if (crit != null)
+                {
+                    if (crit.Effect.Ap > 0 || crit.Effect.WoundIfUnblocked)
+                        PeelCriticalHit(results.SuccessfulHitList, crit.Effect.Ap, crit.Effect.Name, rollToHitResults);
+                    results.CriticalWoundIfUnblocked = crit.Effect.WoundIfUnblocked;
+                    results.CriticalRerollSixes = crit.Effect.RerollSixes;
+                }
+            }
+
             await onFinished(results);
+        }
+
+        /// <summary>Critical Hits: takes one landed hit into a group of its own (a 6 when there is one - the Rending group -
+        /// else the rolled hits), with <paramref name="ap"/> more AP. Nothing to peel when every hit was cancelled.</summary>
+        private static void PeelCriticalHit(List<SuccessfulHitInfo> groups, int ap, string name, IDiceResults template)
+        {
+            int pick = groups.FindIndex(g => g.Source.Kind == EHitSourceKind.PerHitAp && g.HitCount >= 1f);
+            if (pick < 0) pick = groups.FindIndex(g => g.Source.Kind == EHitSourceKind.BaseRolled && g.HitCount >= 1f);
+            if (pick < 0) pick = groups.FindIndex(g => g.HitCount >= 1f);
+            if (pick < 0) return;
+            SuccessfulHitInfo g = groups[pick];
+            int have = (int)MathF.Round(g.HitCount);
+            if (have <= 1) groups.RemoveAt(pick);
+            else groups[pick] = new SuccessfulHitInfo(SyntheticHits(have - 1, template), g.SaveModifier, g.Source);
+            groups.Add(new SuccessfulHitInfo(SyntheticHits(1, template), g.SaveModifier - ap,
+                new HitGroupSource(EHitSourceKind.Critical, $"{CriticalHits.Label} - {name}", ap)));
         }
 
         /// <summary>

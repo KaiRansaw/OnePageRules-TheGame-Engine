@@ -425,7 +425,7 @@ namespace FDG
         private static bool HasHeroRule(IModel model) =>
             model.RuleDefinitions.Any(r => r.RequestedName == "Hero");
 
-        private static DataBinding<UnitData>? BindingOf(IGameContext c, IUnit unit)
+        internal static DataBinding<UnitData>? BindingOf(IGameContext c, IUnit unit)
         {
             foreach (ArmyData army in c.GameDataStore.GetAllValues<ArmyData>())
                 foreach (DataBinding<UnitData> binding in army.UnitBindings)

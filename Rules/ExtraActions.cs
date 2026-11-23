@@ -185,6 +185,9 @@ namespace FDG
             // Unit Psychology - Suppression: -1 to hit per marker, shooting or in melee.
             int suppression = UnitPsychology.HitModifier(attacker, isSpell);
             if (suppression != 0) result.Add(new GrantedModifier(UnitPsychology.Suppression, suppression));
+            // Critical Hits: "-1 to hit rolls for this melee" / "when shooting until the end of the round".
+            int crit = CriticalHits.HitPenalty(attacker, isMelee);
+            if (crit != 0) result.Add(new GrantedModifier(CriticalHits.Label, crit));
             // Brutal Damage - Heavy Damage: "-1 Quality" for a badly hurt Tough(6)+ unit.
             if (!isSpell && settings is { } s && BrutalDamage.HeavyPenalty(s, attacker).Quality is int q && q != 0)
                 result.Add(new GrantedModifier(BrutalDamage.HeavyDamage, q));

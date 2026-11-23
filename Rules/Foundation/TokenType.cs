@@ -44,6 +44,15 @@ public readonly record struct TokenType(string Id)
     public const string SUPPRESSION_BOOST_ID = "SuppressionBoost";
     public const string RESTING_ID = "Resting";
 
+    // Critical Hits (GFF / AoFS Advanced Rulebooks 3.6.0 p45). See FDG.CriticalHits.
+    public const string CRIT_DEALT_ID = "CritDealt";
+    public const string CRIT_MELEE_WOUNDS_ID = "CritMeleeWounds";
+    public const string CRIT_MORALE_WOUNDS_ID = "CritMoraleWounds";
+    public const string CRIT_MELEE_HIT_PENALTY_ID = "CritMeleeHitPenalty";
+    public const string CRIT_SHOOT_HIT_PENALTY_ID = "CritShootHitPenalty";
+    public const string CRIT_SHAKEN_ID = "CritShaken";
+    public const string CRIT_STABBED_ID = "CritStabbed";
+
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
     // never merge, and Foundation needn't reference ERollKind, which lives in Definitions); the payload
@@ -394,4 +403,19 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType SuppressionBoost = new(SUPPRESSION_BOOST_ID);
     /// <summary>Unit Psychology: stayed idle (Rest) - its markers go at the end of the round.</summary>
     public static readonly TokenType Resting = new(RESTING_ID);
+
+    /// <summary>Critical Hits: this unit has dealt its one critical hit for this shooting or melee.</summary>
+    public static readonly TokenType CritDealt = new(CRIT_DEALT_ID);
+    /// <summary>Critical Hits: counts as having taken +1 wound per token when checking who won this melee.</summary>
+    public static readonly TokenType CritMeleeWounds = new(CRIT_MELEE_WOUNDS_ID);
+    /// <summary>Critical Hits: counts as having taken +1 wound per token for this shooting's morale check.</summary>
+    public static readonly TokenType CritMoraleWounds = new(CRIT_MORALE_WOUNDS_ID);
+    /// <summary>Critical Hits: -1 to hit for this melee.</summary>
+    public static readonly TokenType CritMeleeHitPenalty = new(CRIT_MELEE_HIT_PENALTY_ID);
+    /// <summary>Critical Hits: -1 to hit when shooting until the end of the round.</summary>
+    public static readonly TokenType CritShootHitPenalty = new(CRIT_SHOOT_HIT_PENALTY_ID);
+    /// <summary>Critical Hits: Shaken at the end of this melee or shooting.</summary>
+    public static readonly TokenType CritShaken = new(CRIT_SHAKEN_ID);
+    /// <summary>Critical Hits: loses all melee special rules for this melee.</summary>
+    public static readonly TokenType CritStabbed = new(CRIT_STABBED_ID);
 }

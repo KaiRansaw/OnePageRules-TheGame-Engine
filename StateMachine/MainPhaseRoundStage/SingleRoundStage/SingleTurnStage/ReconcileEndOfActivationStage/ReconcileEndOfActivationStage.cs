@@ -38,6 +38,7 @@ namespace FDG.Stages
             FDG.Missions.AttackDefend.AfterActivation(GameContext);
             // Unit Psychology: retreats from this activation's shooting, and Suppression's owed Morale Tests.
             await UnitPsychology.EndOfActivation(GameContext);
+            await CriticalHits.EndOfActivation(GameContext);
             // "Frenzied units stop being frenzied at the end of their activation."
             if (context.ActivatedUnit?.GetValue() is { } finished && UnitPsychology.IsFrenzied(finished))
                 finished.Tokens.RemoveTokens(Rules.Foundation.TokenType.Frenzied, finished.Tokens.GetTokenCount(Rules.Foundation.TokenType.Frenzied));

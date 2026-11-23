@@ -140,6 +140,14 @@ namespace FDG.Stages
             /// <summary>Renders "why there are this many hits" from the group sources that fed this threshold.</summary>
             public string ComposeExplanation()
             {
+                // Critical Hits: the one critical hit, alone at its own threshold.
+                var crit = _sources.Where(s => s.Source.Kind == EHitSourceKind.Critical).ToList();
+                if (crit.Count > 0 && crit.Count == _sources.Count)
+                {
+                    float critAp = crit[0].Source.Amount;
+                    return critAp > 0f ? $"{crit[0].Source.RuleName}, AP+{critAp:0.##}" : crit[0].Source.RuleName;
+                }
+
                 // A Rending / per-hit-AP threshold: describe the raised save, not an arithmetic build-up.
                 var perHitAp = _sources.Where(s => s.Source.Kind == EHitSourceKind.PerHitAp).ToList();
                 if (perHitAp.Count > 0)

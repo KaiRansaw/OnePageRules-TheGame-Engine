@@ -13,6 +13,9 @@ public enum EHitSourceKind
     BlastMultiplier,
     // Rolled hits a per-hit-AP rule (Rending / Crack) peeled into their own raised-threshold group.
     PerHitAp,
+    // Critical Hits (GFF / AoFS Advanced): the one critical hit, peeled off so it can carry its own AP and so the
+    // wound stage can tell whether it was blocked. Amount = the AP it gained.
+    Critical,
 }
 
 public readonly struct HitGroupSource

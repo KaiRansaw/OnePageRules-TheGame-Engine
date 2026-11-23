@@ -95,6 +95,14 @@ namespace FDG.Stages
                     + $"from {attacker.Name} for this morale check (Scourge).");
             }
 
+            // Critical Hits: "counts as having taken +2 wounds when checking if shooting wounds would trigger a Morale Test".
+            int critCounted = CriticalHits.MoraleWoundsCounted(defenderBinding.GetValue());
+            if (critCounted > 0)
+            {
+                counted += critCounted;
+                GameContext.Log($"{defenderBinding.Name()} counts as having taken +{critCounted} wound(s) for this morale check (Critical Hit).");
+            }
+
             // #442: the Hold the Line family's +1 applies only when shot from over 9" away, so the test
             // carries the shooter's distance. The same measurement RollToHitStage and AssignWoundsStage
             // take, so this gate reads the range exactly as the hit and save gates did.

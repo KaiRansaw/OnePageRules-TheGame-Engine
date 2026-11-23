@@ -40,6 +40,12 @@ namespace FDG.Stages
             MeleeResolutionContext resolution = new MeleeResolutionContext(attacker, defender);
             float attackerBonus = SumExtraMeleeWounds(resolution, attacker);
             float defenderBonus = SumExtraMeleeWounds(resolution, defender);
+            // Critical Hits: "counts as having taken +X wounds when checking who won melee".
+            int defenderCrit = CriticalHits.MeleeWoundsCounted(defender), attackerCrit = CriticalHits.MeleeWoundsCounted(attacker);
+            if (defenderCrit > 0) GameContext.Log($"{defender.Name} counts as having taken +{defenderCrit} wound(s) (Critical Hit).");
+            if (attackerCrit > 0) GameContext.Log($"{attacker.Name} counts as having taken +{attackerCrit} wound(s) (Critical Hit).");
+            attackerBonus += defenderCrit;
+            defenderBonus += attackerCrit;
             if (attackerBonus > 0f)
                 GameContext.Log($"{attacker.Name} counts as +{attackerBonus} wounds in melee (Fear).");
             if (defenderBonus > 0f)
