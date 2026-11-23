@@ -75,6 +75,8 @@ namespace FDG.SaveLoad
             // is already registered above (it is also a top-level store type); its one ID serves both roles.
             Add(typeof(CircularZone), "zone.circular");
             Add(typeof(RotatedZoneWrapper), "zone.rotated");
+            // A solid part with its own height (heights read from the models, 2026-11-22).
+            Add(typeof(RaisedRectZone), "zone.raisedRect");
             Add(typeof(CompositeZone), "zone.composite");
             // #197 P17c: Reinforcement's "within 12\" of any table edge" arrival band.
             Add(typeof(TableEdgeBandZone), "zone.tableEdgeBand");

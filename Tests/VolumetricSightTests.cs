@@ -76,6 +76,40 @@ namespace FDG.Tests
             Assert.That(LineOfSightUtilities.HasLineOfSight(Model(A, 100), Model(B, 32), terrain), Is.True);
         }
 
+        // Heights read from the models (Kai, 2026-11-22): a ruin with a tall back wall and low rubble in front.
+        private static TerrainData Ruin(float lowTop, float tallTop) => new TerrainData(ETerrainType.Blocking,
+            new CompositeZone(new List<IZone>
+            {
+                new RaisedRectZone(9, 11, 0, 4, lowTop),   // more rubble, away from the line
+                new RaisedRectZone(9, 11, 4, 6, lowTop),   // low rubble right on the line
+                new RaisedRectZone(9, 11, 6, 10, tallTop), // the tall wall, beside the line
+            }), tallTop);
+
+        [Test]
+        public void PartHeights_SeeOverTheLowPart_BesideTheTallOne()
+        {
+            var terrain = new List<ITerrain> { Ruin(0.75f, 5f) };
+            Assert.That(LineOfSightUtilities.EvaluateSightLine(Model(A, 32), Model(B, 32), terrain),
+                Is.Not.EqualTo(ESightLineEffect.Blocking), "1.25\" infantry see over 0.75\" rubble, past the 5\" wall beside it");
+        }
+
+        [Test]
+        public void PartHeights_TheTallPartStillBlocks()
+        {
+            var terrain = new List<ITerrain> { Ruin(5f, 5f) };
+            Assert.That(LineOfSightUtilities.EvaluateSightLine(Model(A, 32), Model(B, 32), terrain),
+                Is.EqualTo(ESightLineEffect.Blocking));
+        }
+
+        [Test]
+        public void PartHeights_TopAt_IsThePartUnderThePoint()
+        {
+            var ruin = Ruin(0.75f, 5f);
+            Assert.That(TerrainHeights.TopAt(ruin, new Float2(10, 5)), Is.EqualTo(0.75f));
+            Assert.That(TerrainHeights.TopAt(ruin, new Float2(10, 8)), Is.EqualTo(5f));
+            Assert.That(TerrainHeights.TopAt(ruin, new Float2(3, 5)), Is.Null);
+        }
+
         [Test]
         public void ClassicMethod_StillBlocksEveryWall()
         {

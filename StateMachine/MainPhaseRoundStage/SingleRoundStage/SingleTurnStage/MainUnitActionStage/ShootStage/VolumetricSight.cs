@@ -213,8 +213,17 @@ namespace FDG.Stages
                        == ESightLineEffect.Blocking;
             }
 
-            if (!ClipToSlab(p, q, 0f, TopOf(piece), out Float2 c0, out Float2 c1)) return false;
-            if (!piece.Shape.DoesPathIntersectZone(c0, c1)) return false;
+            // Each part of the piece stands to its own height (heights read from the model, 2026-11-22): a line
+            // passing over the low parts and beside the tall ones gets through.
+            bool crosses = false;
+            foreach ((IZone zone, float top) in TerrainHeights.Parts(piece))
+            {
+                if (!ClipToSlab(p, q, 0f, top, out Float2 c0, out Float2 c1)) continue;
+                if (!zone.DoesPathIntersectZone(c0, c1)) continue;
+                crosses = true;
+                break;
+            }
+            if (!crosses) return false;
             if (blocking) return true;
             // Dense: into and out of, not through.
             return !piece.Shape.IsPointWithinZone(a.Pos.Position2D) && !piece.Shape.IsPointWithinZone(b.Pos.Position2D);
