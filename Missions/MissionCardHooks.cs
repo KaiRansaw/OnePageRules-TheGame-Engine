@@ -90,6 +90,7 @@ namespace FDG.Missions
 
         public static void UnitDestroyed(IGameContext gameContext, IUnit dead, IUnit? killer, EKillCause cause)
         {
+            SideMissions.UnitDestroyed(gameContext, dead);
             if (StateOf(gameContext) is not { } state) return;
             state.Kills.Add(new MissionKill
             {
@@ -121,12 +122,14 @@ namespace FDG.Missions
 
         public static void MoraleFailed(IGameContext gameContext, IUnit unit)
         {
+            SideMissions.MoraleFailed(gameContext, unit);
             if (StateOf(gameContext) is not { } state) return;
             state.MoraleFails.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, unit) });
         }
 
         public static void SpellCast(IGameContext gameContext, IUnit caster)
         {
+            SideMissions.SpellCast(gameContext, caster);
             if (StateOf(gameContext) is not { } state) return;
             state.SpellsCast.Add(new[] { state.Round, MissionCardGame.SlotOf(gameContext, caster), MissionCardGame.UnitHasHero(caster) ? 1 : 0 });
         }

@@ -112,6 +112,14 @@ namespace FDG.Network.Connection.Lobby
         public EDeploymentStyle DeploymentStyle { get; private set; }
         public FDG.Missions.EMissionCardGame MissionCardGame { get; private set; }
         public FDG.Missions.EExtraMission ExtraMission { get; private set; }
+        public FDG.Missions.ESideMissionPlay SideMissions { get; private set; }
+        public FDG.Missions.ESideMissionPick SideMissionPick { get; private set; }
+
+        public void SetSideMissions(FDG.Missions.ESideMissionPlay play) =>
+            throw new InvalidOperationException("Tried to set side-missions when not the host.");
+
+        public void SetSideMissionPick(FDG.Missions.ESideMissionPick pick) =>
+            throw new InvalidOperationException("Tried to set the side-mission pick when not the host.");
         public bool SolidBuildings { get; private set; }
 
         public void SetExtraMission(FDG.Missions.EExtraMission mission) =>
@@ -560,6 +568,8 @@ namespace FDG.Network.Connection.Lobby
             DeploymentStyle = gameSettingsUpdate.GameSettings.DeploymentStyle;
             MissionCardGame = gameSettingsUpdate.GameSettings.MissionCardGame;
             ExtraMission = gameSettingsUpdate.GameSettings.ExtraMission;
+            SideMissions = gameSettingsUpdate.GameSettings.SideMissions;
+            SideMissionPick = gameSettingsUpdate.GameSettings.SideMissionPick;
             SolidBuildings = gameSettingsUpdate.GameSettings.SolidBuildings;
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;

@@ -133,6 +133,9 @@ namespace FDG
         /// carried and owned markers). Null outside them and in every older save.</summary>
         public FDG.Missions.ExtraMissionState? ExtraMission { get; set; }
 
+        /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
+        public FDG.Missions.SideMissionState? SideMissions { get; set; }
+
         /// <summary>One entry per finished round, oldest first (the round summary card). Carried forward by
         /// <c>GameProgressUtilities.WriteProgress</c>; null in older saves.</summary>
         public List<RoundSummary>? RoundSummaries { get; set; }

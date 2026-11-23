@@ -246,6 +246,10 @@ namespace FDG.Missions
 
         internal static ExtraMissionState StateFor(IGameContext c) => State(c);
 
+        /// <summary>Markers being carried off the table (they still count as in play).</summary>
+        public static int CarriedCount(IGameContext c) =>
+            IsOn(c) && GameProgressUtilities.ExtraMission(c.GameDataStore) is { } s ? s.Carried.Count : 0;
+
         internal static void SaveState(IGameContext c, ExtraMissionState s) => Save(c, s);
 
         internal static void RemoveObjective(IGameContext c, IObjective o)

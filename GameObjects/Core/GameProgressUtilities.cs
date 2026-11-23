@@ -81,6 +81,13 @@ namespace FDG
                 progress.ExtraMission = extra;
             PendingExtraMission.Remove(store);
 
+            if (progress.SideMissions == null)
+                progress.SideMissions = TryGetProgress(store)?.SideMissions;
+            if (progress.SideMissions == null
+                && PendingSideMissions.TryGetValue(store, out FDG.Missions.SideMissionState? side))
+                progress.SideMissions = side;
+            PendingSideMissions.Remove(store);
+
             if (progress.RoundSummaries == null)
                 progress.RoundSummaries = TryGetProgress(store)?.RoundSummaries;
             if (progress.CombatBonus == null)
@@ -161,6 +168,25 @@ namespace FDG
         /// <summary>The Mission Cards' state written before the first progress record exists.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.MissionCardState> PendingMissionCards = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.ExtraMissionState> PendingExtraMission = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, FDG.Missions.SideMissionState> PendingSideMissions = new();
+
+        /// <summary>Side-Missions: the running state (held aside until the progress record exists).</summary>
+        public static FDG.Missions.SideMissionState? SideMissions(IReadableGameDataStore store) =>
+            TryGetProgress(store)?.SideMissions
+            ?? (PendingSideMissions.TryGetValue(store, out FDG.Missions.SideMissionState? pending) ? pending : null);
+
+        public static void SetSideMissions(IReadWriteableGameDataStore store, FDG.Missions.SideMissionState state)
+        {
+            GameProgressData? progress = TryGetProgress(store);
+            if (progress != null)
+            {
+                progress.SideMissions = state;
+                WriteProgress(store, progress);
+                return;
+            }
+            PendingSideMissions.Remove(store);
+            PendingSideMissions.Add(store, state);
+        }
 
         /// <summary>Extra Missions: the running state (held aside until the progress record exists).</summary>
         public static FDG.Missions.ExtraMissionState? ExtraMission(IReadableGameDataStore store) =>

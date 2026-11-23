@@ -348,6 +348,16 @@ namespace FDG.Network.Connection.Lobby
 
         void SetExtraMission(FDG.Missions.EExtraMission mission);
 
+        /// <summary>Side-Missions - see <see cref="GameSettings.SideMissions"/>.</summary>
+        FDG.Missions.ESideMissionPlay SideMissions { get; }
+
+        void SetSideMissions(FDG.Missions.ESideMissionPlay play);
+
+        /// <summary>See <see cref="GameSettings.SideMissionPick"/>.</summary>
+        FDG.Missions.ESideMissionPick SideMissionPick { get; }
+
+        void SetSideMissionPick(FDG.Missions.ESideMissionPick pick);
+
         /// <summary>Solid Buildings - see <see cref="GameSettings.SolidBuildings"/>.</summary>
         bool SolidBuildings { get; }
 

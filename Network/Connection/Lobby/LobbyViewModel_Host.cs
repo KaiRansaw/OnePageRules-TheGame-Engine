@@ -95,6 +95,20 @@ namespace FDG.Network.Connection.Lobby
         public EDeploymentStyle DeploymentStyle => _gameSettings.DeploymentStyle;
         public FDG.Missions.EMissionCardGame MissionCardGame => _gameSettings.MissionCardGame;
         public FDG.Missions.EExtraMission ExtraMission => _gameSettings.ExtraMission;
+        public FDG.Missions.ESideMissionPlay SideMissions => _gameSettings.SideMissions;
+        public FDG.Missions.ESideMissionPick SideMissionPick => _gameSettings.SideMissionPick;
+
+        public void SetSideMissions(FDG.Missions.ESideMissionPlay play)
+        {
+            _gameSettings.SideMissions = play;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
+
+        public void SetSideMissionPick(FDG.Missions.ESideMissionPick pick)
+        {
+            _gameSettings.SideMissionPick = pick;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
         public bool SolidBuildings => _gameSettings.SolidBuildings;
 
         public void SetExtraMission(FDG.Missions.EExtraMission mission)

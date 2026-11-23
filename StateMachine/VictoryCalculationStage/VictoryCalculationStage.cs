@@ -54,6 +54,14 @@ namespace FDG.Stages
                 return;
             }
 
+            // Side-missions: "the scoring at the end of the game is done using a Victory Points (VP) system, instead of
+            // winning based on the mission's conditions".
+            if (FDG.Missions.SideMissions.FinalScore(GameContext) is { } side)
+            {
+                await AnnounceByVictoryPoints(context, side.Score, finalScores, roundsPlayed, side.Unit);
+                return;
+            }
+
             // Extra Missions: markers held (carried ones too), VP scored, or Sabotage's destroy-and-keep.
             if (FDG.Missions.ExtraMissions.FinalScore(GameContext) is { } mission)
             {

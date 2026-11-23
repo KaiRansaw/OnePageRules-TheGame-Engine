@@ -79,6 +79,8 @@ namespace FDG.Stages
             // and Shaken state the objective check above used. None in the standard game.
             // Extra Missions: carried and destroyed markers, the first seizer, progressive VP.
             await FDG.Missions.ExtraMissions.AfterSeizing(GameContext, roundJustFinished);
+            await FDG.Missions.SideMissions.RoundEnd(GameContext, roundJustFinished,
+                roundJustFinished >= FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings, GameContext.GameDataStore));
 
             IRoundHooks? roundHooks = (Parent as MainPhaseRoundStage)?.RoundHooks;
             // Game Master "End the game": straight to the victory screen, skipping the mode's round-end steps.
@@ -172,7 +174,7 @@ namespace FDG.Stages
             // banner AND writes the same line to the log, and both channels already replicate (beats via
             // PresentationRelayer, log lines via PlayerLogSender), so a networked client sees it too. The
             // call lands before the victory banner, so the two read in order.
-            if (!FDG.Missions.ExtraMissions.IsOn(GameContext)
+            if (!FDG.Missions.ExtraMissions.IsOn(GameContext) && !FDG.Missions.SideMissions.IsOn(GameContext)
                 && MatchDecision.IsResultFixed(GameContext.TableState, out string headline, out string detail))
             {
                 GameContext.Log($"Match decided after round {roundJustFinished} of " +

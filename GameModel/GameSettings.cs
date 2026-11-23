@@ -111,6 +111,15 @@ namespace FDG
         public FDG.Missions.EExtraMission ExtraMission;
 
         /// <summary>
+        /// Advanced Missions - Side-Missions (Advanced Rulebooks 3.6.0 p27-28 / p25-26): how they are shared, or a Mad
+        /// Dash variant. Off by default. Scoring becomes victory points. Not with Mission Cards or Attack &amp; Defend.
+        /// </summary>
+        public FDG.Missions.ESideMissionPlay SideMissions;
+
+        /// <summary>The side-missions' selection method (Free / Limited / Randomized / a D3).</summary>
+        public FDG.Missions.ESideMissionPick SideMissionPick;
+
+        /// <summary>
         /// Advanced Terrain - Solid Buildings (Advanced Rulebooks 3.6.0 p33, Kai 2026-11-22): buildings (Impassable +
         /// Sight Blocking pieces of the Building kind, or any piece ticked Solid building) can be entered and defended.
         /// Off by default.
