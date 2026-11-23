@@ -51,5 +51,23 @@ namespace FDG
                 if (zone.IsPointWithinZone(point) && (best == null || top > best)) best = top;
             return best;
         }
+
+        /// <summary>The tallest part of a shape read from a model, or null when it has no part heights.</summary>
+        public static float? TallestPart(IZone? shape)
+        {
+            if (shape == null) return null;
+            float? best = null;
+            void Walk(IZone z)
+            {
+                switch (z)
+                {
+                    case RaisedRectZone r: best = MathF.Max(best ?? 0f, r.HeightInches); break;
+                    case RotatedZoneWrapper { Inner: RaisedRectZone r }: best = MathF.Max(best ?? 0f, r.HeightInches); break;
+                    case CompositeZone c: foreach (IZone p in c.Parts) Walk(p); break;
+                }
+            }
+            Walk(shape);
+            return best;
+        }
     }
 }

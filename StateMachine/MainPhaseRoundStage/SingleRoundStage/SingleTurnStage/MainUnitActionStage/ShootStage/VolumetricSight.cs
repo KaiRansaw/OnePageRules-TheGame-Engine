@@ -146,6 +146,9 @@ namespace FDG.Stages
         /// <summary>True when some line between the two cylinders passes no obstacle and no other model's volume.</summary>
         public static bool AnyClearLine(SightEnd a, SightEnd b, IReadOnlyList<ITerrain> pieces)
         {
+            // A model standing on a piece (a wall top, a hill) looks from up there (Climbing, 2026-11-22).
+            a = a with { Pos = Climbing.Standing(pieces, a.Pos) };
+            b = b with { Pos = Climbing.Standing(pieces, b.Pos) };
             Float2 a2 = a.Pos.Position2D;
             Float2 b2 = b.Pos.Position2D;
             float dx = b2.X - a2.X, dz = b2.Y - a2.Y;

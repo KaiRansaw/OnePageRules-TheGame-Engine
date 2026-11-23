@@ -26,7 +26,7 @@ namespace FDG.Tests
             Assert.That(TerrainBook.Plays(ETerrainType.Climbable, EGameSystem.GrimdarkFuture), Is.True);
             Assert.That(TerrainBook.Plays(ETerrainType.Climbable, EGameSystem.GFStarQuest), Is.False);
             Assert.That(TerrainBook.NeedsHeights(ETerrainType.Climbable), Is.False);
-            Assert.That(TerrainBook.NeedsHeights(ETerrainType.Steep), Is.True);
+            Assert.That(TerrainBook.NeedsHeights(ETerrainType.Steep), Is.False, "heights are in (2026-11-22)");
         }
 
         private static TerrainPieceEntry Wall(string name, float height, float x) => new()

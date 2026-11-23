@@ -48,6 +48,7 @@ namespace FDG.Stages
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, _ => maxDistanceInches, ref sink);
+            ValidateClimbing(geometry, terrain, _ => maxDistanceInches, flies: false, ref sink);
             //This overload is only reached with terrain: null (the no-terrain convenience form), so the terrain
             //checks are no-ops regardless — no Strider/Flying flags to thread here.
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain: false, ref sink);
@@ -81,6 +82,7 @@ namespace FDG.Stages
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, _ => maxDistanceInches, ref sink);
+            ValidateClimbing(geometry, terrain, _ => maxDistanceInches, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughDifficultTerrain(geometry, terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
@@ -199,6 +201,7 @@ namespace FDG.Stages
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, move => budgetFor(move).MaxDistanceInches, ref sink);
+            ValidateClimbing(geometry, terrain, move => budgetFor(move).MaxDistanceInches, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink, buildingEntry);
             // #459 Fast-Play Leader-Based Movement: the difficult-terrain cap is a distance, and "no distances
             // are measured for any other models except the leader" - so only the measured model counts, both
@@ -236,6 +239,7 @@ namespace FDG.Stages
             MoveGeometry[] geometry = BuildGeometry(moves);
 
             ValidateOutOfMoveRange(geometry, _ => maxDistanceInches, ref sink);
+            ValidateClimbing(geometry, terrain, _ => maxDistanceInches, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughDifficultTerrain(geometry, terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
@@ -504,6 +508,7 @@ namespace FDG.Stages
             EndedOnFriendlyUnit = 1 << (int)EErrorReasonType.EndedOnFriendlyUnit,
             EndedOffTable = 1 << (int)EErrorReasonType.EndedOffTable,
             EndedOnOwnUnitModel = 1 << (int)EErrorReasonType.EndedOnOwnUnitModel,
+            EndedMidClimb = 1 << (int)EErrorReasonType.EndedMidClimb,
         }
 
         /// <summary>
@@ -720,6 +725,53 @@ namespace FDG.Stages
                 {
                     sink.Add(EErrorReasonType.OutOfMoveRange, geometry[i].Move.Model);
                     if (sink.Done(EErrorReasonType.OutOfMoveRange)) return;
+                }
+            }
+        }
+
+        private static IReadOnlyList<Float2> PathPoints(ModelMoveEntry move)
+        {
+            var pts = new List<Float2>(move.Positions.Count);
+            foreach (Position p in move.Positions) pts.Add(p.Position2D);
+            return pts;
+        }
+
+        /// <summary>
+        /// Climbing (Advanced Rulebooks 3.6.0, Climbable; Kai 2026-11-22): every inch climbed up and down along a model's
+        /// path comes off its move, and no model may end part way up a climb or hanging over the edge of a top. Flying
+        /// models fly over (no climbing), but still have to land somewhere flat.
+        /// </summary>
+        private static void ValidateClimbing(MoveGeometry[] geometry, IEnumerable<ITerrain>? terrain,
+            Func<ModelMoveEntry, float> maxDistanceFor, bool flies, ref FaultSink sink)
+        {
+            if (terrain == null) return;
+            bool any = false;
+            foreach (ITerrain t in TerrainSets(terrain).Pieces)
+                if (t.TerrainType.HasFlag(ETerrainType.Climbable) && !t.TerrainType.HasFlag(ETerrainType.Impassible)) { any = true; break; }
+            if (!any) return;
+
+            for (int i = 0; i < geometry.Length; i++)
+            {
+                if (geometry[i].Move.Positions.Count == 0) continue;
+                if (!flies)
+                {
+                    var path = new List<Float2> { geometry[i].Start.Position2D };
+                    path.AddRange(PathPoints(geometry[i].Move));
+                    float climb = Climbing.ClimbAlong(path, terrain);
+                    if (climb > 0f && geometry[i].TotalDistance + climb > maxDistanceFor(geometry[i].Move) + 1e-3f)
+                    {
+                        sink.Add(EErrorReasonType.OutOfMoveRange, geometry[i].Move.Model);
+                        if (sink.Done(EErrorReasonType.OutOfMoveRange)) return;
+                        continue;
+                    }
+                }
+                // "units may not end their move mid-climb": a model that stays where it is did not climb.
+                Float2 s0 = geometry[i].Start.Position2D, e0 = geometry[i].End.Position2D;
+                bool stayed = (s0.X - e0.X) * (s0.X - e0.X) + (s0.Y - e0.Y) * (s0.Y - e0.Y) < 1e-4f;
+                if (!stayed && !Climbing.MayEndAt(geometry[i].End.Position2D, geometry[i].Model.BaseShape.BoundingRadiusInches, terrain))
+                {
+                    sink.Add(EErrorReasonType.EndedMidClimb, geometry[i].Move.Model);
+                    if (sink.Done(EErrorReasonType.EndedMidClimb)) return;
                 }
             }
         }
@@ -1113,7 +1165,10 @@ namespace FDG.Stages
             if (ignoresDifficultTerrain) return;
 
             List<ITerrain> difficult = TerrainSets(terrain).Difficult;
-            if (difficult.Count == 0) return;
+            bool anySteep = false;
+            foreach (ITerrain t in TerrainSets(terrain).Pieces)
+                if (t.TerrainType.HasFlag(ETerrainType.Steep)) { anySteep = true; break; }
+            if (difficult.Count == 0 && !anySteep) return;
 
             // Rules accuracy: the cap is UNIT-wide. "If any model in a unit moves in or through difficult
             // terrain at any point of its move, then all models in the unit may not move more than 6\" for
@@ -1129,7 +1184,9 @@ namespace FDG.Stages
             for (int i = 0; i < geometry.Length && !unitTouchedDifficult; i++)
             {
                 if (geometry[i].Move.Positions.Count == 0) continue;
-                unitTouchedDifficult = DoesPathCrossTerrainPieces(geometry[i].Move, difficult);
+                unitTouchedDifficult = (difficult.Count > 0 && DoesPathCrossTerrainPieces(geometry[i].Move, difficult))
+                    // Steep: "Units moving onto steep terrain count it as being in Difficult terrain" (2026-11-22).
+                    || (anySteep && Climbing.MovesOntoSteep(geometry[i].Start.Position2D, PathPoints(geometry[i].Move), terrain));
             }
             if (!unitTouchedDifficult) return;
 
@@ -1784,6 +1841,8 @@ namespace FDG.Stages
                     return "Moves through, lands on, or ends within 1\" of another friendly unit (only a charge may end within 1\")";
                 case EErrorReasonType.EndedOffTable:
                     return "Ends with part of its base off the table";
+                case EErrorReasonType.EndedMidClimb:
+                    return "Ends part way up a climb or hanging over the edge of terrain (its whole base must sit flat)";
                 case EErrorReasonType.EndedOnOwnUnitModel:
                     return "Ends stacked on top of another model in its own unit";
                 default:
@@ -1822,7 +1881,10 @@ namespace FDG.Stages
         /// <summary>#291 - part of the model's base would end past the table edge.</summary>
         EndedOffTable,
         /// <summary>#366 - two models of the MOVING unit would end stacked on each other.</summary>
-        EndedOnOwnUnitModel
+        EndedOnOwnUnitModel,
+        /// <summary>Climbable terrain (2026-11-22): "units may not end their move mid-climb" - part of the base would end
+        /// up a climb or hanging over the edge of a top.</summary>
+        EndedMidClimb
     }
 
     /// <summary>

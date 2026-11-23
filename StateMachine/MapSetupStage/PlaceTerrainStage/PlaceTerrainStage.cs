@@ -112,7 +112,9 @@ namespace FDG.Stages
                 if (!FitsTable(entry.Shape)) continue;
                 // A model's solid parts play the rules; the whole footprint is only where it is drawn (2026-11-19).
                 context.GameContext.GameDataStore.Create(
-                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name, entry.HeightInches),
+                    // Climbable's 3" limit reads the model's own tallest part when its heights were read (2026-11-22).
+                    new TerrainData(WithQuestTypes(context, entry.TerrainType, entry.Name,
+                            TerrainHeights.TallestPart(entry.Solid) ?? entry.HeightInches),
                         entry.Solid ?? entry.Shape, entry.HeightInches, entry.Name, entry.Kind, entry.Look,
                         drawShape: entry.Solid != null ? entry.Shape : null));
             }
@@ -158,7 +160,9 @@ namespace FDG.Stages
         {
             ETerrainType types = QuestTerrainTypes.AppliesTo(context.GameContext.Settings.GameSystem)
                 ? TerrainBook.WithClimbableHeight(declared | QuestTerrainTypes.ExtraFlagsFor(pieceName), heightInches)
-                : declared;
+                // Star Quest's core book has neither Steep nor Climbable (they need the Advanced Rulebooks or the AoF:
+                // Quest guide), so a map's tick on either does nothing there - not even climbing (2026-11-22).
+                : declared & ~(ETerrainType.Steep | ETerrainType.Climbable);
             // #460 Fast-Play Simplified Terrain: "all pieces of terrain must be treated like solid buildings".
             return FastPlay.SimplifiedTerrain(context.GameContext.Settings) ? SolidBuildings.Simplified(types) : types;
         }

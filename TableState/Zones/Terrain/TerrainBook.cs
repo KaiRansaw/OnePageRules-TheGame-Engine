@@ -87,7 +87,7 @@ namespace FDG
 
         /// <summary>Flags with no effect until the table has heights (Godot port step 6). Climbable is half in
         /// effect: its "over 3\" tall counts as Impassable" needs no heights (see <see cref="WithClimbableHeight"/>).</summary>
-        public static bool NeedsHeights(ETerrainType flag) => flag is ETerrainType.Steep;
+        public static bool NeedsHeights(ETerrainType flag) => false; // heights arrived 2026-11-22 (Climbing)
 
         /// <summary>The Climbable rule's limit: "Terrain features that are over 3\" tall count as Impassable terrain".</summary>
         public const float ClimbableMaxInches = 3f;
@@ -155,8 +155,7 @@ namespace FDG
         public static bool Plays(ETerrainType flag, EGameSystem system) => flag switch
         {
             ETerrainType.Dense or ETerrainType.Unstable => Stages.QuestTerrainTypes.AppliesTo(system),
-            ETerrainType.Climbable => Stages.QuestTerrainTypes.AppliesTo(system),
-            ETerrainType.Steep => false,
+            ETerrainType.Climbable or ETerrainType.Steep => Stages.QuestTerrainTypes.AppliesTo(system),
             _ => true,
         };
 

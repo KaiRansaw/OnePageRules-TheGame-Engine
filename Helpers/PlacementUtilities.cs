@@ -141,7 +141,9 @@ namespace FDG
                 }
             }
 
-            return false;
+            // Climbing (2026-11-22): a model is never placed part way up a climb or hanging over the edge of a top -
+            // the same spots a move may not end on (deployment, spawns, re-placements all come through here).
+            return !Climbing.MayEndAt(p, radius, terrain);
         }
 
         /// <summary>
@@ -165,7 +167,7 @@ namespace FDG
                 }
             }
 
-            return false;
+            return !Climbing.MayEndAt(p, shape.BoundingRadiusInches, terrain);
         }
     }
 }
