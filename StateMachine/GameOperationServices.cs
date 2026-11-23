@@ -27,7 +27,13 @@ namespace FDG.Stages
             _gameContext = gameContext;
         }
 
-        public async Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null, bool oncePerRound = false)
+        /// <param name="pushed">Pushing (GFF / AoFS): going down a climb is free and a model that ends 2"+ lower falls
+        /// (<see cref="Falling"/>).</param>
+        public Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller = null, bool oncePerRound = false)
+            => MoveUnit(unit, maxInches, isOptional, controller, oncePerRound, pushed: false);
+
+        public async Task MoveUnit(IUnit unit, float maxInches, bool isOptional, PlayerID? controller, bool oncePerRound,
+            bool pushed)
         {
             DataBinding<UnitData> unitBinding = ResolveUnitBinding(unit);
 
@@ -66,7 +72,9 @@ namespace FDG.Stages
                 // A triggered move rolls for the terrain it crosses but does not spend a "counts as in Dangerous" grant
                 // (TryMove passes none), so the preview leaves it out too.
                 DangerousTerrain = DangerousTerrainOdds.For(_gameContext, unitBinding.GetValue()) with { CountsAs = false },
+                Pushed = pushed,
             };
+            Dictionary<IModel, float> heightsBefore = Falling.HeightsOf(unitBinding.GetValue(), _gameContext.TableState.Terrain.Objects);
 
             CancellableResult<List<ModelMoveEntry>> pathResult = await _gameContext.PlayerRequester
                 .RequestDecision<DefineMovementPathRequest, CancellableResult<List<ModelMoveEntry>>>(pathRequest);
@@ -87,9 +95,12 @@ namespace FDG.Stages
             }
             List<ModelMoveEntry> movements = selectedPath.Value;
 
-            if (!MovementExecutor.TryMove(_gameContext, unitBinding, movements, maxInches,
-                    out List<ReasonForInvalidMove> errors,
-                    out MovementExecutor.DangerousTerrainResult dangerResult))
+            bool moved;
+            List<ReasonForInvalidMove> errors;
+            MovementExecutor.DangerousTerrainResult dangerResult;
+            using (pushed ? Climbing.Pushed() : null)
+                moved = MovementExecutor.TryMove(_gameContext, unitBinding, movements, maxInches, out errors, out dangerResult);
+            if (!moved)
             {
                 // The resolver returned a path the authoritative validator rejects. For an optional move
                 // this is the same "no legal destination" case as a cancel - a resolver with no decline
@@ -111,6 +122,7 @@ namespace FDG.Stages
             // a triggered move (Vanguard, forced move, etc.) that crosses dangerous terrain shows the roll
             // and animates its casualties, not just the wound.
             await MovementExecutor.ResolveDangerousTerrain(_gameContext, dangerResult);
+            if (pushed) await Falling.Resolve(_gameContext, unitBinding.GetValue(), heightsBefore);
 
             if (oncePerRound && !unitBinding.GetValue().Tokens.HasToken(TokenType.ForcedMoveThisRound))
                 unitBinding.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ForcedMoveThisRound));

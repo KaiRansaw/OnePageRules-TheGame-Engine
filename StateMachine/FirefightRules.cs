@@ -72,7 +72,7 @@ namespace FDG.Stages
 
             await c.Announce($"Pushing: move {target.Name} up to 2\".");
             await new GameOperationServices(c).MoveUnit(target, 2f, isOptional: true,
-                controller: attacker!.PlayerID);
+                controller: attacker!.PlayerID, oncePerRound: false, pushed: true);
             return true;
         }
 

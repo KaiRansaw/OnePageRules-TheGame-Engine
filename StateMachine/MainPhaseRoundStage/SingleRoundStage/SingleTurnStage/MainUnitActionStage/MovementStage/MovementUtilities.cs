@@ -56,7 +56,7 @@ namespace FDG.Stages
             //No enemy footprints supplied (this overload predates enemy-aware validation): the move-through /
             //standoff check is a no-op here, preserving these callers' existing behavior.
             ValidateMovingThroughEnemyUnits(geometry, Array.Empty<EnemyModelFootprint>(), canMoveThroughEnemies: false, ref sink);
-            ValidateCoherency(moves, ref sink);
+            ValidateCoherency(moves, ref sink, terrain);
             ValidateNoSelfOverlap(geometry, ref sink);
             ValidateEndsOnTable(geometry, ref sink);
 
@@ -86,7 +86,7 @@ namespace FDG.Stages
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughDifficultTerrain(geometry, terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
-            ValidateCoherency(moves, ref sink);
+            ValidateCoherency(moves, ref sink, terrain);
             ValidateEndsOnFriendly(geometry, AsReadOnly(friendlyFootprints), ref sink);
             ValidateNoSelfOverlap(geometry, ref sink);
             ValidateEndsOnTable(geometry, ref sink);
@@ -211,9 +211,9 @@ namespace FDG.Stages
                 terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
             if (lenientCoherency)
-                ValidateCoherencyNotWorsened(moves, ref sink);
+                ValidateCoherencyNotWorsened(moves, ref sink, terrain);
             else
-                ValidateCoherency(moves, ref sink);
+                ValidateCoherency(moves, ref sink, terrain);
             ValidateChargeReach(geometry, move => budgetFor(move).MaxRushDistance, enemies, ref sink, terrain);
             ValidateEndsOnFriendly(geometry, friendlies, ref sink, enemies);
             ValidateNoSelfOverlap(geometry, ref sink);
@@ -243,7 +243,7 @@ namespace FDG.Stages
             ValidateMovingThroughImpassibleTerrain(geometry, terrain, ignoresImpassibleTerrain, ref sink);
             ValidateMovingThroughDifficultTerrain(geometry, terrain, ignoresDifficultTerrain, ref sink);
             ValidateMovingThroughEnemyUnits(geometry, enemies, canMoveThroughEnemies, ref sink);
-            ValidateCoherencyNotWorsened(moves, ref sink);
+            ValidateCoherencyNotWorsened(moves, ref sink, terrain);
             ValidateEndsOnFriendly(geometry, AsReadOnly(friendlyFootprints), ref sink);
             ValidateNoSelfOverlap(geometry, ref sink);
             ValidateEndsOnTable(geometry, ref sink);
@@ -1554,7 +1554,7 @@ namespace FDG.Stages
         private const float COHESION_EPSILON_INCHES = 0.001f;
 
         private static void ValidateCoherency(List<ModelMoveEntry> moves,
-            ref FaultSink sink)
+            ref FaultSink sink, IEnumerable<ITerrain>? terrain = null)
         {
             List<DataBinding<ModelData>> models = new List<DataBinding<ModelData>>();
             List<Position> positions = new List<Position>();
@@ -1591,7 +1591,7 @@ namespace FDG.Stages
 
             bool[,] linked = new bool[models.Count, models.Count];
             ComputeCohesionExtents(models, positions, facings,
-                out float[] nearestDistances, out float[] farthestDistances, linked);
+                out float[] nearestDistances, out float[] farthestDistances, linked, Levels(positions, terrain));
 
             bool[] flaggedNear = new bool[models.Count];
             for (int i = 0; i < models.Count; i++)
@@ -1666,7 +1666,7 @@ namespace FDG.Stages
         /// is still rejected. Mirrors the enemy-standoff rule's "only penalise moves that close the distance".
         /// </summary>
         private static void ValidateCoherencyNotWorsened(List<ModelMoveEntry> moves,
-            ref FaultSink sink)
+            ref FaultSink sink, IEnumerable<ITerrain>? terrain = null)
         {
             List<DataBinding<ModelData>> models = new List<DataBinding<ModelData>>(moves.Count);
             List<Position> before = new List<Position>(moves.Count);
@@ -1696,7 +1696,7 @@ namespace FDG.Stages
             BeforeExtents(models, before, beforeFacings, out float[] nearestBefore, out float[] farthestBefore);
             bool[,] linkedAfter = new bool[models.Count, models.Count];
             ComputeCohesionExtents(models, after, afterFacings, out float[] nearestAfter, out float[] farthestAfter,
-                linkedAfter);
+                linkedAfter, Levels(after, terrain));
 
             // Rules accuracy: one unbroken 1" chain (see ValidateCoherency). Lenient like the rest of this
             // check: only a move that splits the unit into MORE separate clumps than it started with fails.
@@ -1727,8 +1727,25 @@ namespace FDG.Stages
 
         // Per-model nearest- and farthest-neighbour base-to-base 3D distances at the given positions and
         // facings (both index-aligned with <paramref name="models"/>). Shared by both coherency checks.
+        /// <summary>Where each model stands (Climbing), or null when no piece can be stood on.</summary>
+        private static float[]? Levels(List<Position> positions, IEnumerable<ITerrain>? terrain)
+        {
+            if (terrain == null) return null;
+            bool any = false;
+            foreach (ITerrain t in TerrainSets(terrain).Pieces)
+                if ((t.TerrainType & (ETerrainType.Climbable | ETerrainType.Steep)) != 0) { any = true; break; }
+            if (!any) return null;
+            var levels = new float[positions.Count];
+            for (int i = 0; i < positions.Count; i++) levels[i] = Climbing.StandingHeight(terrain, positions[i].Position2D);
+            return levels;
+        }
+
+        /// <summary>Climbable: "If not all models in a unit can fit at the top, then a coherency of 3" is allowed to models
+        /// at different elevations" (Advanced Rulebooks 3.6.0).</summary>
+        public const float CoherencyAcrossLevelsInches = 3f;
+
         private static void ComputeCohesionExtents(List<DataBinding<ModelData>> models, List<Position> positions,
-            List<Float2> facings, out float[] nearest, out float[] farthest, bool[,]? linked = null)
+            List<Float2> facings, out float[] nearest, out float[] farthest, bool[,]? linked = null, float[]? levels = null)
         {
             int count = models.Count;
             nearest = new float[count];
@@ -1742,11 +1759,17 @@ namespace FDG.Stages
                     float distance = DistanceUtilities.GetBaseToBaseDistanceInches_3D(positions[i], positions[j],
                         models[i].GetValue().BaseShape, facings[i],
                         models[j].GetValue().BaseShape, facings[j]);
+                    float raw = distance;
+                    // Two models standing at different heights count as touching up to 3" apart (counted here as
+                    // 2" less, so the 1" chain check reads it unchanged). The farthest-model limit is unchanged.
+                    if (levels != null && MathF.Abs(levels[i] - levels[j]) > 0.01f)
+                        distance = MathF.Max(0f, distance - (CoherencyAcrossLevelsInches
+                            - GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES));
 
                     nearest[i] = Math.Min(distance, nearest[i]);
-                    farthest[i] = Math.Max(distance, farthest[i]);
+                    farthest[i] = Math.Max(raw, farthest[i]);
                     nearest[j] = Math.Min(distance, nearest[j]);
-                    farthest[j] = Math.Max(distance, farthest[j]);
+                    farthest[j] = Math.Max(raw, farthest[j]);
                     if (linked != null
                         && distance <= GameWideConstants.MAX_MODEL_DISTANCE_FROM_ANY_OTHER_MODEL_INCHES + COHESION_EPSILON_INCHES)
                     {

@@ -114,6 +114,10 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public FDG.Stages.DangerousTerrainOdds DangerousTerrain { get; init; } = FDG.Stages.DangerousTerrainOdds.Normal;
 
+        /// <summary>A push (GFF / AoFS Pushing): going down a climb is free - a model pushed off a top falls instead
+        /// (<see cref="FDG.Falling"/>). Check moves inside <c>Climbing.Pushed()</c> when this is set.</summary>
+        public bool Pushed { get; init; }
+
         [JsonConstructor]
         public DefineMovementPathRequest(PlayerID targetPlayerID, TaskID taskID, string taskName,
             DataBinding<UnitData> unitDataBinding, float maxAdvanceDistance, float maxRushDistance, float maxDistanceInches,

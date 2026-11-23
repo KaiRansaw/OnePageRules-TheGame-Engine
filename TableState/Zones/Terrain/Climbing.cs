@@ -78,6 +78,22 @@ namespace FDG
             return h > at.y ? new Position(at.x, h, at.z) : at;
         }
 
+        [ThreadStatic] private static bool t_pushed;
+
+        /// <summary>
+        /// While a pushed unit's move is checked on this thread (Pushing, GFF / AoFS 3.6.0), going DOWN costs nothing:
+        /// a model "pushed off an elevated position" falls (<see cref="Falling"/>) rather than climbing down. Going up
+        /// still costs - a push is no climb. Used as <c>using (Climbing.Pushed()) { ... }</c> around a synchronous check.
+        /// </summary>
+        public static IDisposable Pushed() { bool was = t_pushed; t_pushed = true; return new Restore(was); }
+
+        private sealed class Restore : IDisposable
+        {
+            private readonly bool _was;
+            public Restore(bool was) => _was = was;
+            public void Dispose() => t_pushed = _was;
+        }
+
         /// <summary>Every inch climbed up and down along a path (its points in order, start first).</summary>
         public static float ClimbAlong(IReadOnlyList<Float2> path, IEnumerable<ITerrain> terrain)
         {
@@ -94,7 +110,7 @@ namespace FDG
                 {
                     Float2 p = a + (b - a) * (k / (float)steps);
                     float h = ClimbableGroundAt(pieces, p);
-                    climb += MathF.Abs(h - last);
+                    climb += t_pushed ? MathF.Max(0f, h - last) : MathF.Abs(h - last);
                     last = h;
                 }
             }
@@ -140,6 +156,62 @@ namespace FDG
                 }
             }
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Falling (GF: Firefight / AoF: Skirmish Advanced Rules 3.6.0 p15, the same words in both): "If a model falls or is
+    /// pushed off an elevated position at least 2" tall, roll X dice, where X is one die for every 1" it fell, and for
+    /// each roll of 1-3 it takes one wound. Then place the model within 2" of the bottom ..." The game reaches it through
+    /// Pushing, the only thing in those games that moves a model off a top against its will; the model is already at
+    /// the bottom when it lands, so the placing needs nothing more.
+    /// </summary>
+    public static class Falling
+    {
+        public const float MinInches = 2f;
+
+        /// <summary>Each living model's standing height now, to compare after a move.</summary>
+        public static Dictionary<IModel, float> HeightsOf(IUnit unit, IEnumerable<ITerrain> terrain)
+        {
+            var heights = new Dictionary<IModel, float>();
+            foreach (IModel m in unit.Models)
+                if (m.GetIsAlive()) heights[m] = Climbing.StandingHeight(terrain, m.Position.Position2D);
+            return heights;
+        }
+
+        /// <summary>How many whole inches each model fell (only drops of 2" or more).</summary>
+        public static List<(IModel Model, int Dice)> Falls(Dictionary<IModel, float> before, IEnumerable<ITerrain> terrain)
+        {
+            var falls = new List<(IModel, int)>();
+            foreach ((IModel m, float was) in before)
+            {
+                if (!m.GetIsAlive()) continue;
+                float drop = was - Climbing.StandingHeight(terrain, m.Position.Position2D);
+                if (drop >= MinInches - 1e-3f) falls.Add((m, (int)MathF.Floor(drop + 1e-3f)));
+            }
+            return falls;
+        }
+
+        /// <summary>Rolls and lands the falling wounds for every model that fell 2" or more.</summary>
+        public static async Task Resolve(IGameContext c, IUnit unit, Dictionary<IModel, float> before)
+        {
+            List<(IModel Model, int Dice)> falls = Falls(before, c.TableState.Terrain.Objects);
+            if (falls.Count == 0) return;
+            var pending = new List<Stages.PendingModelWound>();
+            foreach ((IModel m, int dice) in falls)
+            {
+                IDiceResults roll = c.DiceRoller.Roll(6, dice);
+                float wounds = roll.At(1) + roll.At(2) + roll.At(3);
+                c.Log($"Falling: a model of {unit.Name} fell {dice}\" - {dice} dice, {wounds:0.##} wound(s) on 1-3.");
+                await c.Presenter.Present(Presentation.Beats.DiceRolledBeat.From(roll, successThreshold: 4, c.Settings.RandomnessType,
+                    "Falling", wounds <= 0f ? "Landed safely" : $"{wounds:0.##} wound{(wounds == 1f ? "" : "s")}"));
+                if (wounds > 0f) pending.Add(new Stages.PendingModelWound(m, wounds));
+            }
+            if (pending.Count == 0) return;
+            bool wasAlive = unit.GetIsAlive();
+            await Stages.CasualtyPresentation.ApplyAndPresent(c, pending, unit.ID, unit.Name);
+            if (wasAlive && !unit.GetIsAlive())
+                await Stages.UnitDestructionNotifier.NotifyUnitDestroyed(c, unit, killer: null);
         }
     }
 }

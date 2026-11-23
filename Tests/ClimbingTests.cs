@@ -112,5 +112,64 @@ namespace FDG.Tests
             }
             finally { GameWideConstants.ConfigureTable(EGameSystem.GrimdarkFuture); }
         }
+
+        [Test]
+        public void Coherency_IsThreeInches_BetweenModelsAtDifferentHeights()
+        {
+            List<ReasonForInvalidMove> Coherency(params ITerrain[] terrain)
+            {
+                var a = Model(new Position(5, 0));
+                var b = Model(new Position(4, 0));
+                var moves = new List<ModelMoveEntry>
+                {
+                    new ModelMoveEntry(a, new List<Position> { new Position(11, 0) }),
+                    new ModelMoveEntry(b, new List<Position> { new Position(7.2f, 0) }),
+                };
+                MovementUtilities.ValidatePaths(moves, 12f, terrain.ToList(), out List<ReasonForInvalidMove> errors);
+                return errors;
+            }
+            Assert.That(Coherency(Block()).Select(e => e.ErrorReasonType), Does.Not.Contain(EErrorReasonType.TooFarFromAnyUnitModel),
+                "1.8\" apart, one on the block's top and one below: within the book's 3\"");
+            var flat = new TerrainData(ETerrainType.Cover, new RectangularZone(30, 31, 30, 31), 1f);
+            Assert.That(Coherency(flat).Select(e => e.ErrorReasonType), Does.Contain(EErrorReasonType.TooFarFromAnyUnitModel),
+                "the same gap on flat ground breaks the 1\" rule");
+        }
+
+        [Test]
+        public void AModelOnAWallTop_DoesNotBlockSightUnderneath_AtGroundLevel()
+        {
+            var raised = new ModelSightBlocker(new CircularZone(10, 0, 0.6f), 1.25f, bottomInches: 3f);
+            var onGround = new ModelSightBlocker(new CircularZone(10, 0, 0.6f), 1.25f);
+            Float3 p = new Float3(0, 0.5f, 0), q = new Float3(20, 0.5f, 0);
+            SightEnd a = SightEnd.Point(new Position(0, 0)), b = SightEnd.Point(new Position(20, 0));
+            Assert.That(VolumetricSight.BlocksSegment(raised, p, q, a, b), Is.False);
+            Assert.That(VolumetricSight.BlocksSegment(onGround, p, q, a, b), Is.True);
+        }
+
+        [Test]
+        public void APush_GoesDownForFree_ButNotUp()
+        {
+            var block = Block(2.5f);
+            var onTop = Model(new Position(11, 0));
+            Assert.That(Errors(onTop, new Position(14.5f, 0), 3.5f, block).Select(e => e.ErrorReasonType),
+                Does.Contain(EErrorReasonType.OutOfMoveRange), "walking off costs the climb down");
+            using (Climbing.Pushed())
+            {
+                Assert.That(Errors(onTop, new Position(14.5f, 0), 3.5f, block), Is.Empty, "pushed off: it falls instead");
+                Assert.That(Errors(Model(new Position(7, 0)), new Position(10.5f, 0), 3.5f, block).Select(e => e.ErrorReasonType),
+                    Does.Contain(EErrorReasonType.OutOfMoveRange), "a push is no climb up");
+            }
+        }
+
+        [Test]
+        public void Falling_IsOneDiePerWholeInch_From2Inches()
+        {
+            var block = Block(2.5f);
+            var landed = Model(new Position(15, 0));
+            var model = landed.GetValue();
+            var falls = Falling.Falls(new Dictionary<IModel, float> { [model] = 2.5f }, new[] { block });
+            Assert.That(falls.Select(f => f.Dice), Is.EqualTo(new[] { 2 }));
+            Assert.That(Falling.Falls(new Dictionary<IModel, float> { [model] = 1.5f }, new[] { block }), Is.Empty, "under 2\" is no fall");
+        }
     }
 }

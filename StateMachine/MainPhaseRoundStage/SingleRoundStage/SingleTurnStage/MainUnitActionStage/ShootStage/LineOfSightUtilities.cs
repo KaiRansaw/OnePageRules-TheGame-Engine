@@ -121,6 +121,7 @@ namespace FDG.Stages
             foreach (IModel m in defendingUnit.Models) excluded.Add(m);
 
             var blockers = new List<ITerrain>();
+            List<ITerrain> ground = tableState.Terrain.Objects.ToList();
             foreach (IModel model in tableState.Models.Objects)
             {
                 // #158: casualties are removed from play — a dead model's base must not keep blocking
@@ -130,7 +131,7 @@ namespace FDG.Stages
                 if (excluded.Contains(model)) continue;
                 // A LoS blocker with the model's true (oriented) footprint (#150): a rectangle blocks line of
                 // sight with its real shape, not its inscribed bounding circle.
-                blockers.Add(ModelBlocker(model));
+                blockers.Add(ModelBlocker(model, ground));
             }
             return blockers;
         }
@@ -138,9 +139,11 @@ namespace FDG.Stages
         /// <summary>A model's base as a sight blocker: its true footprint (#150), as tall as its base size makes it
         /// under Volumetric Line of Sight (<see cref="VolumetricSight.HeightForBase"/>; the classic method ignores the
         /// height).</summary>
-        public static ITerrain ModelBlocker(IModel model)
+        public static ITerrain ModelBlocker(IModel model, IEnumerable<ITerrain>? terrain = null)
             => new ModelSightBlocker(model.BaseShape.ToZone(model.Position, model.Facing),
-                VolumetricSight.HeightForBase(model.BaseShape));
+                VolumetricSight.HeightForBase(model.BaseShape),
+                // Standing on a wall top or a hill (Climbing, 2026-11-22), its volume starts up there.
+                terrain == null ? 0f : Climbing.StandingHeight(terrain, model.Position.Position2D));
 
         /// <summary>
         /// #384 AI-awareness helper: blockers for the models of every same-team unit OTHER than

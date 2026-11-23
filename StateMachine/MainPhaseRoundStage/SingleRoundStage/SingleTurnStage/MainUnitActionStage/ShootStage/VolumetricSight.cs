@@ -30,8 +30,11 @@ namespace FDG.Stages
     /// </summary>
     public sealed class ModelSightBlocker : TerrainData
     {
-        public ModelSightBlocker(IZone footprint, float heightInches)
-            : base(ETerrainType.Blocking, footprint, heightInches) { }
+        /// <summary>The height its base stands at (a wall top, a hill) - its volume runs from here up.</summary>
+        public float BottomInches { get; }
+
+        public ModelSightBlocker(IZone footprint, float heightInches, float bottomInches = 0f)
+            : base(ETerrainType.Blocking, footprint, heightInches) { BottomInches = bottomInches; }
     }
 
     /// <summary>
@@ -219,9 +222,10 @@ namespace FDG.Stages
             // Each part of the piece stands to its own height (heights read from the model, 2026-11-22): a line
             // passing over the low parts and beside the tall ones gets through.
             bool crosses = false;
+            float bottom = piece is ModelSightBlocker standing ? standing.BottomInches : 0f;
             foreach ((IZone zone, float top) in TerrainHeights.Parts(piece))
             {
-                if (!ClipToSlab(p, q, 0f, top, out Float2 c0, out Float2 c1)) continue;
+                if (!ClipToSlab(p, q, bottom, bottom + top, out Float2 c0, out Float2 c1)) continue;
                 if (!zone.DoesPathIntersectZone(c0, c1)) continue;
                 crosses = true;
                 break;

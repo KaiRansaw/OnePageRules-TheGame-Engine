@@ -48,6 +48,16 @@ namespace FDG.Ai.Solo
             SoloCoOpProfile profile = SoloCoOpProfile.For(_table.Progress.GameSystem);
             int section = _plan.SectionFor(deployIndex, profile);
 
+            // "Artillery: AI units with Artillery must deploy in the highest position with most line of sight of the
+            // table as possible regardless of distance from objectives." (GF / AoF Solo & Co-Op 3.6.0; Kai 2026-11-01:
+            // it waited for heights, which arrived 2026-11-22.)
+            if (profile.HasArtilleryClause && HasRule(request, CoreRuleCatalog.Artillery)
+                && ArtilleryAim(bounds, maxRadius) is { } perch)
+            {
+                DeployTrace?.Invoke(request.TargetPlayerID, section, perch);
+                return perch;
+            }
+
             // The sections run along the deployment zone's table edge, so they divide the zone across its
             // LONGER axis - which for every deployment zone the engine builds is its width.
             float usableLeft = bounds.Left + maxRadius;
@@ -101,6 +111,63 @@ namespace FDG.Ai.Solo
         /// Strider and Flying both ignore the effects of Difficult and Dangerous terrain, and the book
         /// names them as the exception, so a unit with either may be aimed straight at the objective.
         /// </summary>
+        private bool HasRule(PlaceObjectsRequest<T> request, FDG.Rules.Definitions.SpecialRuleDefinition definition)
+        {
+            foreach (DataBinding<T> binding in request.ModelsToPlace)
+            {
+                if (binding.GetValue() is not IModel model) continue;
+                IUnit? owner = _table.Units.Objects.FirstOrDefault(u => u.Models.Contains(model));
+                if (owner is not UnitData unit) continue;
+                foreach (ResolvedRule rule in unit.RuleDefinitions)
+                    if (rule.Definition == definition) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// The Artillery clause's spot in the deployment zone: the highest place a model can stand (Climbing), and among
+        /// those the one that sees the most of an 8 x 6 grid of points across the table; ties go to the middle of the
+        /// zone. Null when the zone is flat and every spot sees the same - the book's usual aim then decides.
+        /// Judgement calls (house rules C, "Artillery"): the whole zone, not the group's section ("regardless of
+        /// distance from objectives" moves the unit, and the section exists only to say where); "line of sight of the
+        /// table" counted from a 1.25"-tall model at each grid point.
+        /// </summary>
+        private Position? ArtilleryAim(ZoneBounds bounds, float maxRadius)
+        {
+            List<ITerrain> terrain = _table.Terrain.Objects.ToList();
+            float left = bounds.Left + maxRadius, right = bounds.Right - maxRadius;
+            float bottom = bounds.Bottom + maxRadius, top = bounds.Top - maxRadius;
+            if (right <= left || top <= bottom) return null;
+            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            var targets = new List<SightEnd>();
+            for (int i = 0; i < 8; i++)
+                for (int j = 0; j < 6; j++)
+                    targets.Add(SightEnd.Point(new Position(w * (i + 0.5f) / 8f, h * (j + 0.5f) / 6f)));
+
+            const float Step = 3f;
+            (Position At, float Height, int Seen, float Middle)? best = null;
+            bool varied = false;
+            float cx = (left + right) / 2f, cz = (bottom + top) / 2f;
+            for (float x = left; x <= right + 1e-3f; x += Step)
+                for (float z = bottom; z <= top + 1e-3f; z += Step)
+                {
+                    var at = new Position(x, z);
+                    if (PlacementUtilities.OverlapsImpassibleTerrain(at, maxRadius, terrain)) continue;
+                    float height = Climbing.StandingHeight(terrain, at.Position2D);
+                    var from = new SightEnd(new Position(x, height, z), maxRadius, VolumetricSight.DefaultHeightInches);
+                    int seen = 0;
+                    foreach (SightEnd t in targets)
+                        if (LineOfSightUtilities.HasLineOfSight(from, t, terrain)) seen++;
+                    float middle = -MathF.Abs(x - cx) - MathF.Abs(z - cz);
+                    if (best is { } b && (b.Height != height || b.Seen != seen)) varied = true;
+                    if (best is not { } cur
+                        || height > cur.Height + 1e-3f
+                        || (MathF.Abs(height - cur.Height) <= 1e-3f && (seen > cur.Seen || (seen == cur.Seen && middle > cur.Middle))))
+                        best = (at, height, seen, middle);
+                }
+            return varied && best is { } found ? found.At : null;
+        }
+
         private bool IgnoresBadGround(PlaceObjectsRequest<T> request)
         {
             foreach (DataBinding<T> binding in request.ModelsToPlace)
