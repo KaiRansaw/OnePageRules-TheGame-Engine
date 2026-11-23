@@ -109,6 +109,14 @@ namespace FDG.Network.Connection.Lobby
             _gameSettings.SideMissionPick = pick;
             _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
         }
+
+        public int AttackerTeam => _gameSettings.AttackerTeam;
+
+        public void SetAttackerTeam(int team)
+        {
+            _gameSettings.AttackerTeam = team;
+            _messageBus.SendCommandToAllAsync(new LobbyGameSettingsUpdate(_gameSettings));
+        }
         public bool SolidBuildings => _gameSettings.SolidBuildings;
 
         public void SetExtraMission(FDG.Missions.EExtraMission mission)

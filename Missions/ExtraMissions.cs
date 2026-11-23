@@ -3,6 +3,7 @@ using FDG.Players;
 using FDG.Presentation.Beats;
 using FDG.Rules.Foundation;
 using FDG.Stages;
+using FDG.StageResolution.Requests;
 
 namespace FDG.Missions
 {
@@ -362,9 +363,12 @@ namespace FDG.Missions
 
         /// <summary>
         /// Sabotage / Demolition / Breakthrough / Headquarters: each side's own markers, placed once the deployment zones
-        /// are known. Judgement calls (house rules C, "Extra Missions"): one per side (team) - the books are written for
-        /// two players; placed by the game at a random legal spot - a marker "on the edge" of the zone sits on the zone's
-        /// side facing the table centre; "within the zone, over 9" from its edge" sits 1.5" in from the back.
+        /// are known. "The players must set up" their markers, so each side places its own (Kai, 2026-11-23: "I want the
+        /// player to place the markers"); bots answer the same request. Judgement calls (house rules C, "Extra Missions"):
+        /// one side (team) places for its seats - the books are written for two players; "on the edge of their deployment
+        /// zone" = on the zone's side facing the table centre (a click within 1" of that line is put on it); "within the
+        /// zone, over 9" from its edge" = the strip at the back of the zone over 9" from the zone's front edge.
+        /// If no legal answer comes back, the game picks a spot the old way so the match can't stall.
         /// </summary>
         public static async Task PlaceOwnedMarkers(IGameContext c, IReadOnlyDictionary<int, ZoneRect> zonesByTeam)
         {
@@ -377,46 +381,18 @@ namespace FDG.Missions
             float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
             List<ITerrain> blocked = c.TableState.Terrain.Objects.Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible)).ToList();
             bool Clear(Position p) => !blocked.Any(t => t.Shape.DoesPathIntersectZone(p.Position2D, p.Position2D, 0.6f));
+            bool edge = info.Markers == EMissionMarkers.OneEachOnZoneEdge;
+            int perSide = edge ? 1 : 2;
 
             foreach ((int team, ZoneRect zone) in zonesByTeam.OrderBy(kv => kv.Key))
             {
                 IPlayerSlotInfo? seat = c.TableState.Players.Objects.Where(p => p.IsFilled && p.TeamNumber == team).OrderBy(p => p.SlotID).FirstOrDefault();
                 if (seat == null) continue;
-                // Which way the zone faces the middle of the table.
-                float cx = (zone.Left + zone.Right) / 2f, cz = (zone.Bottom + zone.Top) / 2f;
-                bool alongX = MathF.Abs(cz - h / 2f) / h >= MathF.Abs(cx - w / 2f) / w; // the zone sits at the top or bottom
-                var spots = new List<Position>();
-                float lo = MathF.Max(alongX ? zone.Left : zone.Bottom, 9.5f);
-                float hi = MathF.Min(alongX ? zone.Right : zone.Top, (alongX ? w : h) - 9.5f);
-                if (hi < lo) { lo = alongX ? zone.Left + 1 : zone.Bottom + 1; hi = alongX ? zone.Right - 1 : zone.Top - 1; }
-                float RandomAlong() => lo + (float)c.Rng.NextDouble() * (hi - lo);
-                float inner, back;
-                if (alongX) { bool low = cz < h / 2f; inner = low ? zone.Top : zone.Bottom; back = low ? zone.Bottom : zone.Top; }
-                else { bool low = cx < w / 2f; inner = low ? zone.Right : zone.Left; back = low ? zone.Left : zone.Right; }
-                Position At(float along, float across) => alongX ? new Position(along, across) : new Position(across, along);
-
-                if (info.Markers == EMissionMarkers.OneEachOnZoneEdge)
+                OwnedMarkerArea area = OwnedArea(zone, edge, w, h);
+                for (int i = 0; i < perSide; i++)
                 {
-                    Position p = At(RandomAlong(), inner);
-                    for (int tries = 0; tries < 30 && !Clear(p); tries++) p = At(RandomAlong(), inner);
-                    spots.Add(p);
-                }
-                else
-                {
-                    float across = back + MathF.Sign(inner - back) * 1.5f;
-                    float span = hi - lo;
-                    float a = lo + span * 0.25f, b = lo + span * 0.75f;
-                    if (b - a < 9.5f) { a = lo; b = MathF.Min(hi, lo + 9.5f); }
-                    foreach (float along in new[] { a, b })
-                    {
-                        Position p = At(along, across);
-                        for (float nudge = 1f; nudge < 6f && !Clear(p); nudge += 1f) p = At(along + nudge, across);
-                        spots.Add(p);
-                    }
-                }
-
-                foreach (Position p in spots)
-                {
+                    Position p = await AskForOwnedMarker(c, seat, area, info, i + 1, perSide, blocked)
+                                 ?? AutoOwnedSpot(c, area, edge, i, Clear);
                     var objective = new ObjectiveData(p, c.GameDataStore);
                     c.GameDataStore.Create(objective);
                     if (info.Owned)
@@ -429,7 +405,88 @@ namespace FDG.Missions
             }
             state.OwnedPlaced = true;
             Save(c, state);
-            await Task.CompletedTask;
+        }
+
+        /// <summary>Where a side may put its own marker(s): the band handed to the placement request, plus the line
+        /// an "on the edge" marker is put on.</summary>
+        internal sealed record OwnedMarkerArea(RectangularZone Band, bool AlongX, float Lo, float Hi, float Inner, float Back);
+
+        internal static OwnedMarkerArea OwnedArea(ZoneRect zone, bool edge, float w, float h)
+        {
+            float cx = (zone.Left + zone.Right) / 2f, cz = (zone.Bottom + zone.Top) / 2f;
+            bool alongX = MathF.Abs(cz - h / 2f) / h >= MathF.Abs(cx - w / 2f) / w; // the zone sits at the top or bottom
+            // "over 9" away from the table edge" (Sabotage / Demolition); kept for the two-marker missions too.
+            float lo = MathF.Max(alongX ? zone.Left : zone.Bottom, 9.5f);
+            float hi = MathF.Min(alongX ? zone.Right : zone.Top, (alongX ? w : h) - 9.5f);
+            if (hi < lo) { lo = alongX ? zone.Left + 1 : zone.Bottom + 1; hi = alongX ? zone.Right - 1 : zone.Top - 1; }
+            float inner, back;
+            if (alongX) { bool low = cz < h / 2f; inner = low ? zone.Top : zone.Bottom; back = low ? zone.Bottom : zone.Top; }
+            else { bool low = cx < w / 2f; inner = low ? zone.Right : zone.Left; back = low ? zone.Left : zone.Right; }
+            float a, b;
+            if (edge) { a = inner - 1f; b = inner + 1f; }
+            else
+            {
+                // Over 9" from the zone's front edge, inside the zone (a 12" zone leaves a 3" strip at the back).
+                float limit = inner + MathF.Sign(back - inner) * 9.05f;
+                a = MathF.Min(limit, back); b = MathF.Max(limit, back);
+                if (b - a < 0.5f) { float mid = (a + b) / 2f; a = mid - 0.5f; b = mid + 0.5f; }
+                // Keep off the very table edge so the marker sits on the table.
+                a = MathF.Max(a, 0.5f); b = MathF.Min(b, (alongX ? h : w) - 0.5f);
+            }
+            RectangularZone band = alongX ? new RectangularZone(lo, hi, a, b) : new RectangularZone(a, b, lo, hi);
+            return new OwnedMarkerArea(band, alongX, lo, hi, inner, back);
+        }
+
+        private static async Task<Position?> AskForOwnedMarker(IGameContext c, IPlayerSlotInfo seat, OwnedMarkerArea area,
+            ExtraMissionInfo info, int index, int total, List<ITerrain> blocked)
+        {
+            bool edge = info.Markers == EMissionMarkers.OneEachOnZoneEdge;
+            string what = edge ? "on the front edge of your deployment zone" : "at the back of your deployment zone";
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                Position wanted;
+                try
+                {
+                    var request = new PlaceObjectiveRequest(seat.PlayerID,
+                        $"{info.Name}: place your marker {what}" + (total > 1 ? $" ({index} of {total})" : ""),
+                        index, total, area.Band, edge ? 0f : 9.05f);
+                    wanted = await c.PlayerRequester.RequestDecision<PlaceObjectiveRequest, Position>(request);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    c.Log($"  {info.Name}: {seat.Name} could not place a marker ({ex.Message}) - the game places it.");
+                    return null;
+                }
+                if (edge)
+                    wanted = area.AlongX ? new Position(wanted.x, area.Inner) : new Position(area.Inner, wanted.z);
+                var existing = c.TableState.Objectives.Objects.ToList();
+                var check = ObjectivePlacementValidator.Check(wanted, Grow(area.Band), edge ? 0f : 9.05f, existing, blocked);
+                if (check == ObjectivePlacementValidity.Valid) return wanted;
+                c.Log($"  {info.Name}: that spot is not allowed ({check}) - place it again.");
+            }
+            return null;
+        }
+
+        // The snapped "on the edge" point sits exactly on the band's middle line; allow a hair for float error.
+        private static RectangularZone Grow(RectangularZone z) => new(z.Left - 0.01f, z.Right + 0.01f, z.Bottom - 0.01f, z.Top + 0.01f);
+
+        private static Position AutoOwnedSpot(IGameContext c, OwnedMarkerArea area, bool edge, int index, Func<Position, bool> clear)
+        {
+            Position At(float along, float across) => area.AlongX ? new Position(along, across) : new Position(across, along);
+            float RandomAlong() => area.Lo + (float)c.Rng.NextDouble() * (area.Hi - area.Lo);
+            if (edge)
+            {
+                Position p = At(RandomAlong(), area.Inner);
+                for (int tries = 0; tries < 30 && !clear(p); tries++) p = At(RandomAlong(), area.Inner);
+                return p;
+            }
+            float across = area.Back + MathF.Sign(area.Inner - area.Back) * 1.5f;
+            float span = area.Hi - area.Lo;
+            float a = area.Lo + span * 0.25f, b = area.Lo + span * 0.75f;
+            if (b - a < 9.5f) { a = area.Lo; b = MathF.Min(area.Hi, area.Lo + 9.5f); }
+            Position q = At(index == 0 ? a : b, across);
+            for (float nudge = 1f; nudge < 6f && !clear(q); nudge += 1f) q = At((index == 0 ? a : b) + nudge, across);
+            return q;
         }
 
         // ---------------------------------------------------------------- during the game

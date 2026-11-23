@@ -120,6 +120,14 @@ namespace FDG
         public FDG.Missions.ESideMissionPick SideMissionPick;
 
         /// <summary>
+        /// Attack &amp; Defend: the team that attacks, picked in the lobby so the lists can be built to the book's "25% more
+        /// points" (Kai, 2026-11-23: "Choose who attacks in the lobby"). 0 (unset) = team 1; -1 = the book's roll-off at
+        /// the start of the game. A team number that is not in the game falls back to the roll-off. Read it through
+        /// <see cref="FDG.Missions.AttackDefend.AttackerOf"/>.
+        /// </summary>
+        public int AttackerTeam;
+
+        /// <summary>
         /// Advanced Terrain - Solid Buildings (Advanced Rulebooks 3.6.0 p33, Kai 2026-11-22): buildings (Impassable +
         /// Sight Blocking pieces of the Building kind, or any piece ticked Solid building) can be entered and defended.
         /// Off by default.

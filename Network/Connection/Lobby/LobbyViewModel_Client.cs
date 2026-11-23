@@ -120,6 +120,11 @@ namespace FDG.Network.Connection.Lobby
 
         public void SetSideMissionPick(FDG.Missions.ESideMissionPick pick) =>
             throw new InvalidOperationException("Tried to set the side-mission pick when not the host.");
+
+        public int AttackerTeam { get; private set; }
+
+        public void SetAttackerTeam(int team) =>
+            throw new InvalidOperationException("Tried to set the attacker when not the host.");
         public bool SolidBuildings { get; private set; }
 
         public void SetExtraMission(FDG.Missions.EExtraMission mission) =>
@@ -570,6 +575,7 @@ namespace FDG.Network.Connection.Lobby
             ExtraMission = gameSettingsUpdate.GameSettings.ExtraMission;
             SideMissions = gameSettingsUpdate.GameSettings.SideMissions;
             SideMissionPick = gameSettingsUpdate.GameSettings.SideMissionPick;
+            AttackerTeam = gameSettingsUpdate.GameSettings.AttackerTeam;
             SolidBuildings = gameSettingsUpdate.GameSettings.SolidBuildings;
             FastPlayShooting = gameSettingsUpdate.GameSettings.FastPlayShooting;
             NumberOfRounds = gameSettingsUpdate.GameSettings.NumberOfRounds;

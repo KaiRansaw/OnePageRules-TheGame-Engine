@@ -358,6 +358,11 @@ namespace FDG.Network.Connection.Lobby
 
         void SetSideMissionPick(FDG.Missions.ESideMissionPick pick);
 
+        /// <summary>See <see cref="GameSettings.AttackerTeam"/>.</summary>
+        int AttackerTeam { get; }
+
+        void SetAttackerTeam(int team);
+
         /// <summary>Solid Buildings - see <see cref="GameSettings.SolidBuildings"/>.</summary>
         bool SolidBuildings { get; }
 

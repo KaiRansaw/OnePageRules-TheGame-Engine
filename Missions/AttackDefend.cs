@@ -57,6 +57,18 @@ namespace FDG.Missions
             List<ITeam> teams = c.TableState.Teams.Objects.OrderBy(t => t.TeamNumber).ToList();
             if (teams.Count != 2) return;
             ExtraMissionInfo info = ExtraMissionCatalog.Of(state.Mission);
+            // Picked in the lobby (Kai, 2026-11-23) - the lists were built to it, so no roll-off.
+            if (teams.FirstOrDefault(t => t.TeamNumber == AttackerOf(c.Settings.AttackerTeam)) is { } chosen)
+            {
+                ITeam defender = teams.First(t => t != chosen);
+                state.AttackerTeam = chosen.TeamNumber;
+                state.DefenderTeam = defender.TeamNumber;
+                string picked = $"{TeamName(c, state.AttackerTeam)} attacks, {TeamName(c, state.DefenderTeam)} defends.";
+                c.Log($"{info.Name}: roles picked in the lobby. {picked}"
+                      + (info.AttackerBonusPoints ? $" The attacker's army may be up to {PointsLimit(c.Settings.ArmyPoints, state.Mission, chosen.TeamNumber, chosen.TeamNumber)} pts." : ""));
+                await c.Announce(picked, new TextColor(255, 210, 80, 255), EBannerTier.Headline);
+                return;
+            }
             List<ITeam> order = await DiceUtilities.RollOff_Ordered(teams, teams.Select(t => c.GetTeamLeadName(t)).ToList(),
                 c.TextOutput, c.DiceRoller, c.Presenter, "Attacker / Defender Roll-Off");
             ITeam winner = order[0], other = order[1];
@@ -77,8 +89,23 @@ namespace FDG.Missions
             string line = $"{TeamName(c, state.AttackerTeam)} attacks, {TeamName(c, state.DefenderTeam)} defends.";
             c.Log($"{info.Name}: {c.GetTeamLeadName(winner)} won the roll-off and chose to {(attacks ? "attack" : "defend")}. {line}");
             if (info.AttackerBonusPoints)
-                c.Log($"{info.Name}: the book gives the attacking army 25% more points than the defender (armies are built before the game - see the lobby note).");
+                c.Log($"{info.Name}: the book gives the attacking army 25% more points than the defender (roles were rolled for, so the lists were not built to it - pick the attacker in the lobby to use it).");
             await c.Announce(line, new TextColor(255, 210, 80, 255), EBannerTier.Headline);
+        }
+
+        /// <summary>The lobby's attacker setting as a team number: unset (0) = team 1, -1 = the roll-off (returns -1).</summary>
+        public static int AttackerOf(int setting) => setting == 0 ? 1 : setting;
+
+        /// <summary>
+        /// A seat's points limit: "The attacking army gets 25% more points than the defender" (The Raid, Smash &amp;
+        /// Grab, The Rescue) - the attacker's limit is the game's points plus a quarter (rounded down), once the
+        /// attacker is picked in the lobby. Every other seat, mission or roll-off: the game's points.
+        /// </summary>
+        public static int PointsLimit(int armyPoints, EExtraMission mission, int attackerTeam, int seatTeam)
+        {
+            attackerTeam = AttackerOf(attackerTeam);
+            if (attackerTeam <= 0 || seatTeam != attackerTeam || !ExtraMissionCatalog.Of(mission).AttackerBonusPoints) return armyPoints;
+            return armyPoints + armyPoints / 4;
         }
 
         // ---------------------------------------------------------------- markers
