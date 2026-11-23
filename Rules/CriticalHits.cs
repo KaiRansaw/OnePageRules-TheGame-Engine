@@ -58,6 +58,12 @@ namespace FDG
 
         public static bool TypedOn(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.CriticalHitsByWeaponType);
 
+        /// <summary>For screens that hold the lobby's settings rather than a game: is the chapter on in this game?</summary>
+        public static bool OnFor(EGameSystem system, EAdvancedRules rules) => BooksHaveIt(system)
+            && (rules & (EAdvancedRules.SkirmishCriticalHits | EAdvancedRules.CriticalHitsByWeaponType)) != 0;
+
+        public static bool TypedFor(EAdvancedRules rules) => (rules & EAdvancedRules.CriticalHitsByWeaponType) != 0;
+
         // ================================================================= weapon types
 
         public enum EType { GenericMelee, GenericRanged, Bladed, Bludgeoning, Thrusting, Heat, Energy, Explosive, Missile, Gunpowder }
@@ -216,6 +222,74 @@ namespace FDG
             return new Effect("None", "");
         }
 
+        /// <summary>The three rows of a table: "1-3", "4-5", "6".</summary>
+        public static IReadOnlyList<(string Range, Effect Effect)> Rows(EType type, EGameSystem system) => new[]
+        {
+            ("1-3", Roll(type, 1, system)), ("4-5", Roll(type, 4, system)), ("6", Roll(type, 6, system)),
+        };
+
+        /// <summary>The tables a game uses with "By weapon type", in the book's order.</summary>
+        public static IReadOnlyList<EType> TypedTables(EGameSystem system) => system == EGameSystem.AoFSkirmish
+            ? new[] { EType.GenericMelee, EType.GenericRanged, EType.Bladed, EType.Bludgeoning, EType.Thrusting, EType.Missile, EType.Gunpowder }
+            : new[] { EType.GenericMelee, EType.GenericRanged, EType.Bladed, EType.Bludgeoning, EType.Heat, EType.Energy, EType.Explosive };
+
+        /// <summary>Which weapon names use a table (what the name is read for), for the hovers.</summary>
+        public static string NamesFor(EType type) => type switch
+        {
+            EType.Bladed => "sword, blade, axe, claw, knife...",
+            EType.Bludgeoning => "hammer, club, flail, mace, fist...",
+            EType.Thrusting => "spear, halberd, pike, lance...",
+            EType.Heat => "flame, fusion, melta, incinerator...",
+            EType.Energy => "plasma, laser, beam, lightning...",
+            EType.Explosive => "missile, rocket, cannon, grenade...",
+            EType.Missile => "bow, javelin, crossbow, sling...",
+            EType.Gunpowder => "rifle, pistol, gun, musket...",
+            EType.GenericMelee => "anything else, in melee",
+            _ => "anything else, shooting",
+        };
+
+        /// <summary>One table as hover text: a heading line and its three rows.</summary>
+        public static string TableText(EType type, EGameSystem system, bool withNames = false)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append(TypeName(type).ToUpperInvariant());
+            if (withNames) sb.Append(" (").Append(NamesFor(type)).Append(')');
+            foreach (var (range, e) in Rows(type, system))
+                sb.Append('\n').Append(range).Append(" ").Append(e.Name).Append(": ").Append(e.Text);
+            return sb.ToString();
+        }
+
+        /// <summary>A weapon's hover addition: which critical table it rolls on, and the table.</summary>
+        public static string WeaponTableText(EGameSystem system, string weaponName, bool ranged, bool melee, bool typed)
+        {
+            var parts = new List<string>();
+            if (ranged) parts.Add(TableText(TypeOf(system, weaponName, melee: false, typed), system));
+            if (melee) parts.Add(TableText(TypeOf(system, weaponName, melee: true, typed), system));
+            return "Critical table (on a 6 to hit):\n" + string.Join("\n\n", parts);
+        }
+
+        /// <summary>Every table a game uses with "By weapon type" - the lobby's hover.</summary>
+        public static string AllTablesText(EGameSystem system) =>
+            string.Join("\n\n", TypedTables(system).Select(t => TableText(t, system, withNames: true)));
+
+        /// <summary>What a result does to this target, in plain words.</summary>
+        public static string Describe(Effect e, string target)
+        {
+            var bits = new List<string>();
+            if (e.Ap > 0) bits.Add(e.WoundIfUnblocked ? $"1 hit at AP(+{e.Ap}), +1 wound if it isn't blocked" : $"1 hit at AP(+{e.Ap})");
+            else if (e.WoundIfUnblocked) bits.Add("+1 wound if the hit isn't blocked");
+            if (e.Hits > 0) bits.Add($"{target} takes {e.Hits} hits (no AP)");
+            if (e.Ricochet) bits.Add("the closest other enemy within 6\" takes 1 hit");
+            if (e.MeleeWounds > 0) bits.Add($"{target} counts +{e.MeleeWounds} wound{(e.MeleeWounds == 1 ? "" : "s")} for who won the melee");
+            if (e.MoraleWounds > 0) bits.Add($"{target} counts +{e.MoraleWounds} wounds for its morale check");
+            if (e.MeleeHitPenalty) bits.Add($"{target} gets -1 to hit this melee");
+            if (e.ShootHitPenalty) bits.Add($"{target} gets -1 to hit when shooting this round");
+            if (e.RerollSixes) bits.Add($"{target} re-rolls Defense 6s");
+            if (e.Stabbed) bits.Add($"{target} loses its melee special rules this melee");
+            if (e.Shaken) bits.Add($"{target} is Shaken at the end");
+            return bits.Count == 0 ? e.Text : char.ToUpperInvariant(bits[0][0]) + string.Join(", ", bits)[1..];
+        }
+
         // ================================================================= dealing one
 
         /// <summary>What the hit-roll stage must still do with the hits themselves.</summary>
@@ -237,7 +311,11 @@ namespace FDG
             int die = HordePlacement.RollD6(c);
             Effect e = Roll(type, die, c.Settings.GameSystem);
             c.Log($"Critical Hit! {attacker.Name}'s {weapon.Name} ({TypeName(type)}) rolls {die}: {e.Name} - {e.Text}.");
-            await c.Announce($"Critical Hit - {e.Name}! {attacker.Name} on {defender.Name}", new TextColor(255, 200, 60, 255), EBannerTier.Toast);
+            var rows = Rows(type, c.Settings.GameSystem);
+            int picked = die <= 3 ? 0 : die <= 5 ? 1 : 2;
+            await c.Presenter.Present(new CriticalHitBeat(attacker.ID, defender.ID, attacker.Name, defender.Name, weapon.Name,
+                TypeName(type), die, rows.Select(r => new CriticalRow(r.Range, r.Effect.Name, r.Effect.Text)).ToList(), picked,
+                Describe(e, defender.Name)), default);
 
             if (e.MeleeWounds > 0) Add(defender, TokenType.CritMeleeWounds, e.MeleeWounds);
             if (e.MoraleWounds > 0) Add(defender, TokenType.CritMoraleWounds, e.MoraleWounds);

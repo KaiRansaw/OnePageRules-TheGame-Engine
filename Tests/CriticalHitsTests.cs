@@ -13,13 +13,16 @@ namespace FDG.Tests
         private TestGameContext _context = null!;
         private PlayerID _me, _them;
 
+        private RecordingPresenter _beats = null!;
+
         private void Build(EAdvancedRules rules, int die, EGameSystem system = EGameSystem.GFFirefight)
         {
+            _beats = new RecordingPresenter();
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.GameSystem = system;
             settings.AdvancedRules = rules;
-            _context = new TestGameContext(_store, new FixedDiceRoller(die), settings: settings);
+            _context = new TestGameContext(_store, new FixedDiceRoller(die), presenter: _beats, settings: settings);
             _me = new PlayerID(Guid.NewGuid());
             _them = new PlayerID(Guid.NewGuid());
             _store.Create(new TeamData(1, new List<PlayerID> { _me }));
@@ -174,6 +177,39 @@ namespace FDG.Tests
             Assert.That(CriticalHits.LosesMeleeRules(unit, meleeHit), Is.True);
             Assert.That(CriticalHits.LosesMeleeRules(unit, new HitRollCompleteContext(unit, other, dice, IsMelee: false)), Is.False);
             Assert.That(CriticalHits.LosesMeleeRules(unit, new MeleeResolutionContext(unit, other)), Is.True, "its Fear");
+        }
+    
+        [Test]
+        public async Task ACritical_ShowsItsWholeTable_WithTheRollPickedOut()
+        {
+            Build(EAdvancedRules.CriticalHitsByWeaponType, die: 4);
+            UnitData me = Unit(_me, new Position(10f, 10f));
+            UnitData them = Unit(_them, new Position(11.5f, 10f), models: 5);
+            var sword = new Weapon("Energy Sword", rangeInches: 0f, attacks: 2, armorPenetration: 0);
+            await CriticalHits.Check(_context, me, them, sword, melee: true, sixesRolled: 1, hitRollNeeded: 4);
+
+            var beat = _beats.Beats.OfType<Presentation.Beats.CriticalHitBeat>().Single();
+            Assert.That(beat.TableName, Is.EqualTo("Bladed"));
+            Assert.That(beat.Die, Is.EqualTo(4));
+            Assert.That(beat.Rows.Select(r => $"{r.Range} {r.Name}"), Is.EqualTo(new[] { "1-3 Unprotected Area", "4-5 Blade Storm", "6 Sliced" }));
+            Assert.That(beat.Picked, Is.EqualTo(1));
+            Assert.That(beat.Result, Does.Contain("AP(+4)").And.Contain("2 hits"));
+            Assert.That(beat.AttackerUnit, Is.EqualTo(me.ID));
+        }
+
+        [Test]
+        public void TheHovers_NameTheTable()
+        {
+            string sword = CriticalHits.WeaponTableText(EGameSystem.GFFirefight, "Energy Sword", ranged: false, melee: true, typed: true);
+            Assert.That(sword, Does.Contain("BLADED").And.Contain("4-5 Blade Storm"));
+            string generic = CriticalHits.WeaponTableText(EGameSystem.GFFirefight, "Energy Sword", ranged: false, melee: true, typed: false);
+            Assert.That(generic, Does.Contain("GENERIC MELEE"));
+            string assault = CriticalHits.WeaponTableText(EGameSystem.GFFirefight, "Flamer", ranged: true, melee: true, typed: true);
+            Assert.That(assault, Does.Contain("HEAT").And.Contain("GENERIC MELEE"), "an Assault weapon: both tables");
+            string lobby = CriticalHits.AllTablesText(EGameSystem.AoFSkirmish);
+            Assert.That(lobby, Does.Contain("THRUSTING").And.Contain("GUNPOWDER").And.Not.Contain("HEAT"));
+            Assert.That(lobby.All(ch => ch < 128), Is.True, "game text is ASCII-only");
+            Assert.That(CriticalHits.AllTablesText(EGameSystem.GFFirefight).All(ch => ch < 128), Is.True);
         }
     }
 }

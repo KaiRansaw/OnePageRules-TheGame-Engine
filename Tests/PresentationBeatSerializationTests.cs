@@ -38,6 +38,20 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void CriticalHitBeat_SurvivesTheWire()
+        {
+            var a = new UnitID(Guid.NewGuid());
+            var beat = new CriticalHitBeat(a, null, "Squad", "Raptors", "Energy Sword", "Bladed", 5,
+                new List<CriticalRow> { new("1-3", "Unprotected Area", "x"), new("4-5", "Blade Storm", "y"), new("6", "Sliced", "z") },
+                1, "1 hit at AP(+4)");
+            var back = (CriticalHitBeat)RoundTrip(beat);
+            Assert.That(back.AttackerUnit, Is.EqualTo(a));
+            Assert.That(back.TargetUnit, Is.Null);
+            Assert.That(back.Rows[1].Name, Is.EqualTo("Blade Storm"));
+            Assert.That((back.Die, back.Picked, back.TableName, back.Result), Is.EqualTo((5, 1, "Bladed", "1 hit at AP(+4)")));
+        }
+
+        [Test]
         public void UnitMovedBeat_CarriesPayloadAndProjection()
         {
             var beat = new UnitMovedBeat(

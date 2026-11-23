@@ -75,6 +75,11 @@ namespace FDG.Tests
                 new List<ArrivedModel> { new ArrivedModel(new ModelID(Guid.NewGuid()), new Position(1f, 2f)) },
                 "Ambush"
             )).SetName("UnitArrivedBeat");
+
+            yield return new TestCaseData(new CriticalHitBeat(new UnitID(Guid.NewGuid()), null, "Squad", "Raptors",
+                "Energy Sword", "Bladed", 4,
+                new List<CriticalRow> { new("1-3", "Unprotected Area", "x"), new("4-5", "Blade Storm", "y"), new("6", "Sliced", "z") },
+                1, "1 hit at AP(+4)")).SetName("CriticalHitBeat");
         }
 
         [TestCaseSource(nameof(AllBeats))]
