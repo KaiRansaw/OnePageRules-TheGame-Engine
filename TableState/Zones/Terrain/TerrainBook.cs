@@ -68,6 +68,9 @@ namespace FDG
         {
             ETerrainType.Impassible, ETerrainType.Blocking, ETerrainType.Cover, ETerrainType.Difficult,
             ETerrainType.Dangerous, ETerrainType.Dense, ETerrainType.Unstable, ETerrainType.Steep, ETerrainType.Climbable,
+            // Advanced Terrain - Solid Buildings (p33): a piece that can be entered and defended when the lobby's Solid
+            // Buildings rule is on (a Building-kind piece that is Impassable + Sight Blocking counts without the tick).
+            ETerrainType.SolidBuilding,
         };
 
         /// <summary>The name the book gives a flag ("Sight Blocking", "Impassable").</summary>
@@ -75,6 +78,7 @@ namespace FDG
         {
             ETerrainType.Impassible => "Impassable",
             ETerrainType.Blocking => "Sight Blocking",
+            ETerrainType.SolidBuilding => "Solid Building",
             _ => flag.ToString(),
         };
 
@@ -144,6 +148,16 @@ namespace FDG
                 + "coherency of 3\" is allowed to models at different elevations.\n"
                 + "Note that short terrain up to 1\" tall may be ignored for the purposes of movement (instead of having to climb up 1\" and "
                 + "down 1\" to cross it).",
+            // Advanced Rulebooks 3.6.0, Advanced Terrain - Solid Buildings p33 (the same in all four books).
+            ETerrainType.SolidBuilding =>
+                "Usually, solid buildings would be treated as a piece of Sight Blocking and Impassable terrain, however with these rules "
+                + "your units will be able to enter and defend them.\n"
+                + "Solid buildings may hold up to X friendly models or Heroes with up to Tough(6), and non-Heroes with up to Tough(3) which "
+                + "occupy 3 spaces each.\n"
+                + "Units may enter/exit by using any move action, getting into contact with the building to enter, and staying within 6\" "
+                + "when exiting, however units may not both enter and exit a building as part of the same activation.\n"
+                + "Units inside of solid buildings count as being in Cover, regardless of what material the building is made of.\n"
+                + "(Used when the lobby's Solid Buildings rule is on.)",
             _ => "",
         };
 
@@ -156,6 +170,8 @@ namespace FDG
         {
             ETerrainType.Dense or ETerrainType.Unstable => Stages.QuestTerrainTypes.AppliesTo(system),
             ETerrainType.Climbable or ETerrainType.Steep => Stages.QuestTerrainTypes.AppliesTo(system),
+            // Only the four Advanced Rulebooks have Solid Buildings.
+            ETerrainType.SolidBuilding => FDG.Missions.ExtraMissionCatalog.Available(system),
             _ => true,
         };
 

@@ -230,6 +230,9 @@ namespace FDG.Ai.Solo
             if (!unit.Models.Any(m => m.GetIsAlive()))
                 return new SoloAiPlan(ESoloAiMove.Hold, null, null, 0f, "no living models");
 
+            // Extra Missions with a prize to carry off the table (house rules C, "Bots and the missions").
+            if (SoloAiMissions.Plan(table, me, unit) is { } mission) return mission;
+
             float advance = AdvanceReach(unit, table);
             float range = AiCombatMath.MaxRange(unit);
             List<IObjective> contested = Contested(table, me);

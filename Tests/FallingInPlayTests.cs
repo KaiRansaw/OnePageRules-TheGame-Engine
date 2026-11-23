@@ -32,7 +32,24 @@ namespace FDG.Tests
             }
         }
 
-        private static (TestGameContext C, DataBinding<UnitData> Unit) Table(int die, Position to)
+        /// <summary>Answers the push the way the bot does (house rules C, "Bots and pushing").</summary>
+        private sealed class BotPush : IPlayerRequestByID
+        {
+            public ITableState? Table;
+            public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request) where TRequest : IStageTaskRequest<TReply>
+            {
+                if (request is DefineMovementPathRequest r)
+                {
+                    List<ModelMoveEntry>? best = FDG.Ai.Solo.SoloAiPush.Best(r, Table!, new PlayerID(Guid.NewGuid()));
+                    Assert.That(best, Is.Not.Null, "a push that gains something exists");
+                    object reply = new Selected<List<ModelMoveEntry>>(best!);
+                    return Task.FromResult((TReply)reply);
+                }
+                throw new InvalidOperationException($"Unexpected request {typeof(TRequest).Name}");
+            }
+        }
+
+        private static (TestGameContext C, DataBinding<UnitData> Unit) Table(int die, Position to, IPlayerRequestByID? requester = null)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var me = new PlayerID(Guid.NewGuid());
@@ -45,7 +62,7 @@ namespace FDG.Tests
             store.Create(new ArmyData(me, new List<DataBinding<UnitData>> { unit }));
             var settings = GameSettings.GetDefault();
             settings.GameSystem = EGameSystem.GFFirefight;
-            return (new TestGameContext(store, new FixedDiceRoller(die), settings: settings, playerRequester: new PushTo(to)), unit);
+            return (new TestGameContext(store, new FixedDiceRoller(die), settings: settings, playerRequester: requester ?? new PushTo(to)), unit);
         }
 
         [Test]
@@ -64,6 +81,19 @@ namespace FDG.Tests
             var (c, unit) = Table(die: 5, to: new Position(14f, 0));
             await new GameOperationServices(c).MoveUnit(unit.GetValue(), 2f, isOptional: true, controller: null, oncePerRound: false, pushed: true);
             Assert.That(unit.GetValue().Models.First().GetIsAlive(), Is.True);
+        }
+
+        [Test]
+        public async Task TheBot_PushesAnEnemyOffTheLedge()
+        {
+            var bot = new BotPush();
+            var (c, unit) = Table(die: 2, to: default, requester: bot);
+            bot.Table = c.TableState;
+            await new GameOperationServices(c).MoveUnit(unit.GetValue(), 2f, isOptional: true, controller: null, oncePerRound: false, pushed: true);
+            IModel m = unit.GetValue().Models.First();
+            Assert.That(Climbing.StandingHeight(c.TableState.Terrain.Objects, m.Position.Position2D), Is.LessThan(0.5f),
+                "pushed off the 2.5\" top, not along it");
+            Assert.That(m.GetIsAlive(), Is.False, "and it fell: 2 dice of 2 kill a 1-wound model");
         }
 
         [Test]

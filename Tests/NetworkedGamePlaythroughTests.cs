@@ -187,6 +187,14 @@ namespace FDG.Tests
         [TestCase("DirectChallenge")]
         [TestCase("TacticalParagons")]
         [TestCase("Spearhead+FastPlay")]
+        // Overnight queue 2026-11-22: the Extra Missions / Attack & Defend / Side-Missions over a real socket - their
+        // role picks, secret picks, mission deployments and reserves are new request traffic.
+        [TestCase("Mission:TheRaid")]
+        [TestCase("Mission:SmashAndGrab")]
+        [TestCase("Mission:VipEscort")]
+        [TestCase("Mission:TheRescue")]
+        [TestCase("Side:SharedAndHidden")]
+        [TestCase("Side:CumulativeDash+Mission:RelicHunt")]
         [CancelAfter(420_000)]
         public async Task HostAndClient_PlayTheNewFeatures_ToAResult(string feature)
         {
@@ -205,7 +213,16 @@ namespace FDG.Tests
             hostVm.UpdateArmyListFile(hostPlayerID, MakeArmy("Host Guard"));
             hostVm.UpdateArmyListFile(clientPlayerID, MakeArmy("Client Guard"));
             hostVm.SetPlayerTeam(clientPlayerID, ETeamOption.Team2);
-            if (feature == "Spearhead+FastPlay")
+            if (feature.Contains(':'))
+            {
+                foreach (string part in feature.Split('+'))
+                {
+                    string value = part[(part.IndexOf(':') + 1)..];
+                    if (part.StartsWith("Mission:")) hostVm.SetExtraMission(Enum.Parse<FDG.Missions.EExtraMission>(value));
+                    else hostVm.SetSideMissions(Enum.Parse<FDG.Missions.ESideMissionPlay>(value));
+                }
+            }
+            else if (feature == "Spearhead+FastPlay")
             {
                 hostVm.SetDeploymentStyle(EDeploymentStyle.Spearhead);
                 hostVm.SetFastPlay(movement: true, melee: true, shooting: false);

@@ -26,7 +26,7 @@ namespace FDG.Quest
         public static readonly IReadOnlyDictionary<string, string> NotPossible = new Dictionary<string, string>
         {
             // Same reason as the Leap skill: nothing in this engine ever rolls to jump.
-            ["Agility Injector"] = "There are no jumping rolls in this game, so this has no effect.",
+            ["Agility Injector"] = "No jumps happen in this game: every top is 3\" or lower and pieces have no gaps, so this has no effect.",
             // The AI's hero-targeting reads the hero list, not a per-unit "treat as hero" flag. The
             // Phantasm Grenade works because it places a MARKER the AI already understands; marking a
             // living enemy unit as a hero has no equivalent.

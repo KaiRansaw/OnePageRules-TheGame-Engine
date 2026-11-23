@@ -49,6 +49,9 @@ namespace FDG.Ai.Solo
 
         public Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request)
         {
+            // Pushing an enemy (skirmish games): off a ledge, else off an objective (house rules C, "Bots and pushing").
+            if (request.Pushed && SoloAiPush.Best(request, _table, _me) is { } push) return Done(push);
+
             // Forced moves, consolidations and anything that is not the unit's own activation move keep the
             // baseline behaviour - the tree has nothing to say about them.
             if (!request.MainActivationMove) return _baseline.Resolve(request);

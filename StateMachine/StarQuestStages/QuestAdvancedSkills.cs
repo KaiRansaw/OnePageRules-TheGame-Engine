@@ -18,7 +18,9 @@ namespace FDG.Stages
         /// <summary>Skills that can't work in this game, and why (shown greyed out in the Skill menu).</summary>
         public static readonly IReadOnlyDictionary<string, string> NotPossible = new Dictionary<string, string>
         {
-            ["Leap"] = "There are no jumping rolls in this game, so Leap has no effect.",
+            // Heights (3.01-3.03): AoF: Quest jumps only across gaps over 1" or down drops over 3"; GF: Star Quest has no
+            // jumping at all. Neither happens on our tables, so there is nothing for Leap to pass.
+            ["Leap"] = "No jumps happen in this game: every top is 3\" or lower and pieces have no gaps, so Leap has no effect.",
             ["Confusion"] = "Enemies can't attack their own side in this game.",
             ["Infiltrate"] = "Moving only outside enemy line of sight isn't in this game yet.",
         };
