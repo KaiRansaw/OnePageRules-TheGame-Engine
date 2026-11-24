@@ -320,11 +320,23 @@ namespace FDG
             var held = new HashSet<UnitID>();
             foreach (PlayerID player in context.UndeployedUnits.Keys.ToList())
             {
-                var units = c.GameDataStore.GetAllValues<ArmyData>().Where(a => a.IsOwnedBy(player))
-                    .SelectMany(a => a.UnitBindings).Select(b => b.GetValue()).Where(u => u.GetIsAlive()).ToList();
+                var bindings = c.GameDataStore.GetAllValues<ArmyData>().Where(a => a.IsOwnedBy(player))
+                    .SelectMany(a => a.UnitBindings).Where(b => b.GetValue().GetIsAlive()).ToList();
+                var units = bindings.Select(b => b.GetValue()).ToList();
                 if (units.Count < 2) continue;
                 var split = Split(units);
-                var groups = Enumerable.Range(0, split.Count).Where(i => split[i].Count > 0).ToDictionary(i => i + 1, i => split[i]);
+                // The player splits their own army (Kai, 2026-11-23); the even split is the suggestion, and what a bot takes.
+                var suggested = units.Select(u => split.FindIndex(g => g.Contains(u)) + 1).ToList();
+                List<int> answer = await c.PlayerRequester.RequestDecision<SplitDetachmentsRequest, List<int>>(new SplitDetachmentsRequest(player,
+                    bindings.Select(b => new SplitDetachmentsRequest.Entry(b, b.GetValue().Name, b.GetValue().PointCost)).ToList(),
+                    suggested, Detachments));
+                var groups = new Dictionary<int, List<UnitData>>();
+                for (int i = 0; i < units.Count; i++)
+                {
+                    int d = answer != null && i < answer.Count && answer[i] is >= 1 and <= Detachments ? answer[i] : suggested[i];
+                    if (!groups.TryGetValue(d, out var g)) groups[d] = g = new List<UnitData>();
+                    g.Add(units[i]);
+                }
                 foreach ((int k, List<UnitData> g) in groups.OrderBy(x => x.Key))
                     c.Log($"Escalating Battles: {c.GetPlayerName(player)}'s {Label(k, g)}.");
                 int first = await PickDetachment(c, player, groups, "now");

@@ -121,6 +121,7 @@ namespace FDG.Ai
                 // units get my banner" is a multi-select, and no other request in the engine is one.
                 .RegisterResolver(new AiPickCommandGroupUnitsResolver())
                 .RegisterResolver(new AiPickAuraUnitsResolver())
+                .RegisterResolver(new StageResolution.Requests.SplitDetachmentsRequest.TakeSuggested())
                 .RegisterResolver(new AiPickUnitLeadersResolver())   // #456
                 .RegisterResolver(new AiPickStringsResolver())       // #462
                 .RegisterResolver(new AiConcedeCheckResolver())      // #466
