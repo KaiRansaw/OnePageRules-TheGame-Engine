@@ -143,6 +143,9 @@ namespace FDG
         /// <summary>Fog of War (Advanced Rulebooks): Prolonged Battle's rolls. Null outside it.</summary>
         public FDG.FogOfWarState? FogOfWar { get; set; }
 
+        /// <summary>Command Points (Advanced Rulebooks): playstyle, doctrines and each player's CP. Null outside them.</summary>
+        public FDG.CommandPointsState? CommandPoints { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

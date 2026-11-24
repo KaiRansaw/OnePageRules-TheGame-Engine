@@ -133,6 +133,7 @@ namespace FDG.Stages
             UnitPsychology.RoundEnd(GameContext);
             CriticalHits.RoundEnd(GameContext);
             BattlefieldEffects.RoundEnd(GameContext);
+            CommandPoints.RoundEnd(GameContext);
             // Battlefield Effects - objective effects: rolled the first time each marker is seized.
             await BattlefieldEffects.AfterObjectives(GameContext);
             await BattlefieldEffects.EventsRoundEnd(GameContext);

@@ -41,6 +41,8 @@ namespace FDG.Stages
             // advance rather than handing ChooseUnitToDeployStage an empty pool (which used to throw).
             if (context.HasStarted == false)
             {
+                // Command Points: the playstyle and each player's doctrine are settled "before the game begins".
+                await CommandPoints.Settle(GameContext);
                 // Fog of War - Escalating Battles: each player picks the detachment that deploys now.
                 await FogOfWar.OpeningDetachments(GameContext, context);
                 context.HasStarted = true;

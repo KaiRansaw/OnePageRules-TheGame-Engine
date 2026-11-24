@@ -64,6 +64,8 @@ namespace FDG
                 progress.Battlefield = TryGetProgress(store)?.Battlefield;
             if (progress.FogOfWar == null)
                 progress.FogOfWar = TryGetProgress(store)?.FogOfWar;
+            if (progress.CommandPoints == null)
+                progress.CommandPoints = TryGetProgress(store)?.CommandPoints;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

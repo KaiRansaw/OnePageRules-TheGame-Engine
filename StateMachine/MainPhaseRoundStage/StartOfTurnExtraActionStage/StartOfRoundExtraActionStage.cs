@@ -58,6 +58,8 @@ namespace FDG.Stages
             await FDG.Missions.SideMissions.RoundStart(GameContext, context.RoundCount);
             // Battlefield Effects: the special condition (settled before round 1) and Damnation's sacrifice.
             await BattlefieldEffects.RoundStart(GameContext, context.RoundCount);
+            // Command Points: the Growing and Temporary playstyles hand out CP.
+            await CommandPoints.RoundStart(GameContext, context.RoundCount);
             await BattlefieldEffects.RollEvent(GameContext);
             if (context.RoundCount >= 2)
             {

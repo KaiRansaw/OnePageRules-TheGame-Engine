@@ -42,6 +42,8 @@ namespace FDG
         CombatHesitation = 1UL << 28,
         ProlongedBattle = 1UL << 29,
         EscalatingRandomArrival = 1UL << 30,
+        // Command Points (all four books). Bits 32-34 hold the picked playstyle (see CommandPoints).
+        CommandPoints = 1UL << 31,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -57,6 +59,7 @@ namespace FDG
         public const string CriticalHitsChapter = "Critical Hits";
         public const string BattlefieldEffectsChapter = "Battlefield Effects";
         public const string FogOfWarChapter = "Fog of War";
+        public const string CommandPointsChapter = "Command Points";
 
         public static readonly IReadOnlyList<AdvancedRuleOption> Catalog = BuildCatalog();
 
@@ -72,6 +75,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in BattlefieldEffects.All)
                 list.Add(new AdvancedRuleOption(BattlefieldEffectsChapter, name, flag, FourGames,
                     BattlefieldEffects.BookText(name), BattlefieldEffects.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in CommandPoints.All)
+                list.Add(new AdvancedRuleOption(CommandPointsChapter, name, flag, FourGames,
+                    CommandPoints.BookText(EGameSystem.GrimdarkFuture), CommandPoints.GameText));
             foreach ((string name, EAdvancedRules flag) in FogOfWar.All)
                 list.Add(new AdvancedRuleOption(FogOfWarChapter, name, flag, FourGames,
                     FogOfWar.BookText(name, EGameSystem.GrimdarkFuture), FogOfWar.GameText(name)));
@@ -87,6 +93,7 @@ namespace FDG
             [UnitPsychologyChapter] = "Unit psychology rules change how units behave as they are put through continuous fighting, making them less predictable. Pick any of the following.",
             [BrutalDamageChapter] = "Brutal Damage rules make the game deadlier by modifying how units are damaged during combat. Pick any of the following.",
             [BattlefieldEffectsChapter] = "Battlefield Effects add special conditions to the whole table, effects to terrain and objectives, and random events every round. Pick any of the following.",
+            [CommandPointsChapter] = "Command Points (CP) are an extra resource that can be added to the game, giving players access to critical tactical abilities that boost their units in battle.",
             [FogOfWarChapter] = "Fog of War rules add an element of uncertainty to battles, by affecting how units are deployed and how rounds are played. Pick any of the following.",
             [CriticalHitsChapter] = "Critical Hits rules make weapons a lot deadlier by modifying how units are damaged with a little bit of luck. Use the generic tables, or the weapon type tables instead.",
         };
