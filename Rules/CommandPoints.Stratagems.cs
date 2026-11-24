@@ -35,7 +35,9 @@ namespace FDG
             (HiddenDeployment, 3, "After all units have deployed, you may remove up to 3 friendly units and place them again in any order. The opposing player may spend 3 CP to do the same, in which case players alternate in placing those units again."),
         };
 
-        public static int CostOf(string stratagem) => Universal.FirstOrDefault(u => u.Name == stratagem).Cost;
+        public static int CostOf(string stratagem) =>
+            Universal.FirstOrDefault(u => u.Name == stratagem).Cost is int u and > 0 ? u
+            : DoctrineStratagems.FirstOrDefault(d => d.Name == stratagem).Cost;
 
         private static string UseKey(PlayerID player, string stratagem) => $"{player}:{stratagem}";
 
@@ -45,7 +47,8 @@ namespace FDG
         {
             if (!On(c) || State(c.GameDataStore) is not { } s) return false;
             return s.Points.GetValueOrDefault(player.ToString()) >= CostOf(stratagem)
-                && !s.Used.Contains(UseKey(player, stratagem));
+                && !s.Used.Contains(UseKey(player, stratagem))
+                && HasDoctrine(c, player, stratagem);
         }
 
         /// <summary>Spends the stratagem's CP and marks it used for this activation.</summary>

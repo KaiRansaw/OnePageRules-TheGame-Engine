@@ -685,6 +685,27 @@ namespace FDG.Stages
             AddExtraActionOptions(context, validOptions, invalidOptions, outcomes, optionDescriptions,
                 canMove, canShoot, canPass, cantPassReason, compelledToAttackNow);
 
+            // Command Points - Push Forward / Sweeping Move: on a fresh activation's menu, only when the player can
+            // use them (their doctrine, the CP). Picking one spends it and moves with the bonus.
+            if (context.ExtraAction == null && !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
+                && !QuestActions.IsQuestGame(GameContext))
+            {
+                UnitData cpUnit = context.ActivatingUnit.GetValue();
+                foreach (var (option, stratagem, text) in CommandPoints.MoveOptions(GameContext, cpUnit, canMove,
+                             canMove && canCharge && ChargeContactRules.CanFightInMelee(cpUnit)))
+                {
+                    if (outcomes.ContainsKey(option)) continue;
+                    validOptions.Add(option);
+                    optionDescriptions[option] = text;
+                    outcomes.Add(option, () =>
+                    {
+                        if (!CommandPoints.TakeMoveOption(GameContext, cpUnit, stratagem)) return Enter(context);
+                        context.ExtraAction = stratagem;
+                        return ToMovement.Activate(context);
+                    });
+                }
+            }
+
             // Kai, 2026-11-08: a unit whose ONLY legal action is Pass shows a Pass button rather than skipping
             // silently, so the player sees the activation happen and can read why nothing else was offered.
             // Only on a pristine activation - once the unit has moved or attacked, an empty menu means the
@@ -947,6 +968,13 @@ namespace FDG.Stages
         private void RevertAbandonedExtraAction(IUnitActionContext context)
         {
             UnitData unit = context.ActivatingUnit.GetValue();
+            // Command Points: a Push Forward / Sweeping Move whose move never happened gives its CP back.
+            if (context.ExtraAction is CommandPoints.PushForward or CommandPoints.SweepingMove && !context.HasMoved)
+            {
+                CommandPoints.RefundMoveOption(GameContext, unit);
+                context.ExtraAction = null;
+                return;
+            }
             TokenType? token = context.ExtraAction switch
             {
                 ExtraActions.FocusedFire when !context.HasAttacked => TokenType.FocusedFire,

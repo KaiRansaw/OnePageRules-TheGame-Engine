@@ -69,6 +69,12 @@ public readonly record struct TokenType(string Id)
     public const string DEEP_RAGE_ID = "DeepRage";
     // Fog of War - Escalating Battles: held back with its detachment (token count = detachment number).
     public const string HELD_DETACHMENT_ID = "HeldDetachment";
+    // Command Points - doctrine stratagems that last "for that shooting" / that move (cleared at the end of the activation).
+    public const string CP_LIGHTNING_REFLEXES_ID = "CpLightningReflexes";
+    public const string CP_HEIGHTENED_SENSES_ID = "CpHeightenedSenses";
+    public const string CP_DISRUPTED_SIGHT_ID = "CpDisruptedSight";
+    public const string CP_PUSH_FORWARD_ID = "CpPushForward";
+    public const string CP_SWEEPING_MOVE_ID = "CpSweepingMove";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -453,4 +459,9 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType BootsRush = new(BOOTS_RUSH_ID);
     public static readonly TokenType DeepRage = new(DEEP_RAGE_ID);
     public static readonly TokenType HeldDetachment = new(HELD_DETACHMENT_ID);
+    public static readonly TokenType CpLightningReflexes = new(CP_LIGHTNING_REFLEXES_ID);
+    public static readonly TokenType CpHeightenedSenses = new(CP_HEIGHTENED_SENSES_ID);
+    public static readonly TokenType CpDisruptedSight = new(CP_DISRUPTED_SIGHT_ID);
+    public static readonly TokenType CpPushForward = new(CP_PUSH_FORWARD_ID);
+    public static readonly TokenType CpSweepingMove = new(CP_SWEEPING_MOVE_ID);
 }

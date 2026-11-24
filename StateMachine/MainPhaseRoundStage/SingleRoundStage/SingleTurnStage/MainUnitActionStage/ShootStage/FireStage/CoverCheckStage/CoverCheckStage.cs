@@ -49,6 +49,17 @@ namespace FDG.Stages
                 bonus = 0;
             }
 
+            // Command Points - Lightning Reflexes (target counts as in Cover) / Heightened Senses (ignore Cover), for
+            // this shooting. Shooting only - spells and melee never get cover.
+            if (!metaData.IsMelee && !metaData.IsSpell)
+            {
+                bool ignores = SightRuleQueries.IgnoresCover(metaData.AttackingUnit.GetValue(), metaData.WeaponType, GameContext.RuleEvaluator);
+                int before = bonus;
+                bonus = await CommandPoints.CoverStratagems(GameContext, metaData.AttackingUnit.GetValue(),
+                    metaData.DefendingUnit.GetValue(), bonus, ignores);
+                if (bonus != before) GameContext.Log($"Command Points: cover {(bonus > before ? "given" : "ignored")} for this shooting.");
+            }
+
             if (bonus > 0)
                 GameContext.Log($"Cover: {majority.ModelsInCover}/{majority.LivingDefenders} defending models in cover. Defense +{bonus}.");
             else

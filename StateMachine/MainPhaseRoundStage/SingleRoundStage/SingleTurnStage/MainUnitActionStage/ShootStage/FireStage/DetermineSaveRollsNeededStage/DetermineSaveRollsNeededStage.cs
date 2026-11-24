@@ -85,6 +85,19 @@ namespace FDG.Stages
                 GameContext.Log($"{metaData.DefendingUnit.GetValue().Name}: {challenge[0].Source} +1 to Defense.");
             }
 
+            // Command Points - Armour Breaker: the attacker's player may give the target -1 to its Defense rolls against
+            // these hits (offered only when the roll could still succeed).
+            {
+                int hits = (int)Math.Round(rollToHitResults.SuccessfulHitList.Sum(h => h.HitCount));
+                int estimate = baseDefense + ap - coverResults.DefenseRollBonus - rollToHitResults.SaveModifier - grantedDefense + markerNet - underdogNet;
+                if (await CommandPoints.OfferArmourBreaker(GameContext, metaData.AttackingUnit.GetValue(),
+                        metaData.DefendingUnit.GetValue(), hits, Math.Max(2, estimate)))
+                {
+                    grantedDefense -= 1;
+                    grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(CommandPoints.ArmourBreaker, -1) }).ToList();
+                }
+            }
+
             // Pierce: "Ignores all positive Defense modifiers on the target." The rule-based ones went at the hit roll;
             // cover and every granted bonus (spells, items, Hunker Down, Defensive Stance, the Challenge Bonus, the
             // defender's Underdog +1) are added here, so they go here. Penalties stay (Last Stand -1).

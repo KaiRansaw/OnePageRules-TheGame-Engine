@@ -324,7 +324,9 @@ namespace FDG.Ai.Solo
             || option == QuestActions.HoldWithoutShootingOption
             || option == QuestActions.EndActivationOption
             // Extra Actions are decisions of their own (below), never "use a special rule as soon as activated".
-            || ExtraActions.All.Any(a => a.Name == option);
+            || ExtraActions.All.Any(a => a.Name == option)
+            // Command Points move stratagems cost CP and only pay off on a move the tree may not make (house rules C).
+            || CommandPoints.IsMoveOption(option);
 
         // ---- Extra Actions (Advanced Rulebooks 3.6.0) --------------------------------------------------
         // The Solo & Co-Op books predate them and say nothing, so these are the plain improvements a

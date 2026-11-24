@@ -165,6 +165,11 @@ namespace FDG.Stages
             _maxAdvanceDistance += eventAdvance;
             _maxRushDistance += eventRush;
             _maxChargeDistance += eventRush;
+            // Command Points - Push Forward (+2" Advance / Rush) and Sweeping Move (+4" Charge).
+            (float cpAdvance, float cpRush, float cpCharge) = CommandPoints.MoveBonus(unit);
+            _maxAdvanceDistance += cpAdvance;
+            _maxRushDistance += cpRush;
+            _maxChargeDistance += cpCharge;
 
             // "Counts as being in Difficult Terrain" (#153): the whole move is capped at the difficult-terrain
             // limit, after bonuses (the cap is absolute), unless the unit ignores difficult terrain outright
@@ -204,9 +209,9 @@ namespace FDG.Stages
                 AccumulateModelMovementRules(unit, model, EActionType.Advance, baseAdvance, perModel);
                 AccumulateModelMovementRules(unit, model, EActionType.Rush, baseRush, perModel);
                 AccumulateModelMovementRules(unit, model, EActionType.Charge, baseCharge, perModel);
-                float modelAdvance = baseAdvance + perModel.Net(EActionType.Advance) + eventAdvance;
-                float modelRush = baseRush + perModel.Net(EActionType.Rush) + eventRush;
-                float modelCharge = baseCharge + perModel.Net(EActionType.Charge) + BattlefieldEffects.ChargeBonus(unit) + eventRush;
+                float modelAdvance = baseAdvance + perModel.Net(EActionType.Advance) + eventAdvance + cpAdvance;
+                float modelRush = baseRush + perModel.Net(EActionType.Rush) + eventRush + cpRush;
+                float modelCharge = baseCharge + perModel.Net(EActionType.Charge) + BattlefieldEffects.ChargeBonus(unit) + eventRush + cpCharge;
                 if (countsAsDifficult)
                 {
                     modelAdvance = Math.Min(modelAdvance, difficultCap);

@@ -13,7 +13,8 @@ namespace FDG.Tests
         private GameDataStore _store = null!;
         private TestGameContext _context = null!;
         private PlayerID _me, _them;
-        private UnitData _myUnit = null!;
+        private UnitData _myUnit = null!, _theirUnit = null!;
+        private DataBinding<UnitData> _myBinding = null!;
         private readonly List<object> _asked = new();
 
         private sealed class Answer : IPlayerRequestByID
@@ -24,13 +25,13 @@ namespace FDG.Tests
                 Task.FromResult((TReply)_answer(request!));
         }
 
-        private void Build(int face, int playstyle, EGameSystem system = EGameSystem.GrimdarkFuture, Func<object, object>? answer = null)
+        private void Build(int face, int playstyle, EGameSystem system = EGameSystem.GrimdarkFuture, Func<object, object>? answer = null, IDiceRoller? roller = null)
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.GameSystem = system;
             settings.AdvancedRules = CommandPoints.WithPick(EAdvancedRules.CommandPoints, playstyle);
-            _context = new TestGameContext(_store, new FixedFaceDiceRoller(face), settings: settings,
+            _context = new TestGameContext(_store, roller ?? new FixedFaceDiceRoller(face), settings: settings,
                 playerRequester: new Answer(r => { _asked.Add(r); return (answer ?? (q => ((StringSelectionRequest)q).ValidOptions[0]))(r); }));
             _asked.Clear();
             _me = new PlayerID(Guid.NewGuid());
@@ -47,7 +48,7 @@ namespace FDG.Tests
             var bindings = new List<DataBinding<ModelData>> { _store.GetDataBinding<ModelData>(_store.Create(model)) };
             var unit = new UnitData(owner, "Unit", quality: 4, defense: 4, modelBindings: bindings) { PointCost = points };
             DataBinding<UnitData> binding = _store.GetDataBinding<UnitData>(_store.Create(unit));
-            if (owner == _me) _myUnit = unit;
+            if (owner == _me) { _myUnit = unit; _myBinding = binding; } else _theirUnit = unit;
             _store.Create(new ArmyData(owner, new List<DataBinding<UnitData>> { binding }));
         }
 
@@ -229,6 +230,166 @@ namespace FDG.Tests
             Assert.That(extra.GetValueOrDefault(_them), Is.EqualTo(3), "the opponent may do the same");
             Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(3));
             Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(1));
+        }
+
+        // ================================================================= doctrine stratagems
+
+        private sealed class FaceSequence : IDiceRoller
+        {
+            private readonly int[] _faces;
+            private int _i;
+            public FaceSequence(params int[] faces) => _faces = faces;
+            public IDiceResults Roll(int sideCount, float rollCount) => new FixedDiceResults(_faces[Math.Min(_i++, _faces.Length - 1)]);
+        }
+
+        private void Doctrines(int mine, int theirs)
+        {
+            CommandPointsState s = CommandPoints.State(_store)!;
+            s.Doctrine[_me.ToString()] = mine;
+            s.Doctrine[_them.ToString()] = theirs;
+            CommandPoints.Save(_context, s);
+        }
+
+        [Test]
+        public void TheSixDoctrines_AreTheBooks()
+        {
+            Assert.That(CommandPoints.DoctrineStratagems, Has.Count.EqualTo(24));
+            for (int d = 1; d <= 6; d++)
+                Assert.That(CommandPoints.DoctrineStratagems.Where(x => x.Doctrine == d).Select(x => x.Cost), Is.EqualTo(new[] { 1, 1, 2, 3 }),
+                    $"{CommandPoints.DoctrineName(d)}: GF p43 / AoF p43 / GFF p40 / AoFS p40");
+            Assert.That(CommandPoints.CostOf(CommandPoints.CodeOfHonor), Is.EqualTo(3));
+            Assert.That(CommandPoints.CostOf(CommandPoints.SupremeCommand), Is.EqualTo(2));
+            Assert.That(CommandPoints.DoctrineStratagems.All(x => x.Text.All(ch => ch < 128)), "game text is ASCII");
+        }
+
+        [Test]
+        public async Task OnlyYourOwnDoctrine()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 4, theirs: 2);                                    // me Hunting, them Defensive
+            Assert.That(CommandPoints.Can(_context, _me, CommandPoints.DisruptedSight), Is.True);
+            Assert.That(CommandPoints.Can(_context, _me, CommandPoints.LightningReflexes), Is.False, "not my doctrine");
+            Assert.That(CommandPoints.Can(_context, _me, CommandPoints.HighCommand), Is.True, "Universal: everyone");
+            Assert.That(CommandPoints.Can(_context, _them, CommandPoints.LightningReflexes), Is.True);
+            Assert.That(CommandPoints.StratagemsOf(_context, _me).Count(), Is.EqualTo(10), "6 Universal + 4 of the doctrine");
+        }
+
+        [Test]
+        public async Task LightningReflexes_ThenHeightenedSenses()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 4, theirs: 2);
+            // I shoot their unit, which is out of cover: they use Lightning Reflexes, I answer with Heightened Senses.
+            Assert.That(await CommandPoints.CoverStratagems(_context, _myUnit, _theirUnit, 0, weaponIgnoresCover: false), Is.EqualTo(0));
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(3), "4 - 1");
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7), "8 - 1");
+            Assert.That(_theirUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.CpLightningReflexes));
+            int asked = _asked.Count;
+            Assert.That(await CommandPoints.CoverStratagems(_context, _myUnit, _theirUnit, 0, false), Is.EqualTo(0),
+                "the next weapon of the same shooting: both still apply, nothing asked");
+            Assert.That(_asked.Count, Is.EqualTo(asked));
+            CommandPoints.EndOfActivation(_context);
+            Assert.That(_theirUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.CpLightningReflexes), Is.False, "for that shooting only");
+            Assert.That(await CommandPoints.CoverStratagems(_context, _myUnit, _theirUnit, 0, weaponIgnoresCover: true), Is.EqualTo(0),
+                "a weapon that ignores cover: Lightning Reflexes would do nothing - not offered");
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(3));
+        }
+
+        [Test]
+        public async Task DisruptedSight_IsMinusOneToHit_ForThatShooting()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 4);
+            await CommandPoints.OfferDisruptedSight(_context, _myUnit, _theirUnit, hitNeed: 6);
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(4), "needing 6s, -1 changes nothing - not offered");
+            await CommandPoints.OfferDisruptedSight(_context, _myUnit, _theirUnit, hitNeed: 4);
+            Assert.That(CommandPoints.HitModifiers(_myUnit, melee: false, spell: false).Sum(m => m.Delta), Is.EqualTo(-1));
+            Assert.That(CommandPoints.HitModifiers(_myUnit, melee: true, spell: false), Is.Empty, "shooting only");
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(3));
+        }
+
+        [Test]
+        public async Task ArmourBreaker_AndSayingNo_ForTheRound()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(false));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 2, theirs: 1);
+            Assert.That(await CommandPoints.OfferArmourBreaker(_context, _myUnit, _theirUnit, hits: 3, saveNeed: 4), Is.False);
+            int asked = _asked.Count;
+            CommandPoints.NewActivation(_context);
+            Assert.That(await CommandPoints.OfferArmourBreaker(_context, _myUnit, _theirUnit, hits: 3, saveNeed: 4), Is.False);
+            Assert.That(_asked.Count, Is.EqualTo(asked), "said no - not asked again this round");
+            Assert.That(await CommandPoints.OfferArmourBreaker(_context, _myUnit, _theirUnit, hits: 3, saveNeed: 7), Is.False);
+
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 2, theirs: 1);
+            Assert.That(await CommandPoints.OfferArmourBreaker(_context, _myUnit, _theirUnit, hits: 3, saveNeed: 4), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(6));
+        }
+
+        [Test]
+        public async Task PushForward_OnTheMenu_GivesTwoInches_AndIsRefunded()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 3);
+            var options = CommandPoints.MoveOptions(_context, _myUnit, canMove: true, canCharge: true).ToList();
+            Assert.That(options.Select(o => o.Stratagem), Is.EqualTo(new[] { CommandPoints.PushForward }), "Strategic: no Sweeping Move");
+            Assert.That(CommandPoints.MoveOptions(_context, _myUnit, canMove: false, canCharge: false), Is.Empty);
+            Assert.That(CommandPoints.TakeMoveOption(_context, _myUnit, CommandPoints.PushForward), Is.True);
+            Assert.That(CommandPoints.MoveBonus(_myUnit), Is.EqualTo((2f, 2f, 0f)));
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7));
+            CommandPoints.RefundMoveOption(_context, _myUnit);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(8), "backed out of the move");
+            Assert.That(CommandPoints.MoveBonus(_myUnit), Is.EqualTo((0f, 0f, 0f)));
+            Assert.That(CommandPoints.MoveOptions(_context, _theirUnit, canMove: true, canCharge: true).Single().Stratagem,
+                Is.EqualTo(CommandPoints.SweepingMove));
+            Assert.That(CommandPoints.TakeMoveOption(_context, _theirUnit, CommandPoints.SweepingMove), Is.True);
+            Assert.That(CommandPoints.MoveBonus(_theirUnit), Is.EqualTo((0f, 0f, 4f)));
+        }
+
+        [Test]
+        public async Task StandStrong_ReRollsAFailedMoraleTest()
+        {
+            // Dice: two doctrine rolls (overwritten), the test (2 - misses by 2, so no High Command), the re-roll (5).
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 2, 5));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 5, theirs: 1);
+            var outcome = await FDG.Stages.MoraleUtilities.TakeMoraleTest(_context, _myUnit, 4, FDG.Rules.Foundation.EMoraleTrigger.Shooting);
+            Assert.That(outcome.Passed, Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7));
+        }
+
+        [Test]
+        public async Task Terrorize_MakesAPassReRoll()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 4, 2));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 5);
+            var outcome = await FDG.Stages.MoraleUtilities.TakeMoraleTest(_context, _myUnit, 4, FDG.Rules.Foundation.EMoraleTrigger.Shooting);
+            Assert.That(outcome.Passed, Is.False, "passed on a 4, re-rolled a 2");
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(2), "4 - 2");
+        }
+
+        [Test]
+        public async Task CodeOfHonor_StopsShaken()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 5, theirs: 1);
+            DataBinding<UnitData> mine = _myBinding;
+            await FDG.Stages.MoraleUtilities.ApplyShakenWithPresentation(_context, mine);
+            Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.Shaken), Is.False);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(5));
+            CommandPoints.NewActivation(_context);
+            await FDG.Stages.MoraleUtilities.RoutWithPresentation(_context, mine);
+            Assert.That(_myUnit.GetIsAlive(), Is.True, "Shaken instead of Routed");
+            Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.Shaken), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(2));
         }
     }
 }

@@ -160,6 +160,14 @@ namespace FDG.Stages
                 FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
                 return new MoraleTestOutcome(passed: false, rollNeeded, passedViaReroll: false);
             }
+            // Command Points - Terrorize: an opponent may make a unit that passed re-roll ("must re-roll").
+            if (passedInitial && await CommandPoints.OfferTerrorize(gameContext, testingUnit))
+            {
+                initialRoll = gameContext.DiceRoller.RollDecisive();
+                passedInitial = initialRoll.AtOrAbove(rollNeeded) >= 1f;
+                await gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(initialRoll, rollNeeded,
+                    $"{testingUnit.Name} - Morale Test (Terrorize re-roll)", passedInitial ? "Passed" : "Failed"));
+            }
             if (passedInitial)
             {
                 return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: false);
@@ -225,6 +233,16 @@ namespace FDG.Stages
                 {
                     return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: true);
                 }
+            }
+
+            // Command Points - Stand Strong: the unit's player may re-roll the failed test.
+            if (await CommandPoints.OfferStandStrong(gameContext, testingUnit))
+            {
+                IDiceResults again = gameContext.DiceRoller.RollDecisive();
+                bool passedAgain = again.AtOrAbove(rollNeeded) >= 1f;
+                await gameContext.Presenter.Present(DiceRolledBeat.FromDecisive(again, rollNeeded,
+                    $"{testingUnit.Name} - Stand Strong re-roll", passedAgain ? "Passed" : "Failed"));
+                if (passedAgain) return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: true);
             }
 
             // #197 P7: last, after every free rescue has been tried. A Fearless re-roll costs nothing, so
@@ -459,6 +477,13 @@ namespace FDG.Stages
                 return;
             }
 
+            // Command Points - Code of Honor: "If it would be Shaken, it is not."
+            if (await CommandPoints.OfferCodeOfHonor(gameContext, unitBinding.GetValue(), routed: false))
+            {
+                gameContext.Log($"{unitBinding.GetValue().Name} is not Shaken (Code of Honor).");
+                return;
+            }
+
             // Unit Psychology - Panic: "on a 1, the unit panics instead of being Shaken".
             if (await UnitPsychology.TryPanic(gameContext, unitBinding.GetValue())) return;
 
@@ -577,6 +602,16 @@ namespace FDG.Stages
             if (QuestActions.IsQuestGame(gameContext))
             {
                 await ApplyShakenWithPresentation(gameContext, unitBinding);
+                return;
+            }
+
+            // Command Points - Code of Honor: "If it would be Routed, then it is Shaken instead."
+            if (await CommandPoints.OfferCodeOfHonor(gameContext, unit, routed: true))
+            {
+                gameContext.Log($"{unit.Name} is Shaken instead of Routed (Code of Honor).");
+                ApplyShaken(unitBinding);
+                await gameContext.Presenter.Present(new BannerBeat($"{unit.Name} - Shaken, not Routed (Code of Honor)",
+                    ShakenBannerColor, EBannerTier.Notice));
                 return;
             }
 

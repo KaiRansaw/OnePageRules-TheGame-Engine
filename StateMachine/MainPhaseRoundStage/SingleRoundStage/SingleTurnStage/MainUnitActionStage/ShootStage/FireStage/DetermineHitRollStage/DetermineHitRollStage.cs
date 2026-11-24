@@ -198,6 +198,9 @@ namespace FDG.Stages
             // Extra Actions (Advanced Rulebooks 3.6.0): Last Stand -1, Focused Fire +1 within 12", Heavy Charge
             // +1 in melee, Overwatch -1, and the target's Stealth Move -1 from over 12". Named on the chips.
             bool coveringFire = !metaData.IsMelee && attacker.Tokens.HasToken(Rules.Foundation.TokenType.CoveringFire);
+            // Command Points - Disrupted Sight: the target's player may give the shooter -1 to hit for this shooting.
+            if (!fatiguedInMelee && !coveringFire && !metaData.IsMelee && !metaData.IsSpell)
+                await CommandPoints.OfferDisruptedSight(GameContext, attacker, defender, results.HitRollNeeded);
             if (!fatiguedInMelee && !coveringFire)
             {
                 float extraDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _,
@@ -207,6 +210,7 @@ namespace FDG.Stages
                     // Battlefield Effects - terrain & objective effects (Vigor, Barbed Wire, Defensive Barrier, Holy Monument).
                     .Concat(BattlefieldEffects.HitModifiers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
                     .Concat(metaData.IsSpell ? Array.Empty<GrantedModifier>() : BattlefieldEffects.EventHitModifiers(GameContext, attacker, defender, metaData.IsMelee))
+                    .Concat(CommandPoints.HitModifiers(attacker, metaData.IsMelee, metaData.IsSpell))
                     .ToList();
                 if (extra.Count > 0)
                 {
