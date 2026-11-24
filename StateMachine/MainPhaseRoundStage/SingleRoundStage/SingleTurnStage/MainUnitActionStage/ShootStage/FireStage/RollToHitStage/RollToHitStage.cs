@@ -30,7 +30,10 @@ namespace FDG.Stages
             DetermineHitRollResults hitRollResults = QueryForResultOrThrowException<DetermineHitRollResults>(metaData);
 
             float attacks = hitRollResults.AttackCount;
-            IDiceResults rollToHitResults = GameContext.DiceRoller.Roll(attacks);
+            IDiceResults rollToHitResults;
+            // How to Play's set dice read whose hit roll this is (DiceRollContext).
+            using (DiceRollContext.Begin(FDG.Rules.Definitions.ERollKind.Hit, metaData.AttackingUnit.GetValue().PlayerID))
+                rollToHitResults = GameContext.DiceRoller.Roll(attacks);
 
             //We do this here because modifiers shouldn't do it, or else they can't add up in opposite
             //directions. For example, if your Quality is 6, and something gives you +1 to hit, and something

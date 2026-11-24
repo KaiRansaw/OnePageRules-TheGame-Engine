@@ -150,7 +150,10 @@ namespace FDG.Stages
                 - grantedNet - underdogNet);
 
             // Decisive single die — one concrete face even under the probabilistic roller (#090).
-            IDiceResults initialRoll = gameContext.DiceRoller.RollDecisive();
+            IDiceResults initialRoll;
+            // How to Play's set dice read whose Morale Test this is (DiceRollContext).
+            using (DiceRollContext.Begin(ERollKind.Morale, testingUnit.PlayerID))
+                initialRoll = gameContext.DiceRoller.RollDecisive();
             bool passedInitial = initialRoll.AtOrAbove(rollNeeded) >= 1f;
             // Name the unit under test: a shoot action can now roll morale for several defenders in a row,
             // so an anonymous "Morale Test" banner leaves the player guessing which one is being tested.

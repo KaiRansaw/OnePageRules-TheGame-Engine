@@ -35,9 +35,11 @@ namespace FDG.Stages
             List<SaveThresholdBucket> buckets = new List<SaveThresholdBucket>();
 
             // Every group is rolled first (same RNG order as before), so Command Points can look at the whole Defense roll.
-            var rolled = saveRollsNeeded.PendingSaveRollsList
-                .Select(g => (Group: g, Roll: GameContext.DiceRoller.Roll(g.HitCount), Need: DiceUtilities.ClampSuccessRollNeeded(g.SaveNeeded)))
-                .ToList();
+            // How to Play's set dice read whose Defense roll this is (DiceRollContext).
+            var rolled = DiceRollContext.Within(FDG.Rules.Definitions.ERollKind.Save, metaData.DefendingUnit.GetValue().PlayerID,
+                () => saveRollsNeeded.PendingSaveRollsList
+                    .Select(g => (Group: g, Roll: GameContext.DiceRoller.Roll(g.HitCount), Need: DiceUtilities.ClampSuccessRollNeeded(g.SaveNeeded)))
+                    .ToList());
 
             // Command Points - High / Supreme Command on the Defense roll: the dice one short get +1. Asked once for the
             // whole roll; Supreme Command lifts every such die in every group, High Command the first one.

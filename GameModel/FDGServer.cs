@@ -346,8 +346,17 @@ namespace FDG.GameModel
             return ruleResolver;
         }
 
+        /// <summary>
+        /// How to Play (2026-11-24): the practice battle's host hands the engine its own dice (a
+        /// <see cref="ScriptedDiceRoller"/>) instead of the lobby's. Asked once per game, host only; null = the
+        /// usual dice. The practice battle sets it just before launching and clears it when the game ends.
+        /// </summary>
+        public static Func<GameSettings, IDiceRoller?>? DiceRollerOverride { get; set; }
+
         private IDiceRoller GetDiceRoller(GameSettings gameSettings)
         {
+            if (DiceRollerOverride?.Invoke(gameSettings) is { } scripted) return scripted;
+
             IDiceRoller diceRoller = gameSettings.RandomnessType switch
             {
                 // #193: probabilistic combat is pure expected-value math, but its decisive rolls (morale,
