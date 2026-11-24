@@ -73,7 +73,7 @@ namespace FDG.Stages
             await UnitPsychology.OnActivationStart(GameContext, unit);
             // Battlefield Effects: Deadly Vortex's die, Zero Gravity's charge reach, Dark Skies / Muddy Terrain kept right.
             await BattlefieldEffects.OnActivation(GameContext, unit);
-            ArmyTerrain.OnActivation(GameContext, unit);
+            await ArmyTerrain.OnActivation(GameContext, unit);
 
             await ResolvePassiveEntries(context, unit);
 

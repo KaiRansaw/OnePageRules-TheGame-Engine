@@ -140,6 +140,12 @@ namespace FDG.Stages
                 grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(
                     ExtraActions.InLastStand(testingUnit) ? ExtraActions.LastStand : UnitPsychology.Suppression, lastStand) }).ToList();
             }
+            // Army Terrain - Faction Relic: +1 within 12".
+            if (ArmyTerrain.MoraleModifier(gameContext, testingUnit) is int relic and > 0)
+            {
+                grantedNet += relic;
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(ArmyTerrain.FactionRelic, relic) }).ToList();
+            }
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
                 - grantedNet - underdogNet);
 

@@ -85,6 +85,14 @@ namespace FDG.Stages
                 GameContext.Log($"{metaData.DefendingUnit.GetValue().Name}: {challenge[0].Source} +1 to Defense.");
             }
 
+            // Army Terrain - Magic Armory: +1 to Defense rolls within 6".
+            IReadOnlyList<GrantedModifier> armory = ArmyTerrain.SaveModifiers(GameContext, metaData.DefendingUnit.GetValue());
+            if (armory.Count > 0)
+            {
+                grantedDefense += ExtraActions.Net(armory);
+                grantedDetail = grantedDetail.Concat(armory).ToList();
+            }
+
             // Command Points - Armour Breaker: the attacker's player may give the target -1 to its Defense rolls against
             // these hits (offered only when the roll could still succeed).
             {

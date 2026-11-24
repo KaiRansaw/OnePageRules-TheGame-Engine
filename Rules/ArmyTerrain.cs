@@ -8,6 +8,8 @@ using FDG.Players;
 using FDG.Presentation.Beats;
 using FDG.Rules.Dispatch;
 using FDG.StageResolution.Requests;
+using FDG.Missions;
+using FDG.StageResolution;
 using FDG.Stages;
 
 namespace FDG
@@ -20,6 +22,9 @@ namespace FDG
         public string Name { get; set; } = "";
         public float X { get; set; }
         public float Z { get; set; }
+        /// <summary>The second copy (Arcane Pillars, Twin Jumpgates / Voidgates).</summary>
+        public float? X2 { get; set; }
+        public float? Z2 { get; set; }
     }
 
     [Serializable]
@@ -44,6 +49,26 @@ namespace FDG
         public const string ArmyBanner = "Army Banner", BattleForge = "Battle Forge", DefensiveBarrier = "Defensive Barrier",
             IconOfWar = "Icon of War", ProtectiveDome = "Protective Dome", WatchTower = "Watch Tower";
 
+        public const string ArcanePillars = "Arcane Pillars", EnchantedShrine = "Enchanted Shrine", FactionRelic = "Faction Relic",
+            HealingWell = "Healing Well", MagicArmory = "Magic Armory", TwinJumpgates = "Twin Jumpgates", TwinVoidgates = "Twin Voidgates";
+
+        /// <summary>GF / GFF: "Relic Terrain" and "Twin Jumpgates"; AoF / AoFS: "Magic Terrain" and "Twin Voidgates".</summary>
+        public static bool Fantasy(EGameSystem system) => system is EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish;
+        public static string SecondTable(EGameSystem system) => Fantasy(system) ? "Magic Terrain" : "Relic Terrain";
+        public static string TwinName(EGameSystem system) => Fantasy(system) ? TwinVoidgates : TwinJumpgates;
+        public static bool IsTwin(string name) => name is TwinJumpgates or TwinVoidgates;
+        public static bool TwoCopies(string name) => name == ArcanePillars || IsTwin(name);
+
+        public static IReadOnlyList<(string Name, string Text)> Relic(EGameSystem system) => new[]
+        {
+            (ArcanePillars, "When placing this army terrain, place two copies of it within 12\" of each other (instead of placing just one). Draw a straight line from one copy of this army terrain to the other. When an enemy unit ends its activation with at least one model touching the line, the unit takes D3 wounds."),
+            (EnchantedShrine, "When a friendly Caster activates within 6\" of this army terrain, it gets 1 spell token."),
+            (FactionRelic, "When a friendly unit within 12\" of this army terrain takes a Morale Test, it gets +1 to its Morale Test roll."),
+            (HealingWell, "When a friendly unit within 6\" of this army terrain is activated, it may restore D3 models/wounds. Note that new models may only be restored if they can be placed in coherency with non-restored models."),
+            (MagicArmory, "When a friendly unit within 6\" of this army terrain takes hits, it gets +1 to its Defense rolls."),
+            (TwinName(system), "When placing this army terrain, place two copies of it within 24\" of each other (instead of placing just one). When a friendly unit ends its activation within 3\" of one of the copies of this army terrain, you may place it anywhere within 3\" of the other copy of this army terrain."),
+        };
+
         public static readonly IReadOnlyList<(string Name, string Text)> Battle = new[]
         {
             (ArmyBanner, "When a friendly unit activates within 6\" of this army terrain, it gets +2\" when using Advance actions, and +4\" when using Rush/Charge actions."),
@@ -55,9 +80,21 @@ namespace FDG
         };
 
         /// <summary>The pieces built so far (Defensive Barrier needs side-aware Difficult terrain in the move checks).</summary>
-        public static readonly HashSet<string> Built = new() { ArmyBanner, BattleForge, IconOfWar, ProtectiveDome, WatchTower };
+        public static readonly HashSet<string> Built = new()
+        {
+            ArmyBanner, BattleForge, IconOfWar, ProtectiveDome, WatchTower,
+            ArcanePillars, EnchantedShrine, FactionRelic, HealingWell, MagicArmory, TwinJumpgates, TwinVoidgates,
+        };
 
-        public static string TextOf(string name) => Battle.First(b => b.Name == name).Text;
+        public static string TextOf(string name) =>
+            Battle.Concat(Relic(EGameSystem.GrimdarkFuture)).Concat(Relic(EGameSystem.AgeOfFantasy)).First(b => b.Name == name).Text;
+
+        /// <summary>How a bot keeps one of its two rolled pieces: the first of these that it rolled.</summary>
+        public static readonly string[] BotPreference =
+        {
+            BattleForge, MagicArmory, ProtectiveDome, HealingWell, ArmyBanner, FactionRelic, IconOfWar, WatchTower,
+            ArcanePillars, EnchantedShrine, TwinJumpgates, TwinVoidgates, DefensiveBarrier,
+        };
 
         public const float PieceRadius = 1.5f;   // a 3" round piece: "between 2"x2" and 4"x4""
         public const float PieceHeight = 3f;     // "between 2" and 4" tall"
@@ -70,12 +107,12 @@ namespace FDG
             + "Before the game begins, each army either picks one army terrain, or rolls to get one randomly. "
             + "Army terrain pieces should be somewhere between 2\"x2\" and 4\"x4\" in size, and somewhere between 2\" and 4\" tall. Each piece counts as Impassable and Sight Blocking terrain. "
             + "During deployment, army terrain pieces are placed as if they were a regular unit, but they can't be placed within 6\" of any objective marker, or the table edges.\n"
-            + string.Join("\n", Battle.Select(b => $"{b.Name}: {b.Text}"));
+            + "To get army terrain randomly, roll one die for the Battle Terrain and one for the Relic (AoF: Magic) Terrain, then secretly pick one of the two.\n"
+            + string.Join("\n", Battle.Concat(Relic(EGameSystem.GrimdarkFuture)).Select(b => $"{b.Name}: {b.Text}"));
 
         public static string GameText(string name) =>
             "Each player picks (or rolls) one piece once the deployment zones are chosen, and places it in their own zone before "
-            + "any unit is deployed. Battle Terrain so far: Army Banner, Battle Forge, Icon of War, Protective Dome, Watch Tower "
-            + "(Defensive Barrier and the second table are still to come). Bots roll.";
+            + "any unit is deployed (two copies for Arcane Pillars and the Twin gates). Defensive Barrier is still to come. Bots roll.";
 
         public static bool On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.ArmyTerrain);
 
@@ -130,11 +167,21 @@ namespace FDG
             {
                 if (!zonesByTeam.TryGetValue(seat.TeamNumber, out ZoneRect? zone)) continue;
                 string name = await PickPiece(c, seat);
-                Position at = await PlacePiece(c, seat, name, zone);
-                s.Pieces.Add(new ArmyPiece { Owner = seat.PlayerID.ID.ToString(), Name = name, X = at.x, Z = at.z });
-                c.GameDataStore.Create(new TerrainData(ETerrainType.Impassible | ETerrainType.Blocking,
-                    new CircularZone(new Float2(at.x, at.z), PieceRadius), heightInches: PieceHeight, name: $"{name} ({seat.Name})"));
+                Position at = await PlacePiece(c, seat, name, zone, null, 0f);
+                var piece = new ArmyPiece { Owner = seat.PlayerID.ID.ToString(), Name = name, X = at.x, Z = at.z };
+                CreateTerrain(c, name, seat.Name, at);
                 c.Log($"Army Terrain: {seat.Name} places the {name} at ({at.x:0.0}, {at.z:0.0}).");
+                if (TwoCopies(name))
+                {
+                    // "Place two copies of it within 12\" (24\") of each other" - edge to edge.
+                    float within = name == ArcanePillars ? 12f : 24f;
+                    Position second = await PlacePiece(c, seat, name, zone, at, within + 2f * PieceRadius);
+                    piece.X2 = second.x;
+                    piece.Z2 = second.z;
+                    CreateTerrain(c, name, seat.Name, second);
+                    c.Log($"Army Terrain: {seat.Name} places the second {name} at ({second.x:0.0}, {second.z:0.0}).");
+                }
+                s.Pieces.Add(piece);
                 await c.Announce($"{seat.Name}: {name}", BattlefieldEffects.Amber, EBannerTier.Toast);
             }
             Save(c, s);
@@ -142,20 +189,30 @@ namespace FDG
 
         private static async Task<string> PickPiece(IGameContext c, IPlayerSlotInfo seat)
         {
-            var built = Battle.Where(b => Built.Contains(b.Name)).ToList();
+            EGameSystem system = c.Settings.GameSystem;
+            var all = Battle.Concat(Relic(system)).Where(b => Built.Contains(b.Name)).ToList();
             var options = new List<string> { Roll };
-            options.AddRange(built.Select(b => $"{b.Name}: {b.Text}"));
+            options.AddRange(all.Select(b => $"{b.Name}: {b.Text}"));
             string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(seat.PlayerID,
-                "Army Terrain: pick your army's piece, or roll for it.", options, new List<StringSelectionRequest.InvalidOption>(),
-                displayName: "Army Terrain - pick") { Recommended = Roll });
+                "Army Terrain: pick your army's piece, or roll for it (one die on each table, then keep one).", options,
+                new List<StringSelectionRequest.InvalidOption>(), displayName: "Army Terrain - pick") { Recommended = Roll });
             int idx = options.IndexOf(answer);
-            if (idx > 0) return built[idx - 1].Name;
-            for (int tries = 0; ; tries++)
-            {
-                string rolled = Battle[c.DiceRoller.RollDecisiveFace() - 1].Name;
-                if (Built.Contains(rolled) || tries > 20) return Built.Contains(rolled) ? rolled : ArmyBanner;
-                c.Log($"Army Terrain: {seat.Name} rolled the {rolled}, which isn't in the game yet - rolling again.");
-            }
+            if (idx > 0) return all[idx - 1].Name;
+
+            // "Roll one die to get one type of Battle Terrain. Then, roll one die to get one type of Relic Terrain. Finally,
+            // secretly pick one of the two results."
+            string battle = Battle[c.DiceRoller.RollDecisiveFace() - 1].Name;
+            string relic = Relic(system)[c.DiceRoller.RollDecisiveFace() - 1].Name;
+            var rolled = new[] { battle, relic }.Where(n => Built.Contains(n)).ToList();
+            if (!Built.Contains(battle)) c.Log($"Army Terrain: {seat.Name} rolled the {battle}, which isn't in the game yet.");
+            if (rolled.Count == 1) return rolled[0];
+            var keep = rolled.Select(n => $"{n}: {TextOf(n)}").ToList();
+            string bot = BotPreference.First(rolled.Contains);
+            string kept = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(seat.PlayerID,
+                $"Army Terrain: you rolled the {battle} and the {relic} - keep one.", keep, new List<StringSelectionRequest.InvalidOption>(),
+                displayName: "Army Terrain - keep") { Recommended = keep[rolled.IndexOf(bot)] });
+            int k = keep.IndexOf(kept);
+            return rolled[k >= 0 ? k : 0];
         }
 
         /// <summary>Where the piece may go: inside the zone, over 6" from the table edges (its edge), as a band.</summary>
@@ -179,35 +236,44 @@ namespace FDG
             ObjectivePlacementValidator.Check(p, band, AreaInches + PieceRadius, c.TableState.Objectives.Objects.ToList(),
                 Array.Empty<ITerrain>()) == ObjectivePlacementValidity.Valid && ClearOfTerrain(c, p);
 
-        private static async Task<Position> PlacePiece(IGameContext c, IPlayerSlotInfo seat, string name, ZoneRect zone)
+        private static void CreateTerrain(IGameContext c, string name, string owner, Position at) =>
+            c.GameDataStore.Create(new TerrainData(ETerrainType.Impassible | ETerrainType.Blocking,
+                new CircularZone(new Float2(at.x, at.z), PieceRadius), heightInches: PieceHeight, name: $"{name} ({owner})"));
+
+        private static async Task<Position> PlacePiece(IGameContext c, IPlayerSlotInfo seat, string name, ZoneRect zone,
+            Position? near, float maxCentres)
         {
             RectangularZone band = LegalBand(zone);
+            bool Ok(Position p) => Legal(c, p, band) && (near is not { } n || Position.GetDistance2D(p, n) <= maxCentres + 0.01f);
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 Position wanted;
                 try
                 {
                     wanted = await c.PlayerRequester.RequestDecision<PlaceObjectiveRequest, Position>(new PlaceObjectiveRequest(seat.PlayerID,
-                        $"Army Terrain: place your {name} in your deployment zone (over 6\" from objectives and the table edges)", 1, 1, band,
-                        AreaInches + PieceRadius));
+                        near == null
+                            ? $"Army Terrain: place your {name} in your deployment zone (over 6\" from objectives and the table edges)"
+                            : $"Army Terrain: place the second {name}, within {maxCentres - 2f * PieceRadius:0}\" of the first",
+                        near == null ? 1 : 2, TwoCopies(name) ? 2 : 1, band, AreaInches + PieceRadius));
                 }
                 catch (InvalidOperationException) { break; }
-                if (Legal(c, wanted, band)) return wanted;
+                if (Ok(wanted)) return wanted;
             }
             // No legal answer: the first legal spot on a 1" grid, from the band's middle outwards.
-            var mid = new Position((band.Left + band.Right) / 2f, (band.Bottom + band.Top) / 2f);
+            var mid = near ?? new Position((band.Left + band.Right) / 2f, (band.Bottom + band.Top) / 2f);
             var spots = new List<Position>();
             for (float x = band.Left; x <= band.Right; x += 1f)
             for (float z = band.Bottom; z <= band.Top; z += 1f)
                 spots.Add(new Position(x, z));
-            return spots.OrderBy(p => Position.GetDistance2D(p, mid)).FirstOrDefault(p => Legal(c, p, band)) is { } ok && spots.Count > 0
-                ? ok : mid;
+            Position? found = spots.OrderBy(p => near == null ? Position.GetDistance2D(p, mid) : -Position.GetDistance2D(p, mid))
+                .Cast<Position?>().FirstOrDefault(p => Ok(p!.Value));
+            return found ?? spots.OrderBy(p => Position.GetDistance2D(p, mid)).Cast<Position?>().FirstOrDefault(p => Legal(c, p!.Value, band)) ?? mid;
         }
 
         // ---------------------------------------------------------------- during the game
 
         /// <summary>A unit activates: which of its army's pieces it activated near (Army Banner / Battle Forge 6", Icon of War 12").</summary>
-        public static void OnActivation(IGameContext c, IUnit unit)
+        public static async Task OnActivation(IGameContext c, IUnit unit)
         {
             if (!On(c) || State(c.GameDataStore) is not { } s) return;
             s.ActivatingUnit = unit.ID.ID.ToString();
@@ -220,8 +286,92 @@ namespace FDG
                     s.ActivationBuffs.Add(p.Name);
                     c.Log($"Army Terrain: {unit.Name} activates near the {p.Name}.");
                 }
+                if (Gap(unit, p) > AreaInches + 0.01f) continue;
+                // Healing Well: "may restore D3 models/wounds" - taken whenever something is missing.
+                if (p.Name == HealingWell && unit.Models.Any(m => !m.GetIsAlive() || m.WoundsDealt > 0.999f))
+                    await new GameOperationServices(c).RestoreD3(unit, HealingWell);
+                // Enchanted Shrine: "When a friendly Caster activates within 6\" ... it gets 1 spell token."
+                if (p.Name == EnchantedShrine && unit.Models.Any(m => m.GetIsAlive() && MissionCardGame.IsCasterModel(unit, m))
+                    && unit.Tokens.GetTokenCount(Rules.Foundation.TokenType.SpellTokens) < GameWideConstants.MAX_SPELL_TOKENS)
+                {
+                    unit.Tokens.AddToken(new Rules.Tokens.Token(Rules.Foundation.TokenType.SpellTokens, 1, new Rules.Foundation.TokenClearTrigger.ManualOnly()));
+                    c.Log($"Enchanted Shrine: {unit.Name} gets 1 spell token.");
+                }
             }
             Save(c, s);
+        }
+
+        /// <summary>The closest gap from any living model's base to either copy of a two-copy piece.</summary>
+        private static float GapAny(IUnit unit, ArmyPiece p) =>
+            p.X2 is float x2 && p.Z2 is float z2
+                ? MathF.Min(Gap(unit, p), Gap(unit, new ArmyPiece { X = x2, Z = z2 }))
+                : Gap(unit, p);
+
+        /// <summary>Faction Relic: +1 to Morale Test rolls for a friendly unit within 12".</summary>
+        public static int MoraleModifier(IGameContext c, IUnit unit) =>
+            On(c) && Pieces(c).Any(p => p.Name == FactionRelic && Friendly(c, unit.PlayerID, p.Owner) && Gap(unit, p) <= 12f + 0.01f) ? 1 : 0;
+
+        /// <summary>Magic Armory: +1 to Defense rolls for a friendly unit within 6" when it takes hits.</summary>
+        public static IReadOnlyList<GrantedModifier> SaveModifiers(IGameContext c, IUnit defender) =>
+            On(c) && Pieces(c).Any(p => p.Name == MagicArmory && Friendly(c, defender.PlayerID, p.Owner) && Gap(defender, p) <= AreaInches + 0.01f)
+                ? new[] { new GrantedModifier(MagicArmory, 1) }
+                : Array.Empty<GrantedModifier>();
+
+        /// <summary>Whether a model's base touches the line between a piece's two copies (Arcane Pillars).</summary>
+        public static bool TouchesLine(IModel m, ArmyPiece p)
+        {
+            if (p.X2 is not float x2 || p.Z2 is not float z2) return false;
+            float ax = p.X, az = p.Z, dx = x2 - ax, dz = z2 - az;
+            float len2 = dx * dx + dz * dz;
+            float t = len2 < 1e-6f ? 0f : Math.Clamp(((m.Position.x - ax) * dx + (m.Position.z - az) * dz) / len2, 0f, 1f);
+            float px = ax + t * dx - m.Position.x, pz = az + t * dz - m.Position.z;
+            return MathF.Sqrt(px * px + pz * pz) <= m.BaseShape.BoundingRadiusInches + 0.01f;
+        }
+
+        public const string UseGate = "Use the gate";
+
+        /// <summary>
+        /// End of a unit's activation: an enemy Arcane Pillars line it touches deals D3 wounds; a friendly gate within 3"
+        /// may move it to within 3" of the other copy (the player places it; bots don't).
+        /// </summary>
+        public static async Task EndOfActivation(IGameContext c, IUnit unit)
+        {
+            if (!On(c) || !unit.GetIsAlive() || State(c.GameDataStore) is not { } s) return;
+            foreach (ArmyPiece p in s.Pieces.Where(p => p.Name == ArcanePillars && !Friendly(c, unit.PlayerID, p.Owner)).ToList())
+            {
+                if (!unit.Models.Any(m => m.GetIsAlive() && TouchesLine(m, p))) continue;
+                int d3 = (c.DiceRoller.RollDecisiveFace() + 1) / 2;
+                c.Log($"Arcane Pillars: {unit.Name} ends its activation on the line - {d3} wound{(d3 == 1 ? "" : "s")}.");
+                await CasualtyPresentation.ApplyUnitWounds(c, unit, d3);
+                if (!unit.GetIsAlive()) return;
+            }
+            if (unit is not UnitData data) return;
+            foreach (ArmyPiece p in s.Pieces.Where(p => IsTwin(p.Name) && Friendly(c, unit.PlayerID, p.Owner) && p.X2 != null).ToList())
+            {
+                var a = new Position(p.X, p.Z);
+                var b = new Position(p.X2!.Value, p.Z2!.Value);
+                bool nearA = Gap(unit, p) <= 3f + 0.01f, nearB = Gap(unit, new ArmyPiece { X = b.x, Z = b.z }) <= 3f + 0.01f;
+                if (!nearA && !nearB) continue;
+                Position to = nearA ? b : a;
+                bool go = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(unit.PlayerID,
+                    $"{p.Name}: place {unit.Name} within 3\" of the other gate?", defaultAnswer: false, displayName: "Army Terrain - gate"));
+                if (!go) return;
+                var living = data.ModelBindings.Where(m => m.GetValue().GetIsAlive()).ToList();
+                var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, $"{p.Name}: place {unit.Name} within 3\" of the other gate",
+                    new CircularZone(new Float2(to.x, to.z), PieceRadius + 3f), living, minDistanceFromEnemiesInches: 1f, allowCancel: true,
+                    cancelHint: "Stay where it is.");
+                var result = await c.PlayerRequester
+                    .RequestDecision<PlaceObjectsRequest<ModelData>, CancellableResult<List<PlacedObjectEntry<ModelData>>>>(request);
+                if (result is not Selected<List<PlacedObjectEntry<ModelData>>> selected) return;
+                foreach (PlacedObjectEntry<ModelData> placement in selected.Value)
+                {
+                    placement.Binding.GetValue().SetPosition(placement.Position);
+                    if (placement.Facing.HasValue) placement.Binding.GetValue().SetFacing(placement.Facing.Value);
+                }
+                c.Log($"{p.Name}: {unit.Name} steps through the gate.");
+                await c.Announce($"{unit.Name} steps through the {p.Name}", BattlefieldEffects.Amber, EBannerTier.Toast);
+                return;
+            }
         }
 
         private static bool Buffed(IGameContext c, IUnit unit, string piece) =>

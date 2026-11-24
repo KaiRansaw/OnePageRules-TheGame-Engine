@@ -16,6 +16,7 @@ namespace FDG.Tests
         private TestGameContext _context = null!;
         private PlayerID _me, _them;
         private UnitData _myUnit = null!, _theirUnit = null!;
+        private int _keepQuestions;
         private readonly Dictionary<int, ZoneRect> _zones = new() { [0] = new ZoneRect(0f, 72f, 0f, 12f), [1] = new ZoneRect(0f, 72f, 36f, 48f) };
 
         private sealed class Answer : IPlayerRequestByID
@@ -51,19 +52,25 @@ namespace FDG.Tests
         }
 
         /// <summary><paramref name="pick"/> = the piece each player picks (null = roll); placements go to the band's middle.</summary>
-        private void Build(string? pick = null, IDiceRoller? roller = null)
+        private void Build(string? pick = null, IDiceRoller? roller = null, bool gate = false)
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.AdvancedRules = EAdvancedRules.ArmyTerrain;
             _context = new TestGameContext(_store, roller ?? new FixedFaceDiceRoller(4), settings: settings,
-                playerRequester: new Answer(r => r switch
+                playerRequester: new Answer(r => (r is StringSelectionRequest { DisplayName: "Army Terrain - keep" } ? ++_keepQuestions : 0) switch
+                {
+                    _ => r switch
                 {
                     StringSelectionRequest q when pick != null => q.ValidOptions.FirstOrDefault(o => o.StartsWith(pick)) ?? q.ValidOptions[0],
                     StringSelectionRequest q => q.Recommended ?? q.ValidOptions[0],
+                    YesNoRequest => gate,
+                    PlaceObjectsRequest<ModelData> p => new Selected<List<PlacedObjectEntry<ModelData>>>(p.ModelsToPlace
+                        .Select((b, i) => new PlacedObjectEntry<ModelData>(b, new Position(((CircularZone)p.DeploymentZone).Center.X + 2.5f + i * 1.1f, ((CircularZone)p.DeploymentZone).Center.Y))).ToList()),
                     PlaceObjectiveRequest p => new Position((p.LegalBand.Left + p.LegalBand.Right) / 2f, (p.LegalBand.Bottom + p.LegalBand.Top) / 2f),
                     _ => throw new InvalidOperationException(r.GetType().Name),
-                }));
+                }}));
+            _keepQuestions = 0;
             _me = new PlayerID(Guid.NewGuid());
             _them = new PlayerID(Guid.NewGuid());
             _store.Create(new TeamData(0, new List<PlayerID> { _me }));
@@ -93,6 +100,8 @@ namespace FDG.Tests
         public void TheBattleTerrain_IsTheBooks()
         {
             Assert.That(ArmyTerrain.Battle.Select(b => b.Name), Is.EqualTo(new[] { "Army Banner", "Battle Forge", "Defensive Barrier", "Icon of War", "Protective Dome", "Watch Tower" }));
+            Assert.That(ArmyTerrain.Relic(EGameSystem.GrimdarkFuture).Select(b => b.Name),
+                Is.EqualTo(new[] { "Arcane Pillars", "Enchanted Shrine", "Faction Relic", "Healing Well", "Magic Armory", "Twin Jumpgates" }));
             Assert.That(ArmyTerrain.Built, Does.Not.Contain(ArmyTerrain.DefensiveBarrier));
             Assert.That(ArmyTerrain.Battle.All(b => b.Text.All(ch => ch < 128)), "ASCII");
             foreach (EGameSystem s in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
@@ -127,12 +136,100 @@ namespace FDG.Tests
         }
 
         [Test]
-        public async Task Rolling_SkipsWhatIsNotBuiltYet()
+        public async Task Rolling_OneDieEachTable_KeepOne()
         {
-            Build(roller: new FaceSequence(3, 2, 6));   // Defensive Barrier -> again: Battle Forge; the bot: Watch Tower
+            Build(roller: new FaceSequence(3, 2, 6, 6));   // me: Defensive Barrier (not built) + Enchanted Shrine; the bot: Watch Tower + the gates
             await ArmyTerrain.Place(_context, _zones);
-            Assert.That(Mine.Name, Is.EqualTo(ArmyTerrain.BattleForge));
-            Assert.That(State.Pieces.Single(p => p != Mine).Name, Is.EqualTo(ArmyTerrain.WatchTower));
+            Assert.That(Mine.Name, Is.EqualTo(ArmyTerrain.EnchantedShrine), "the only one of the two that's in the game");
+            Assert.That(_keepQuestions, Is.EqualTo(1), "only the bot had two to choose from");
+            Assert.That(State.Pieces.Single(p => p != Mine).Name, Is.EqualTo(ArmyTerrain.WatchTower), "the bot keeps the one it prefers");
+        }
+
+        [Test]
+        public void TheSecondTable_IsNamedPerBook()
+        {
+            Assert.That(ArmyTerrain.SecondTable(EGameSystem.GrimdarkFuture), Is.EqualTo("Relic Terrain"));
+            Assert.That(ArmyTerrain.SecondTable(EGameSystem.AoFSkirmish), Is.EqualTo("Magic Terrain"));
+            Assert.That(ArmyTerrain.Relic(EGameSystem.GFFirefight).Last().Name, Is.EqualTo("Twin Jumpgates"));
+            Assert.That(ArmyTerrain.Relic(EGameSystem.AgeOfFantasy).Last().Name, Is.EqualTo("Twin Voidgates"));
+            Assert.That(ArmyTerrain.Relic(EGameSystem.AgeOfFantasy).All(r => r.Text.All(ch => ch < 128)), "ASCII");
+        }
+
+        [Test]
+        public async Task TwoCopies_WithinTheirDistance()
+        {
+            Build(ArmyTerrain.ArcanePillars);
+            await ArmyTerrain.Place(_context, _zones);
+            Assert.That(Mine.X2, Is.Not.Null);
+            Assert.That(Position.GetDistance2D(new Position(Mine.X, Mine.Z), new Position(Mine.X2!.Value, Mine.Z2!.Value)) - 3f,
+                Is.LessThanOrEqualTo(12.01f), "within 12\" of each other, edge to edge");
+            Assert.That(_context.TableState.Terrain.Objects.Count(), Is.EqualTo(4), "two pieces each");
+        }
+
+        [Test]
+        public async Task ArcanePillars_D3Wounds_ToAnEnemyEndingOnTheLine()
+        {
+            Build(ArmyTerrain.ArcanePillars, new FixedFaceDiceRoller(6));
+            await ArmyTerrain.Place(_context, _zones);
+            _theirUnit.Models.OfType<ModelData>().Single().SetMaxWounds(6);
+            float mx = (Mine.X + Mine.X2!.Value) / 2f, mz = (Mine.Z + Mine.Z2!.Value) / 2f;
+            MoveTo(_theirUnit, mx, mz);
+            await ArmyTerrain.EndOfActivation(_context, _theirUnit);
+            Assert.That(_theirUnit.Models.Single().WoundsDealt, Is.EqualTo(3f));
+            MoveTo(_myUnit, mx, mz);
+            await ArmyTerrain.EndOfActivation(_context, _myUnit);
+            Assert.That(_myUnit.Models.All(m => m.WoundsDealt == 0f), "not its own pillars");
+        }
+
+        [Test]
+        public async Task TwinGates_AFriendlyUnitNearOne_MayStepToTheOther()
+        {
+            Build(ArmyTerrain.TwinJumpgates, gate: true);
+            await ArmyTerrain.Place(_context, _zones);
+            MoveTo(_myUnit, Mine.X + 3f, Mine.Z);
+            await ArmyTerrain.EndOfActivation(_context, _myUnit);
+            var far = new Position(Mine.X2!.Value, Mine.Z2!.Value);
+            Assert.That(_myUnit.Models.All(m => Position.GetDistance2D(m.Position, far) <= 6f), "now by the other gate");
+
+            Build(ArmyTerrain.TwinJumpgates, gate: false);
+            await ArmyTerrain.Place(_context, _zones);
+            MoveTo(_myUnit, Mine.X + 3f, Mine.Z);
+            await ArmyTerrain.EndOfActivation(_context, _myUnit);
+            Assert.That(Position.GetDistance2D(_myUnit.Models[0].Position, new Position(Mine.X + 3f, Mine.Z)), Is.LessThan(0.01f), "\"may\" - said no");
+        }
+
+        [Test]
+        public async Task HealingWell_Shrine_Relic_Armory()
+        {
+            Build(ArmyTerrain.HealingWell, new FixedFaceDiceRoller(6));
+            await ArmyTerrain.Place(_context, _zones);
+            foreach (ModelData m in _myUnit.Models.OfType<ModelData>().Skip(1)) m.DealWounds(m.TotalWounds);
+            MoveTo(_myUnit, Mine.X + 4f, Mine.Z);
+            await ArmyTerrain.OnActivation(_context, _myUnit);
+            Assert.That(_myUnit.Models.Count(m => m.GetIsAlive()), Is.EqualTo(3));
+
+            Build(ArmyTerrain.EnchantedShrine);
+            await ArmyTerrain.Place(_context, _zones);
+            _myUnit.AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule("Caster", FDG.Rules.Dispatch.CoreRuleCatalog.Caster));
+            MoveTo(_myUnit, Mine.X + 4f, Mine.Z);
+            await ArmyTerrain.OnActivation(_context, _myUnit);
+            Assert.That(_myUnit.Tokens.GetTokenCount(FDG.Rules.Foundation.TokenType.SpellTokens), Is.EqualTo(1));
+            await ArmyTerrain.OnActivation(_context, _theirUnit);
+            Assert.That(_theirUnit.Tokens.GetTokenCount(FDG.Rules.Foundation.TokenType.SpellTokens), Is.EqualTo(0), "not a Caster");
+
+            Build(ArmyTerrain.FactionRelic);
+            await ArmyTerrain.Place(_context, _zones);
+            MoveTo(_myUnit, Mine.X + 11f, Mine.Z);
+            Assert.That(ArmyTerrain.MoraleModifier(_context, _myUnit), Is.EqualTo(1), "within 12\"");
+            MoveTo(_myUnit, Mine.X + 15f, Mine.Z);
+            Assert.That(ArmyTerrain.MoraleModifier(_context, _myUnit), Is.EqualTo(0));
+
+            Build(ArmyTerrain.MagicArmory);
+            await ArmyTerrain.Place(_context, _zones);
+            MoveTo(_myUnit, Mine.X + 4f, Mine.Z);
+            Assert.That(ArmyTerrain.SaveModifiers(_context, _myUnit).Sum(m => m.Delta), Is.EqualTo(1));
+            MoveTo(_theirUnit, Mine.X + 4f, Mine.Z + 2f);
+            Assert.That(ArmyTerrain.SaveModifiers(_context, _theirUnit), Is.Empty, "friendly units only");
         }
 
         [Test]

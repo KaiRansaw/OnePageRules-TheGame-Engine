@@ -40,6 +40,8 @@ namespace FDG.Stages
             await UnitPsychology.EndOfActivation(GameContext);
             await CriticalHits.EndOfActivation(GameContext);
             CommandPoints.EndOfActivation(GameContext);
+            // Army Terrain: Arcane Pillars' line and the Twin gates.
+            if (context.ActivatedUnit?.GetValue() is { } activated) await ArmyTerrain.EndOfActivation(GameContext, activated);
             // "Frenzied units stop being frenzied at the end of their activation."
             if (context.ActivatedUnit?.GetValue() is { } finished && UnitPsychology.IsFrenzied(finished))
                 finished.Tokens.RemoveTokens(Rules.Foundation.TokenType.Frenzied, finished.Tokens.GetTokenCount(Rules.Foundation.TokenType.Frenzied));
