@@ -34,11 +34,33 @@ namespace FDG.Stages
             // same RNG draws, same per-group results), so this is purely presentational and outcome-neutral.
             List<SaveThresholdBucket> buckets = new List<SaveThresholdBucket>();
 
-            foreach (PendingSaveRolls saveRolls in saveRollsNeeded.PendingSaveRollsList)
-            {
-                IDiceResults rollToSaveResults = GameContext.DiceRoller.Roll(saveRolls.HitCount);
+            // Every group is rolled first (same RNG order as before), so Command Points can look at the whole Defense roll.
+            var rolled = saveRollsNeeded.PendingSaveRollsList
+                .Select(g => (Group: g, Roll: GameContext.DiceRoller.Roll(g.HitCount), Need: DiceUtilities.ClampSuccessRollNeeded(g.SaveNeeded)))
+                .ToList();
 
-                int saveNeeded = DiceUtilities.ClampSuccessRollNeeded(saveRolls.SaveNeeded);
+            // Command Points - High / Supreme Command on the Defense roll: the dice one short get +1. Asked once for the
+            // whole roll; Supreme Command lifts every such die in every group, High Command the first one.
+            UnitData? saver = metaData.DefendingUnit.GetValue() as UnitData;
+            if (saver != null && rolled.Count > 0)
+            {
+                int shortTotal = rolled.Sum(r => CommandPoints.OneShort(r.Roll, r.Need));
+                if (shortTotal > 0)
+                {
+                    int need = rolled.First(r => CommandPoints.OneShort(r.Roll, r.Need) > 0).Need;
+                    int lifted = await CommandPoints.CommandDice(GameContext, saver.PlayerID, shortTotal, need, "Defense roll");
+                    for (int i = 0; i < rolled.Count && lifted > 0; i++)
+                    {
+                        int here = Math.Min(lifted, CommandPoints.OneShort(rolled[i].Roll, rolled[i].Need));
+                        if (here <= 0) continue;
+                        rolled[i] = (rolled[i].Group, CommandPoints.Lift(rolled[i].Roll, rolled[i].Need - 1, here), rolled[i].Need);
+                        lifted -= here;
+                    }
+                }
+            }
+
+            foreach (var (saveRolls, rollToSaveResults, saveNeeded) in rolled)
+            {
 
                 IDiceResults successfulResults = rollToSaveResults.SubsetAtOrAbove(saveNeeded);
                 IDiceResults failedResults = rollToSaveResults.SubsetBelow(saveNeeded);

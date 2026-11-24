@@ -59,6 +59,10 @@ namespace FDG.Stages
                 budget[player] = 2 * CountReDeploymentUnits(player);
             }
 
+            // Command Points - Hidden Deployment: each player who spends 3 CP re-places up to 3 more units, alternating.
+            foreach (var (player, extra) in await CommandPoints.HiddenDeploys(GameContext, order.Select(o => o.Player).ToList()))
+                budget[player] = budget.GetValueOrDefault(player) + extra;
+
             // Nobody has the rule - no sub-phase, no prompt.
             if (budget.Values.All(b => b == 0))
             {

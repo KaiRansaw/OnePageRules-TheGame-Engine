@@ -135,13 +135,22 @@ namespace FDG.Stages
                     modifierTags: hitRollResults.ThresholdTags,
                     procTags: procTags.Count > 0 ? procTags : null));
 
+            // Command Points - High / Supreme Command: +1 to a die that just missed. The lifted dice join as their own hit
+            // group at base AP, and the rules above already read the real faces, so a 5 lifted to 6 never counts as a 6.
+            int commandHits = await CommandPoints.CommandDice(GameContext, attacker.PlayerID, rollToHitResults, hitRollNeeded, "hit roll");
+            if (commandHits > 0)
+            {
+                failedResults = CommandPoints.Lift(rollToHitResults, hitRollNeeded - 1, commandHits).SubsetBelow(hitRollNeeded);
+                GameContext.Log($"Command Points: {commandHits} more hit(s) on {defender.Name}.");
+            }
+
             // Extra Actions - Covering Fire: "Then, roll one die per hit, and if you roll at least one 4+, then
             // the target must take a Morale Test (regardless of casualties). All hits are then discarded as
             // misses." The test itself is taken once per target, after the shooting (ResolveRangedMoraleStage),
             // so a unit firing several weapons at one target does not test it once per weapon.
             if (!metaData.IsMelee && attacker.Tokens.HasToken(TokenType.CoveringFire))
             {
-                int suppressDice = (int)Math.Round(successfulResults.TotalRolls);
+                int suppressDice = (int)Math.Round(successfulResults.TotalRolls) + commandHits;
                 var faces = new List<int>();
                 for (int i = 0; i < suppressDice; i++) faces.Add(GameContext.DiceRoller.RollDecisiveFace());
                 bool suppressed = faces.Any(face => face >= 4);
@@ -174,6 +183,10 @@ namespace FDG.Stages
             // synthetic group (base AP — a generated hit is not itself a natural 6). #204 keeps this ONE-group
             // structure byte-for-byte (so the save-roll RNG is untouched and outcomes don't move) and only
             // TAGS the group with the responsible rule name(s) for the save presentation ("+3 (Furious)").
+            if (commandHits > 0)
+                results.SuccessfulHitList.Add(new SuccessfulHitInfo(SyntheticHits(commandHits, rollToHitResults), 0,
+                    new HitGroupSource(EHitSourceKind.ExtraHits, CommandPoints.Name, commandHits)));
+
             HitInjectionSink hitInjection = new HitInjectionSink();
             hitInjection.ApplyFrom(operations);
             if (hitInjection.TotalExtraHits > 0f)

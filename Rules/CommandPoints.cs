@@ -25,6 +25,12 @@ namespace FDG
         public Dictionary<string, int> ArmyPoints { get; set; } = new();
         /// <summary>The last round CP were handed out for.</summary>
         public int LastRound { get; set; }
+        /// <summary>Stratagems used in the current unit activation ("player:stratagem"): "each only being usable once per
+        /// unit activation (friendly or enemy)". Cleared when the next turn starts.</summary>
+        public List<string> Used { get; set; } = new();
+        /// <summary>Offers a player turned down, so the same question isn't asked again until it could mean something new
+        /// ("stratagem:when:player" - the round for Seize / Waive Initiative, the deployment for Delayed Deployment).</summary>
+        public List<string> Declined { get; set; } = new();
     }
 
     /// <summary>
@@ -34,7 +40,7 @@ namespace FDG
     /// player picks, and the CP themselves. The stratagems come in their own files. Judgement calls: house rules C,
     /// "Command Points readings".
     /// </summary>
-    public static class CommandPoints
+    public static partial class CommandPoints
     {
         public const string Name = "Command Points";
         public const int PickShift = 32;
@@ -110,7 +116,7 @@ namespace FDG
 
         private static readonly ConditionalWeakTable<IReadableGameDataStore, CommandPointsState> Pending = new();
 
-        private static void Save(IGameContext c, CommandPointsState s)
+        internal static void Save(IGameContext c, CommandPointsState s)
         {
             GameProgressData? progress = GameProgressUtilities.TryGetProgress(c.GameDataStore);
             if (progress == null)
@@ -123,7 +129,7 @@ namespace FDG
             GameProgressUtilities.WriteProgress(c.GameDataStore, progress);
         }
 
-        private static int D6(IGameContext c) => HordePlacement.RollD6(c);
+        internal static int D6(IGameContext c) => HordePlacement.RollD6(c);
         private static int D3(IGameContext c) => (D6(c) + 1) / 2;
 
         /// <summary>A player's CP now (0 when the rule is off).</summary>

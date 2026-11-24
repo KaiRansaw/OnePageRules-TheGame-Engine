@@ -59,6 +59,16 @@ namespace FDG.Stages
                 return;
             }
 
+            // Command Points - a new turn is a new unit activation, so every stratagem can be used again; then Waive /
+            // Seize Initiative may hand this turn to the other side (the same hand-on as a Delayed Action).
+            CommandPoints.NewActivation(GameContext);
+            if (await CommandPoints.Initiative(GameContext, context.ActivatedPlayer, context.OpponentsWithUnitsToActivate, round))
+            {
+                context.MarkTurnDelayed();
+                await ToDelayedTurnEnd.Activate(context);
+                return;
+            }
+
             // Fog of War - Shifting Focus: only units in the rolled table section may be picked.
             var focus = FogOfWar.Focus(GameContext, context.ActivatedPlayer,
                 context.PlayerUnactivatedUnits.Select(b => (IUnit)b.GetValue()).Where(u => u.GetIsAlive()).ToList());

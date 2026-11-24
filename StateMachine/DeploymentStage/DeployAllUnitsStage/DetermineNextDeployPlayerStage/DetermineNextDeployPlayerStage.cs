@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Collections.Generic;
 
 
 namespace FDG.Stages
@@ -48,7 +50,7 @@ namespace FDG.Stages
                 context.HasStarted = true;
                 if (context.DoesPlayerHaveRemainingDeployments(context.GetCurrentDeployingPlayerID()))
                 {
-                    await OnFinish.Activate(context);
+                    await DelayOrGo(context);
                     return;
                 }
             }
@@ -65,6 +67,23 @@ namespace FDG.Stages
                 return;
             }
 
+            await DelayOrGo(context);
+        }
+
+        /// <summary>Command Points - Delayed Deployment: the player whose turn it is may pass it to an opponent who still has
+        /// units to place. The turn then moves on once more, and the alternation carries on from there.</summary>
+        private async Task DelayOrGo(IDeploymentTurnContext context)
+        {
+            PlayerID current = context.GetCurrentDeployingPlayerID();
+            ITeam? mine = GameContext.TableState.Teams.Objects.FirstOrDefault(t => t.IsPlayerOnTeam(current));
+            List<PlayerID> others = GameContext.TableState.Teams.Objects.Where(t => t != mine)
+                .SelectMany(t => t.Players).Where(context.DoesPlayerHaveRemainingDeployments).ToList();
+            if (await CommandPoints.DelayDeployment(GameContext, current, others)
+                && context.Cursor.TryAdvance(
+                    teamHasRemainingWork: context.DoesTeamHaveRemainingDeployments,
+                    playerHasRemainingWork: context.DoesPlayerHaveRemainingDeployments,
+                    out _, out _))
+                context.Log($"{GameContext.GetPlayerName(current)} delays - {GameContext.GetPlayerName(context.GetCurrentDeployingPlayerID())} places a unit first.");
             await OnFinish.Activate(context);
         }
     }

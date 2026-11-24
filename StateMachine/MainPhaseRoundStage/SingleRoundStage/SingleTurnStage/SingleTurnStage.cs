@@ -44,8 +44,14 @@ namespace FDG.Stages
                 .Where(unit => unit.GetValue().GetIsAlive())
                 .ToList();
 
+            ITeam myTeam = GameContext.TableState.Teams.Objects.First(team => team.IsPlayerOnTeam(currentPlayerID));
+            List<PlayerID> opponentsWithUnits = GameContext.TableState.Teams.Objects.Where(team => team != myTeam)
+                .SelectMany(team => team.Players)
+                .Where(p => contextSelf.UnactivatedUnits.TryGetValue(p, out var list) && list.Any(u => u.GetValue().GetIsAlive()))
+                .ToList();
+
             return new SingleTurnContext(GameContext, currentPlayerID, playerUnits,
-                OpponentHasMoreUnitsToActivate(contextSelf, currentPlayerID));
+                OpponentHasMoreUnitsToActivate(contextSelf, currentPlayerID), opponentsWithUnits);
         }
 
         protected override Dictionary<string, Transition> PopulateTransitions(out StageBase<ISingleTurnContext> startingChild)

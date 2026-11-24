@@ -21,6 +21,9 @@ namespace FDG.Stages
         // is marked activated at turn end), so ChooseUnitToActivateStage can read it while deciding.
         public bool OpponentHasMoreUnitsToActivate { get; }
 
+        // Command Points (Seize / Waive Initiative): the opposing players who still have a living unit to activate.
+        public IReadOnlyList<PlayerID> OpponentsWithUnitsToActivate { get; }
+
         public void ChooseUnitToActivate(DataBinding<UnitData> unitToActivate);
 
         public void MarkTurnDelayed();
@@ -40,9 +43,13 @@ namespace FDG.Stages
 
         public bool OpponentHasMoreUnitsToActivate { get; }
 
+        public IReadOnlyList<PlayerID> OpponentsWithUnitsToActivate { get; }
+
         public SingleTurnContext(IGameContext gameContext, PlayerID activatedPlayer,
-            List<DataBinding<UnitData>> playerUnactivatedUnits, bool opponentHasMoreUnitsToActivate = false)
+            List<DataBinding<UnitData>> playerUnactivatedUnits, bool opponentHasMoreUnitsToActivate = false,
+            IReadOnlyList<PlayerID>? opponentsWithUnitsToActivate = null)
         {
+            OpponentsWithUnitsToActivate = opponentsWithUnitsToActivate ?? Array.Empty<PlayerID>();
             foreach(DataBinding<UnitData> unit in playerUnactivatedUnits)
             {
                 if(unit.GetValue().PlayerID != activatedPlayer)
