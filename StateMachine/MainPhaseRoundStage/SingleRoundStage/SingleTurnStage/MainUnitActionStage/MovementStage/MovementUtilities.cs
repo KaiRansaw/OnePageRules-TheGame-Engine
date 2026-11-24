@@ -1170,6 +1170,12 @@ namespace FDG.Stages
             if (ignoresDifficultTerrain) return;
 
             List<ITerrain> difficult = TerrainSets(terrain).Difficult;
+            // Army Terrain - Defensive Barrier: "Difficult terrain for enemy units" - its own side's models ignore it.
+            if (difficult.Count > 0 && geometry.Length > 0 && difficult.Any(t => ArmyTerrain.BarrierTeam(t) != null))
+            {
+                IModel mover = geometry[0].Move.Model.GetValue();
+                difficult = difficult.Where(t => !ArmyTerrain.FriendlyBarrier(t, mover)).ToList();
+            }
             bool anySteep = false;
             foreach (ITerrain t in TerrainSets(terrain).Pieces)
                 if (t.TerrainType.HasFlag(ETerrainType.Steep)) { anySteep = true; break; }

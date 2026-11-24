@@ -82,7 +82,7 @@ namespace FDG
         /// <summary>The pieces built so far (Defensive Barrier needs side-aware Difficult terrain in the move checks).</summary>
         public static readonly HashSet<string> Built = new()
         {
-            ArmyBanner, BattleForge, IconOfWar, ProtectiveDome, WatchTower,
+            ArmyBanner, BattleForge, DefensiveBarrier, IconOfWar, ProtectiveDome, WatchTower,
             ArcanePillars, EnchantedShrine, FactionRelic, HealingWell, MagicArmory, TwinJumpgates, TwinVoidgates,
         };
 
@@ -112,7 +112,7 @@ namespace FDG
 
         public static string GameText(string name) =>
             "Each player picks (or rolls) one piece once the deployment zones are chosen, and places it in their own zone before "
-            + "any unit is deployed (two copies for Arcane Pillars and the Twin gates). Defensive Barrier is still to come. Bots roll.";
+            + "any unit is deployed (two copies for Arcane Pillars and the Twin gates). Bots roll.";
 
         public static bool On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.ArmyTerrain);
 
@@ -150,6 +150,42 @@ namespace FDG
                 .Select(m => Position.GetDistance2D(m.Position, new Position(piece.X, piece.Z)) - m.BaseShape.BoundingRadiusInches - PieceRadius)
                 .DefaultIfEmpty(float.MaxValue).Min();
 
+        // ---------------------------------------------------------------- Defensive Barrier: whose models are whose
+
+        public const string BarrierAreaPrefix = "Defensive Barrier area (";
+
+        /// <summary>Each model's team, so the one move check (MovementUtilities) can tell the barrier's own side from the
+        /// enemy without a game in hand. Filled when a barrier is placed and refreshed at every activation; a model it
+        /// doesn't know (a fresh copy in a simulation, a joined player's machine) treats every barrier as Difficult, which
+        /// only ever makes a planner stricter than the engine - never looser, so no plan the engine rejects.</summary>
+        private static readonly ConditionalWeakTable<IModel, StrongBox<int>> ModelTeam = new();
+
+        public static void RegisterTeams(IGameContext c)
+        {
+            foreach (IUnit unit in c.TableState.Units.Objects)
+            {
+                if (TeamOf(c, unit.PlayerID) is not { } team) continue;
+                foreach (IModel m in unit.Models)
+                {
+                    ModelTeam.Remove(m);
+                    ModelTeam.Add(m, new StrongBox<int>(team.TeamNumber));
+                }
+            }
+        }
+
+        /// <summary>The team a Defensive Barrier area belongs to (from its name), or null for any other terrain.</summary>
+        public static int? BarrierTeam(ITerrain terrain)
+        {
+            string? name = terrain.Name;
+            if (name == null || !name.StartsWith(BarrierAreaPrefix, StringComparison.Ordinal)) return null;
+            int at = name.LastIndexOf("[team ", StringComparison.Ordinal);
+            return at >= 0 && int.TryParse(name.AsSpan(at + 6).TrimEnd(']'), out int team) ? team : null;
+        }
+
+        /// <summary>True when this terrain is a Defensive Barrier area of the moving model's own side (not Difficult for it).</summary>
+        public static bool FriendlyBarrier(ITerrain terrain, IModel mover) =>
+            BarrierTeam(terrain) is int team && ModelTeam.TryGetValue(mover, out StrongBox<int>? box) && box.Value == team;
+
         // ---------------------------------------------------------------- before the game
 
         public const string Roll = "Roll for it";
@@ -170,6 +206,15 @@ namespace FDG
                 Position at = await PlacePiece(c, seat, name, zone, null, 0f);
                 var piece = new ArmyPiece { Owner = seat.PlayerID.ID.ToString(), Name = name, X = at.x, Z = at.z };
                 CreateTerrain(c, name, seat.Name, at);
+                if (name == DefensiveBarrier)
+                {
+                    // "The area within 6\" of this faction terrain counts as Difficult terrain for enemy units" - real
+                    // Difficult terrain on the table, which the move check skips for the owner's own models.
+                    c.GameDataStore.Create(new TerrainData(ETerrainType.Difficult,
+                        new CircularZone(new Float2(at.x, at.z), PieceRadius + AreaInches), heightInches: 0f,
+                        name: $"{BarrierAreaPrefix}{seat.Name}) [team {seat.TeamNumber}]"));
+                    RegisterTeams(c);
+                }
                 c.Log($"Army Terrain: {seat.Name} places the {name} at ({at.x:0.0}, {at.z:0.0}).");
                 if (TwoCopies(name))
                 {
@@ -276,6 +321,7 @@ namespace FDG
         public static async Task OnActivation(IGameContext c, IUnit unit)
         {
             if (!On(c) || State(c.GameDataStore) is not { } s) return;
+            if (s.Pieces.Any(p => p.Name == DefensiveBarrier)) RegisterTeams(c);
             s.ActivatingUnit = unit.ID.ID.ToString();
             s.ActivationBuffs.Clear();
             foreach (ArmyPiece p in s.Pieces.Where(p => Friendly(c, unit.PlayerID, p.Owner)))

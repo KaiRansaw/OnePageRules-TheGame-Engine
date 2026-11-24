@@ -102,7 +102,7 @@ namespace FDG.Tests
             Assert.That(ArmyTerrain.Battle.Select(b => b.Name), Is.EqualTo(new[] { "Army Banner", "Battle Forge", "Defensive Barrier", "Icon of War", "Protective Dome", "Watch Tower" }));
             Assert.That(ArmyTerrain.Relic(EGameSystem.GrimdarkFuture).Select(b => b.Name),
                 Is.EqualTo(new[] { "Arcane Pillars", "Enchanted Shrine", "Faction Relic", "Healing Well", "Magic Armory", "Twin Jumpgates" }));
-            Assert.That(ArmyTerrain.Built, Does.Not.Contain(ArmyTerrain.DefensiveBarrier));
+            Assert.That(ArmyTerrain.Built, Does.Contain(ArmyTerrain.DefensiveBarrier));
             Assert.That(ArmyTerrain.Battle.All(b => b.Text.All(ch => ch < 128)), "ASCII");
             foreach (EGameSystem s in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
                 Assert.That(AdvancedRules.Chapters(s), Does.Contain(AdvancedRules.ArmyTerrainChapter), s.ToString());
@@ -138,10 +138,10 @@ namespace FDG.Tests
         [Test]
         public async Task Rolling_OneDieEachTable_KeepOne()
         {
-            Build(roller: new FaceSequence(3, 2, 6, 6));   // me: Defensive Barrier (not built) + Enchanted Shrine; the bot: Watch Tower + the gates
+            Build(roller: new FaceSequence(3, 2, 6, 6));   // me: Defensive Barrier + Enchanted Shrine; the bot: Watch Tower + the gates
             await ArmyTerrain.Place(_context, _zones);
-            Assert.That(Mine.Name, Is.EqualTo(ArmyTerrain.EnchantedShrine), "the only one of the two that's in the game");
-            Assert.That(_keepQuestions, Is.EqualTo(1), "only the bot had two to choose from");
+            Assert.That(_keepQuestions, Is.EqualTo(2), "each player keeps one of its two");
+            Assert.That(Mine.Name, Is.EqualTo(ArmyTerrain.EnchantedShrine), "the recommended keep");
             Assert.That(State.Pieces.Single(p => p != Mine).Name, Is.EqualTo(ArmyTerrain.WatchTower), "the bot keeps the one it prefers");
         }
 
@@ -196,6 +196,44 @@ namespace FDG.Tests
             MoveTo(_myUnit, Mine.X + 3f, Mine.Z);
             await ArmyTerrain.EndOfActivation(_context, _myUnit);
             Assert.That(Position.GetDistance2D(_myUnit.Models[0].Position, new Position(Mine.X + 3f, Mine.Z)), Is.LessThan(0.01f), "\"may\" - said no");
+        }
+
+        private List<ModelMoveEntry> Straight(UnitData unit, float fromX, float toX, float z) =>
+            unit.ModelBindings.Take(1).Select(b => { b.GetValue().SetPosition(new Position(fromX, z));
+                return new ModelMoveEntry(b, new List<Position> { new(fromX, z), new(toX, z) }); }).ToList();
+
+        [Test]
+        public async Task DefensiveBarrier_IsDifficult_ForTheEnemyOnly()
+        {
+            Build(ArmyTerrain.DefensiveBarrier);
+            await ArmyTerrain.Place(_context, _zones);
+            var terrain = _context.TableState.Terrain.Objects.ToList();
+            ITerrain area = terrain.Single(t => ArmyTerrain.BarrierTeam(t) == 0);
+            Assert.That(area.TerrainType.HasFlag(ETerrainType.Difficult), Is.True);
+            Assert.That(area.IsPointWithinZone(new Float2(Mine.X + 7f, Mine.Z)), Is.True, "6\" from the piece's edge");
+
+            // A 10" move through the area (beside the piece itself): the enemy is capped at 6", my own unit isn't.
+            float z = Mine.Z + 3f;
+            bool theirs = MovementUtilities.ValidatePaths(Straight(_theirUnit, Mine.X - 5f, Mine.X + 5f, z), 12f,
+                Array.Empty<EnemyModelFootprint>(), false, false, false, terrain, out var theirErrors);
+            Assert.That(theirs, Is.False);
+            Assert.That(theirErrors.Any(e => e.ErrorReasonType == EErrorReasonType.ExceededDifficultTerrainMoveLimit), Is.True);
+            bool mine = MovementUtilities.ValidatePaths(Straight(_myUnit, Mine.X - 5f, Mine.X + 5f, z), 12f,
+                Array.Empty<EnemyModelFootprint>(), false, false, false, terrain, out var myErrors);
+            Assert.That(myErrors.Where(e => e.ErrorReasonType == EErrorReasonType.ExceededDifficultTerrainMoveLimit), Is.Empty,
+                "its own side's units ignore it");
+        }
+
+        [Test]
+        public async Task DefensiveBarrier_AModelTheGameHasntSeen_TreatsItAsDifficult()
+        {
+            Build(ArmyTerrain.DefensiveBarrier);
+            await ArmyTerrain.Place(_context, _zones);
+            ITerrain area = _context.TableState.Terrain.Objects.Single(t => ArmyTerrain.BarrierTeam(t) == 0);
+            var stranger = new ModelData(0.5f, new List<Weapon>(), new Position(0f, 0f), _store);
+            Assert.That(ArmyTerrain.FriendlyBarrier(area, stranger), Is.False, "unknown = stricter, never looser");
+            Assert.That(ArmyTerrain.FriendlyBarrier(area, _myUnit.Models[0]), Is.True);
+            Assert.That(ArmyTerrain.FriendlyBarrier(area, _theirUnit.Models[0]), Is.False);
         }
 
         [Test]
