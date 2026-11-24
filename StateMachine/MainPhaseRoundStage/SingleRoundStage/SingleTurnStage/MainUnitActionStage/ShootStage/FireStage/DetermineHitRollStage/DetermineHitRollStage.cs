@@ -31,6 +31,8 @@ namespace FDG.Stages
             // immediately; later hooks pick it up as a normal grant; the grant is retired at the attacker's
             // next claim.
             ClaimTargetMarks(attacker, defender);
+            // Twists & Gambits - Shield Bubble: Stealth for the underdog's units near the picked objective.
+            FDG.Missions.TwistsGambits.BeforeShot(GameContext, defender, metaData.IsMelee, metaData.IsSpell);
 
             // #377 — spend one-shot range grants ("+6\" range when shooting once", Battle Rune): the
             // range check itself only ever PEEKS (RangeRuleQueries.EffectiveRange is a non-logging

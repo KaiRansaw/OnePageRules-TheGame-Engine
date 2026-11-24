@@ -56,6 +56,8 @@ namespace FDG.Stages
             await FDG.Missions.AttackDefend.RoundStart(GameContext, context.RoundCount);
             // Side-missions: chosen before round 1; Mad Dash rolls a new one each round.
             await FDG.Missions.SideMissions.RoundStart(GameContext, context.RoundCount);
+            // Twists & Gambits: the underdog and this round's twist.
+            await FDG.Missions.TwistsGambits.RoundStart(GameContext, context.RoundCount);
             // Battlefield Effects: the special condition (settled before round 1) and Damnation's sacrifice.
             await BattlefieldEffects.RoundStart(GameContext, context.RoundCount);
             // Command Points: the Growing and Temporary playstyles hand out CP.

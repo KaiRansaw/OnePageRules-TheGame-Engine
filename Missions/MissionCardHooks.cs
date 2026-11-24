@@ -91,6 +91,7 @@ namespace FDG.Missions
         public static void UnitDestroyed(IGameContext gameContext, IUnit dead, IUnit? killer, EKillCause cause)
         {
             SideMissions.UnitDestroyed(gameContext, dead);
+            TwistsGambits.UnitDestroyed(gameContext, dead, killer);
             UnitPsychology.UnitDestroyed(gameContext, dead, killer, cause);
             if (StateOf(gameContext) is not { } state) return;
             state.Kills.Add(new MissionKill

@@ -45,6 +45,13 @@ namespace FDG.Stages
 
             foreach (var objective in tableState.Objectives.Objects)
             {
+                // Twists & Gambits - Objective Denied: "can't be seized until the end of the round".
+                if (FDG.Missions.TwistsGambits.Denied(GameContext, objective))
+                {
+                    objective.SetOwner(null);
+                    GameContext.Log("  Objective denied by the twist - stays neutral this round.");
+                    continue;
+                }
                 var nearbyPlayers = PlayersNearObjective(objective, tableState.Models.Objects, modelToUnit);
 
                 // #297: team-aware - allied players guarding a marker together hold it for their

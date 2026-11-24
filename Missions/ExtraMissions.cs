@@ -35,6 +35,9 @@ namespace FDG.Missions
         LastStand,
         VipEscort,
         TheRescue,
+        /// <summary>Twists &amp; Gambits (Advanced Rulebooks 3.6.0, its own chapter - never rolled by Random): 5 markers,
+        /// VP every round, the underdog's twist each round, and each player's gambits. See <see cref="TwistsGambits"/>.</summary>
+        TwistsAndGambits,
         /// <summary>Rolled before the game, as the book's random mission selection.</summary>
         Random = 100,
     }
@@ -44,6 +47,8 @@ namespace FDG.Missions
         D3Plus2, FourQuarters, Three, OneEachOnZoneEdge, TwoEachInZone, OneInTheMiddle,
         // Attack & Defend
         OneNearCentreByDefender, D3Plus2ByDefender, D3AlternatingDefenderFirst, OneNearEdgeByDefender,
+        // Twists & Gambits: three numbered markers outside the deployment zones, one inside each zone.
+        ThreeOutsideOneEachInZone,
     }
 
     public sealed record ExtraMissionInfo(EExtraMission Mission, string Name, bool Progressive, EMissionMarkers Markers,
@@ -125,11 +130,22 @@ namespace FDG.Missions
 
         private const string Bonus = "The attacking army gets 25% more points than the defender.";
 
+        /// <summary>Twists &amp; Gambits (GF p44, GFF p41, AoF p44, AoFS p41), the book's words (AoF: Skirmish: 2 VPs per
+        /// objective - see <see cref="TwistsGambits.ObjectiveVp"/>).</summary>
+        public static ExtraMissionInfo TwistsAndGambits { get; } = new(EExtraMission.TwistsAndGambits, "Twists & Gambits", true,
+            EMissionMarkers.ThreeOutsideOneEachInZone, false, false,
+            "Twists & Gambits rules add strategic elements and catch-up mechanics, to make for more chaotic but balanced battles.\n"
+            + "When playing with twists and gambits, set up the mission normally, placing 5 objectives, of which two must be placed inside deployment zones (one objective per zone), and three must be placed outside of deployment zones (number these objectives from 1 to 3).\n"
+            + "At the end of each round, players score victory points: 1 VP for each enemy unit they destroyed, 1 VP for each objective they control, 1 VP if they control more objectives than their opponent.\n"
+            + "After 4 rounds have been played, the game ends, and the player that scored most VPs wins.\n"
+            + "The underdog: at the beginning of each round, if one player has fewer VPs than the other, then they count as the underdog for that round. Each round a random twist applies, and the underdog picks what it affects (no underdog: the twist is ignored).");
+
         /// <summary>"When playing Attack &amp; Defend missions, the player that wins the deployment roll-off gets to pick if
         /// they want to be attacker or defender for this match."</summary>
         public const string RolesText = "When playing Attack & Defend missions, the player that wins the deployment roll-off gets to pick if they want to be attacker or defender for this match.";
 
-        public static ExtraMissionInfo Of(EExtraMission m) => All.FirstOrDefault(i => i.Mission == m) ?? All[0];
+        public static ExtraMissionInfo Of(EExtraMission m) => m == EExtraMission.TwistsAndGambits ? TwistsAndGambits
+            : All.FirstOrDefault(i => i.Mission == m) ?? All[0];
 
         public static string Name(EExtraMission m) => m == EExtraMission.Random ? "Random" : Of(m).Name;
 
@@ -139,7 +155,7 @@ namespace FDG.Missions
 
         /// <summary>The order the lobby lists them in.</summary>
         public static IReadOnlyList<EExtraMission> LobbyOrder { get; } =
-            All.Select(i => i.Mission).Append(EExtraMission.Random).ToList();
+            All.Select(i => i.Mission).Append(EExtraMission.TwistsAndGambits).Append(EExtraMission.Random).ToList();
 
         /// <summary>The Advanced Rulebooks have them: GF, GF: Firefight, AoF, AoF: Skirmish (not the Quest games).</summary>
         public static bool Available(EGameSystem system) =>
@@ -212,6 +228,9 @@ namespace FDG.Missions
         public List<string> MissionReserve { get; set; } = new();
         /// <summary>VIP Escort: the marker started near the low (z = 0) long edge; the defender must reach the other one.</summary>
         public bool? VipFromLowEdge { get; set; }
+
+        /// <summary>Twists &amp; Gambits - see <see cref="TwistsGambits"/>.</summary>
+        public TwistsGambitsState? Twists { get; set; }
     }
 
     /// <summary>The rules that make the Extra Missions play.</summary>
@@ -278,6 +297,11 @@ namespace FDG.Missions
             EExtraMission mission = picked == EExtraMission.Random
                 ? ExtraMissionCatalog.Roll(() => c.DiceRoller.RollDecisiveFace(), allowAttackDefend: twoSides)
                 : picked;
+            if (mission == EExtraMission.TwistsAndGambits && c.TableState.Players.Objects.Count(p => p.IsFilled) != 2)
+            {
+                c.Log("Twists & Gambits is written for two players - playing Duel instead.");
+                mission = EExtraMission.None;
+            }
             if (ExtraMissionCatalog.IsAttackDefend(mission) && !twoSides)
             {
                 c.Log($"{ExtraMissionCatalog.Of(mission).Name} needs exactly two sides (an attacker and a defender) - playing Duel instead.");
@@ -310,6 +334,7 @@ namespace FDG.Missions
                 EMissionMarkers.OneInTheMiddle => 1,
                 EMissionMarkers.OneEachOnZoneEdge or EMissionMarkers.TwoEachInZone => 0,
                 EMissionMarkers.OneNearCentreByDefender or EMissionMarkers.OneNearEdgeByDefender => 1,
+                EMissionMarkers.ThreeOutsideOneEachInZone => 3,
                 _ => null,
             };
 
@@ -350,6 +375,7 @@ namespace FDG.Missions
         public static RectangularZone? LegalBand(IGameContext c)
         {
             if (AttackDefend.LegalBand(c) is { } attackDefend) return attackDefend;
+            if (Current(c) == EExtraMission.TwistsAndGambits) return TwistsGambits.OutsideBand();
             if (Current(c) is var m && m == EExtraMission.None || ExtraMissionCatalog.Of(m).Markers != EMissionMarkers.OneInTheMiddle)
                 return null;
             float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
@@ -375,6 +401,11 @@ namespace FDG.Missions
             EExtraMission m = Current(c);
             if (m == EExtraMission.None) return;
             ExtraMissionInfo info = ExtraMissionCatalog.Of(m);
+            if (info.Markers == EMissionMarkers.ThreeOutsideOneEachInZone)
+            {
+                await TwistsGambits.PlaceZoneMarkers(c, zonesByTeam);
+                return;
+            }
             if (info.Markers is not (EMissionMarkers.OneEachOnZoneEdge or EMissionMarkers.TwoEachInZone)) return;
             ExtraMissionState state = State(c);
             if (state.OwnedPlaced) return;
@@ -608,6 +639,13 @@ namespace FDG.Missions
                     if (ReferenceOf(c, o) is { } r) c.GameDataStore.Destroy(r);
                     c.Log($"{info.Name}: {carrier.Name} picks up the marker and carries it.");
                 }
+            }
+
+            if (m == EExtraMission.TwistsAndGambits)
+            {
+                await TwistsGambits.RoundEnd(c, s, round);
+                Save(c, s);
+                return;
             }
 
             if (info.Progressive)
