@@ -152,6 +152,8 @@ namespace FDG.Stages
             BattlefieldEffects.RoundEnd(GameContext);
             CommandPoints.RoundEnd(GameContext);
             PoliticalIntrigue.RoundEnd(GameContext);
+            // Advanced Casting - Magic Pools: unspent dice down to 6 per caster.
+            AdvancedCasting.RoundEnd(GameContext);
             // Battlefield Effects - objective effects: rolled the first time each marker is seized.
             await BattlefieldEffects.AfterObjectives(GameContext);
             await BattlefieldEffects.EventsRoundEnd(GameContext);

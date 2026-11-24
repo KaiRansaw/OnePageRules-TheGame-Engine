@@ -1659,6 +1659,117 @@ namespace FDG.Tests
             Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "a 12 always casts (needed 10 + 3 = 13, clamped to 12)");
         }
 
+        // ---------------------------------------------------------------- Advanced Casting - Magic Pools (build 3.35)
+
+        private static TriggeredMoveTestContext PoolContext(GameDataStore store, IPlayerRequestByID requester, EGameSystem system,
+            EAdvancedRules extra, params int[] faces)
+        {
+            var ctx = new TriggeredMoveTestContext(store, requester, new FaceRoller(faces));
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameSystem = system;
+            settings.AdvancedRules = EAdvancedRules.MagicPools | extra;
+            ctx.Settings = settings;
+            return ctx;
+        }
+
+        [Test]
+        public async Task Pools_AsMany4sAsTheValue_Casts_AndTheDiceLeaveThePool()
+        {
+            var ctx = PoolContext(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 5);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 1, new[] { SelfBuffSpell("Bless", 2, "Furious") }, new Position(10f, 10f));
+            AdvancedCasting.AddPool(ctx, _player, 3);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "4 and 5: two 4+ for a value-2 spell");
+            Assert.That(AdvancedCasting.PoolDice(_store, _player), Is.EqualTo(1), "3 - the 2 dice rolled");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(1), "tokens aren't spent under pools");
+        }
+
+        [Test]
+        public async Task Pools_OneShort_Fails()
+        {
+            var ctx = PoolContext(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 3);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 0, new[] { SelfBuffSpell("Bless", 2, "Furious") }, new Position(10f, 10f));
+            AdvancedCasting.AddPool(ctx, _player, 2);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "only one 4+");
+            Assert.That(AdvancedCasting.PoolDice(_store, _player), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task Pools_TooFewDice_NotOffered()
+        {
+            var ctx = PoolContext(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 6, 6);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 5, new[] { SelfBuffSpell("Bless", 2, "Furious") }, new Position(10f, 10f));
+            AdvancedCasting.AddPool(ctx, _player, 1);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "one die can't pay a value-2 spell, whatever the tokens");
+            Assert.That(AdvancedCasting.PoolDice(_store, _player), Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task Pools_OffBook_Needs6s()
+        {
+            var ctx = PoolContext(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.SpellBooks, 5, 6);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 0, new[] { SelfBuffSpell("Bless", 2, "Furious") }, new Position(10f, 10f));
+            var state = new AdvancedCastingState();
+            state.Books[AdvancedCasting.Id(caster.GetValue())] = new List<string>();
+            AdvancedCasting.Save(ctx, state);
+            AdvancedCasting.AddPool(ctx, _player, 2);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "5 and 6: one 6+ for a value-2 spell outside the book");
+        }
+
+        [Test]
+        public async Task Pools_A1_IsABacklash_OnTopOfTheCast()
+        {
+            var ctx = PoolContext(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 6, 1);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 0, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            AdvancedCasting.AddPool(ctx, _player, 4);
+            // The bot rolls the spell's value; give it one extra die through the boost.
+            var requester = new CannedAssistRequester(0, boostTokens: 1);
+            ctx = PoolContext(_store, requester, EGameSystem.GrimdarkFuture, EAdvancedRules.None, 6, 1);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "the 6 casts it");
+            Assert.That(AdvancedCasting.IsBacklashed(ctx, caster.GetValue()), Is.True, "the 1 is a backlash");
+            Assert.That(AdvancedCasting.PoolDice(_store, _player), Is.EqualTo(1), "4 - 2 rolled - 1 lost to the backlash");
+            Assert.That(caster.GetValue().GetIsAlive(), Is.False, "GF: 1 wound kills the 1-wound caster");
+        }
+
+        [Test]
+        public async Task Pools_Blocking_SumAgainstSum_UnlessA6()
+        {
+            var requester = new CannedAssistRequester(tokensPerAssister: 2);
+            // Cast 4,4 (8) - block 5,5 (10): blocked.
+            var ctx = PoolContext(_store, requester, EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 4, 5, 5);
+            DataBinding<UnitData> caster = MakeCasterBinding(_player, 3, 0, new Position(10f, 10f));
+            var army = new ArmyData(_player, new List<DataBinding<UnitData>> { caster });
+            army.SetSpells(new[] { SelfBuffSpell("Bless", 2, "Furious") });
+            _store.Create(army);
+            var enemyPlayer = new PlayerID(System.Guid.NewGuid());
+            DataBinding<UnitData> enemyCaster = MakeCasterBinding(enemyPlayer, 3, 0, new Position(14f, 10f));
+            _store.Create(new ArmyData(enemyPlayer, new List<DataBinding<UnitData>> { enemyCaster }));
+            AdvancedCasting.AddPool(ctx, _player, 4);
+            AdvancedCasting.AddPool(ctx, enemyPlayer, 5);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "10 >= 8: blocked");
+            Assert.That(AdvancedCasting.PoolDice(_store, enemyPlayer), Is.EqualTo(3), "the blocker's 2 dice are spent");
+            Assert.That(requester.AssistPromptCount, Is.EqualTo(1), "one question for the enemy player");
+
+            // Cast 6,4 (10) - block 6,6 (12): a 6 can't be blocked.
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ctx = PoolContext(_store, requester, EGameSystem.GrimdarkFuture, EAdvancedRules.None, 6, 4, 6, 6);
+            caster = MakeCasterBinding(_player, 3, 0, new Position(10f, 10f));
+            army = new ArmyData(_player, new List<DataBinding<UnitData>> { caster });
+            army.SetSpells(new[] { SelfBuffSpell("Bless", 2, "Furious") });
+            _store.Create(army);
+            enemyCaster = MakeCasterBinding(enemyPlayer, 3, 0, new Position(14f, 10f));
+            _store.Create(new ArmyData(enemyPlayer, new List<DataBinding<UnitData>> { enemyCaster }));
+            AdvancedCasting.AddPool(ctx, _player, 4);
+            AdvancedCasting.AddPool(ctx, enemyPlayer, 5);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "a 6 among the casting dice");
+        }
+
         private sealed class FaceRoller : IDiceRoller
         {
             private readonly int[] _faces;

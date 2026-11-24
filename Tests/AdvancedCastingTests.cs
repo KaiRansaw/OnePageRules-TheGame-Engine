@@ -103,7 +103,7 @@ namespace FDG.Tests
             {
                 Assert.That(AdvancedRules.Chapters(s), Does.Contain(AdvancedRules.AdvancedCastingChapter), s.ToString());
                 Assert.That(AdvancedRules.In(AdvancedRules.AdvancedCastingChapter, s).Select(o => o.Name),
-                    Is.EqualTo(new[] { AdvancedCasting.SpellBooks, AdvancedCasting.TwoD6Casting, AdvancedCasting.HeavyBacklash }), s.ToString());
+                    Is.EqualTo(new[] { AdvancedCasting.SpellBooks, AdvancedCasting.TwoD6Casting, AdvancedCasting.MagicPools, AdvancedCasting.HeavyBacklash }), s.ToString());
                 foreach (AdvancedRuleOption o in AdvancedRules.In(AdvancedRules.AdvancedCastingChapter, s))
                     Assert.That((o.BookText + o.GameText).All(ch => ch < 128), $"ASCII: {s} {o.Name}");
             }
@@ -270,6 +270,66 @@ namespace FDG.Tests
             Assert.That(near.Models.Count(m => !m.GetIsAlive()), Is.EqualTo(2));
             Assert.That(far.Models.All(m => m.GetIsAlive()), Is.True);
             Assert.That(State.Recent.Last(), Does.Contain("Cascade"));
+        }
+
+        [Test]
+        public void MagicPools_IsInAllFourBooks_AndExcludes2D6()
+        {
+            foreach (EGameSystem sys in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
+                Assert.That(AdvancedRules.In(AdvancedRules.AdvancedCastingChapter, sys).Select(o => o.Name), Does.Contain(AdvancedCasting.MagicPools));
+            Assert.That(AdvancedCasting.PoolBacklashWounds(EGameSystem.GrimdarkFuture), Is.EqualTo(1));
+            Assert.That(AdvancedCasting.PoolBacklashWounds(EGameSystem.GFFirefight), Is.EqualTo(3));
+            Assert.That(AdvancedCasting.PoolBacklashWounds(EGameSystem.AgeOfFantasy), Is.EqualTo(1));
+            Assert.That(AdvancedCasting.PoolBacklashWounds(EGameSystem.AoFSkirmish), Is.EqualTo(3));
+            EAdvancedRules r = AdvancedCasting.Tick(EAdvancedRules.TwoD6Casting | EAdvancedRules.SpellBooks, EAdvancedRules.MagicPools, true);
+            Assert.That(r, Is.EqualTo(EAdvancedRules.MagicPools | EAdvancedRules.SpellBooks), "ticking Pools clears 2D6");
+            r = AdvancedCasting.Tick(r, EAdvancedRules.TwoD6Casting, true);
+            Assert.That(r, Is.EqualTo(EAdvancedRules.TwoD6Casting | EAdvancedRules.SpellBooks), "and back");
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.TwoD6Casting | EAdvancedRules.MagicPools);
+            Assert.That(AdvancedCasting.PoolsOn(_context), Is.False, "both on (an old save): 2D6 wins");
+        }
+
+        [Test]
+        public void MagicPools_TokensBecomeTwoDiceEach_AfterDrained()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.MagicPools);
+            UnitData wizard = Unit(_me, new Position(10f, 10f), 1, casterLevel: 3);
+            wizard.Tokens.AddToken(new Token(TokenType.SpellTokens, 3, new TokenClearTrigger.ManualOnly()));
+            AdvancedCasting.AfterRoundStartGrant(_context, wizard, 3);
+            Assert.That(AdvancedCasting.PoolDice(_store, _me), Is.EqualTo(6), "2 x 3");
+            Assert.That(wizard.Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(0), "no tokens under pools");
+            var s = State;
+            s.Drained[AdvancedCasting.Id(wizard)] = 1;
+            AdvancedCasting.Save(_context, s);
+            wizard.Tokens.AddToken(new Token(TokenType.SpellTokens, 3, new TokenClearTrigger.ManualOnly()));
+            AdvancedCasting.AfterRoundStartGrant(_context, wizard, 3);
+            Assert.That(AdvancedCasting.PoolDice(_store, _me), Is.EqualTo(10), "Drained: 2 x 2 more");
+        }
+
+        [Test]
+        public void MagicPools_RoundEnd_DiscardsDownToSixPerCaster()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.MagicPools);
+            Unit(_me, new Position(10f, 10f), 1, casterLevel: 3);
+            AdvancedCasting.AddPool(_context, _me, 9);
+            AdvancedCasting.RoundEnd(_context);
+            Assert.That(AdvancedCasting.PoolDice(_store, _me), Is.EqualTo(6));
+            AdvancedCasting.AddPool(_context, _me, -2);
+            AdvancedCasting.RoundEnd(_context);
+            Assert.That(AdvancedCasting.PoolDice(_store, _me), Is.EqualTo(4), "under the cap: kept");
+        }
+
+        [Test]
+        public async Task MagicPools_Backlash_LosesADie_GFF3Wounds()
+        {
+            Build(EGameSystem.GFFirefight, EAdvancedRules.MagicPools);
+            UnitData wizard = Unit(_me, new Position(10f, 10f), 1, casterLevel: 2, tough: 6);
+            wizard.Tokens.AddToken(new Token(TokenType.SpellTokens, 2, new TokenClearTrigger.ManualOnly()));
+            AdvancedCasting.AddPool(_context, _me, 3);
+            await AdvancedCasting.Backlash(_context, wizard);
+            Assert.That(AdvancedCasting.PoolDice(_store, _me), Is.EqualTo(2));
+            Assert.That(wizard.Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2), "tokens untouched");
+            Assert.That(wizard.Models[0].WoundsDealt, Is.EqualTo(3));
         }
 
         [Test]

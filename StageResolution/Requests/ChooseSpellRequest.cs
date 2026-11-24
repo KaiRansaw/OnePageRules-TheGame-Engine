@@ -58,6 +58,10 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public int AvailablePower { get; }
 
+        /// <summary>Advanced Casting - Magic Pools: <see cref="AvailableTokens"/> is the player's pool of spell dice and the
+        /// boost is extra dice to roll (each spell rolls at least its value in dice).</summary>
+        public bool DicePool { get; init; }
+
         /// <summary>The unmodified cast success threshold (roll this or higher succeeds; base 4).</summary>
         public int BaseThreshold { get; }
 

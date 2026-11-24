@@ -121,7 +121,11 @@ namespace FDG.Stages
             // #197 P23 — the purse, not the unit's own pool: a nearby friendly Spell Accumulator's tokens
             // are spendable "as if they were their own spell tokens", so they count toward affordability
             // everywhere an owned token does.
-            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, caster)
+            // Advanced Casting - Magic Pools: the player's pool dice replace spell tokens (a spell needs at least
+            // as many dice as its value to be worth rolling).
+            bool pools = AdvancedCasting.PoolsOn(GameContext);
+            int tokens = pools ? AdvancedCasting.PoolDice(GameContext.GameDataStore, player)
+                : SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, caster)
                 + CommandPoints.SupremeTokens(caster);   // Command Points - Supreme Caster: pays a spell's cost
 
             // #197 P23 — where the cast may originate: the caster's own position, plus any Spell Conduit
@@ -200,9 +204,19 @@ namespace FDG.Stages
                 QuestFlags.TargetedAnEnemy(GameContext, caster);
             // Command Points - Supreme Caster: its token goes on the cost first ("may not be spent to give casters
             // +1/-1"), so any boost comes out of the ordinary purse.
-            int supremeSpent = CommandPoints.SpendSupremeTokens(caster, chosen.Threshold);
-            IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
-                GameContext.RuleEvaluator, caster, chosen.Threshold - supremeSpent + boostTokens);
+            IReadOnlyList<SpellPurse.Loan> loans = System.Array.Empty<SpellPurse.Loan>();
+            int castDiceCount = chosen.Threshold + boostTokens;
+            if (pools)
+            {
+                // Magic Pools: the dice rolled leave the pool, win or lose.
+                castDiceCount = AdvancedCasting.SpendPool(GameContext, player, castDiceCount);
+            }
+            else
+            {
+                int supremeSpent = CommandPoints.SpendSupremeTokens(caster, chosen.Threshold);
+                loans = SpellPurse.Spend(GameContext.TableState,
+                    GameContext.RuleEvaluator, caster, chosen.Threshold - supremeSpent + boostTokens);
+            }
             // #414 - the Power half of the boost, spent at the same moment and on the same terms (win or
             // lose). Through CastPower so the Diseased condition still bites on Power spent this way.
             await CastPower.Spend(GameContext, context.ActivatingUnit.GetValue(), boostPower,
@@ -217,7 +231,7 @@ namespace FDG.Stages
                     $"{caster.Name} draws on nearby accumulators to cast {chosen.Name} " +
                     $"({SpellPurse.Describe(loans)}).", AssistBannerColor, EBannerTier.Toast);
             }
-            if (boost > 0)
+            if (boost > 0 && !pools)
             {
                 // Name the currency: a hero who has just spent Power on a cast needs to see that it was
                 // Power and not tokens, because that is the budget revive and extra actions come out of.
@@ -241,9 +255,13 @@ namespace FDG.Stages
             // 4. #103 — other Caster units within 18" may spend their own tokens to sway the cast: friendly
             //    Casters add +1 each, enemy Casters subtract 1 each. Their tokens are spent regardless of the
             //    cast's outcome (like the cast cost above). Boost + assists shift the success threshold.
-            CastAssistResult assistResult = await CollectCastAssist(context.ActivatingUnit, player, chosen.Name,
-                SpellText.Describe(chosen.Definition));
-            int assist = assistResult.Net;
+            // Magic Pools: no tokens to assist with; an enemy blocks with pool dice rolled alongside the cast instead.
+            CastAssistResult assistResult = pools
+                ? await CollectPoolBlock(context.ActivatingUnit, player, chosen.Name, SpellText.Describe(chosen.Definition))
+                : await CollectCastAssist(context.ActivatingUnit, player, chosen.Name,
+                    SpellText.Describe(chosen.Definition));
+            int assist = pools ? 0 : assistResult.Net;
+            int blockDiceCount = pools ? assistResult.HinderTokens : 0;
 
             // #197 P6 — granted cast-roll modifiers (Casting Debuff / Casting Buff): a signed delta the
             // caster is carrying as a token. Consumed here, once, whether or not the cast succeeds, exactly
@@ -272,14 +290,14 @@ namespace FDG.Stages
             int passive = passiveSink.Net(ERollKind.Cast);
 
             // Battlefield Effects - Arcane Power: "All casters get +1 to their spell casting rolls."
-            int netModifier = boost + assist + granted + passive + castOrigin.RollBonus + BattlefieldEffects.CastBonus(GameContext);
+            int netModifier = (pools ? 0 : boost) + assist + granted + passive + castOrigin.RollBonus + BattlefieldEffects.CastBonus(GameContext);
 
             // #274 — the caster's own models, reused by every spell visual below.
             List<Position> casterPositions = AttackBeatPositions.AlivePlaced(context.ActivatingUnit);
 
             // #274 — every token spend that swayed this roll, shown as one boost beat and one hinder
             // beat immediately before the die is cast, so the odds visibly move before the result.
-            await PresentAssistVisuals(chosen.Name, casterPositions, boost, assistResult);
+            await PresentAssistVisuals(chosen.Name, casterPositions, pools ? 0 : boost, assistResult);
 
             // 5. Cast roll: one die, base 4+ succeeds, shifted by boost + assists. RollDecisive so it's a
             //    real outcome under the probabilistic roller; a threshold shift (not a post-roll adjustment)
@@ -290,12 +308,28 @@ namespace FDG.Stages
             // fails, and doubles are a backlash whatever the result.
             bool twoD6 = AdvancedCasting.TwoD6On(GameContext);
             int baseNeeded = AdvancedCasting.BaseNeeded(GameContext, caster, chosen.Name, CAST_SUCCESS_THRESHOLD);
+            if (pools) baseNeeded = AdvancedCasting.PoolDieNeeded(GameContext, caster, chosen.Name);
             int threshold = twoD6 ? AdvancedCasting.ClampTwoD6(baseNeeded - netModifier)
+                : pools ? DiceUtilities.ClampSuccessRollNeeded(baseNeeded - netModifier)
                 : DiceUtilities.ClampSuccessRollNeeded(CAST_SUCCESS_THRESHOLD - netModifier);
             IDiceResults castRoll = null;
             int dieA = 0, dieB = 0;
             bool success;
-            if (twoD6)
+            // Magic Pools: as many 4+ (6+ off-book) as the spell's value; a 6 can't be blocked, a 1 is a backlash; the
+            // blocker's dice, rolled at the same time, block when their total is at least the casting total.
+            int[] castDice = System.Array.Empty<int>(), blockDice = System.Array.Empty<int>();
+            bool blocked = false, unblockable = false;
+            if (pools)
+            {
+                castDice = Enumerable.Range(0, castDiceCount).Select(_ => GameContext.DiceRoller.RollDecisiveFace()).ToArray();
+                blockDice = Enumerable.Range(0, blockDiceCount).Select(_ => GameContext.DiceRoller.RollDecisiveFace()).ToArray();
+                int successes = castDice.Count(f => f == 6 || (f != 1 && f >= threshold));
+                unblockable = castDice.Contains(6);
+                bool cast = successes >= chosen.Threshold;
+                blocked = cast && !unblockable && blockDice.Length > 0 && blockDice.Sum() >= castDice.Sum();
+                success = cast && !blocked;
+            }
+            else if (twoD6)
             {
                 dieA = GameContext.DiceRoller.RollDecisiveFace();
                 dieB = GameContext.DiceRoller.RollDecisiveFace();
@@ -309,7 +343,7 @@ namespace FDG.Stages
 
             // Star Quest Tinkered Luck: the caster may re-roll a failed cast, or a hero whose counter-spell
             // didn't stop the cast may re-roll it.
-            IUnit? luckyRoller = !success ? (QuestFlags.Take(GameContext, caster, QuestFlags.Tinkered) != null ? caster : null)
+            IUnit? luckyRoller = pools ? null : !success ? (QuestFlags.Take(GameContext, caster, QuestFlags.Tinkered) != null ? caster : null)
                 : assistResult.Hinderers.FirstOrDefault(h => QuestFlags.Take(GameContext, h, QuestFlags.Tinkered) != null);
             if (luckyRoller != null)
             {
@@ -327,12 +361,13 @@ namespace FDG.Stages
                     success = castRoll.AtOrAbove(threshold) >= 1f;
                 }
             }
-            bool backlash = twoD6 && dieA == dieB;
+            bool backlash = (twoD6 && dieA == dieB) || (pools && castDice.Contains(1));
 
             // #233 — show the die itself: tumbling roll with the shifted threshold, settling into a short
             // outcome summary. The banner below carries the full math. #289: FromDecisive - the cast die is
             // one concrete face in either roller mode, so it draws as a die, never an expected-value bar.
-            await PresentCastRoll(castRoll, dieA, dieB, threshold, success);
+            if (pools) await PresentPoolRoll(castDice, blockDice, threshold, chosen.Threshold, success, blocked, backlash);
+            else await PresentCastRoll(castRoll, dieA, dieB, threshold, success);
 
             // Spell out the roll so the boost/assist math is visible: what came up, what it needed, and how
             // the base 4+ was shifted. Assisters' own contributions were announced as they spent. The result
@@ -345,8 +380,14 @@ namespace FDG.Stages
                 ? $"spent {chosen.Threshold + boostTokens} tokens ({chosen.Threshold} cost + {boostTokens} boost)"
                 : $"spent {chosen.Threshold} token{(chosen.Threshold == 1 ? "" : "s")}";
             if (boostPower > 0) tokensSpent += $" and {boostPower} power";
-            string rolled = twoD6 ? $"{dieA}+{dieB}={dieA + dieB}{(backlash ? " (doubles)" : "")}" : $"{DecisiveFace(castRoll)}";
-            string rollDesc = $"rolled {rolled}, needed {threshold}+{breakdown}; {tokensSpent}";
+            if (pools)
+                tokensSpent = $"rolled {castDice.Length} pool dice" + (blockDice.Length > 0 ? $", blocked with {blockDice.Length}" : "");
+            string rolled = pools
+                ? $"{string.Join(",", castDice)} ({castDice.Count(f => f == 6 || (f != 1 && f >= threshold))} at {threshold}+, {chosen.Threshold} needed)"
+                  + (blockDice.Length > 0 ? $" vs block {string.Join(",", blockDice)} ({blockDice.Sum()} vs {castDice.Sum()}{(unblockable ? ", a 6 - can't be blocked" : blocked ? ", blocked" : "")})" : "")
+                  + (backlash ? " (a 1 - backlash)" : "")
+                : twoD6 ? $"{dieA}+{dieB}={dieA + dieB}{(backlash ? " (doubles)" : "")}" : $"{DecisiveFace(castRoll)}";
+            string rollDesc = pools ? $"rolled {rolled}; {tokensSpent}" : $"rolled {rolled}, needed {threshold}+{breakdown}; {tokensSpent}";
 
             // #418: AoF: Quest's 2.0.1 book let a hero buy a failed cast back for X*2 power, and that
             // was briefly implemented here. Its 2.1.0 book does not - like GFSQ 2.1.0, it spends power
@@ -356,7 +397,7 @@ namespace FDG.Stages
             // QuestCastPowerTests pins the absence; WorkItems/418 has the 2.0.1 wording.
             // Battlefield Effects - Arcane Power: "On an unmodified result of 1 ... the caster takes D3 wounds."
             // With 2D6 Casting, the "unmodified 1" is read as the always-failing 2 (house rules C).
-            await BattlefieldEffects.AfterCast(GameContext, caster, twoD6 ? (dieA + dieB == 2 ? 1 : 0) : DecisiveFace(castRoll));
+            await BattlefieldEffects.AfterCast(GameContext, caster, pools ? (castDice.Contains(1) ? 1 : 0) : twoD6 ? (dieA + dieB == 2 ? 1 : 0) : DecisiveFace(castRoll));
             if (!success)
             {
                 await GameContext.Announce($"{caster.Name} failed to cast {chosen.Name}: {rollDesc}.", CastFailColor);
@@ -655,13 +696,16 @@ namespace FDG.Stages
             IReadOnlyList<SpellRelay.CastOrigin> origins)
         {
             bool twoD6 = AdvancedCasting.TwoD6On(GameContext);
+            bool pools = AdvancedCasting.PoolsOn(GameContext);
             IUnit casterUnit = casterBinding.GetValue();
             List<ChooseSpellRequest.SpellOption> options = offer
                 .Select(o =>
                 {
                     int needed = AdvancedCasting.BaseNeeded(GameContext, casterUnit, o.Spell.Name, CAST_SUCCESS_THRESHOLD);
                     string label = SpellOptionLabel(o.Spell);
-                    if (twoD6) label += needed == AdvancedCasting.TwoD6OffBook ? $" - {needed}+ on 2D6, not in book" : $" - {needed}+ on 2D6";
+                    if (pools) label += $" - {o.Spell.Threshold} x {AdvancedCasting.PoolDieNeeded(GameContext, casterUnit, o.Spell.Name)}+ from the pool"
+                        + (AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name) ? "" : ", not in book");
+                    else if (twoD6) label += needed == AdvancedCasting.TwoD6OffBook ? $" - {needed}+ on 2D6, not in book" : $" - {needed}+ on 2D6";
                     else if (!AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name)) label += " - not in book";
                     return new ChooseSpellRequest.SpellOption(label, SpellText.Describe(o.Spell.Definition), o.Spell.Threshold,
                         o.Castable, o.Reason, twoD6 ? needed : null);
@@ -693,7 +737,7 @@ namespace FDG.Stages
 
             ChooseSpellRequest request = new ChooseSpellRequest(player, casterBinding, tokens,
                 twoD6 ? AdvancedCasting.TwoD6InBook : CAST_SUCCESS_THRESHOLD, hinderTokens, options, relays,
-                CastPower.Available(casterBinding.GetValue()));
+                CastPower.Available(casterBinding.GetValue())) { DicePool = pools };
 
             ChooseSpellReply reply = await GameContext.PlayerRequester
                 .RequestDecision<ChooseSpellRequest, ChooseSpellReply>(request);
@@ -1078,6 +1122,57 @@ namespace FDG.Stages
 
                 return false;
             }
+        }
+
+        // Magic Pools: the casting dice as one beat (a die passes at the per-die threshold), then the block, if any.
+        private async Task PresentPoolRoll(int[] castDice, int[] blockDice, int perDie, int needed, bool success, bool blocked, bool backlash)
+        {
+            float[] faces = new float[6];
+            foreach (int f in castDice) faces[f - 1] += 1f;
+            string summary = $"{castDice.Count(f => f == 6 || (f != 1 && f >= perDie))} of {needed} at {perDie}+"
+                + (blocked ? " - Blocked!" : success ? " - Cast!" : " - Failed") + (backlash ? " - Backlash!" : "");
+            await GameContext.Presenter.Present(new DiceRolledBeat(faces, 1, perDie, ERandomnessType.Realistic,
+                "Roll to Cast (pool)", summary, category: ERollBeatCategory.Magic));
+            if (blockDice.Length == 0) return;
+            float[] block = new float[6];
+            foreach (int f in blockDice) block[f - 1] += 1f;
+            await GameContext.Presenter.Present(new DiceRolledBeat(block, 1, 1, ERandomnessType.Realistic,
+                "Block (pool)", $"{blockDice.Sum()} vs {castDice.Sum()}{(blocked ? " - Blocked!" : "")}", category: ERollBeatCategory.Magic));
+        }
+
+        // Magic Pools: "players may take any number of spell dice from their magic pool, and roll them at the same time as the
+        // caster". Asked once per enemy player who has a Caster within the usual 18" and dice in the pool (the first such
+        // caster stands in for the request); the dice leave the pool whatever happens.
+        private async Task<CastAssistResult> CollectPoolBlock(DataBinding<UnitData> casterBinding, PlayerID casterPlayer,
+            string spellName, string spellDescription)
+        {
+            IUnit castingUnit = casterBinding.GetValue();
+            var asked = new HashSet<PlayerID>();
+            int total = 0;
+            var sources = new List<Position>();
+            var hinderers = new List<IUnit>();
+            foreach (DataBinding<UnitData> unitBinding in GameContext.GameDataStore().GetAllValues<ArmyData>().SelectMany(a => a.UnitBindings))
+            {
+                UnitData unit = unitBinding.GetValue();
+                if (unitBinding.Reference.Equals(casterBinding.Reference) || !unit.GetIsAlive() || !unit.GetIsOnBattlefield()) continue;
+                if (ITeamExtensions.AreAllied(GameContext.TableState.Teams.Objects, casterPlayer, unit.PlayerID)) continue;
+                if (asked.Contains(unit.PlayerID) || !SpellTargeting.IsCaster(GameContext, unit)) continue;
+                if (UnitCompareUtilities.MinDistanceBetweenUnits(castingUnit, unit, out _, out _, includeVertical: true)
+                    > GameWideConstants.CASTER_ASSIST_RANGE_INCHES) continue;
+                int pool = AdvancedCasting.PoolDice(GameContext.GameDataStore, unit.PlayerID);
+                if (pool <= 0) continue;
+                asked.Add(unit.PlayerID);
+                CastAssistReply reply = await GameContext.PlayerRequester.RequestDecision<CastAssistRequest, CastAssistReply>(
+                    new CastAssistRequest(unit.PlayerID, unitBinding, casterBinding, false, pool, spellName, spellDescription));
+                int dice = AdvancedCasting.SpendPool(GameContext, unit.PlayerID, reply?.Tokens ?? 0);
+                if (dice <= 0) continue;
+                total += dice;
+                sources.AddRange(AttackBeatPositions.AlivePlaced(unitBinding));
+                hinderers.Add(unit);
+                await GameContext.Announce($"{unit.Name} tries to block {castingUnit.Name}'s {spellName} with {dice} pool dice.",
+                    HinderBannerColor, EBannerTier.Toast);
+            }
+            return new CastAssistResult(0, 0, total, System.Array.Empty<Position>(), sources, hinderers);
         }
 
         // The cast die, or with 2D6 Casting both dice as one beat (shown as passing when the total casts).

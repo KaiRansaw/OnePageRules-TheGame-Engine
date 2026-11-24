@@ -28,6 +28,8 @@ namespace FDG
         public List<string> Backlashed { get; set; } = new();
         /// <summary>Caster unit id -> caster levels lost to Heavy Backlash's Drained.</summary>
         public Dictionary<string, int> Drained { get; set; } = new();
+        /// <summary>Magic Pools: player id -> spell dice in that player's pool.</summary>
+        public Dictionary<string, int> Pools { get; set; } = new();
         /// <summary>The last few backlashes, newest last, for the Mission panel.</summary>
         public List<string> Recent { get; set; } = new();
     }
@@ -48,6 +50,7 @@ namespace FDG
         {
             (SpellBooks, EAdvancedRules.SpellBooks),
             (TwoD6Casting, EAdvancedRules.TwoD6Casting),
+            (MagicPools, EAdvancedRules.MagicPools),
             (HeavyBacklash, EAdvancedRules.HeavyBacklash),
         };
 
@@ -60,6 +63,11 @@ namespace FDG
         public static int TwoD6BacklashWounds(EGameSystem s) => s is EGameSystem.GrimdarkFuture or EGameSystem.GFFirefight ? 3 : 1;
 
         public const int TwoD6InBook = 7, TwoD6OffBook = 10;
+
+        /// <summary>Magic Pools' backlash: "losing 1 spell die and taking 1 wound" (GF, AoF) / "3 wounds" (GFF, AoFS).</summary>
+        public static int PoolBacklashWounds(EGameSystem s) => Skirmish(s) ? 3 : 1;
+
+        public const int PoolInBook = 4, PoolOffBook = 6;
 
         // ---------------------------------------------------------------- lobby text
 
@@ -78,6 +86,19 @@ namespace FDG
                 + "of the round. Note that players may spend spell tokens as usual to give the caster +1/-1 to the roll.\nModifiers: When using 2D6 "
                 + "Casting, regardless of modifiers, results of 12 always succeed, and results of 2 always fail (instead of always succeeding on 6 and "
                 + "always failing on 1).",
+            MagicPools => "This system can't be used at the same time as 2D6 Casting.\nThe Magic Pool: At the beginning of each round, each "
+                + "player gets 2*X spell dice in their magic pool, where X is the total number of spell tokens all their casters would have "
+                + "generated that round. At the end of each round, each player must discard unspent spell dice down to 6*X dice, where X is the "
+                + "total number of casters in their army.\nCasting Spells: When casting spells, instead of rolling a single die and spending spell "
+                + "tokens to get +1 to the roll, players may take any number of spell dice from their magic pool, and roll them instead. If you "
+                + "roll as many 4+ as the spell's casting value, then the spell is cast successfully. If any of the dice has an unmodified result "
+                + "of 6, then the spell can't be blocked. If any of the dice has an unmodified result of 1, then the caster suffers a backlash, "
+                + $"losing 1 spell die and taking {PoolBacklashWounds(s)} wound{(PoolBacklashWounds(s) == 1 ? "" : "s")}, and after resolving any "
+                + "spell effects, the caster can't cast any more spells until the end of the round.\nBlocking Spells: When blocking spells, instead "
+                + "of spending spell tokens to give -1 to the roll, players may take any number of spell dice from their magic pool, and roll them "
+                + "at the same time as the caster instead. Then, sum together the total result of all casting dice, and the total result of all "
+                + "blocking dice. If the total blocking result is equal or higher than the casting result, then the spell is blocked, and its "
+                + "effects are not resolved. Note that if any of the casting dice has an unmodified result of 6, then the spell can't be blocked",
             HeavyBacklash => "When using 2D6 Casting or Magic Pools, when a caster suffers a backlash, roll 2D6 to see what happens, instead of losing "
                 + $"1 spell token/die and taking {(Skirmish(s) ? "3 wounds" : "1 wound")}:\n" + string.Join("\n", Table(s).Select(r => $"{r.Range} {r.Name} - {r.Text}"))
                 + "\nNote that casters that suffer a backlash can't cast any more spells until the end of the round.",
@@ -91,13 +112,28 @@ namespace FDG
                 + "Books show on the Mission panel.",
             TwoD6Casting => "Every cast rolls two dice: 7+ to cast (10+ for a spell outside a Spell Book), tokens still +1/-1, 12 always casts and 2 "
                 + "always fails. Doubles are a backlash, win or lose: the token and wounds after the spell resolves, then no more casting this round.",
-            HeavyBacklash => "Only with 2D6 Casting. A backlash rolls on the table instead. \"Caster level\" lost to Drained means one fewer spell "
+            MagicPools => "Casters stop getting spell tokens: each round you get two pool dice for every token they would have made, kept "
+                + "up to 6 per caster at the end of the round. To cast you pick how many dice to roll (at least the spell's value); a spell "
+                + "outside a Spell Book needs 6s instead of 4+. An enemy with a caster within 18\" may block with pool dice rolled at the same "
+                + "time. Any 1 is a backlash (after the spell). Ticking it unticks 2D6 Casting. Bots never block.",
+            HeavyBacklash => "With 2D6 Casting or Magic Pools. A backlash rolls on the table instead. \"Caster level\" lost to Drained means one fewer spell "
                 + "token every round.",
             _ => "",
         };
 
         public static bool BooksOn(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.SpellBooks);
         public static bool TwoD6On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.TwoD6Casting);
+        /// <summary>Magic Pools, unless 2D6 Casting is on too ("can't be used at the same time" - 2D6 wins).</summary>
+        public static bool PoolsOn(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.MagicPools) && !TwoD6On(c);
+
+        /// <summary>The lobby's tick: 2D6 Casting and Magic Pools can't both be on, so ticking one clears the other.</summary>
+        public static EAdvancedRules Tick(EAdvancedRules now, EAdvancedRules flag, bool on)
+        {
+            if (!on) return now & ~flag;
+            if (flag == EAdvancedRules.TwoD6Casting) now &= ~EAdvancedRules.MagicPools;
+            if (flag == EAdvancedRules.MagicPools) now &= ~EAdvancedRules.TwoD6Casting;
+            return now | flag;
+        }
         public static bool HeavyOn(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.HeavyBacklash);
 
         // ---------------------------------------------------------------- Heavy Backlash table
@@ -189,10 +225,69 @@ namespace FDG
         public static void AfterRoundStartGrant(IGameContext c, IUnit unit, int gained)
         {
             int drained = DrainedLevels(c.GameDataStore, unit);
-            if (drained <= 0 || gained <= 0) return;
-            int take = Math.Min(drained, gained);
-            unit.Tokens.RemoveTokens(TokenType.SpellTokens, take);
-            c.Log($"{unit.Name} is Drained: {take} fewer spell token{(take == 1 ? "" : "s")} this round.");
+            if (drained > 0 && gained > 0)
+            {
+                int take = Math.Min(drained, gained);
+                unit.Tokens.RemoveTokens(TokenType.SpellTokens, take);
+                gained -= take;
+                c.Log($"{unit.Name} is Drained: {take} fewer spell token{(take == 1 ? "" : "s")} this round.");
+            }
+            // Magic Pools: "2*X spell dice, where X is the total number of spell tokens all their casters would have
+            // generated that round" - the tokens become dice in the player's pool.
+            if (PoolsOn(c) && gained > 0)
+            {
+                unit.Tokens.RemoveTokens(TokenType.SpellTokens, gained);
+                AddPool(c, unit.PlayerID, 2 * gained);
+                c.Log($"Magic Pools: {unit.Name} adds {2 * gained} spell dice to its player's pool.");
+            }
+        }
+
+        // ---------------------------------------------------------------- Magic Pools
+
+        public static int PoolDice(IReadableGameDataStore store, PlayerID player) =>
+            State(store)?.Pools.GetValueOrDefault(player.ID.ToString()) ?? 0;
+
+        public static void AddPool(IGameContext c, PlayerID player, int dice)
+        {
+            AdvancedCastingState s = State(c.GameDataStore) ?? new AdvancedCastingState();
+            string key = player.ID.ToString();
+            s.Pools[key] = Math.Max(0, s.Pools.GetValueOrDefault(key) + dice);
+            if (c.TableState.Players.Objects.FirstOrDefault(p => p.IsFilled && p.PlayerID == player)?.Name is { } name)
+                s.Names["player:" + key] = name;
+            Save(c, s);
+        }
+
+        /// <summary>Takes up to <paramref name="dice"/> from the pool; returns how many were taken.</summary>
+        public static int SpendPool(IGameContext c, PlayerID player, int dice)
+        {
+            int have = PoolDice(c.GameDataStore, player);
+            int take = Math.Clamp(dice, 0, have);
+            if (take > 0) AddPool(c, player, -take);
+            return take;
+        }
+
+        /// <summary>What each casting die needs: 4+, or 6+ for a spell outside the caster's Spell Book.</summary>
+        public static int PoolDieNeeded(IGameContext c, IUnit caster, string spell) => InBook(c, caster, spell) ? PoolInBook : PoolOffBook;
+
+        /// <summary>End of round: "discard unspent spell dice down to 6*X dice, where X is the total number of casters in their army".</summary>
+        public static void RoundEnd(IGameContext c)
+        {
+            if (!PoolsOn(c)) return;
+            AdvancedCastingState? s = State(c.GameDataStore);
+            if (s == null) return;
+            bool changed = false;
+            foreach (ArmyData army in c.GameDataStore.GetAllValues<ArmyData>())
+            {
+                string key = army.PlayerID.ID.ToString();
+                int have = s.Pools.GetValueOrDefault(key);
+                int casters = army.UnitBindings.Select(b => b.GetValue()).Count(u => u.GetIsAlive() && CasterLevel(u) > 0);
+                int cap = 6 * casters;
+                if (have <= cap) continue;
+                s.Pools[key] = cap;
+                changed = true;
+                c.Log($"Magic Pools: {have - cap} unspent spell dice discarded (kept {cap}).");
+            }
+            if (changed) Save(c, s);
         }
 
         // ---------------------------------------------------------------- Spell Books
@@ -300,11 +395,13 @@ namespace FDG
             string line;
             int tokensLost, wounds;
             int splash = 0;
+            bool pool = PoolsOn(c);
+            string what = pool ? "spell die" : "spell token";
             if (!HeavyOn(c))
             {
                 tokensLost = 1;
-                wounds = TwoD6BacklashWounds(system);
-                line = $"Backlash! {caster.Name} loses a spell token and takes {wounds} wound{(wounds == 1 ? "" : "s")}";
+                wounds = pool ? PoolBacklashWounds(system) : TwoD6BacklashWounds(system);
+                line = $"Backlash! {caster.Name} loses a {what} and takes {wounds} wound{(wounds == 1 ? "" : "s")}";
             }
             else
             {
@@ -319,7 +416,7 @@ namespace FDG
                     "Feedback" => (D3(c), big ? 3 : 1, 0),
                     _ => (D3(c), big ? 3 : 1, 0),   // Drained
                 };
-                line = $"Heavy Backlash ({a}+{b}={a + b}, {row.Name}): {caster.Name} loses {tokensLost} spell token{(tokensLost == 1 ? "" : "s")} "
+                line = $"Heavy Backlash ({a}+{b}={a + b}, {row.Name}): {caster.Name} loses {tokensLost} {(pool ? "spell " + (tokensLost == 1 ? "die" : "dice") : "spell token" + (tokensLost == 1 ? "" : "s"))} "
                     + $"and takes {wounds} wound{(wounds == 1 ? "" : "s")}";
                 if (row.Name == "Drained")
                 {
@@ -328,8 +425,16 @@ namespace FDG
                 }
             }
 
-            int held = caster.Tokens.GetTokenCount(TokenType.SpellTokens);
-            if (held > 0) caster.Tokens.RemoveTokens(TokenType.SpellTokens, Math.Min(held, tokensLost));
+            if (pool)
+            {
+                string key = caster.PlayerID.ID.ToString();
+                s.Pools[key] = Math.Max(0, s.Pools.GetValueOrDefault(key) - tokensLost);
+            }
+            else
+            {
+                int held = caster.Tokens.GetTokenCount(TokenType.SpellTokens);
+                if (held > 0) caster.Tokens.RemoveTokens(TokenType.SpellTokens, Math.Min(held, tokensLost));
+            }
 
             // Cascade's 2D3: GF / AoF - "the caster's unit takes 2D3 wounds, or if the caster is not part of a unit the
             // closest unit within 6""; GFF / AoFS - always the closest unit within 6".
@@ -375,17 +480,27 @@ namespace FDG
             var lines = new List<(string, string, bool)>();
             bool books = AdvancedRules.IsOn(settings, EAdvancedRules.SpellBooks), twoD6 = AdvancedRules.IsOn(settings, EAdvancedRules.TwoD6Casting),
                 heavy = AdvancedRules.IsOn(settings, EAdvancedRules.HeavyBacklash);
-            if (!books && !twoD6 && !heavy) return lines;
+            bool pools = !twoD6 && AdvancedRules.IsOn(settings, EAdvancedRules.MagicPools);
+            if (!books && !twoD6 && !heavy && !pools) return lines;
             EGameSystem system = settings.GameSystem;
             var on = new List<string>();
             if (books) on.Add(SpellBooks);
             if (twoD6) on.Add(TwoD6Casting);
+            if (pools) on.Add(MagicPools);
             if (heavy) on.Add(HeavyBacklash);
             string hover = string.Join("\n\n", on.Select(n => $"{n}: {GameText(n)}"));
             lines.Add(($"{PowerName(system)}: {string.Join(", ", on)}", hover, false));
             if (twoD6) lines.Add((books ? "Casting: 7+ on 2D6 (10+ outside the spell book)" : "Casting: 7+ on 2D6", BookText(TwoD6Casting, system), false));
+            if (pools) lines.Add((books ? "Casting: a 4+ per die from the pool (6+ outside the spell book)" : "Casting: a 4+ per die from the pool",
+                BookText(MagicPools, system), false));
             AdvancedCastingState? s = State(store);
             if (s == null) return lines;
+            if (pools)
+                foreach (ArmyData army in store.GetAllValues<ArmyData>())
+                {
+                    string name = s.Names.GetValueOrDefault("player:" + army.PlayerID.ID, "Player");
+                    lines.Add(($"{name}: {s.Pools.GetValueOrDefault(army.PlayerID.ID.ToString())} spell dice", BookText(MagicPools, system), false));
+                }
             foreach ((string id, List<string> book) in s.Books)
                 lines.Add(($"{s.Names.GetValueOrDefault(id, "Caster")}: {string.Join(", ", book)}", BookText(SpellBooks, system), false));
             if (s.Round == round)
@@ -398,7 +513,7 @@ namespace FDG
                     lines.Add((recent, BookText(HeavyBacklash, system), true));
             else
                 foreach (string recent in s.Recent)
-                    lines.Add((recent, BookText(TwoD6Casting, system), true));
+                    lines.Add((recent, BookText(pools ? MagicPools : TwoD6Casting, system), true));
             return lines;
         }
     }

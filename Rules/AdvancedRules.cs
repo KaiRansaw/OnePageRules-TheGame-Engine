@@ -52,6 +52,7 @@ namespace FDG
         // Advanced Casting - Currents / Winds of Power (all four books).
         SpellBooks = 1UL << 38,
         TwoD6Casting = 1UL << 39,
+        MagicPools = 1UL << 40,
         HeavyBacklash = 1UL << 41,
     }
 

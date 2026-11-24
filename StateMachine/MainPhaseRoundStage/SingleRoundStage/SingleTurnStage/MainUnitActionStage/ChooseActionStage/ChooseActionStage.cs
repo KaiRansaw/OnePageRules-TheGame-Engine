@@ -1264,9 +1264,11 @@ namespace FDG.Stages
 
             // The purse (own tokens + nearby friendly Spell Accumulators), so the Cast action is offered
             // whenever the unit could actually pay - CastSpellStage's picker prices spells the same way.
-            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit)
-                + CommandPoints.SupremeTokens(unit);
             PlayerID player = context.ActivatingPlayer();
+            // Advanced Casting - Magic Pools: the player's pool dice instead of the unit's tokens.
+            int tokens = AdvancedCasting.PoolsOn(GameContext) ? AdvancedCasting.PoolDice(GameContext.GameDataStore, player)
+                : SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit)
+                + CommandPoints.SupremeTokens(unit);
 
             ArmyData army = GameContext.GameDataStore().GetAllValues<ArmyData>()
                 .FirstOrDefault(a => a.PlayerID == player);
