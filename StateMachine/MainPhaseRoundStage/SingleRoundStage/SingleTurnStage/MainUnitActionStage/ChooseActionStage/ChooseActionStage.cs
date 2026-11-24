@@ -1004,6 +1004,13 @@ namespace FDG.Stages
                 return false;
             }
 
+            // Battlefield Effects - Random Events, Low Supplies: "can't shoot any of their weapons until the end of the mission".
+            if (context.ActivatingUnit.GetValue().Tokens.HasToken(Rules.Foundation.TokenType.LowSupplies))
+            {
+                reasonIfCant = "Low Supplies (random event) - it can't shoot for the rest of the mission.";
+                return false;
+            }
+
             if (context.HasMoved == true)
             {
                 reasonIfCant = $"{context.ActivatingUnit.GetValue().Name} has already moved.";

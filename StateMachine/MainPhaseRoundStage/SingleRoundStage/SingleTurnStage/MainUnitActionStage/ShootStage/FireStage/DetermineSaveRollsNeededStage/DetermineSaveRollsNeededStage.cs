@@ -68,6 +68,13 @@ namespace FDG.Stages
                 grantedDetail = grantedDetail.Concat(extraActions).ToList();
             }
 
+            // Random Events - Godly Blessing: "All units get AP(+1) in melee until the end of the round."
+            if (metaData.IsMelee && !metaData.IsSpell && BattlefieldEffects.MeleeApBonus(GameContext) is int blessed and > 0)
+            {
+                grantedDefense -= blessed;
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(BattlefieldEffects.EventName(53, GameContext.Settings.GameSystem), -blessed) }).ToList();
+            }
+
             // Challenge Bonuses (Solo & Co-Op 3.6.0): a losing AI's units get +1 to Defense rolls.
             IReadOnlyList<GrantedModifier> challenge = ChallengeBonuses.SaveModifiers(GameContext,
                 metaData.DefendingUnit.GetValue());

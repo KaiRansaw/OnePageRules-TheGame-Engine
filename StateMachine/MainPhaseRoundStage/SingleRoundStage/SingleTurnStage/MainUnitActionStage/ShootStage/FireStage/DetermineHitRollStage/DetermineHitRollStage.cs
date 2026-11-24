@@ -103,6 +103,13 @@ namespace FDG.Stages
                     metaData.WeaponType, metaData.IsMelee);
             }
 
+            // Battlefield Effects - Random Events, Suppressing Fire: "doubles its shooting attacks during this round".
+            if (!metaData.IsMelee && !metaData.IsSpell && attacker.Tokens.HasToken(TokenType.DoubleShots))
+            {
+                attackCount *= 2f;
+                GameContext.Log($"Suppressing Fire: {attacker.Name}'s shooting attacks are doubled ({attackCount:0.#}).");
+            }
+
             DetermineHitRollResults results = new DetermineHitRollResults(baseQuality, attackCount);
 
             RollModifierSink rollModifiers = new RollModifierSink();
@@ -199,6 +206,7 @@ namespace FDG.Stages
                     metaData.IsMelee, metaData.IsSpell, extraDistance, GameContext.Settings)
                     // Battlefield Effects - terrain & objective effects (Vigor, Barbed Wire, Defensive Barrier, Holy Monument).
                     .Concat(BattlefieldEffects.HitModifiers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
+                    .Concat(metaData.IsSpell ? Array.Empty<GrantedModifier>() : BattlefieldEffects.EventHitModifiers(GameContext, attacker, defender, metaData.IsMelee))
                     .ToList();
                 if (extra.Count > 0)
                 {

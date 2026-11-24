@@ -55,6 +55,13 @@ namespace FDG.Stages
             // resolve. Nobody in contact (defender wiped by the impact hits, pile-in failed) ends it; models
             // in contact with nothing to swing — an impact-only charger, or a unit that lost its melee-armed
             // models — is still a melee, so it goes on to the strike-back the defender is owed.
+            // Battlefield Effects - Random Events, Chipped Weapons: "can't strike in melee until the end of the round".
+            if (inRange.Count > 0 && context.AttackingUnit.GetValue().Tokens.HasToken(Rules.Foundation.TokenType.ChippedWeapons))
+            {
+                GameContext.Log($"{context.AttackingUnit.GetValue().Name} has Chipped Weapons - it can't strike in melee this round.");
+                await OnAttackersInRangeUnarmed.Activate(context);
+                return;
+            }
             if (context.AvailableWeapons.Count == 0)
             {
                 if (inRange.Count == 0)

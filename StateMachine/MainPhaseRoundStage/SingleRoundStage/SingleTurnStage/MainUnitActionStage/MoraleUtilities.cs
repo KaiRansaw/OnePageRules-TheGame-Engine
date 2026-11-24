@@ -89,6 +89,14 @@ namespace FDG.Stages
             // the rule's own text, so gating it behind a die the unit never rolls would drop the half of
             // the rule that matters most. Owner-ruled 2026-07-29. A unit without such a rule still
             // auto-fails exactly as before — TryConvertFailure returns false and nothing else changes.
+            // Battlefield Effects - Random Events: The End is Nigh (all fail) and Land of the Brave (all pass in a quarter)
+            // decide the test outright, before even the Shaken auto-fail (house rules C).
+            if (BattlefieldEffects.MoraleOverride(gameContext, testingUnit) is bool forced)
+            {
+                gameContext.Log($"{testingUnit.Name}'s Morale Test {(forced ? "passes" : "fails")} automatically ({BattlefieldEffects.EventName(forced ? 54 : 25, gameContext.Settings.GameSystem)}).");
+                if (!forced) FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
+                return new MoraleTestOutcome(passed: forced, baseRollNeeded, passedViaReroll: false);
+            }
             if (testingUnit.Tokens.HasToken(TokenType.Shaken))
             {
                 if (await TryConvertFailure(gameContext, testingUnit, failureCausesShakenOrRout))
@@ -146,6 +154,12 @@ namespace FDG.Stages
                 $"{testingUnit.Name} - Morale Test",
                 passedInitial ? "Passed" : "Failed",
                 modifierTags: ComposeMoraleTags(baseRollNeeded, named, grantedNet, grantedDetail)));
+            // Random Events - Panic Attack: the first natural 1 on a Morale Test this round Routs the unit.
+            if (initialRoll.At(1) >= 1f && await BattlefieldEffects.PanicAttack(gameContext, testingUnit, 1))
+            {
+                FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
+                return new MoraleTestOutcome(passed: false, rollNeeded, passedViaReroll: false);
+            }
             if (passedInitial)
             {
                 return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: false);

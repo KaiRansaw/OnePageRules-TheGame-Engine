@@ -131,6 +131,7 @@ namespace FDG.Stages
             BattlefieldEffects.RoundEnd(GameContext);
             // Battlefield Effects - objective effects: rolled the first time each marker is seized.
             await BattlefieldEffects.AfterObjectives(GameContext);
+            await BattlefieldEffects.EventsRoundEnd(GameContext);
 
             // #432: and the terrain a campaign random event laid down for this round - a wood or a
             // minefield the event conjured. It is real terrain, so nothing else would ever take it away,

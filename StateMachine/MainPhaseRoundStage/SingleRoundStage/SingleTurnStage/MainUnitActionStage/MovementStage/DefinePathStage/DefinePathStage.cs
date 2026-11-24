@@ -185,6 +185,14 @@ namespace FDG.Stages
         private async Task ResolveForcedAircraftMove(IMovementActionContext context, PlayerID playerID)
         {
             UnitData unit = context.MovingUnit.GetValue();
+            if (!unit.GetIsAlive())
+            {
+                // Destroyed as it activated (a terrain effect, Deadly Vortex...): nothing left to fly.
+                context.GameContext.Log($"{unit.Name} was destroyed before it could fly.");
+                context.SubmitValidPathTemplate(new List<ModelMoveEntry>());
+                await OnPathDefined.Activate(context);
+                return;
+            }
             Float2 heading = ForcedAircraftMove.GetHeading(unit);
 
             var request = new AircraftAdvanceRequest(playerID, $"Flying {unit.Name}",

@@ -122,7 +122,7 @@ namespace FDG
         /// </summary>
         public static async Task AfterMove(IGameContext c, UnitData unit, IReadOnlyList<(Position From, IReadOnlyList<Position> Path)> moves)
         {
-            if (!TerrainOn(c) || !unit.GetIsAlive()) return;
+            if ((!TerrainOn(c) && !EventsOn(c)) || !unit.GetIsAlive()) return;
             var pieces = c.TableState.Terrain.Objects.ToList();
             var touched = new List<int>();
             for (int i = 0; i < pieces.Count; i++)
@@ -141,6 +141,8 @@ namespace FDG
                 });
                 if (through) touched.Add(i);
             }
+            await EventsAfterMove(c, unit, touched);
+            if (!TerrainOn(c) || !unit.GetIsAlive()) return;
             if (touched.Count > 0)
             {
                 BattlefieldEffectsState s = Ensure(c);
@@ -169,6 +171,8 @@ namespace FDG
         private static async Task PieceHurts(IGameContext c, IUnit unit, ITerrain piece, int code)
         {
             if (!unit.GetIsAlive()) return;
+            // Aircraft (and anything else that ignores all terrain) fly over the piece - its effects don't reach them.
+            if (MovementRuleQueries.IgnoresAllTerrain(unit, c.RuleEvaluator)) return;
             string name = TerrainEffectName(code, c.Settings.GameSystem);
             if (code == Infestation)
             {

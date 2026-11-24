@@ -31,6 +31,22 @@ namespace FDG
         public Dictionary<int, int> TerrainEffects { get; set; } = new();
         /// <summary>Terrain &amp; Objective Effects: each objective's rolled effect (position key -> 1-6).</summary>
         public Dictionary<string, int> ObjectiveEffects { get; set; } = new();
+        /// <summary>Random Events: this round's event (11-66, 0 none).</summary>
+        public int RoundEvent { get; set; }
+        /// <summary>Random Events: a "first time during this round" event has already gone off.</summary>
+        public bool RoundEventSpent { get; set; }
+        /// <summary>Random Events: the table quarter this round's event picked (Fighting Vigour, Land of the Brave).</summary>
+        public ZoneRect? RoundQuarter { get; set; }
+        /// <summary>Random Events: Shimmering Mist quarters (Cover until the end of the mission).</summary>
+        public List<ZoneRect> MistQuarters { get; set; } = new();
+        /// <summary>Random Events: the armies Broken Morale fell on (player ids).</summary>
+        public List<string> BrokenMoraleArmies { get; set; } = new();
+        /// <summary>Random Events: Carnivorous Fauna is in force.</summary>
+        public bool Fauna { get; set; }
+        /// <summary>Random Events: the secretly rigged terrain piece (index), until a unit enters it.</summary>
+        public int? RiggedPiece { get; set; }
+        /// <summary>Random Events: markers on the table.</summary>
+        public List<EventMarker> Markers { get; set; } = new();
     }
 
     /// <summary>
@@ -49,6 +65,7 @@ namespace FDG
         {
             (SpecialConditions, EAdvancedRules.SpecialConditions),
             (TerrainAndObjectives, EAdvancedRules.TerrainObjectiveEffects),
+            (RandomEventsName, EAdvancedRules.RandomEvents),
         };
 
         public const int Earthquake = 1, HeavyStorm = 2, MuddyTerrain = 3, SmellOfDeath = 4, ZeroGravity = 5, DarkSkies = 6,
@@ -95,6 +112,7 @@ namespace FDG
         public static string BookText(string name) => name switch
         {
             TerrainAndObjectives => TerrainBookText,
+            RandomEventsName => EventsBookText,
             SpecialConditions => "Before the game, you can either pick one of the conditions of your choice, or have it selected randomly. First roll a D3 to select a condition type: 1-2 = None, 3-4 = Geological, 5-6 = Mysterious. Then roll one die, and check which special condition you get.\nGeological: 1 Earthquake, 2 Heavy Storm, 3 Muddy Terrain, 4 Smell of Death, 5 Zero Gravity / Magical Winds, 6 Dark Skies.\nMysterious: 1 Damnation, 2 Arcane Power, 3 Inspiration, 4 Deadly Vortex, 5 Mystical Fog, 6 Sinister Echoes.",
             _ => "",
         };
@@ -102,6 +120,7 @@ namespace FDG
         public static string GameText(string name) => name switch
         {
             TerrainAndObjectives => TerrainGameText,
+            RandomEventsName => EventsGameText,
             SpecialConditions => "Pick one below, or leave it on \"Roll for it\" (the book's D3, then a die). The condition is announced at the start of round 1 and shown on the Mission panel. Zero Gravity: after an Advance or Rush the unit drifts on the rolled distance, straight ahead (stopping at obstacles); a charge reaches that much further. Damnation: each player is asked at the start of every round; a bot sacrifices its unit with the most wounds left.",
             _ => "",
         };
@@ -200,6 +219,7 @@ namespace FDG
         /// <summary>A unit activates: keep the globals right, and Deadly Vortex's die.</summary>
         public static async Task OnActivation(IGameContext c, IUnit unit)
         {
+            await EventsOnActivation(c, unit);
             await TerrainOnActivation(c, unit);
             if (Condition(c) == 0) return;
             ApplyGlobals(c);
@@ -293,7 +313,7 @@ namespace FDG
         /// <summary>Smell of Death -1, Inspiration +1, Damnation -1 - to a Morale Test roll.</summary>
         public static int MoraleModifier(IGameContext c, IUnit unit)
         {
-            int m = DamnedPenalty(unit);
+            int m = DamnedPenalty(unit) + EventMoraleModifier(c, unit);
             int cond = Condition(c);
             if (cond == SmellOfDeath) m -= 1;
             if (cond == Inspiration) m += 1;
@@ -303,6 +323,13 @@ namespace FDG
         /// <summary>Heavy Storm: the shooting cover bonus. Everyone is in cover (+1); a unit in a cover piece gets +2.</summary>
         public static int CoverBonus(IGameContext c, bool inCoverPiece, int bonus) =>
             !Is(c, HeavyStorm) ? bonus : inCoverPiece ? 2 : 1;
+
+        /// <summary>The cover bonus with Shimmering Mist: a unit in a misted quarter counts as in Cover.</summary>
+        public static int CoverBonus(IGameContext c, IUnit defender, bool inCoverPiece, int bonus)
+        {
+            if (!inCoverPiece && bonus == 0 && InMist(c, defender)) return 1;
+            return CoverBonus(c, inCoverPiece, bonus);
+        }
 
         /// <summary>Earthquake: every move and activation is in Dangerous terrain.</summary>
         public static bool WholeTableDangerous(IGameContext c) => Is(c, Earthquake);

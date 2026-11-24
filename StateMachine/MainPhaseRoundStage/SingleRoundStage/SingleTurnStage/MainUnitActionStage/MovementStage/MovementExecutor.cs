@@ -103,11 +103,11 @@ namespace FDG.Stages
         /// Rolls only; the caller lands the wounds with <see cref="ResolveDangerousTerrain"/>.
         /// </summary>
         public static DangerousTerrainResult RollForcedDangerousTerrain(IGameContext gameContext, IUnit unit,
-            bool ignoresDangerousTerrain = false)
+            bool ignoresDangerousTerrain = false, int woundsOn = 1)
         {
             if (ignoresDangerousTerrain) return DangerousTerrainResult.None;
 
-            return RollBatch(gameContext, UnitTesters(unit), unit);
+            return RollBatch(gameContext, UnitTesters(unit), unit, woundsOn);
         }
 
         /// <summary>

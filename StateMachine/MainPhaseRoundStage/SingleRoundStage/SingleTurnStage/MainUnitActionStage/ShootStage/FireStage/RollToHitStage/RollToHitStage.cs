@@ -420,6 +420,11 @@ namespace FDG.Stages
                 }
             }
 
+            // Battlefield Effects - Random Events: the "first time during this round" hit-roll events.
+            if (!metaData.IsSpell)
+                results.ExtraTargetWounds += await BattlefieldEffects.AfterHitRoll(GameContext, attacker, defender, metaData.IsMelee,
+                    (int)MathF.Round(rulesSeeRolls.At(1)), (int)MathF.Round(rulesSeeRolls.At(6)));
+
             // Critical Hits (GF: Firefight / AoF: Skirmish Advanced Rulebooks): one per shooting or melee, on a 6.
             if (!metaData.IsSpell)
             {

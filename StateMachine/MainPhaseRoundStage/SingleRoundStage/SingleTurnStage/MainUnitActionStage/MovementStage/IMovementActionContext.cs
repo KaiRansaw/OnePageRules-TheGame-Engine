@@ -159,6 +159,12 @@ namespace FDG.Stages
             _maxChargeDistance += movementModifiers.Net(EActionType.Charge);
             // Battlefield Effects - Zero Gravity: "+2D6" in a straight line on ... Charge actions" (rolled as it activated).
             _maxChargeDistance += BattlefieldEffects.ChargeBonus(unit);
+            // Random Events - Gravitational Shift / Magical Gravity (+1" Advance, +2" Rush/Charge near the centre this
+            // round) and Anti-Grav / Magical Boots (+D3" Advance, +2D3" Rush/Charge, rolled once).
+            (float eventAdvance, float eventRush) = BattlefieldEffects.EventMoveChange(GameContext, unit);
+            _maxAdvanceDistance += eventAdvance;
+            _maxRushDistance += eventRush;
+            _maxChargeDistance += eventRush;
 
             // "Counts as being in Difficult Terrain" (#153): the whole move is capped at the difficult-terrain
             // limit, after bonuses (the cap is absolute), unless the unit ignores difficult terrain outright
@@ -168,7 +174,9 @@ namespace FDG.Stages
                 (MovementRuleQueries.CountsAsInTerrain(unit, GameContext.RuleEvaluator, ECountAsTerrain.Difficult)
                  || BattlefieldEffects.WholeTableDifficult(GameContext)
                  // Battlefield Effects - Gravity Field: "Units within 3" of this objective count as being inside Difficult Terrain".
-                 || BattlefieldEffects.InGravityField(GameContext, unit))
+                 || BattlefieldEffects.InGravityField(GameContext, unit)
+                 // Random Events - the Alien/Rat Swarm: "The area within 3" of the marker counts as Difficult terrain".
+                 || BattlefieldEffects.InSwarm(GameContext, unit))
                 && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit);
             float difficultCap = GameWideConstants.BookDifficultTerrainMoveCapInches;
             if (countsAsDifficult)
@@ -196,9 +204,9 @@ namespace FDG.Stages
                 AccumulateModelMovementRules(unit, model, EActionType.Advance, baseAdvance, perModel);
                 AccumulateModelMovementRules(unit, model, EActionType.Rush, baseRush, perModel);
                 AccumulateModelMovementRules(unit, model, EActionType.Charge, baseCharge, perModel);
-                float modelAdvance = baseAdvance + perModel.Net(EActionType.Advance);
-                float modelRush = baseRush + perModel.Net(EActionType.Rush);
-                float modelCharge = baseCharge + perModel.Net(EActionType.Charge) + BattlefieldEffects.ChargeBonus(unit);
+                float modelAdvance = baseAdvance + perModel.Net(EActionType.Advance) + eventAdvance;
+                float modelRush = baseRush + perModel.Net(EActionType.Rush) + eventRush;
+                float modelCharge = baseCharge + perModel.Net(EActionType.Charge) + BattlefieldEffects.ChargeBonus(unit) + eventRush;
                 if (countsAsDifficult)
                 {
                     modelAdvance = Math.Min(modelAdvance, difficultCap);

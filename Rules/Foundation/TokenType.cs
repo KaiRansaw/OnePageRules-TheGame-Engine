@@ -57,6 +57,16 @@ public readonly record struct TokenType(string Id)
     public const string DARK_SKIES_ID = "DarkSkies";
     public const string DAMNED_ID = "Damned";
     public const string ZERO_GRAVITY_CHARGE_ID = "ZeroGravityCharge";
+    // Battlefield Effects - Random Events.
+    public const string LOW_SUPPLIES_ID = "LowSupplies";
+    public const string CHIPPED_WEAPONS_ID = "ChippedWeapons";
+    public const string BROKEN_MORALE_ID = "BrokenMorale";
+    public const string FLASH_GRENADES_ID = "FlashGrenades";
+    public const string DOUBLE_SHOTS_ID = "DoubleShots";
+    public const string COVERED_IN_BLOOD_ID = "CoveredInBlood";
+    public const string BOOTS_ADVANCE_ID = "BootsAdvance";
+    public const string BOOTS_RUSH_ID = "BootsRush";
+    public const string DEEP_RAGE_ID = "DeepRage";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -430,4 +440,14 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType Damned = new(DAMNED_ID);
     /// <summary>Zero Gravity: +1" charge reach per token this activation.</summary>
     public static readonly TokenType ZeroGravityCharge = new(ZERO_GRAVITY_CHARGE_ID);
+    /// <summary>Random Events (Advanced Rulebooks 3.6.0) - see FDG.BattlefieldEffects.</summary>
+    public static readonly TokenType LowSupplies = new(LOW_SUPPLIES_ID);
+    public static readonly TokenType ChippedWeapons = new(CHIPPED_WEAPONS_ID);
+    public static readonly TokenType BrokenMorale = new(BROKEN_MORALE_ID);
+    public static readonly TokenType FlashGrenades = new(FLASH_GRENADES_ID);
+    public static readonly TokenType DoubleShots = new(DOUBLE_SHOTS_ID);
+    public static readonly TokenType CoveredInBlood = new(COVERED_IN_BLOOD_ID);
+    public static readonly TokenType BootsAdvance = new(BOOTS_ADVANCE_ID);
+    public static readonly TokenType BootsRush = new(BOOTS_RUSH_ID);
+    public static readonly TokenType DeepRage = new(DEEP_RAGE_ID);
 }

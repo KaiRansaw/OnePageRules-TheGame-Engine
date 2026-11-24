@@ -10,7 +10,8 @@ namespace FDG.Stages
         public static float GetMaxMoveDistance(List<ModelMoveEntry> moves)
         {
             Dictionary<ModelMoveEntry, float> distances = GetTotalMoveDistances(moves);
-            return distances.Values.Max();
+            // Empty when the unit has no living model left (killed as it activated) - it moved nowhere.
+            return distances.Count == 0 ? 0f : distances.Values.Max();
         }
 
         /// <summary>
