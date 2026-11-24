@@ -166,7 +166,9 @@ namespace FDG.Stages
             // Battlefield Effects - Muddy Terrain: "The entire table counts as Difficult Terrain" (the book's 6").
             bool countsAsDifficult =
                 (MovementRuleQueries.CountsAsInTerrain(unit, GameContext.RuleEvaluator, ECountAsTerrain.Difficult)
-                 || BattlefieldEffects.WholeTableDifficult(GameContext))
+                 || BattlefieldEffects.WholeTableDifficult(GameContext)
+                 // Battlefield Effects - Gravity Field: "Units within 3" of this objective count as being inside Difficult Terrain".
+                 || BattlefieldEffects.InGravityField(GameContext, unit))
                 && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit);
             float difficultCap = GameWideConstants.BookDifficultTerrainMoveCapInches;
             if (countsAsDifficult)

@@ -27,6 +27,10 @@ namespace FDG
         public int DarkSkies { get; set; }
         /// <summary>The condition has been settled (rolled or picked) - only once per game.</summary>
         public bool Settled { get; set; }
+        /// <summary>Terrain &amp; Objective Effects: each terrain piece's rolled effect (index in the table's terrain -> 1-6).</summary>
+        public Dictionary<int, int> TerrainEffects { get; set; } = new();
+        /// <summary>Terrain &amp; Objective Effects: each objective's rolled effect (position key -> 1-6).</summary>
+        public Dictionary<string, int> ObjectiveEffects { get; set; } = new();
     }
 
     /// <summary>
@@ -35,7 +39,7 @@ namespace FDG
     /// selected randomly. First roll a D3 to select a condition type: 1-2 None, 3-4 Geological, 5-6 Mysterious. Then roll
     /// one die." Judgement calls: house rules C, "Special Conditions readings".
     /// </summary>
-    public static class BattlefieldEffects
+    public static partial class BattlefieldEffects
     {
         public const string SpecialConditions = "Special Conditions";
         public const int PickShift = 20;
@@ -44,6 +48,7 @@ namespace FDG
         public static readonly IReadOnlyList<(string Name, EAdvancedRules Flag)> All = new (string, EAdvancedRules)[]
         {
             (SpecialConditions, EAdvancedRules.SpecialConditions),
+            (TerrainAndObjectives, EAdvancedRules.TerrainObjectiveEffects),
         };
 
         public const int Earthquake = 1, HeavyStorm = 2, MuddyTerrain = 3, SmellOfDeath = 4, ZeroGravity = 5, DarkSkies = 6,
@@ -89,12 +94,14 @@ namespace FDG
 
         public static string BookText(string name) => name switch
         {
+            TerrainAndObjectives => TerrainBookText,
             SpecialConditions => "Before the game, you can either pick one of the conditions of your choice, or have it selected randomly. First roll a D3 to select a condition type: 1-2 = None, 3-4 = Geological, 5-6 = Mysterious. Then roll one die, and check which special condition you get.\nGeological: 1 Earthquake, 2 Heavy Storm, 3 Muddy Terrain, 4 Smell of Death, 5 Zero Gravity / Magical Winds, 6 Dark Skies.\nMysterious: 1 Damnation, 2 Arcane Power, 3 Inspiration, 4 Deadly Vortex, 5 Mystical Fog, 6 Sinister Echoes.",
             _ => "",
         };
 
         public static string GameText(string name) => name switch
         {
+            TerrainAndObjectives => TerrainGameText,
             SpecialConditions => "Pick one below, or leave it on \"Roll for it\" (the book's D3, then a die). The condition is announced at the start of round 1 and shown on the Mission panel. Zero Gravity: after an Advance or Rush the unit drifts on the rolled distance, straight ahead (stopping at obstacles); a charge reaches that much further. Damnation: each player is asked at the start of every round; a bot sacrifices its unit with the most wounds left.",
             _ => "",
         };
@@ -193,6 +200,7 @@ namespace FDG
         /// <summary>A unit activates: keep the globals right, and Deadly Vortex's die.</summary>
         public static async Task OnActivation(IGameContext c, IUnit unit)
         {
+            await TerrainOnActivation(c, unit);
             if (Condition(c) == 0) return;
             ApplyGlobals(c);
             if (unit.Tokens.GetTokenCount(TokenType.DarkSkies) != (Is(c, DarkSkies) ? State(c)?.DarkSkies ?? 0 : 0)) RefreshUnits(c);

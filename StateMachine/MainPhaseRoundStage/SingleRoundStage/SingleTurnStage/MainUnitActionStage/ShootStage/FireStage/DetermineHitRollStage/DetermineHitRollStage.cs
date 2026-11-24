@@ -196,7 +196,10 @@ namespace FDG.Stages
                 float extraDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _,
                     includeVertical: true);
                 IReadOnlyList<GrantedModifier> extra = ExtraActions.HitModifiers(attacker, defender,
-                    metaData.IsMelee, metaData.IsSpell, extraDistance, GameContext.Settings);
+                    metaData.IsMelee, metaData.IsSpell, extraDistance, GameContext.Settings)
+                    // Battlefield Effects - terrain & objective effects (Vigor, Barbed Wire, Defensive Barrier, Holy Monument).
+                    .Concat(BattlefieldEffects.HitModifiers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
+                    .ToList();
                 if (extra.Count > 0)
                 {
                     results.HitRollNeeded -= ExtraActions.Net(extra);

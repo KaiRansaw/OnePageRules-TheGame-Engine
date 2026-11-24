@@ -28,7 +28,7 @@ namespace FDG.Tests
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.GameSystem = system;
-            settings.AdvancedRules = BattlefieldEffects.WithPick(EAdvancedRules.SpecialConditions, condition);
+            settings.AdvancedRules = BattlefieldEffects.WithPick(EAdvancedRules.SpecialConditions | EAdvancedRules.TerrainObjectiveEffects, condition);
             _context = new TestGameContext(_store, new FixedFaceDiceRoller(face), settings: settings,
                 playerRequester: answer == null ? null : new Answer(answer));
             _me = new PlayerID(Guid.NewGuid());
@@ -206,6 +206,58 @@ namespace FDG.Tests
             Assert.That(me.Models[0].Position.x, Is.EqualTo(13f).Within(0.01f));
             await BattlefieldEffects.OnActivation(_context, me);
             Assert.That(BattlefieldEffects.ChargeBonus(me), Is.EqualTo(12f), "2D6 of 6s");
+        }
+
+        [Test]
+        public async Task EnteringAPiece_RollsItsEffect_Once_AndSporesHurt()
+        {
+            Build(0, face: 4);   // terrain die 4 = Deadly Spores; 2D3 of 2s = 4 hits; Defense rolls of 4 save (Def 4+)
+            _store.Create(new TerrainData(ETerrainType.Cover, new RectangularZone(12f, 16f, 8f, 12f)));
+            UnitData me = Unit(_me, new Position(14f, 10f), models: 3);
+            var moves = new List<(Position, IReadOnlyList<Position>)> { (new Position(8f, 10f), new List<Position> { new(14f, 10f) }) };
+            await BattlefieldEffects.AfterMove(_context, me, moves);
+            ITerrain piece = _context.TableState.Terrain.Objects.Single();
+            Assert.That(BattlefieldEffects.TerrainEffect(_context, piece), Is.EqualTo(BattlefieldEffects.DeadlySpores));
+            Assert.That(BattlefieldEffects.State(_context)!.TerrainEffects.Count, Is.EqualTo(1));
+            Assert.That(Alive(me), Is.EqualTo(3), "4 hits, every Defense roll a 4 - all saved");
+        }
+
+        [Test]
+        public async Task Vigor_BarbedWire_Barrier_Monument_ChangeHitRolls()
+        {
+            Build(0, face: 5);   // terrain 5 = Vigor, objective 5 = Defensive Barrier
+            _store.Create(new TerrainData(ETerrainType.Cover, new RectangularZone(8f, 12f, 8f, 12f)));
+            _store.Create(new ObjectiveData(new Position(30f, 10f), _store));
+            UnitData me = Unit(_me, new Position(10f, 10f));
+            UnitData them = Unit(_them, new Position(31f, 10f));
+            await BattlefieldEffects.AfterMove(_context, me, new List<(Position, IReadOnlyList<Position>)> { (new Position(5f, 10f), new List<Position> { new(10f, 10f) }) });
+            _context.TableState.Objectives.Objects.Single().SetOwner(_them);
+            await BattlefieldEffects.AfterObjectives(_context);
+            var mods = BattlefieldEffects.HitModifiers(_context, me, them, melee: false, spell: false, charging: false);
+            Assert.That(mods.Select(m => (m.Source, m.Delta)), Is.EquivalentTo(new[] { ("Psychic Vigor", 1), ("Defensive Barrier", -1) }));
+            Assert.That(BattlefieldEffects.HitModifiers(_context, me, them, melee: false, spell: true, charging: false), Is.Empty);
+        }
+
+        [Test]
+        public async Task GravityField_And_BoobyTraps_NearTheMarker()
+        {
+            Build(0, face: 4);   // objective 4 = Gravity Field
+            _store.Create(new ObjectiveData(new Position(30f, 10f), _store));
+            UnitData near = Unit(_me, new Position(32f, 10f));
+            UnitData far = Unit(_me, new Position(40f, 10f));
+            _context.TableState.Objectives.Objects.Single().SetOwner(_me);
+            await BattlefieldEffects.AfterObjectives(_context);
+            Assert.That(BattlefieldEffects.InGravityField(_context, near), Is.True);
+            Assert.That(BattlefieldEffects.InGravityField(_context, far), Is.False);
+        }
+
+        [Test]
+        public void TheTables_AreReadForTheGame()
+        {
+            Assert.That(BattlefieldEffects.TerrainEffectName(3, EGameSystem.AoFSkirmish), Is.EqualTo("Daemonic Infestation"));
+            Assert.That(BattlefieldEffects.TerrainEffectName(6, EGameSystem.GrimdarkFuture), Is.EqualTo("Barbed Wire"));
+            Assert.That(BattlefieldEffects.ObjectiveEffectName(4, EGameSystem.AgeOfFantasy), Is.EqualTo("Magical Field"));
+            Assert.That(BattlefieldEffects.TerrainEffectName(2, EGameSystem.GrimdarkFuture), Is.EqualTo("Regular Terrain"));
         }
     }
 }

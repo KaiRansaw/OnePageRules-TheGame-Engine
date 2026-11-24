@@ -55,6 +55,8 @@ namespace FDG.Stages
             List<ITerrain> ground = GameContext.TableState.Terrain.Objects.ToList();
             ITerrain? buildingBefore = ground.Any(SolidBuildings.Is) ? SolidBuildings.Holding(movingUnit, ground) : null;
             List<Position> zeroGravityStarts = movingUnit.Models.Where(m => m.GetIsAlive()).Select(m => m.Position).ToList();
+            var terrainMoves = paths.Where(p => p.Positions.Count > 0)
+                .Select(p => (From: p.Model.GetValue().Position, Path: (IReadOnlyList<Position>)p.Positions.ToList())).ToList();
             MovementExecutor.CommitPositions(paths);
             if (climbLine != null) GameContext.Log(climbLine);
             // Solid buildings (2026-11-22): say when a unit goes in or comes out, for the battle report.
@@ -117,6 +119,9 @@ namespace FDG.Stages
             // Battlefield Effects - Zero Gravity: the unit carries on straight ahead (+D3" after an Advance, +2D6" after
             // a Rush); a move that ends in contact - a charge - does not drift.
             await BattlefieldEffects.Drift(GameContext, movingUnit, zeroGravityStarts, resolvedAction == Rules.Definitions.EActionType.Rush);
+            // Battlefield Effects - terrain effects: rolled the first time a unit enters a piece; Infestation / Spores /
+            // Booby Traps on the way through.
+            await BattlefieldEffects.AfterMove(GameContext, movingUnit, terrainMoves);
 
             await OnMoveExecuted.Activate(context);
         }
