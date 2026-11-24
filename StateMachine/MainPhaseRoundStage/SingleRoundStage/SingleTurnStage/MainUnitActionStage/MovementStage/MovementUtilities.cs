@@ -966,6 +966,10 @@ namespace FDG.Stages
                 .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible))
                 .ToList(), ELegAttitudeRule.EitherAttitudeClears);
 
+        /// <summary>Whether the move's swept path touches any of <paramref name="pieces"/> (Command Points - Hindered Advance).</summary>
+        public static bool DoesPathCrossAnyOf(ModelMoveEntry move, IEnumerable<ITerrain> pieces) =>
+            DoesPathCrossTerrainPieces(move, pieces.ToList());
+
         private static bool DoesPathCrossTerrainPieces(ModelMoveEntry move, List<ITerrain> pieces)
             => FindFirstTerrainCrossing(move, pieces, ELegAttitudeRule.ArrivingAttitude) != null;
 

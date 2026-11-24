@@ -54,6 +54,11 @@ namespace FDG.Stages
                     throw new Exception($"Tried to deal {woundsToDeal} to a model with only {modelRemainingWounds} left.");
                 }
 
+                // Command Points - Eternal Vigilance: a wound that would kill the model is ignored on a 4+.
+                if (woundsToDeal >= 1f && woundsToDeal >= modelRemainingWounds - 0.0001f
+                    && await CommandPoints.OfferEternalVigilance(GameContext, defendingUnit, model))
+                    woundsToDeal -= 1f;
+
                 model.DealWounds(woundsToDeal);
                 totalWoundsApplied += woundsToDeal;
 

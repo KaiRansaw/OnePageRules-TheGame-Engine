@@ -68,6 +68,13 @@ namespace FDG.Stages
                     objective.SetOwner(null);
                     GameContext.Log($"  Objective contested - becomes neutral.");
                 }
+                else if (objective.OwnerID is { } holder && !tableState.Teams.Objects.Any(t => t.IsPlayerOnTeam(holder) && t.IsPlayerOnTeam(resolved.Value))
+                    && await CommandPoints.OfferTotalShutdown(GameContext, holder, resolved.Value))
+                {
+                    // Command Points - Total Shutdown: "which becomes neutral instead".
+                    objective.SetOwner(null);
+                    GameContext.Log($"  Objective about to be seized - Total Shutdown makes it neutral.");
+                }
                 else
                 {
                     // Unconditional SetOwner + "seized" wording even when the owner is unchanged -

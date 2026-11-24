@@ -75,6 +75,7 @@ public readonly record struct TokenType(string Id)
     public const string CP_DISRUPTED_SIGHT_ID = "CpDisruptedSight";
     public const string CP_PUSH_FORWARD_ID = "CpPushForward";
     public const string CP_SWEEPING_MOVE_ID = "CpSweepingMove";
+    public const string CP_COMBAT_FATIGUE_ID = "CpCombatFatigue";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -464,4 +465,5 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType CpDisruptedSight = new(CP_DISRUPTED_SIGHT_ID);
     public static readonly TokenType CpPushForward = new(CP_PUSH_FORWARD_ID);
     public static readonly TokenType CpSweepingMove = new(CP_SWEEPING_MOVE_ID);
+    public static readonly TokenType CpCombatFatigue = new(CP_COMBAT_FATIGUE_ID);
 }

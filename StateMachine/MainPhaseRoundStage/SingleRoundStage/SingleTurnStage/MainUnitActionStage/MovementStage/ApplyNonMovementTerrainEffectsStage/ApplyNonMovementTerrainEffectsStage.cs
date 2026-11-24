@@ -47,6 +47,12 @@ namespace FDG.Stages
                 dangerTerrain = startedIn;
             }
 
+            // Command Points - Hindered Advance: an opponent may make the terrain this unit moves through count as
+            // Dangerous for this move.
+            if (!ignoresDangerousTerrain && !countsAsInDangerousTerrain
+                && await CommandPoints.OfferHinderedAdvance(GameContext, movingUnit.GetValue(), paths, context.RelevantTerrain))
+                countsAsInDangerousTerrain = true;
+
             MovementExecutor.DangerousTerrainResult dangerResult =
                 MovementExecutor.RollDangerousTerrain(GameContext, paths, dangerTerrain,
                     movingUnit.GetValue(), ignoresDangerousTerrain, countsAsInDangerousTerrain);

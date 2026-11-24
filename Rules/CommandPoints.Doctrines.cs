@@ -114,7 +114,7 @@ namespace FDG
         private static readonly TokenType[] ActivationTokens =
         {
             TokenType.CpLightningReflexes, TokenType.CpHeightenedSenses, TokenType.CpDisruptedSight,
-            TokenType.CpPushForward, TokenType.CpSweepingMove,
+            TokenType.CpPushForward, TokenType.CpSweepingMove, TokenType.CpCombatFatigue,
         };
 
         /// <summary>The end of a unit activation: the "for that shooting / movement" stratagems end.</summary>
@@ -141,11 +141,14 @@ namespace FDG
                 yield return ($"{PushForward} (1 CP)", PushForward, "Command Points: Advance or Rush with +2\" to the move.");
             if (canCharge && Can(c, unit.PlayerID, SweepingMove) && HasDoctrine(c, unit.PlayerID, SweepingMove))
                 yield return ($"{SweepingMove} (1 CP)", SweepingMove, "Command Points: Charge with +4\" to the move.");
+            if (CanTacticalRetreat(c, unit))
+                yield return ($"{TacticalRetreat} (3 CP)", TacticalRetreat,
+                    "Command Points: fall back 2D3+2\" directly away from the closest enemy, then carry on with this activation.");
         }
 
         /// <summary>Whether an action-menu entry is one of these (bots leave them alone).</summary>
         public static bool IsMoveOption(string option) =>
-            option == $"{PushForward} (1 CP)" || option == $"{SweepingMove} (1 CP)";
+            option == $"{PushForward} (1 CP)" || option == $"{SweepingMove} (1 CP)" || option == $"{TacticalRetreat} (3 CP)";
 
         /// <summary>The move option was picked: spend it and mark the unit.</summary>
         public static bool TakeMoveOption(IGameContext c, IUnit unit, string stratagem)

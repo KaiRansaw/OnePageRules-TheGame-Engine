@@ -697,6 +697,15 @@ namespace FDG.Stages
                     if (outcomes.ContainsKey(option)) continue;
                     validOptions.Add(option);
                     optionDescriptions[option] = text;
+                    if (stratagem == CommandPoints.TacticalRetreat)
+                    {
+                        outcomes.Add(option, async () =>
+                        {
+                            await CommandPoints.TakeTacticalRetreat(GameContext, cpUnit);
+                            await Enter(context);
+                        });
+                        continue;
+                    }
                     outcomes.Add(option, () =>
                     {
                         if (!CommandPoints.TakeMoveOption(GameContext, cpUnit, stratagem)) return Enter(context);

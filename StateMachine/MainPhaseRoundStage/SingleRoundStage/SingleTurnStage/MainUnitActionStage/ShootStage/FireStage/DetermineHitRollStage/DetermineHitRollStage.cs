@@ -136,6 +136,9 @@ namespace FDG.Stages
             // #020 Fatigue: a unit that has already charged or struck back this round — or that is Shaken
             // (#089) — hits only on unmodified 6s in melee, ignoring all modifiers. Computed up front so the
             // one-shot grant consumption below can skip itself rather than spending a buff for no effect.
+            // Command Points - Combat Fatigue: an opponent may try to make the striker count as Fatigued for this melee.
+            if (metaData.IsMelee && !metaData.IsSpell && !FatigueUtilities.CountsAsFatiguedInMelee(attacker))
+                await CommandPoints.OfferCombatFatigue(GameContext, attacker);
             bool fatiguedInMelee = metaData.IsMelee && FatigueUtilities.CountsAsFatiguedInMelee(attacker);
 
             // #033 granted "+X to hit" buffs on the attacker (one-shot / duration) fold in with the same

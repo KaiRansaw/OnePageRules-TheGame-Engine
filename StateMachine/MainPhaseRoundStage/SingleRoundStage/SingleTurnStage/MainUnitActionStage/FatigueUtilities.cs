@@ -15,6 +15,8 @@ namespace FDG.Stages
         public static void ApplyFatigued(IUnit unit)
         {
             if (unit.Tokens.HasToken(TokenType.Fatigued)) return;
+            // Command Points - Combat Fatigue: "counts as Fatigued for that melee, but doesn't get Fatigued from that melee".
+            if (unit.Tokens.HasToken(TokenType.CpCombatFatigue)) return;
 
             unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Fatigued));
         }
@@ -24,7 +26,8 @@ namespace FDG.Stages
         /// which always counts as fatigued in melee.
         /// </summary>
         public static bool CountsAsFatiguedInMelee(IUnit unit)
-            => unit.Tokens.HasToken(TokenType.Fatigued) || unit.Tokens.HasToken(TokenType.Shaken);
+            => unit.Tokens.HasToken(TokenType.Fatigued) || unit.Tokens.HasToken(TokenType.Shaken)
+               || unit.Tokens.HasToken(TokenType.CpCombatFatigue);
 
         /// <summary>
         /// #414 - the second half of the 3.6.0 Fatigue rule: *"units hit on unmodified rolls of 6 in

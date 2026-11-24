@@ -391,5 +391,93 @@ namespace FDG.Tests
             Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.Shaken), Is.True);
             Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(2));
         }
+
+        // ================================================================= doctrine stratagems, second half
+
+        private void Place(UnitData unit, float x, float z) =>
+            unit.Models.OfType<ModelData>().First().SetPosition(new Position(x, z));
+
+        [Test]
+        public async Task CombatFatigue_OnAFour_CountsAsFatigued_ButLeavesNoFatigue()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 5));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 3);                               // they have Shock
+            await CommandPoints.OfferCombatFatigue(_context, _myUnit);
+            Assert.That(FDG.Stages.FatigueUtilities.CountsAsFatiguedInMelee(_myUnit), Is.True);
+            FDG.Stages.FatigueUtilities.ApplyFatigued(_myUnit);
+            Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.Fatigued), Is.False, "doesn't get Fatigued from that melee");
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(2));
+            CommandPoints.EndOfActivation(_context);
+            Assert.That(FDG.Stages.FatigueUtilities.CountsAsFatiguedInMelee(_myUnit), Is.False, "for that melee only");
+
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 3));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 3);
+            await CommandPoints.OfferCombatFatigue(_context, _myUnit);
+            Assert.That(FDG.Stages.FatigueUtilities.CountsAsFatiguedInMelee(_myUnit), Is.False, "a 3: no effect, CP still spent");
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(2));
+        }
+
+        [Test]
+        public async Task EternalVigilance_IgnoresTheKillingWoundOnAFour()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 4, 3));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 2, theirs: 1);
+            IModel m = _myUnit.Models.First();
+            Assert.That(await CommandPoints.OfferEternalVigilance(_context, _myUnit, m), Is.True);
+            CommandPoints.NewActivation(_context);
+            Assert.That(await CommandPoints.OfferEternalVigilance(_context, _myUnit, m), Is.False, "a 3");
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(6));
+            Assert.That(await CommandPoints.OfferEternalVigilance(_context, _theirUnit, _theirUnit.Models.First()), Is.False, "not their doctrine");
+        }
+
+        [Test]
+        public async Task TotalShutdown_AndHinderedAdvance_BelongToTheirDoctrines()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 6, theirs: 1);
+            Assert.That(await CommandPoints.OfferTotalShutdown(_context, _me, _them), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(5));
+            Assert.That(await CommandPoints.OfferTotalShutdown(_context, _them, _me), Is.False, "Strategic has no Total Shutdown");
+            Assert.That(await CommandPoints.OfferHinderedAdvance(_context, _myUnit, Array.Empty<FDG.StageResolution.Requests.ModelMoveEntry>(),
+                Array.Empty<ITerrain>()), Is.False, "no terrain crossed - nothing to offer");
+        }
+
+        [Test]
+        public async Task TacticalRetreat_MovesDirectlyAway_WhenAnEnemyIsWithin12()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 6, 6));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 2, theirs: 1);
+            Place(_myUnit, 30f, 20f);
+            Place(_theirUnit, 30f, 40f);
+            Assert.That(CommandPoints.CanTacticalRetreat(_context, _myUnit), Is.False, "the enemy is 20\" away");
+            Place(_theirUnit, 30f, 28f);
+            Assert.That(CommandPoints.CanTacticalRetreat(_context, _myUnit), Is.True);
+            Assert.That(CommandPoints.MoveOptions(_context, _myUnit, canMove: false, canCharge: false).Select(o => o.Stratagem),
+                Does.Contain(CommandPoints.TacticalRetreat));
+            await CommandPoints.TakeTacticalRetreat(_context, _myUnit);       // 2D3+2 = 3+3+2 = 8"
+            Assert.That(_myUnit.Models.First().Position.z, Is.EqualTo(12f).Within(0.01f), "straight away from the enemy");
+            Assert.That(_myUnit.Models.First().Position.x, Is.EqualTo(30f).Within(0.01f));
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(5));
+        }
+
+        [Test]
+        public async Task MinimizeLosses_StopsAtTheTableEdge()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 6, 6, 6, 6));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 5, theirs: 1);
+            Place(_myUnit, 30f, 5f);
+            Place(_theirUnit, 30f, 12f);
+            await CommandPoints.OfferMinimizeLosses(_context, _myUnit);       // 4D3+4 = 16", but the edge is ~4.5" away
+            float r = _myUnit.Models.First().BaseShape.CircumscribedRadiusInches;
+            Assert.That(_myUnit.Models.First().Position.z, Is.EqualTo(r).Within(0.05f), "stops at the edge, never leaves the table");
+            Assert.That(_myUnit.GetIsAlive(), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7));
+        }
     }
 }

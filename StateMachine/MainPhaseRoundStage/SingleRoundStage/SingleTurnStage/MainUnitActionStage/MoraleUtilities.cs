@@ -493,6 +493,8 @@ namespace FDG.Stages
                     EBannerTier.Notice));
             // Battlefield Effects - Sinister Echoes: "When a unit is Shaken, it also takes D3 wounds."
             await BattlefieldEffects.OnShaken(gameContext, unitBinding.GetValue());
+            // Command Points - Minimize Losses: "may move up to 4D3+4\" directly away from the closest enemy".
+            await CommandPoints.OfferMinimizeLosses(gameContext, unitBinding.GetValue());
 
             // #197 P17c Reinforcement: "when a unit where all models have this rule is Shaken ... you may
             // remove it from the table as destroyed and place a new copy ..." - the offer rides the
