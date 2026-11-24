@@ -19,11 +19,15 @@ namespace FDG.Stages
         // straight to end-of-turn, skipping activation - the unit stays in the pool for a later turn.
         public StageBinding ToDelayedTurnEnd;
 
+        /// <summary>Political Intrigue - Industry: the directive's shooting, then the end of the turn.</summary>
+        public StageBinding ToDirectiveShot;
+
         public ChooseUnitToActivateStage(IGameContext gameContext, IStateMachineLayer<ISingleTurnContext> parent)
             : base(gameContext, parent)
         {
             ToMainUnitAction = new StageBinding(this);
             ToDelayedTurnEnd = new StageBinding(this);
+            ToDirectiveShot = new StageBinding(this);
         }
 
         public override async Task Enter(ISingleTurnContext context)
@@ -67,6 +71,20 @@ namespace FDG.Stages
                 context.MarkTurnDelayed();
                 await ToDelayedTurnEnd.Activate(context);
                 return;
+            }
+
+            // Political Intrigue: a directive instead of activating a unit (the unit stays in the pool, as a Delayed Action).
+            switch (await PoliticalIntrigue.Offer(GameContext, context.ActivatedPlayer, round,
+                        context.PlayerUnactivatedUnits.Any(u => u.GetValue().GetIsAlive())))
+            {
+                case PoliticalIntrigue.EOutcome.Used:
+                    context.MarkTurnDelayed();
+                    await ToDelayedTurnEnd.Activate(context);
+                    return;
+                case PoliticalIntrigue.EOutcome.Shoot:
+                    context.MarkTurnDelayed();
+                    await ToDirectiveShot.Activate(context);
+                    return;
             }
 
             // Fog of War - Shifting Focus: only units in the rolled table section may be picked.

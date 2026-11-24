@@ -146,6 +146,9 @@ namespace FDG
         /// <summary>Command Points (Advanced Rulebooks): playstyle, doctrines and each player's CP. Null outside them.</summary>
         public FDG.CommandPointsState? CommandPoints { get; set; }
 
+        /// <summary>Political Intrigue (Advanced Rulebooks, GF / AoF): directives used this round. Null outside it.</summary>
+        public FDG.PoliticalIntrigueState? PoliticalIntrigue { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

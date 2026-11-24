@@ -62,6 +62,7 @@ namespace FDG.Stages
                 .AddChild(new ChooseUnitToActivateStage(GameContext, this), out var chooseUnitToActivateStage)
                 .AddChild(new MainUnitActionStage(GameContext, this), out var mainUnitActionStage)
                 .AddChild(new ReconcileEndOfActivationStage(GameContext, this), out var reconcileEndOfActivationStage)
+                .AddChild(new DirectiveShootStage(GameContext, this), out var directiveShootStage)
                 .AddSibling(nameof(OnTurnFinished), OnTurnFinished, out string turnFinishedEventName)
                 .Build();
 
@@ -72,6 +73,10 @@ namespace FDG.Stages
             // (ActivatedUnit-null-safe) reconcile stage. ReconcileChildContextBeforeLeaving then skips
             // MarkUnitAsActivated for the delayed turn, leaving the unit in the pool for a later turn.
             chooseUnitToActivateStage.ToDelayedTurnEnd.Bind(reconcileEndOfActivationStage.Name);
+            // Political Intrigue - Industry: a directive's shooting is a delayed turn with a shot in it.
+            chooseUnitToActivateStage.ToDirectiveShot.Bind(directiveShootStage.Name);
+            directiveShootStage.OnShotDone.Bind(directiveShootStage.Name);
+            directiveShootStage.ToFinished.Bind(reconcileEndOfActivationStage.Name);
             mainUnitActionStage.ToReconcileEndOfActivation.Bind(reconcileEndOfActivationStage.Name);
             // #248: a pristine activation was backed out — return to unit selection. Stays inside this
             // stage (no turn-end reconcile fires), the unit remains unactivated in the pool, and the next
