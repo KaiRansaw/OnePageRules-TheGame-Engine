@@ -28,8 +28,10 @@ namespace FDG.StageResolution.Requests
         /// <paramref name="Description"/> summarizes the effect, shown as subtext. Non-castable entries
         /// (unaffordable, or no legal target) are display-only, with <paramref name="UnavailableReason"/>
         /// saying why — replying with one is treated as a cancel.</summary>
+        /// <param name="Needed">Advanced Casting - 2D6 Casting: what this spell needs on two dice before boosts (7, or 10
+        /// outside a Spell Book). Null for the ordinary one-die cast, which uses <see cref="BaseThreshold"/>.</param>
         public record SpellOption(string Label, string Description, int Cost, bool Castable,
-            string? UnavailableReason);
+            string? UnavailableReason, int? Needed = null);
 
         /// <summary>One Spell Conduit in range: whose it is and what it adds to the roll when a cast is
         /// made from its position.</summary>

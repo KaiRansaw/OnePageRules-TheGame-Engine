@@ -105,6 +105,14 @@ namespace FDG.Stages
                 return;
             }
 
+            // Advanced Casting: a backlash ends the caster's casting "until the end of the round".
+            if (AdvancedCasting.IsBacklashed(GameContext, caster))
+            {
+                GameContext.Log($"{caster.Name}: {AdvancedCasting.BacklashedReason}");
+                await OnFinished.Activate(context);
+                return;
+            }
+
             // Only castable spells are selectable: affordable AND with at least one legal target. Gating on
             // castability here (and the same way in ChooseActionStage.GetCanCast) is what keeps a no-target
             // cast from looping forever under a deterministic resolver — the same reason
@@ -278,9 +286,26 @@ namespace FDG.Stages
             //    keeps it a single decisive comparison. The shared clamp keeps the GDF core principle (a
             //    natural 1 always fails, a natural 6 always succeeds - [2, 6]) no matter how far
             //    boost/assists (or hinders) swing the roll, same as the hit/save/morale sites.
-            int threshold = DiceUtilities.ClampSuccessRollNeeded(CAST_SUCCESS_THRESHOLD - netModifier);
-            IDiceResults castRoll = GameContext.DiceRoller.RollDecisive();
-            bool success = castRoll.AtOrAbove(threshold) >= 1f;
+            // Advanced Casting - 2D6 Casting: two dice, 7+ (10+ outside a Spell Book), 12 always casts and 2 always
+            // fails, and doubles are a backlash whatever the result.
+            bool twoD6 = AdvancedCasting.TwoD6On(GameContext);
+            int baseNeeded = AdvancedCasting.BaseNeeded(GameContext, caster, chosen.Name, CAST_SUCCESS_THRESHOLD);
+            int threshold = twoD6 ? AdvancedCasting.ClampTwoD6(baseNeeded - netModifier)
+                : DiceUtilities.ClampSuccessRollNeeded(CAST_SUCCESS_THRESHOLD - netModifier);
+            IDiceResults castRoll = null;
+            int dieA = 0, dieB = 0;
+            bool success;
+            if (twoD6)
+            {
+                dieA = GameContext.DiceRoller.RollDecisiveFace();
+                dieB = GameContext.DiceRoller.RollDecisiveFace();
+                success = dieA + dieB >= threshold;
+            }
+            else
+            {
+                castRoll = GameContext.DiceRoller.RollDecisive();
+                success = castRoll.AtOrAbove(threshold) >= 1f;
+            }
 
             // Star Quest Tinkered Luck: the caster may re-roll a failed cast, or a hero whose counter-spell
             // didn't stop the cast may re-roll it.
@@ -288,31 +313,40 @@ namespace FDG.Stages
                 : assistResult.Hinderers.FirstOrDefault(h => QuestFlags.Take(GameContext, h, QuestFlags.Tinkered) != null);
             if (luckyRoller != null)
             {
-                await GameContext.Presenter.Present(DiceRolledBeat.FromDecisive(castRoll, threshold,
-                    "Roll to Cast", success ? "Cast!" : "Failed", category: ERollBeatCategory.Magic));
+                await PresentCastRoll(castRoll, dieA, dieB, threshold, success);
                 await GameContext.Announce($"Tinkered Luck: {luckyRoller.Name} re-rolls the casting roll.", AssistBannerColor, EBannerTier.Toast);
-                castRoll = GameContext.DiceRoller.RollDecisive();
-                success = castRoll.AtOrAbove(threshold) >= 1f;
+                if (twoD6)
+                {
+                    dieA = GameContext.DiceRoller.RollDecisiveFace();
+                    dieB = GameContext.DiceRoller.RollDecisiveFace();
+                    success = dieA + dieB >= threshold;
+                }
+                else
+                {
+                    castRoll = GameContext.DiceRoller.RollDecisive();
+                    success = castRoll.AtOrAbove(threshold) >= 1f;
+                }
             }
+            bool backlash = twoD6 && dieA == dieB;
 
             // #233 — show the die itself: tumbling roll with the shifted threshold, settling into a short
             // outcome summary. The banner below carries the full math. #289: FromDecisive - the cast die is
             // one concrete face in either roller mode, so it draws as a die, never an expected-value bar.
-            await GameContext.Presenter.Present(DiceRolledBeat.FromDecisive(castRoll, threshold,
-                "Roll to Cast", success ? "Cast!" : "Failed", category: ERollBeatCategory.Magic));
+            await PresentCastRoll(castRoll, dieA, dieB, threshold, success);
 
             // Spell out the roll so the boost/assist math is visible: what came up, what it needed, and how
             // the base 4+ was shifted. Assisters' own contributions were announced as they spent. The result
             // rides an on-screen text beat: blue on success, red on failure. ASCII only (the log font has no
             // em-dash glyph, #151).
-            string breakdown = BuildRollBreakdown(boost, assist, granted, castOrigin.RollBonus, boostPower);
+            string breakdown = BuildRollBreakdown(boost, assist, granted, castOrigin.RollBonus, boostPower, baseNeeded, twoD6);
             // #414 - the old line called the whole spend "tokens", which is now wrong whenever a hero paid
             // part of the boost with Power. Each currency is counted as itself.
             string tokensSpent = boostTokens > 0
                 ? $"spent {chosen.Threshold + boostTokens} tokens ({chosen.Threshold} cost + {boostTokens} boost)"
                 : $"spent {chosen.Threshold} token{(chosen.Threshold == 1 ? "" : "s")}";
             if (boostPower > 0) tokensSpent += $" and {boostPower} power";
-            string rollDesc = $"rolled {DecisiveFace(castRoll)}, needed {threshold}+{breakdown}; {tokensSpent}";
+            string rolled = twoD6 ? $"{dieA}+{dieB}={dieA + dieB}{(backlash ? " (doubles)" : "")}" : $"{DecisiveFace(castRoll)}";
+            string rollDesc = $"rolled {rolled}, needed {threshold}+{breakdown}; {tokensSpent}";
 
             // #418: AoF: Quest's 2.0.1 book let a hero buy a failed cast back for X*2 power, and that
             // was briefly implemented here. Its 2.1.0 book does not - like GFSQ 2.1.0, it spends power
@@ -321,7 +355,8 @@ namespace FDG.Stages
             // nobody sets: an unreachable rule is the thing this codebase keeps getting bitten by.
             // QuestCastPowerTests pins the absence; WorkItems/418 has the 2.0.1 wording.
             // Battlefield Effects - Arcane Power: "On an unmodified result of 1 ... the caster takes D3 wounds."
-            await BattlefieldEffects.AfterCast(GameContext, caster, DecisiveFace(castRoll));
+            // With 2D6 Casting, the "unmodified 1" is read as the always-failing 2 (house rules C).
+            await BattlefieldEffects.AfterCast(GameContext, caster, twoD6 ? (dieA + dieB == 2 ? 1 : 0) : DecisiveFace(castRoll));
             if (!success)
             {
                 await GameContext.Announce($"{caster.Name} failed to cast {chosen.Name}: {rollDesc}.", CastFailColor);
@@ -330,6 +365,7 @@ namespace FDG.Stages
                     await QuestSpells.OnCounterSucceeded(GameContext, hinderer);
                 // #274 — the spell guttering out on the caster. Always plays on a failure.
                 await PresentSpellVisual(ESpellVisual.CastFailure, casterPositions, chosen.Name);
+                if (backlash) await AdvancedCasting.Backlash(GameContext, caster);
                 await OnFinished.Activate(context);
                 return;
             }
@@ -387,7 +423,7 @@ namespace FDG.Stages
                 await AnnounceEffect(SpellText.DescribeApplied(chosen.Name, dealHits, TargetNames(targets)));
 
                 _pendingRun = new SpellDamageRunContext(context.ActivatingUnit, spellWeapon, dealHits.Count,
-                    targets, individualModel);
+                    targets, individualModel) { Backlash = backlash };
 
                 await base.Enter(context); // loops ResolveSpellDamageStage per target, then OnFinished
                 return;
@@ -398,6 +434,7 @@ namespace FDG.Stages
             if (chosen.Effect is Effect.MoraleTestThen conditional)
             {
                 await ResolveConditionalSpell(caster, chosen, conditional, targets);
+                if (backlash) await AdvancedCasting.Backlash(GameContext, caster);
                 await OnFinished.Activate(context);
                 return;
             }
@@ -413,6 +450,7 @@ namespace FDG.Stages
             // to infer the effect from token chips.
             await AnnounceEffect(SpellText.DescribeApplied(chosen.Name, chosen.Effect, TargetNames(targets)));
             GameContext.Log($"{chosen.Name} affected {targets.Count} unit(s).");
+            if (backlash) await AdvancedCasting.Backlash(GameContext, caster);
             await OnFinished.Activate(context);
         }
 
@@ -544,6 +582,7 @@ namespace FDG.Stages
             Dictionary<string, Transition> dictionary = new TransitionSetBuilder(this)
                 .AddChild(new ResolveSpellDamageStage(GameContext, this), out var resolveSpellDamage)
                 .AddChild(new DetermineMoreSpellTargetsStage(GameContext, this), out var determineMoreTargets)
+                .AddChild(new SpellBacklashStage(GameContext, this), out var backlashStage)
                 .AddSibling(nameof(OnFinished), OnFinished, out string finishedEvent)
                 .Build();
 
@@ -552,7 +591,8 @@ namespace FDG.Stages
             // resolve one target → ask whether more remain → loop back to resolve the next, or finish.
             resolveSpellDamage.OnFinished.Bind(determineMoreTargets);
             determineMoreTargets.ResolveNextTarget.Bind(resolveSpellDamage);
-            determineMoreTargets.ToFinished.Bind(finishedEvent);
+            determineMoreTargets.ToFinished.Bind(backlashStage);
+            backlashStage.OnFinished.Bind(finishedEvent);
 
             return dictionary;
         }
@@ -600,6 +640,9 @@ namespace FDG.Stages
                     offer.Add(new SpellOffer(spell, true, null));
                 }
             }
+            // Spell Books: the book's spells first, so a bot that takes the first castable spell takes one from its book.
+            if (AdvancedCasting.BooksOn(GameContext))
+                offer = offer.OrderBy(o => AdvancedCasting.InBook(GameContext, caster.GetValue(), o.Spell.Name) ? 0 : 1).ToList();
             return offer;
         }
 
@@ -611,9 +654,18 @@ namespace FDG.Stages
             PlayerID player, IReadOnlyList<SpellOffer> offer, int tokens,
             IReadOnlyList<SpellRelay.CastOrigin> origins)
         {
+            bool twoD6 = AdvancedCasting.TwoD6On(GameContext);
+            IUnit casterUnit = casterBinding.GetValue();
             List<ChooseSpellRequest.SpellOption> options = offer
-                .Select(o => new ChooseSpellRequest.SpellOption(SpellOptionLabel(o.Spell),
-                    SpellText.Describe(o.Spell.Definition), o.Spell.Threshold, o.Castable, o.Reason))
+                .Select(o =>
+                {
+                    int needed = AdvancedCasting.BaseNeeded(GameContext, casterUnit, o.Spell.Name, CAST_SUCCESS_THRESHOLD);
+                    string label = SpellOptionLabel(o.Spell);
+                    if (twoD6) label += needed == AdvancedCasting.TwoD6OffBook ? $" - {needed}+ on 2D6, not in book" : $" - {needed}+ on 2D6";
+                    else if (!AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name)) label += " - not in book";
+                    return new ChooseSpellRequest.SpellOption(label, SpellText.Describe(o.Spell.Definition), o.Spell.Threshold,
+                        o.Castable, o.Reason, twoD6 ? needed : null);
+                })
                 .ToList();
 
             // How much the roll could still be hindered after the caster commits — enemy Casters in assist
@@ -640,7 +692,7 @@ namespace FDG.Stages
                 .ToList();
 
             ChooseSpellRequest request = new ChooseSpellRequest(player, casterBinding, tokens,
-                CAST_SUCCESS_THRESHOLD, hinderTokens, options, relays,
+                twoD6 ? AdvancedCasting.TwoD6InBook : CAST_SUCCESS_THRESHOLD, hinderTokens, options, relays,
                 CastPower.Available(casterBinding.GetValue()));
 
             ChooseSpellReply reply = await GameContext.PlayerRequester
@@ -663,10 +715,11 @@ namespace FDG.Stages
         // is the #197 P23 Spell Conduit bonus, listed first because it is the one the player did not ask
         // for by name.
         private static string BuildRollBreakdown(int boost, int assist, int granted, int relay,
-            int boostPower = 0)
+            int boostPower = 0, int baseNeeded = CAST_SUCCESS_THRESHOLD, bool twoD6 = false)
         {
-            if (boost == 0 && assist == 0 && granted == 0 && relay == 0) return "";
-            List<string> parts = new List<string> { $"base {CAST_SUCCESS_THRESHOLD}+" };
+            if (boost == 0 && assist == 0 && granted == 0 && relay == 0)
+                return twoD6 ? $" (2D6, base {baseNeeded}+)" : "";
+            List<string> parts = new List<string> { twoD6 ? $"2D6, base {baseNeeded}+" : $"base {CAST_SUCCESS_THRESHOLD}+" };
             if (relay != 0) parts.Add($"relay +{relay}");
             // #414 - Power is listed as its own part rather than folded into "self", so a hero can read
             // back what the cast actually cost it. Tokens and Power are both +1, but only one of them is
@@ -1025,6 +1078,23 @@ namespace FDG.Stages
 
                 return false;
             }
+        }
+
+        // The cast die, or with 2D6 Casting both dice as one beat (shown as passing when the total casts).
+        private async Task PresentCastRoll(IDiceResults? castRoll, int dieA, int dieB, int threshold, bool success)
+        {
+            if (castRoll != null)
+            {
+                await GameContext.Presenter.Present(DiceRolledBeat.FromDecisive(castRoll, threshold,
+                    "Roll to Cast", success ? "Cast!" : "Failed", category: ERollBeatCategory.Magic));
+                return;
+            }
+            float[] faces = new float[6];
+            faces[dieA - 1] += 1f;
+            faces[dieB - 1] += 1f;
+            string summary = $"{dieA}+{dieB}={dieA + dieB} vs {threshold}+: {(success ? "Cast!" : "Failed")}{(dieA == dieB ? " - Backlash!" : "")}";
+            await GameContext.Presenter.Present(new DiceRolledBeat(faces, 1, success ? 1 : 7, ERandomnessType.Realistic,
+                "Roll to Cast (2D6)", summary, category: ERollBeatCategory.Magic));
         }
 
         private static string SpellOptionLabel(RuntimeSpell spell) => $"{spell.Name} ({spell.Threshold})";

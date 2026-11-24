@@ -143,6 +143,7 @@ namespace FDG.Stages
                     // after the #006 hero-merge, not the host unit — still grants the unit its spell tokens
                     // at round start (#093 joined-Caster corner). A solo caster keeps Caster on the unit and
                     // is unaffected.
+                    int tokensBefore = unit.Tokens.GetTokenCount(TokenType.SpellTokens);
                     IReadOnlyList<RuleOperation> ops = GameContext.RuleEvaluator.Evaluate(
                         unit, ERuleSeat.Actor, new RoundStartContext(unit), weapon: null, models: unit.Models);
                     var services = new GameOperationServices(GameContext);
@@ -152,6 +153,9 @@ namespace FDG.Stages
                     // one decisive roll each), not per-entry executables - see TokenClearRolls.
                     await TokenClearRolls.ResolveAsync(unit, ops, services);
 
+                    // Heavy Backlash - Drained: "lowers its caster level by 1", one fewer token per round per level.
+                    AdvancedCasting.AfterRoundStartGrant(GameContext, unit,
+                        unit.Tokens.GetTokenCount(TokenType.SpellTokens) - tokensBefore);
                     int excess = unit.Tokens.GetTokenCount(TokenType.SpellTokens)
                         - GameWideConstants.MAX_SPELL_TOKENS;
                     if (excess > 0)

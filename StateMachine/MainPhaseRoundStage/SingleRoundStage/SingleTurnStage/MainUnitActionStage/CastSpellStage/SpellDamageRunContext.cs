@@ -45,6 +45,10 @@ namespace FDG.Stages
         }
 
         /// <summary> True while at least one chosen target still needs its damage resolved. </summary>
+        /// <summary>Advanced Casting - 2D6 Casting: the cast rolled doubles, so the caster suffers a backlash once the
+        /// damage has resolved (<see cref="SpellBacklashStage"/>).</summary>
+        public bool Backlash { get; set; }
+
         public bool HasMoreTargets => _cursor < _targets.Count;
 
         /// <summary> Advances to and returns the next target to resolve; callers check

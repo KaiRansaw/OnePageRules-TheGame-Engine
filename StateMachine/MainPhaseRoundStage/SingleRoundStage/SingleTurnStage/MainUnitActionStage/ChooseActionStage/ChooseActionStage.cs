@@ -1249,6 +1249,13 @@ namespace FDG.Stages
                 return false;
             }
 
+            // Advanced Casting: a caster that suffered a backlash "can't cast any more spells until the end of the round".
+            if (AdvancedCasting.IsBacklashed(GameContext, unit))
+            {
+                reasonIfCant = AdvancedCasting.BacklashedReason;
+                return false;
+            }
+
             if (TransportUtilities.IsEmbarked(unit))
             {
                 reasonIfCant = "Embarked; disembark first.";

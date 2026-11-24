@@ -1526,6 +1526,154 @@ namespace FDG.Tests
                 new Effect.MoraleTestThen(new Effect.ApplyFatigue())), Is.False);
         }
 
+        // ---------------------------------------------------------------- Advanced Casting - 2D6 Casting (build 3.34)
+
+        private static TriggeredMoveTestContext TwoD6Context(GameDataStore store, IPlayerRequestByID requester, EGameSystem system,
+            EAdvancedRules extra, params int[] faces)
+        {
+            var ctx = new TriggeredMoveTestContext(store, requester, new FaceRoller(faces));
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameSystem = system;
+            settings.AdvancedRules = EAdvancedRules.TwoD6Casting | extra;
+            ctx.Settings = settings;
+            return ctx;
+        }
+
+        private async Task<bool> Cast(TriggeredMoveTestContext ctx, DataBinding<UnitData> caster)
+        {
+            bool finished = false;
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+            stage.OnFinished.OnWillActivate += _ => finished = true;
+            await stage.Enter(NewActivation(ctx, caster));
+            return finished;
+        }
+
+        [Test]
+        public async Task TwoD6_SevenCasts_SixFails()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 3);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 2, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "4+3 = 7 casts");
+
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 2);
+            caster = MakeCasterUnit(3, 2, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "4+2 = 6 fails - a 4 alone would have cast on one die");
+            Assert.That(AdvancedCasting.IsBacklashed(ctx, caster.GetValue()), Is.False, "no doubles, no backlash");
+        }
+
+        [Test]
+        public async Task TwoD6_Doubles_AreABacklash_EvenOnAFailure()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 3, 3);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 4, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            Assert.That(await Cast(ctx, caster), Is.True);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "3+3 = 6 fails");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2), "4 - 1 cost - 1 lost to the backlash");
+            Assert.That(caster.GetValue().GetIsAlive(), Is.False, "GF: 3 wounds kill the 1-wound caster");
+            Assert.That(AdvancedCasting.IsBacklashed(ctx, caster.GetValue()), Is.True);
+        }
+
+        [Test]
+        public async Task TwoD6_Doubles_OnASuccess_ResolveTheSpellFirst_ThenLockCasting()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.AgeOfFantasy, EAdvancedRules.None, 5, 5);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 4,
+                new[] { SelfBuffSpell("Bless", 1, "Furious"), SelfBuffSpell("Ward", 1, "Stealth") }, new Position(10f, 10f));
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "5+5 casts; the spell resolves");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2), "4 - 1 cost - 1 backlash");
+            Assert.That(caster.GetValue().GetIsAlive(), Is.False, "AoF: 1 wound kills the 1-wound caster");
+        }
+
+        [Test]
+        public async Task Backlashed_CasterCantCastAgainThisRound_ButCanNextRound()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 4, 3, 4, 3);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 4, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            var state = new AdvancedCastingState { Round = 0 };
+            state.Backlashed.Add(AdvancedCasting.Id(caster.GetValue()));
+            AdvancedCasting.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(4), "refused, nothing spent");
+
+            state.Round = -1;   // an earlier round's backlash
+            AdvancedCasting.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(3), "a new round: it casts again");
+        }
+
+        [Test]
+        public async Task TwoD6_DamageSpellDoubles_HitFirst_ThenBacklash()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.None, 6, 6);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 3,
+                new[] { DamageSpell("Bolt", threshold: 2, hits: 1, armorPenetration: 3) }, new Position(10f, 10f));
+            DataBinding<UnitData> enemy = MakeEnemyUnit(new PlayerID(System.Guid.NewGuid()), new Position(12f, 10f));
+            Assert.That(await Cast(ctx, caster), Is.True);
+            Assert.That(enemy.GetValue().GetIsAlive(), Is.False, "the spell resolved");
+            Assert.That(AdvancedCasting.IsBacklashed(ctx, caster.GetValue()), Is.True, "then the backlash, via the damage path's last stage");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(0), "3 - 2 cost - 1 backlash");
+        }
+
+        [Test]
+        public async Task SpellBooks_OffBook_Needs10()
+        {
+            var ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.SpellBooks, 5, 4);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 2, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            var state = new AdvancedCastingState();
+            state.Books[AdvancedCasting.Id(caster.GetValue())] = new List<string> { "Something Else" };
+            AdvancedCasting.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Empty, "5+4 = 9 is short of 10+ outside the book");
+
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ctx = TwoD6Context(_store, new CannedCastRequester(), EGameSystem.GrimdarkFuture, EAdvancedRules.SpellBooks, 5, 4);
+            caster = MakeCasterUnit(3, 2, new[] { SelfBuffSpell("Bless", 1, "Furious") }, new Position(10f, 10f));
+            state = new AdvancedCastingState();
+            state.Books[AdvancedCasting.Id(caster.GetValue())] = new List<string> { "Bless" };
+            AdvancedCasting.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "in the book, 9 clears 7+");
+        }
+
+        [Test]
+        public async Task TwoD6_Twelve_AlwaysCasts_EvenOffBook_WithAHinder()
+        {
+            var requester = new CannedAssistRequester(tokensPerAssister: 3, boostTokens: 0);
+            var ctx = TwoD6Context(_store, requester, EGameSystem.GrimdarkFuture, EAdvancedRules.SpellBooks, 6, 6);
+            DataBinding<UnitData> caster = MakeCasterBinding(_player, 3, 2, new Position(10f, 10f));
+            var army = new ArmyData(_player, new List<DataBinding<UnitData>> { caster });
+            army.SetSpells(new[] { SelfBuffSpell("Bless", 1, "Furious") });
+            _store.Create(army);
+            var enemyPlayer = new PlayerID(System.Guid.NewGuid());
+            DataBinding<UnitData> enemyCaster = MakeCasterBinding(enemyPlayer, 3, 3, new Position(14f, 10f));
+            _store.Create(new ArmyData(enemyPlayer, new List<DataBinding<UnitData>> { enemyCaster }));
+            var state = new AdvancedCastingState();
+            state.Books[AdvancedCasting.Id(caster.GetValue())] = new List<string>();
+            AdvancedCasting.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "a 12 always casts (needed 10 + 3 = 13, clamped to 12)");
+        }
+
+        private sealed class FaceRoller : IDiceRoller
+        {
+            private readonly int[] _faces;
+            private int _i;
+            public FaceRoller(params int[] faces) => _faces = faces;
+            public IDiceResults RollDecisive(int sideCount) => Face(sideCount, _i < _faces.Length ? _faces[_i++] : 4);
+            public IDiceResults Roll(int sideCount, float rollCount) => Face(sideCount, 4, rollCount);
+            private static IDiceResults Face(int sides, int face, float count = 1f)
+            {
+                float[] perSide = new float[sides];
+                perSide[Math.Min(face, sides) - 1] = count;
+                return new DiceResults(perSide);
+            }
+        }
+
         private static RuntimeSpell SelfBuffSpell(string name, int threshold, string grantedRule) =>
             new RuntimeSpell(
                 new SpellDefinition(name, threshold,

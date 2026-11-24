@@ -152,6 +152,9 @@ namespace FDG
         /// <summary>Army Terrain (Advanced Rulebooks): each army's piece. Null outside it.</summary>
         public FDG.ArmyTerrainState? ArmyTerrain { get; set; }
 
+        /// <summary>Advanced Casting (Advanced Rulebooks): spell books, backlashes, Drained casters. Null outside it.</summary>
+        public FDG.AdvancedCastingState? AdvancedCasting { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 
