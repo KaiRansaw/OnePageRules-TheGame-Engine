@@ -1,0 +1,268 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using FDG.Data;
+using FDG.Players;
+using FDG.Presentation.Beats;
+using FDG.Rules.Dispatch;
+using FDG.StageResolution.Requests;
+using FDG.Stages;
+
+namespace FDG
+{
+    /// <summary>One army's terrain piece (two for the twin pieces), saved with the game.</summary>
+    [Serializable]
+    public sealed class ArmyPiece
+    {
+        public string Owner { get; set; } = "";   // player id (Guid)
+        public string Name { get; set; } = "";
+        public float X { get; set; }
+        public float Z { get; set; }
+    }
+
+    [Serializable]
+    public sealed class ArmyTerrainState
+    {
+        public List<ArmyPiece> Pieces { get; set; } = new();
+        /// <summary>The unit activating now and the army terrain it activated near ("Battle Forge", "Icon of War",
+        /// "Army Banner") - "when a friendly unit activates within X" of this army terrain".</summary>
+        public string ActivatingUnit { get; set; } = "";
+        public List<string> ActivationBuffs { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Army Terrain (Advanced Rulebooks 3.6.0, Advanced Terrain: GF p32, AoF p32, GFF p30, AoFS p30 - the same rules in all
+    /// four; GF / GFF call the second table "Relic Terrain" with "Twin Jumpgates", AoF / AoFS "Magic Terrain" with "Twin
+    /// Voidgates"). "Each army to place a special piece of terrain that affects the game in different interesting ways."
+    /// Part 1 (build 3.31): the framework and the Battle Terrain. Judgement calls: house rules C, "Army Terrain readings".
+    /// </summary>
+    public static class ArmyTerrain
+    {
+        public const string Option = "Army Terrain";
+        public const string ArmyBanner = "Army Banner", BattleForge = "Battle Forge", DefensiveBarrier = "Defensive Barrier",
+            IconOfWar = "Icon of War", ProtectiveDome = "Protective Dome", WatchTower = "Watch Tower";
+
+        public static readonly IReadOnlyList<(string Name, string Text)> Battle = new[]
+        {
+            (ArmyBanner, "When a friendly unit activates within 6\" of this army terrain, it gets +2\" when using Advance actions, and +4\" when using Rush/Charge actions."),
+            (BattleForge, "When a friendly unit activates within 6\" of this army terrain, it gets +1 to hit rolls when shooting."),
+            (DefensiveBarrier, "The area within 6\" of this faction terrain counts as Difficult terrain for enemy units."),
+            (IconOfWar, "When a friendly unit activates within 12\" of this army terrain, it gets +1 to hit rolls in melee when charging."),
+            (ProtectiveDome, "The area within 6\" of this faction terrain counts as Cover terrain for friendly units."),
+            (WatchTower, "The area within 6\" of this faction terrain counts as Dangerous terrain for enemy units."),
+        };
+
+        /// <summary>The pieces built so far (Defensive Barrier needs side-aware Difficult terrain in the move checks).</summary>
+        public static readonly HashSet<string> Built = new() { ArmyBanner, BattleForge, IconOfWar, ProtectiveDome, WatchTower };
+
+        public static string TextOf(string name) => Battle.First(b => b.Name == name).Text;
+
+        public const float PieceRadius = 1.5f;   // a 3" round piece: "between 2"x2" and 4"x4""
+        public const float PieceHeight = 3f;     // "between 2" and 4" tall"
+        public const float AreaInches = 6f;
+
+        public static readonly IReadOnlyList<(string Name, EAdvancedRules Flag)> All = new[] { (Option, EAdvancedRules.ArmyTerrain) };
+
+        public static string BookText(string name) =>
+            "Players can choose to play using army terrain, which allows each army to place a special piece of terrain that affects the game in different interesting ways. "
+            + "Before the game begins, each army either picks one army terrain, or rolls to get one randomly. "
+            + "Army terrain pieces should be somewhere between 2\"x2\" and 4\"x4\" in size, and somewhere between 2\" and 4\" tall. Each piece counts as Impassable and Sight Blocking terrain. "
+            + "During deployment, army terrain pieces are placed as if they were a regular unit, but they can't be placed within 6\" of any objective marker, or the table edges.\n"
+            + string.Join("\n", Battle.Select(b => $"{b.Name}: {b.Text}"));
+
+        public static string GameText(string name) =>
+            "Each player picks (or rolls) one piece once the deployment zones are chosen, and places it in their own zone before "
+            + "any unit is deployed. Battle Terrain so far: Army Banner, Battle Forge, Icon of War, Protective Dome, Watch Tower "
+            + "(Defensive Barrier and the second table are still to come). Bots roll.";
+
+        public static bool On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.ArmyTerrain);
+
+        // ---------------------------------------------------------------- state
+
+        private static readonly ConditionalWeakTable<IReadableGameDataStore, ArmyTerrainState> Pending = new();
+
+        public static ArmyTerrainState? State(IReadableGameDataStore store) =>
+            GameProgressUtilities.TryGetProgress(store)?.ArmyTerrain
+            ?? (Pending.TryGetValue(store, out ArmyTerrainState? s) ? s : null);
+
+        internal static void Save(IGameContext c, ArmyTerrainState s)
+        {
+            GameProgressData? progress = GameProgressUtilities.TryGetProgress(c.GameDataStore);
+            if (progress == null)
+            {
+                Pending.Remove(c.GameDataStore);
+                Pending.Add(c.GameDataStore, s);
+                return;
+            }
+            progress.ArmyTerrain = s;
+            GameProgressUtilities.WriteProgress(c.GameDataStore, progress);
+        }
+
+        private static ITeam? TeamOf(IGameContext c, PlayerID p) => c.TableState.Teams.Objects.FirstOrDefault(t => t.IsPlayerOnTeam(p));
+
+        private static bool Friendly(IGameContext c, PlayerID a, string ownerId) =>
+            Guid.TryParse(ownerId, out Guid g) && (a.ID == g || (TeamOf(c, a) is { } team && team.IsPlayerOnTeam(new PlayerID(g))));
+
+        private static IEnumerable<ArmyPiece> Pieces(IGameContext c) => State(c.GameDataStore)?.Pieces ?? Enumerable.Empty<ArmyPiece>();
+
+        /// <summary>The closest gap from any living model's base to the piece's edge.</summary>
+        public static float Gap(IUnit unit, ArmyPiece piece) =>
+            unit.Models.Where(m => m.GetIsAlive())
+                .Select(m => Position.GetDistance2D(m.Position, new Position(piece.X, piece.Z)) - m.BaseShape.BoundingRadiusInches - PieceRadius)
+                .DefaultIfEmpty(float.MaxValue).Min();
+
+        // ---------------------------------------------------------------- before the game
+
+        public const string Roll = "Roll for it";
+
+        /// <summary>
+        /// After the deployment zones are picked: each player picks (or rolls) its army terrain and places it inside its own
+        /// zone, over 6" from objective markers and the table edges, not on other terrain.
+        /// </summary>
+        public static async Task Place(IGameContext c, IReadOnlyDictionary<int, ZoneRect> zonesByTeam)
+        {
+            if (!On(c)) return;
+            ArmyTerrainState s = State(c.GameDataStore) ?? new ArmyTerrainState();
+            if (s.Pieces.Count > 0) return;
+            foreach (IPlayerSlotInfo seat in c.TableState.Players.Objects.Where(p => p.IsFilled).OrderBy(p => p.SlotID))
+            {
+                if (!zonesByTeam.TryGetValue(seat.TeamNumber, out ZoneRect? zone)) continue;
+                string name = await PickPiece(c, seat);
+                Position at = await PlacePiece(c, seat, name, zone);
+                s.Pieces.Add(new ArmyPiece { Owner = seat.PlayerID.ID.ToString(), Name = name, X = at.x, Z = at.z });
+                c.GameDataStore.Create(new TerrainData(ETerrainType.Impassible | ETerrainType.Blocking,
+                    new CircularZone(new Float2(at.x, at.z), PieceRadius), heightInches: PieceHeight, name: $"{name} ({seat.Name})"));
+                c.Log($"Army Terrain: {seat.Name} places the {name} at ({at.x:0.0}, {at.z:0.0}).");
+                await c.Announce($"{seat.Name}: {name}", BattlefieldEffects.Amber, EBannerTier.Toast);
+            }
+            Save(c, s);
+        }
+
+        private static async Task<string> PickPiece(IGameContext c, IPlayerSlotInfo seat)
+        {
+            var built = Battle.Where(b => Built.Contains(b.Name)).ToList();
+            var options = new List<string> { Roll };
+            options.AddRange(built.Select(b => $"{b.Name}: {b.Text}"));
+            string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(seat.PlayerID,
+                "Army Terrain: pick your army's piece, or roll for it.", options, new List<StringSelectionRequest.InvalidOption>(),
+                displayName: "Army Terrain - pick") { Recommended = Roll });
+            int idx = options.IndexOf(answer);
+            if (idx > 0) return built[idx - 1].Name;
+            for (int tries = 0; ; tries++)
+            {
+                string rolled = Battle[c.DiceRoller.RollDecisiveFace() - 1].Name;
+                if (Built.Contains(rolled) || tries > 20) return Built.Contains(rolled) ? rolled : ArmyBanner;
+                c.Log($"Army Terrain: {seat.Name} rolled the {rolled}, which isn't in the game yet - rolling again.");
+            }
+        }
+
+        /// <summary>Where the piece may go: inside the zone, over 6" from the table edges (its edge), as a band.</summary>
+        public static RectangularZone LegalBand(ZoneRect zone)
+        {
+            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float m = AreaInches + PieceRadius;
+            return new RectangularZone(MathF.Max(zone.Left + PieceRadius, m), MathF.Min(zone.Right - PieceRadius, w - m),
+                MathF.Max(zone.Bottom + PieceRadius, m), MathF.Min(zone.Top - PieceRadius, h - m));
+        }
+
+        /// <summary>Clear of every terrain piece (the whole round footprint).</summary>
+        public static bool ClearOfTerrain(IGameContext c, Position p) =>
+            !c.TableState.Terrain.Objects.Any(t => Enumerable.Range(0, 9).Any(i =>
+            {
+                float a = i * MathF.PI / 4f, r = i == 8 ? 0f : PieceRadius;
+                return t.IsPointWithinZone(new Float2(p.x + MathF.Cos(a) * r, p.z + MathF.Sin(a) * r));
+            }));
+
+        public static bool Legal(IGameContext c, Position p, RectangularZone band) =>
+            ObjectivePlacementValidator.Check(p, band, AreaInches + PieceRadius, c.TableState.Objectives.Objects.ToList(),
+                Array.Empty<ITerrain>()) == ObjectivePlacementValidity.Valid && ClearOfTerrain(c, p);
+
+        private static async Task<Position> PlacePiece(IGameContext c, IPlayerSlotInfo seat, string name, ZoneRect zone)
+        {
+            RectangularZone band = LegalBand(zone);
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                Position wanted;
+                try
+                {
+                    wanted = await c.PlayerRequester.RequestDecision<PlaceObjectiveRequest, Position>(new PlaceObjectiveRequest(seat.PlayerID,
+                        $"Army Terrain: place your {name} in your deployment zone (over 6\" from objectives and the table edges)", 1, 1, band,
+                        AreaInches + PieceRadius));
+                }
+                catch (InvalidOperationException) { break; }
+                if (Legal(c, wanted, band)) return wanted;
+            }
+            // No legal answer: the first legal spot on a 1" grid, from the band's middle outwards.
+            var mid = new Position((band.Left + band.Right) / 2f, (band.Bottom + band.Top) / 2f);
+            var spots = new List<Position>();
+            for (float x = band.Left; x <= band.Right; x += 1f)
+            for (float z = band.Bottom; z <= band.Top; z += 1f)
+                spots.Add(new Position(x, z));
+            return spots.OrderBy(p => Position.GetDistance2D(p, mid)).FirstOrDefault(p => Legal(c, p, band)) is { } ok && spots.Count > 0
+                ? ok : mid;
+        }
+
+        // ---------------------------------------------------------------- during the game
+
+        /// <summary>A unit activates: which of its army's pieces it activated near (Army Banner / Battle Forge 6", Icon of War 12").</summary>
+        public static void OnActivation(IGameContext c, IUnit unit)
+        {
+            if (!On(c) || State(c.GameDataStore) is not { } s) return;
+            s.ActivatingUnit = unit.ID.ID.ToString();
+            s.ActivationBuffs.Clear();
+            foreach (ArmyPiece p in s.Pieces.Where(p => Friendly(c, unit.PlayerID, p.Owner)))
+            {
+                float reach = p.Name == IconOfWar ? 12f : AreaInches;
+                if ((p.Name is ArmyBanner or BattleForge or IconOfWar) && Gap(unit, p) <= reach + 0.01f && !s.ActivationBuffs.Contains(p.Name))
+                {
+                    s.ActivationBuffs.Add(p.Name);
+                    c.Log($"Army Terrain: {unit.Name} activates near the {p.Name}.");
+                }
+            }
+            Save(c, s);
+        }
+
+        private static bool Buffed(IGameContext c, IUnit unit, string piece) =>
+            On(c) && State(c.GameDataStore) is { } s && s.ActivatingUnit == unit.ID.ID.ToString() && s.ActivationBuffs.Contains(piece);
+
+        /// <summary>Army Banner: (+Advance, +Rush/Charge) for the unit activating near it.</summary>
+        public static (float Advance, float Rush) MoveChange(IGameContext c, IUnit unit) =>
+            Buffed(c, unit, ArmyBanner) ? (2f, 4f) : (0f, 0f);
+
+        /// <summary>Battle Forge (+1 shooting) and Icon of War (+1 in melee when charging), for the activating unit.</summary>
+        public static IReadOnlyList<GrantedModifier> HitModifiers(IGameContext c, IUnit attacker, bool melee, bool spell, bool charging)
+        {
+            if (spell || !On(c)) return Array.Empty<GrantedModifier>();
+            if (!melee && Buffed(c, attacker, BattleForge)) return new[] { new GrantedModifier(BattleForge, 1) };
+            if (melee && charging && Buffed(c, attacker, IconOfWar)) return new[] { new GrantedModifier(IconOfWar, 1) };
+            return Array.Empty<GrantedModifier>();
+        }
+
+        /// <summary>Protective Dome: most of the unit's living models are within 6" of a friendly dome - it counts as in Cover.</summary>
+        public static bool InFriendlyDome(IGameContext c, IUnit defender)
+        {
+            if (!On(c)) return false;
+            var living = defender.Models.Where(m => m.GetIsAlive()).ToList();
+            if (living.Count == 0) return false;
+            foreach (ArmyPiece p in Pieces(c).Where(p => p.Name == ProtectiveDome && Friendly(c, defender.PlayerID, p.Owner)))
+            {
+                int inside = living.Count(m => Position.GetDistance2D(m.Position, new Position(p.X, p.Z))
+                    - m.BaseShape.BoundingRadiusInches - PieceRadius <= AreaInches + 0.01f);
+                if (inside * 2 > living.Count) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Watch Tower: the enemy towers' 6" areas, as Dangerous terrain for this unit's Dangerous tests.</summary>
+        public static IReadOnlyList<ITerrain> EnemyDangerous(IGameContext c, IUnit unit)
+        {
+            if (!On(c)) return Array.Empty<ITerrain>();
+            return Pieces(c).Where(p => p.Name == WatchTower && !Friendly(c, unit.PlayerID, p.Owner))
+                .Select(p => (ITerrain)new TerrainData(ETerrainType.Dangerous,
+                    new CircularZone(new Float2(p.X, p.Z), PieceRadius + AreaInches), heightInches: 0f, name: $"{WatchTower} area"))
+                .ToList();
+        }
+    }
+}

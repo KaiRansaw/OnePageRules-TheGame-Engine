@@ -48,6 +48,8 @@ namespace FDG.Stages
                 dangerTerrain = startedIn;
             }
             if (deceiver) { ignoresDangerousTerrain = true; dangerTerrain = context.RelevantTerrain; }
+            // Army Terrain - Watch Tower: the enemy towers' areas are Dangerous for this unit.
+            dangerTerrain = dangerTerrain.Concat(ArmyTerrain.EnemyDangerous(GameContext, movingUnit.GetValue())).ToList();
 
             // Command Points - Hindered Advance: an opponent may make the terrain this unit moves through count as
             // Dangerous for this move.

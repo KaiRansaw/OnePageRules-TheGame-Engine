@@ -47,6 +47,8 @@ namespace FDG
         // Political Intrigue (GF p49, AoF p49 only). Bits 32-34 are Command Points' playstyle pick - skipped.
         PoliticalDirectives = 1UL << 35,
         Politicians = 1UL << 36,
+        // Advanced Terrain - Army Terrain (all four books).
+        ArmyTerrain = 1UL << 37,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -64,6 +66,7 @@ namespace FDG
         public const string FogOfWarChapter = "Fog of War";
         public const string CommandPointsChapter = "Command Points";
         public const string PoliticalIntrigueChapter = "Political Intrigue";
+        public const string ArmyTerrainChapter = "Army Terrain";
 
         public static readonly IReadOnlyList<AdvancedRuleOption> Catalog = BuildCatalog();
 
@@ -85,6 +88,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in FogOfWar.All)
                 list.Add(new AdvancedRuleOption(FogOfWarChapter, name, flag, FourGames,
                     FogOfWar.BookText(name, EGameSystem.GrimdarkFuture), FogOfWar.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in ArmyTerrain.All)
+                list.Add(new AdvancedRuleOption(ArmyTerrainChapter, name, flag, FourGames,
+                    ArmyTerrain.BookText(name), ArmyTerrain.GameText(name)));
             foreach ((string name, EAdvancedRules flag) in PoliticalIntrigue.All)
                 list.Add(new AdvancedRuleOption(PoliticalIntrigueChapter, name, flag, PoliticalIntrigue.BooksHaveIt,
                     PoliticalIntrigue.BookText(name), PoliticalIntrigue.GameText(name)));
@@ -102,6 +108,7 @@ namespace FDG
             [BattlefieldEffectsChapter] = "Battlefield Effects add special conditions to the whole table, effects to terrain and objectives, and random events every round. Pick any of the following.",
             [CommandPointsChapter] = "Command Points (CP) are an extra resource that can be added to the game, giving players access to critical tactical abilities that boost their units in battle.",
             [FogOfWarChapter] = "Fog of War rules add an element of uncertainty to battles, by affecting how units are deployed and how rounds are played. Pick any of the following.",
+            [ArmyTerrainChapter] = "Army terrain allows each army to place a special piece of terrain that affects the game in different interesting ways.",
             [PoliticalIntrigueChapter] = "Political Intrigue rules add a new strategic layer on top of the regular game, giving players the ability to influence the game and mess with each other's plans.",
             [CriticalHitsChapter] = "Critical Hits rules make weapons a lot deadlier by modifying how units are damaged with a little bit of luck. Use the generic tables, or the weapon type tables instead.",
         };

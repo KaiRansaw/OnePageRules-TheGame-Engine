@@ -149,6 +149,9 @@ namespace FDG
         /// <summary>Political Intrigue (Advanced Rulebooks, GF / AoF): directives used this round. Null outside it.</summary>
         public FDG.PoliticalIntrigueState? PoliticalIntrigue { get; set; }
 
+        /// <summary>Army Terrain (Advanced Rulebooks): each army's piece. Null outside it.</summary>
+        public FDG.ArmyTerrainState? ArmyTerrain { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

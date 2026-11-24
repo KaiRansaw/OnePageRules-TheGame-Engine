@@ -40,6 +40,14 @@ namespace FDG.Stages
                 : "Shimmering Mist: the target counts as in Cover (+1 Defense).");
             bonus = stormed;
 
+            // Army Terrain - Protective Dome: "the area within 6" of this faction terrain counts as Cover terrain for
+            // friendly units".
+            if (bonus == 0 && ArmyTerrain.InFriendlyDome(GameContext, metaData.DefendingUnit.GetValue()))
+            {
+                bonus = 1;
+                GameContext.Log("Protective Dome: the target counts as in Cover.");
+            }
+
             // #042 Blast: the attacking weapon ignores cover — drop the bonus. Derived from the attacker's
             // rules via the shared query so the cover stage, targeting options, and movement options agree.
             if (bonus > 0 && SightRuleQueries.IgnoresCover(

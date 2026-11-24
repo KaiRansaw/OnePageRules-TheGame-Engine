@@ -73,6 +73,7 @@ namespace FDG.Stages
             await UnitPsychology.OnActivationStart(GameContext, unit);
             // Battlefield Effects: Deadly Vortex's die, Zero Gravity's charge reach, Dark Skies / Muddy Terrain kept right.
             await BattlefieldEffects.OnActivation(GameContext, unit);
+            ArmyTerrain.OnActivation(GameContext, unit);
 
             await ResolvePassiveEntries(context, unit);
 
@@ -156,7 +157,8 @@ namespace FDG.Stages
 
             MovementExecutor.DangerousTerrainResult result =
                 MovementExecutor.RollActivationDangerousTerrain(GameContext, unit,
-                    GameContext.TableState.Terrain.Objects, ignoresDangerousTerrain);
+                    GameContext.TableState.Terrain.Objects.Concat(ArmyTerrain.EnemyDangerous(GameContext, unit)),   // Watch Tower
+                    ignoresDangerousTerrain || PoliticalIntrigue.IgnoresDangerous(unit));                            // Deceiver
 
             if (!result.AnyTested) return;
 

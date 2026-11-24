@@ -97,6 +97,8 @@ namespace FDG.Stages
             if (byTeam.Count == 2) await FDG.Missions.ExtraMissions.PlaceOwnedMarkers(context.GameContext, byTeam);
             // Attack & Defend: Smash & Grab's secret trap and relic; VIP Escort's starting edge.
             await FDG.Missions.AttackDefend.AfterMarkersPlaced(context.GameContext);
+            // Army Terrain: each army's piece, in its own zone, before any unit is deployed.
+            if (byTeam.Count > 0) await ArmyTerrain.Place(context.GameContext, byTeam);
 
             await ToRollForFirstDeployment.Activate(context);
         }

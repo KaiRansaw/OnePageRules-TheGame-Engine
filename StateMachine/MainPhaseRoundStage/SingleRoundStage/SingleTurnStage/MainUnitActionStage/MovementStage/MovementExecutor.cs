@@ -389,6 +389,7 @@ namespace FDG.Stages
             }
             // Political Intrigue - Deceiver: "may ignore Difficult and Dangerous terrain until the end of the round".
             if (PoliticalIntrigue.IgnoresDangerous(unit.GetValue())) { ignoresDangerous = true; dangerTerrain = relevantTerrain; }
+            dangerTerrain = dangerTerrain.Concat(ArmyTerrain.EnemyDangerous(gameContext, unit.GetValue())).ToList();   // Watch Tower
             dangerResult = Commit(gameContext, paths, dangerTerrain, unit.GetValue(), ignoresDangerousTerrain: ignoresDangerous);
             return true;
         }

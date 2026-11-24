@@ -169,6 +169,8 @@ namespace FDG.Stages
             (float tgAdvance, float tgRush) = FDG.Missions.TwistsGambits.MoveChange(gameContext, unit);
             (float cpAdvance, float cpRush, float cpCharge) = CommandPoints.MoveBonus(unit);
             cpAdvance += tgAdvance; cpRush += tgRush; cpCharge += tgRush;   // Curse of Sands: -2" Advance, -4" Rush / Charge
+            (float atAdvance, float atRush) = ArmyTerrain.MoveChange(gameContext, unit);
+            cpAdvance += atAdvance; cpRush += atRush; cpCharge += atRush;   // Army Banner: +2" Advance, +4" Rush / Charge
             _maxAdvanceDistance += cpAdvance;
             _maxRushDistance += cpRush;
             _maxChargeDistance += cpCharge;
