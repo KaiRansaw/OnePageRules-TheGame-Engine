@@ -24,6 +24,9 @@ namespace FDG.StateMachine
         {
             int limit = RoundLimit(settings.GameMode);
             if (limit == GameWideConstants.NUMBER_OF_ROUNDS && settings.NumberOfRounds is int n && n > 0) return n;
+            // Fog of War - Escalating Battles: "the game lasts 6 rounds".
+            if (limit == GameWideConstants.NUMBER_OF_ROUNDS && AdvancedRules.IsOn(settings, EAdvancedRules.EscalatingBattles))
+                return FDG.FogOfWar.EscalatingRounds;
             // Attack & Defend: "After 6 rounds have been played the game ends".
             if (limit == GameWideConstants.NUMBER_OF_ROUNDS
                 && FDG.Missions.ExtraMissionCatalog.IsAttackDefend(FDG.Missions.ExtraMissions.Of(settings)))

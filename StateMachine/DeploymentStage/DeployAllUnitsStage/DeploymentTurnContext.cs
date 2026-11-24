@@ -37,6 +37,9 @@ namespace FDG.Stages
         /// to be placed by their own pass after normal deployment finishes.</summary>
         public IReadOnlyList<DeferredUnitEntry> DeferredUnits { get; }
 
+        /// <summary>Fog of War - Escalating Battles: takes units out of this deployment (they wait for a later round).</summary>
+        public void HoldBack(Func<DataBinding<UnitData>, bool> held);
+
         public DataBinding<UnitData>? CurrentDeployingUnit { get; set; }
 
         /// <summary>
@@ -77,6 +80,12 @@ namespace FDG.Stages
 
         public IReadOnlyList<DeferredUnitEntry> DeferredUnits => _deferredUnits;
         private readonly List<DeferredUnitEntry> _deferredUnits = new();
+
+        public void HoldBack(Func<DataBinding<UnitData>, bool> held)
+        {
+            foreach (List<DataBinding<UnitData>> pool in UndeployedUnits.Values) pool.RemoveAll(u => held(u));
+            _deferredUnits.RemoveAll(e => held(e.Unit));
+        }
 
         public DataBinding<UnitData>? CurrentDeployingUnit { get; set; } = null;
 

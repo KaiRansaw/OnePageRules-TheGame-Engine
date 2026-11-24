@@ -7,6 +7,8 @@ using FDG.Data;
 using FDG.Missions;
 using FDG.Presentation.Beats;
 using FDG.Rules.Dispatch;
+using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution.Requests;
 using FDG.Stages;
 using FDG.StateMachine;
@@ -36,9 +38,16 @@ namespace FDG
         public const string ShiftingFocusName = "Shifting Focus";
         public const string CombatHesitationName = "Combat Hesitation";
         public const string ProlongedBattleName = "Prolonged Battle";
+        public const string SurpriseEngagementName = "Surprise Engagement";
+        public const string EscalatingBattlesName = "Escalating Battles";
+        public const string RandomArrivalName = "Escalating Battles: Random Arrival";
+        public const int EscalatingRounds = 6, Detachments = 4;
 
         public static readonly IReadOnlyList<(string Name, EAdvancedRules Flag)> All = new (string, EAdvancedRules)[]
         {
+            (EscalatingBattlesName, EAdvancedRules.EscalatingBattles),
+            (RandomArrivalName, EAdvancedRules.EscalatingRandomArrival),
+            (SurpriseEngagementName, EAdvancedRules.SurpriseEngagement),
             (EbbAndFlowName, EAdvancedRules.EbbAndFlow),
             (ShiftingFocusName, EAdvancedRules.ShiftingFocus),
             (CombatHesitationName, EAdvancedRules.CombatHesitation),
@@ -49,6 +58,11 @@ namespace FDG
 
         public static string BookText(string name, EGameSystem s) => name switch
         {
+            EscalatingBattlesName => "Before the game begins, players have to divide their army into four detachments of equal point value (or as close as possible). During deployment, each player must pick one of their detachments and must deploy only units from that detachment (units from that detachment in Ambush may be deployed at a later point as usual). At the beginning of each new round, players must pick one of their detachments, and must then deploy all units from it (units from that detachment in Ambush may be deployed at a later point as usual). When playing escalating battles, the game lasts 6 rounds.",
+            RandomArrivalName => "Random Arrival (optional): When a detachment should be deployed, players don't get to choose which one they deploy, but must randomly pick one instead.",
+            SurpriseEngagementName => Skirmish(s)
+                ? "When deploying armies, the players roll-off to see who goes first, and alternate in placing units as usual, however where they place them is randomized. First, each player divides their deployment zone into 2 equal sections, and numbers them section 1 and section 2. Then, when it's a player's turn to deploy a unit, roll a die to see which section you get, and place the unit fully within (results of 1-3 = section 1, 4-6 = section 2). Units that are deployed differently due to special rules (such as Ambush) have to follow the same rules, however the entire table is divided into 2 equal sections along the player's table edge instead of only the deployment zones."
+                : "When deploying armies, the players roll-off to see who goes first, and alternate in placing units as usual, however where they place them is randomized. First, each player divides their deployment zone into 3 equal sections and gives each section a number from 1 to 3. Then, when it's a player's turn to deploy a unit, roll a D3 and place the unit fully within the resulting section. Units that are deployed differently due to special rules (such as Ambush) have to follow the same rules, however the entire table is divided into 3 equal sections along the long table edge, instead of only the deployment zones.",
             EbbAndFlowName => "Before the game begins, each player needs to take as many tokens as units in their army, and each player's tokens must be of a different color. At the beginning of each round, the players must put as many tokens as units they have left on the table in a bag. Then, the players draw a random token from the bag, and the player whose color was drawn may activate one unit. Once the player is done, another token is drawn to see who activates next, and this continues until all tokens have been drawn, at which point the round ends. Note that if a unit is destroyed before it was activated, then you must remove one token of that player's color from the bag.",
             ShiftingFocusName => Skirmish(s)
                 ? "Before the game begins, the table must be divided into 2 equal sections along the player's table edge, and they must be numbered section 1 and section 2. When a player needs to choose which unit to activate, first they must roll a D6, and then they may only activate one of their units that is within that table section (results of 1-3 = section 1, 4-6 = section 2). If there are no eligible units in that table section, then they must move on to the next section."
@@ -60,6 +74,9 @@ namespace FDG
 
         public static string GameText(string name) => name switch
         {
+            EscalatingBattlesName => "The game splits each army into four detachments as close in points as it can (biggest units first, each to the lightest detachment). You pick one to deploy; at the start of rounds 2, 3 and 4 you pick the next, and its units are placed in your deployment zone. The game lasts 6 rounds. Flexible Strategies isn't offered yet.",
+            RandomArrivalName => "Needs Escalating Battles. Each detachment is picked at random instead of by you.",
+            SurpriseEngagementName => "Each time you deploy a unit the game rolls its section; the placement outline shows only that part of your zone. Scout and Ambush units roll a section of the whole table (along its long edge).",
             EbbAndFlowName => "Each activation goes to a player drawn at random, weighted by how many units each has left to activate this round. The battle report says who was drawn.",
             ShiftingFocusName => "Before you pick a unit the game rolls the section; only your units in it can be picked (the others are greyed out with the reason). Sections are counted from your own left.",
             CombatHesitationName => "When you're behind on activations you're asked whether to try to pass; the game rolls for you. Bots never pass.",
@@ -214,6 +231,167 @@ namespace FDG
                     && (mine == null || !mine.IsPlayerOnTeam(u.PlayerID)))
                 .GroupBy(u => u.PlayerID).OrderByDescending(g => g.Count())
                 .Select(g => (PlayerID?)g.Key).FirstOrDefault();
+        }
+
+        // ================================================================= Surprise Engagement
+
+        /// <summary>A section of a placement area: the area's longer side cut into equal strips. Plain rectangles stay
+        /// rectangles (the unit must stand fully within); any other shape is clipped.</summary>
+        public static IBoundedZone Section(IBoundedZone zone, int sections, int section)
+        {
+            ZoneBounds b = zone.Bounds;
+            bool alongX = (b.Right - b.Left) >= (b.Top - b.Bottom);
+            float len = alongX ? b.Right - b.Left : b.Top - b.Bottom;
+            float lo = (alongX ? b.Left : b.Bottom) + len * (section - 1) / sections;
+            float hi = (alongX ? b.Left : b.Bottom) + len * section / sections;
+            RectangularZone strip = alongX ? new RectangularZone(lo, hi, b.Bottom, b.Top) : new RectangularZone(b.Left, b.Right, lo, hi);
+            if (zone.GetType() == typeof(RectangularZone)) return strip;
+            return new ClippedZone(zone, strip);
+        }
+
+        /// <summary>Surprise Engagement for a normal deployment: rolls the section and returns that part of the zone (null when off).</summary>
+        public static IBoundedZone? DeploySection(IGameContext c, UnitData unit, IBoundedZone zone)
+        {
+            if (!IsOn(c, EAdvancedRules.SurpriseEngagement)) return null;
+            EGameSystem sys = c.Settings.GameSystem;
+            int n = Sections(sys), section = SectionFromDie(sys, D6(c));
+            c.Log($"Surprise Engagement: {unit.Name} must deploy in section {section} of {n}.");
+            return Section(zone, n, section);
+        }
+
+        /// <summary>Surprise Engagement for Scout / Ambush: "the entire table is divided into sections along the long
+        /// edge" - the rolled strip of the whole table, cut out of the area the rule allows.</summary>
+        public static IBoundedZone? SpecialSection(IGameContext c, UnitData unit, IBoundedZone area, float tableWidth, float tableHeight)
+        {
+            if (!IsOn(c, EAdvancedRules.SurpriseEngagement)) return null;
+            EGameSystem sys = c.Settings.GameSystem;
+            int n = Sections(sys), section = SectionFromDie(sys, D6(c));
+            c.Log($"Surprise Engagement: {unit.Name} must arrive in table section {section} of {n}.");
+            var table = new RectangularZone(0f, tableWidth, 0f, tableHeight);
+            var strip = (RectangularZone)Section(table, n, section);
+            return area.GetType() == typeof(RectangularZone) && area is RectangularZone r
+                ? new RectangularZone(Math.Max(r.Left, strip.Left), Math.Min(r.Right, strip.Right), Math.Max(r.Bottom, strip.Bottom), Math.Min(r.Top, strip.Top))
+                : new ClippedZone(area, strip);
+        }
+
+        // ================================================================= Escalating Battles
+
+        /// <summary>"Divide their army into four detachments of equal point value (or as close as possible)": biggest
+        /// units first, each into the lightest detachment so far.</summary>
+        public static List<List<UnitData>> Split(IEnumerable<UnitData> units, int detachments = Detachments)
+        {
+            var groups = Enumerable.Range(0, detachments).Select(_ => new List<UnitData>()).ToList();
+            foreach (UnitData u in units.OrderByDescending(u => u.PointCost).ThenBy(u => u.Name))
+                groups.OrderBy(g => g.Sum(x => x.PointCost)).ThenBy(g => g.Count).First().Add(u);
+            return groups;
+        }
+
+        private static bool EscalatingOn(IGameContext c) =>
+            IsOn(c, EAdvancedRules.EscalatingBattles) && c.Settings.GameMode == EGameMode.Standard;
+
+        private static string Label(int number, IReadOnlyList<UnitData> units) =>
+            $"Detachment {number} ({units.Sum(u => u.PointCost)} pts): {string.Join(", ", units.Select(u => u.Name))}";
+
+        /// <summary>Asks (or rolls, with Random Arrival) which detachment comes on. Returns its number.</summary>
+        private static async Task<int> PickDetachment(IGameContext c, PlayerID player, IReadOnlyDictionary<int, List<UnitData>> groups, string when)
+        {
+            var numbers = groups.Keys.OrderBy(k => k).ToList();
+            if (numbers.Count == 1) return numbers[0];
+            if (IsOn(c, EAdvancedRules.EscalatingRandomArrival))
+            {
+                int pick = numbers[DieN(c, numbers.Count) - 1];
+                c.Log($"Escalating Battles: {c.GetPlayerName(player)} rolls for the detachment {when} - Detachment {pick}.");
+                return pick;
+            }
+            // The bot's pick (first): the detachment worth the most points.
+            var ordered = numbers.OrderByDescending(k => groups[k].Sum(u => u.PointCost)).ThenBy(k => k).ToList();
+            var labels = ordered.Select(k => Label(k, groups[k])).ToList();
+            string chosen = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(player,
+                $"Escalating Battles: pick the detachment to deploy {when}.", labels,
+                new List<StringSelectionRequest.InvalidOption>(), displayName: "Escalating Battles") { Recommended = labels[0] });
+            int idx = labels.IndexOf(chosen);
+            return ordered[idx < 0 ? 0 : idx];
+        }
+
+        /// <summary>Before deployment: split every army, each player picks the detachment that deploys now; the rest wait.</summary>
+        public static async Task OpeningDetachments(IGameContext c, IDeploymentTurnContext context)
+        {
+            if (!EscalatingOn(c) || context.MissionPlan != null) return;
+            var held = new HashSet<UnitID>();
+            foreach (PlayerID player in context.UndeployedUnits.Keys.ToList())
+            {
+                var units = c.GameDataStore.GetAllValues<ArmyData>().Where(a => a.IsOwnedBy(player))
+                    .SelectMany(a => a.UnitBindings).Select(b => b.GetValue()).Where(u => u.GetIsAlive()).ToList();
+                if (units.Count < 2) continue;
+                var split = Split(units);
+                var groups = Enumerable.Range(0, split.Count).Where(i => split[i].Count > 0).ToDictionary(i => i + 1, i => split[i]);
+                foreach ((int k, List<UnitData> g) in groups.OrderBy(x => x.Key))
+                    c.Log($"Escalating Battles: {c.GetPlayerName(player)}'s {Label(k, g)}.");
+                int first = await PickDetachment(c, player, groups, "now");
+                c.Log($"Escalating Battles: {c.GetPlayerName(player)} deploys Detachment {first}.");
+                foreach ((int k, List<UnitData> g) in groups)
+                {
+                    if (k == first) continue;
+                    foreach (UnitData u in g)
+                    {
+                        ReserveRules.PlaceInReserve(u);
+                        for (int i = 0; i < k; i++) u.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HeldDetachment));
+                        held.Add(u.ID);
+                    }
+                }
+            }
+            context.HoldBack(b => held.Contains(b.GetValue().ID));
+        }
+
+        /// <summary>Start of rounds 2+: each player with a detachment waiting picks one and deploys all of it.</summary>
+        public static async Task EscalatingRoundStart(IGameContext c, int round)
+        {
+            if (!EscalatingOn(c) || round < 2) return;
+            var waiting = c.TableState.Units.Objects.OfType<UnitData>()
+                .Where(u => u.GetIsAlive() && u.Tokens.HasToken(TokenType.HeldDetachment)).ToList();
+            foreach (IGrouping<PlayerID, UnitData> byPlayer in waiting.GroupBy(u => u.PlayerID))
+            {
+                PlayerID player = byPlayer.Key;
+                var groups = byPlayer.GroupBy(u => u.Tokens.GetTokenCount(TokenType.HeldDetachment))
+                    .ToDictionary(g => g.Key, g => g.ToList());
+                int pick = await PickDetachment(c, player, groups, $"at the start of round {round}");
+                await c.Announce($"Escalating Battles: {c.GetPlayerName(player)} brings on Detachment {pick}.", BattlefieldEffects.Amber, EBannerTier.Notice);
+                foreach (UnitData unit in groups[pick])
+                {
+                    unit.Tokens.RemoveTokens(TokenType.HeldDetachment, unit.Tokens.GetTokenCount(TokenType.HeldDetachment));
+                    if (HasAmbush(c, unit) && await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(player,
+                            $"Escalating Battles: keep {unit.Name} in Ambush (it arrives later as usual)?", defaultAnswer: true,
+                            displayName: $"{unit.Name}: Ambush?")))
+                    {
+                        c.Log($"Escalating Battles: {unit.Name} stays in Ambush.");
+                        continue;
+                    }
+                    await PlaceInZone(c, unit);
+                }
+            }
+        }
+
+        private static bool HasAmbush(IGameContext c, IUnit unit) =>
+            c.RuleEvaluator.Evaluate(unit, Rules.Foundation.ERuleSeat.Actor, new Rules.Dispatch.Contexts.PreDeploymentSelectContext(unit))
+                .OfType<Rules.Definitions.RuleOperation.DeferDeployment>().Any(d => d.Timing == Rules.Definitions.EDeferTiming.LaterRound);
+
+        private static async Task PlaceInZone(IGameContext c, UnitData unit)
+        {
+            ITeam? team = c.TableState.Teams.Objects.FirstOrDefault(t => t.IsPlayerOnTeam(unit.PlayerID));
+            IBoundedZone zone = team != null && GameProgressUtilities.DeploymentZoneOf(c.GameDataStore, team.TeamNumber) is { } z
+                ? (z.Parts is { Count: > 0 } parts ? new PolygonZone(parts) : new RectangularZone(z.Left, z.Right, z.Bottom, z.Top))
+                : new RectangularZone(0f, HordePlacement.TableWidth, 0f, 12f);
+            if (DeploySection(c, unit, zone) is { } section) zone = section;
+            var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, "Deploy Detachment", zone, unit.ModelBindings,
+                displayName: $"Deploying {unit.Name} (Escalating Battles)");
+            List<PlacedObjectEntry<ModelData>> placements = await PlacementCommitGuard.RequestClearPlacement(c, request);
+            ReserveRules.ClearReserve(unit);
+            foreach (PlacedObjectEntry<ModelData> p in placements)
+            {
+                p.Binding.GetValue().SetPosition(p.Position);
+                FacingRules.ApplyPlaced(p.Binding.GetValue(), p.Facing, c.Settings);
+            }
+            c.Log($"Escalating Battles: {unit.Name} deploys.");
         }
 
         // ================================================================= Shifting Focus

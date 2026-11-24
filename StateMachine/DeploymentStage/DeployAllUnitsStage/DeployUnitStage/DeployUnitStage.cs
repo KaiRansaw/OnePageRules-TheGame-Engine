@@ -62,6 +62,9 @@ namespace FDG.Stages
             IReadOnlyList<PlacementDisc> keepOut = Array.Empty<PlacementDisc>();
             if (context.MissionPlan?.Current is { } step)
                 (zone, minFromEnemies, keepOut) = FDG.Missions.AttackDefend.Zone(GameContext, step.Zone, deployingUnit, zone);
+            // Fog of War - Surprise Engagement: the unit goes in a rolled section of the zone.
+            else if (FogOfWar.DeploySection(GameContext, deployingUnit, zone) is { } section)
+                zone = section;
 
             var placeObjectsRequest = new PlaceObjectsRequest<ModelData>(currentPlayerID, "Place Unit Models",
                 zone, deployingUnit.ModelBindings, minDistanceFromEnemiesInches: minFromEnemies,

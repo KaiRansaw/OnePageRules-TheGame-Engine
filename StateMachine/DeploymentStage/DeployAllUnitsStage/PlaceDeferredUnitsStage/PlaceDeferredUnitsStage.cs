@@ -54,8 +54,11 @@ namespace FDG.Stages
                 IReadOnlyList<PlacementDisc> keepOut =
                     Rules.Dispatch.ScoutDeploymentRules.EnemyKeepOutDiscs(unit, GameContext.TableState);
 
+                // Fog of War - Surprise Engagement: a rolled section of the whole table, cut out of the Scout area.
+                IBoundedZone scoutZone = FogOfWar.SpecialSection(GameContext, unit, forwardZone,
+                    GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES) ?? forwardZone;
                 var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, "Place Scout Unit",
-                    forwardZone, unit.ModelBindings,
+                    scoutZone, unit.ModelBindings,
                     displayName: $"Deploying {unit.Name} (Scout)",
                     enemyKeepOutDiscs: keepOut);
 

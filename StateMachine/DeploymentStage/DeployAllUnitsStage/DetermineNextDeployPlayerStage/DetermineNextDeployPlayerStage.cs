@@ -41,6 +41,8 @@ namespace FDG.Stages
             // advance rather than handing ChooseUnitToDeployStage an empty pool (which used to throw).
             if (context.HasStarted == false)
             {
+                // Fog of War - Escalating Battles: each player picks the detachment that deploys now.
+                await FogOfWar.OpeningDetachments(GameContext, context);
                 context.HasStarted = true;
                 if (context.DoesPlayerHaveRemainingDeployments(context.GetCurrentDeployingPlayerID()))
                 {

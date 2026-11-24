@@ -41,6 +41,7 @@ namespace FDG
         ShiftingFocus = 1UL << 27,
         CombatHesitation = 1UL << 28,
         ProlongedBattle = 1UL << 29,
+        EscalatingRandomArrival = 1UL << 30,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>

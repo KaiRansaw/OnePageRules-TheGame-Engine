@@ -81,6 +81,8 @@ namespace FDG.SaveLoad
             // #197 P17c: Reinforcement's "within 12\" of any table edge" arrival band.
             Add(typeof(TableEdgeBandZone), "zone.tableEdgeBand");
             Add(typeof(MissionPlacementZone), "zone.missionPlacement");
+            // Fog of War - Surprise Engagement: one section of a non-rectangular deployment zone.
+            Add(typeof(ClippedZone), "zone.clipped");
             // Horde Mode: "within 9\" of a table corner" wave-arrival region.
             Add(typeof(TableCornerZone), "zone.tableCorner");
             // CompositeZone.Parts is IReadOnlyList<IZone> but always a List<IZone> at runtime; under

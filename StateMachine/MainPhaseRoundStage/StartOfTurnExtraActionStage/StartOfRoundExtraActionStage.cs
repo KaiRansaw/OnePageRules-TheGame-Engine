@@ -49,6 +49,8 @@ namespace FDG.Stages
             // return from round 2. Reinforcement copies land AFTER the ambushers, per their own text
             // ("at the beginning of the next round after Ambushers have been deployed").
             await BringOnReserves(context.RoundCount, context.TeamActivateOrder);
+            // Fog of War - Escalating Battles: every player deploys one more detachment.
+            await FogOfWar.EscalatingRoundStart(GameContext, context.RoundCount);
             await PlaceReinforcements();
             // Attack & Defend: VIP Escort's marker move, Last Stand / The Rescue reserves.
             await FDG.Missions.AttackDefend.RoundStart(GameContext, context.RoundCount);
@@ -185,6 +187,7 @@ namespace FDG.Stages
                     UnitData u = binding.GetValue();
                     return u.GetIsAlive()
                         && ReserveRules.IsInReserve(u)
+                        && !u.Tokens.HasToken(TokenType.HeldDetachment)
                         && !u.Tokens.HasToken(TokenType.Conceded)
                         && TryGetLaterRoundDefer(u, out RuleOperation.DeferDeployment d, out _)
                         && roundCount >= d.MinArrivalRound;
@@ -360,8 +363,13 @@ namespace FDG.Stages
                 waivers = AmbushArrivalRules.WaiverDiscs(unit, GameContext.TableState, GameContext.RuleEvaluator);
             }
 
+            // Fog of War - Surprise Engagement: an Ambush arrival goes in a rolled section of the table.
+            IBoundedZone arrival = minDistanceFromEnemies > 0f
+                ? FogOfWar.SpecialSection(GameContext, unit, wholeTable,
+                    GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES) ?? wholeTable
+                : wholeTable;
             var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, taskName,
-                wholeTable, unit.ModelBindings, minDistanceFromEnemiesInches: minDistanceFromEnemies,
+                arrival, unit.ModelBindings, minDistanceFromEnemiesInches: minDistanceFromEnemies,
                 mustTouchTableEdge: mustTouchTableEdge,
                 enemyKeepOutDiscs: keepOut, enemyDistanceWaiverDiscs: waivers,
                 displayName: displayName);

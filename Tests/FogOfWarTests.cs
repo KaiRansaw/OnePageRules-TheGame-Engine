@@ -58,7 +58,7 @@ namespace FDG.Tests
             foreach (EGameSystem s in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
                 Assert.That(AdvancedRules.Chapters(s), Does.Contain(AdvancedRules.FogOfWarChapter), s.ToString());
             Assert.That(AdvancedRules.Chapters(EGameSystem.GFStarQuest), Does.Not.Contain(AdvancedRules.FogOfWarChapter));
-            Assert.That(AdvancedRules.In(AdvancedRules.FogOfWarChapter, EGameSystem.GrimdarkFuture).Count(), Is.EqualTo(4));
+            Assert.That(AdvancedRules.In(AdvancedRules.FogOfWarChapter, EGameSystem.GrimdarkFuture).Count(), Is.EqualTo(7), "six, plus Random Arrival");
             Assert.That((long)EAdvancedRules.EbbAndFlow & (long)BattlefieldEffects.PickMask, Is.EqualTo(0), "clear of the Special Condition pick bits");
         }
 
@@ -121,6 +121,36 @@ namespace FDG.Tests
 
             Build(face: 3, EAdvancedRules.None);
             Assert.That(FogOfWar.Focus(_context, _me, new List<IUnit> { Unit(_me, new Position(1f, 1f)) }), Is.Null);
+        }
+    
+        [Test]
+        public void Escalating_SplitsIntoFourCloseDetachments_AndLastsSixRounds()
+        {
+            Build(face: 4, EAdvancedRules.EscalatingBattles);
+            int[] costs = { 300, 250, 200, 150, 120, 100, 90, 60, 40, 20 };
+            var units = costs.Select(p => { UnitData u = Unit(_me, new Position(1f, 1f)); u.PointCost = p; return u; }).ToList();
+            var split = FogOfWar.Split(units);
+            Assert.That(split, Has.Count.EqualTo(4));
+            Assert.That(split.Sum(g => g.Count), Is.EqualTo(units.Count));
+            var totals = split.Select(g => g.Sum(u => u.PointCost)).ToList();
+            Assert.That(totals.Max() - totals.Min(), Is.LessThanOrEqualTo(100), string.Join(",", totals));
+            Assert.That(HordeRules.RoundLimit(_context.Settings), Is.EqualTo(6));
+        }
+
+        [Test]
+        public void SurpriseEngagement_SectionsAreEqualStripsOfTheLongSide()
+        {
+            var zone = new RectangularZone(0f, 72f, 0f, 12f);
+            var third = (RectangularZone)FogOfWar.Section(zone, 3, 2);
+            Assert.That((third.Left, third.Right, third.Bottom, third.Top), Is.EqualTo((24f, 48f, 0f, 12f)));
+            var tall = new RectangularZone(0f, 12f, 0f, 48f);
+            var half = (RectangularZone)FogOfWar.Section(tall, 2, 1);
+            Assert.That((half.Left, half.Right, half.Bottom, half.Top), Is.EqualTo((0f, 12f, 0f, 24f)));
+            var poly = new PolygonZone(new[] { new float[] { 0, 0, 72, 0, 72, 12, 0, 12 } });
+            IBoundedZone clipped = FogOfWar.Section(poly, 3, 1);
+            Assert.That(clipped, Is.InstanceOf<ClippedZone>());
+            Assert.That(clipped.IsPointWithinZone(new Float2(10f, 6f)), Is.True);
+            Assert.That(clipped.IsPointWithinZone(new Float2(30f, 6f)), Is.False);
         }
     }
 }
