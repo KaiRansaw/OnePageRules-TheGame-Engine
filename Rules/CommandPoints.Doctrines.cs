@@ -115,7 +115,7 @@ namespace FDG
         {
             TokenType.CpLightningReflexes, TokenType.CpHeightenedSenses, TokenType.CpDisruptedSight,
             TokenType.CpPushForward, TokenType.CpSweepingMove, TokenType.CpCombatFatigue,
-            TokenType.CpClosingFire, TokenType.CpFrenziedAttack,
+            TokenType.CpClosingFire, TokenType.CpFrenziedAttack, TokenType.CpRushObjective,
         };
 
         /// <summary>The end of a unit activation: the "for that shooting / movement" stratagems end.</summary>
@@ -123,6 +123,7 @@ namespace FDG
         {
             if (!On(c)) return;
             ShotTargets.Remove(c.GameDataStore);
+            EndOfMelee(c.TableState.Units.Objects.ToArray());
             foreach (IUnit unit in c.TableState.Units.Objects)
                 foreach (TokenType t in ActivationTokens)
                 {
@@ -149,6 +150,12 @@ namespace FDG
             if (canMove && Can(c, unit.PlayerID, CoordinatedMove) && CoordinatedPartners(c, unit).Any())
                 yield return ($"{CoordinatedMove} (2 CP)", CoordinatedMove,
                     "Command Points: this unit and another friendly unit within 12\" each move up to 3\" in any direction.");
+            if (canMove && Can(c, unit.PlayerID, RushObjective) && c.TableState.Objectives.Objects.Any())
+                yield return ($"{RushObjective} (1 CP)", RushObjective,
+                    "Command Points: Rush with +4\" to the move - only if it ends within 3\" of an objective.");
+            if (CanSupremeCaster(c, unit))
+                yield return ($"{SupremeCaster} (1 CP)", SupremeCaster,
+                    "Command Points: this Caster gets 1 spell token for a spell's cost (it can't boost a casting roll).");
             if (CanTacticalRetreat(c, unit))
                 yield return ($"{TacticalRetreat} (3 CP)", TacticalRetreat,
                     "Command Points: fall back 2D3+2\" directly away from the closest enemy, then carry on with this activation.");
@@ -157,13 +164,15 @@ namespace FDG
         /// <summary>Whether an action-menu entry is one of these (bots leave them alone).</summary>
         public static bool IsMoveOption(string option) =>
             option == $"{PushForward} (1 CP)" || option == $"{SweepingMove} (1 CP)" || option == $"{TacticalRetreat} (3 CP)"
-            || option == $"{StrategicRelocation} (3 CP)" || option == $"{CoordinatedMove} (2 CP)";
+            || option == $"{StrategicRelocation} (3 CP)" || option == $"{CoordinatedMove} (2 CP)"
+            || option == $"{RushObjective} (1 CP)" || option == $"{SupremeCaster} (1 CP)";
 
         /// <summary>The move option was picked: spend it and mark the unit.</summary>
         public static bool TakeMoveOption(IGameContext c, IUnit unit, string stratagem)
         {
             if (!Use(c, unit.PlayerID, stratagem)) return false;
-            Mark(unit, stratagem == PushForward ? TokenType.CpPushForward : TokenType.CpSweepingMove);
+            Mark(unit, stratagem == PushForward ? TokenType.CpPushForward
+                : stratagem == RushObjective ? TokenType.CpRushObjective : TokenType.CpSweepingMove);
             c.Log($"{unit.Name}: {stratagem} ({CostOf(stratagem)} CP).");
             return true;
         }
@@ -171,7 +180,8 @@ namespace FDG
         /// <summary>The move was backed out of before anything happened: give the CP back.</summary>
         public static void RefundMoveOption(IGameContext c, IUnit unit)
         {
-            foreach ((TokenType t, string name) in new[] { (TokenType.CpPushForward, PushForward), (TokenType.CpSweepingMove, SweepingMove) })
+            foreach ((TokenType t, string name) in new[] { (TokenType.CpPushForward, PushForward), (TokenType.CpSweepingMove, SweepingMove),
+                         (TokenType.CpRushObjective, RushObjective) })
             {
                 if (!unit.Tokens.HasToken(t)) continue;
                 unit.Tokens.RemoveTokens(t, unit.Tokens.GetTokenCount(t));
@@ -186,6 +196,7 @@ namespace FDG
         /// <summary>The extra inches the unit's move gets (Advance, Rush, Charge).</summary>
         public static (float Advance, float Rush, float Charge) MoveBonus(IUnit unit) =>
             unit.Tokens.HasToken(TokenType.CpPushForward) ? (2f, 2f, 0f)
+            : unit.Tokens.HasToken(TokenType.CpRushObjective) ? (0f, 4f, 0f)
             : unit.Tokens.HasToken(TokenType.CpSweepingMove) ? (0f, 0f, 4f) : (0f, 0f, 0f);
 
         // ================================================================= Defensive / Hunting: shooting

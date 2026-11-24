@@ -40,6 +40,9 @@ namespace FDG.Stages
             if (SolidBuildings.EngagedThrough(context.AttackingUnit.GetValue(), context.DefendingUnit.GetValue(),
                     GameContext.TableState.Terrain.Objects.ToList()) != null)
                 inRange = MeleeRangeUtilities.AllLiving(defenderModels);
+            // Command Points - Killing Blow: offered as the melee starts, before anyone strikes. Asked before the
+            // in-range pools are recorded, so a picked unit's models stay in them if they die.
+            await CommandPoints.OfferKillingBlow(GameContext, context.DefendingUnit.GetValue(), context.AttackingUnit.GetValue());
             context.SetInRangeDefenders(inRange);
 
             GameContext.Log($"Determine In Range Defenders: {inRange.Count} of {MeleeRangeUtilities.AllLiving(defenderModels).Count} living models in melee range.");

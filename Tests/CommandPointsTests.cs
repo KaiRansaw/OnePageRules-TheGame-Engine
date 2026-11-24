@@ -566,5 +566,72 @@ namespace FDG.Tests
             Assert.That(CommandPoints.IsMoveOption("Coordinated Move (2 CP)") && CommandPoints.IsMoveOption("Strategic Relocation (3 CP)"),
                 "bots leave them alone");
         }
+
+        [Test]
+        public async Task RushObjective_TheExtraFourInches_OnlyEndingNearAnObjective()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 6, theirs: 1);
+            Place(_myUnit, 30f, 10f);
+            Assert.That(CommandPoints.MoveOptions(_context, _myUnit, true, false).Select(o => o.Stratagem),
+                Does.Not.Contain(CommandPoints.RushObjective), "no objective on the table");
+            _store.Create(new ObjectiveData(new Position(30f, 27f), _store));
+            Assert.That(CommandPoints.MoveOptions(_context, _myUnit, true, false).Select(o => o.Stratagem),
+                Does.Contain(CommandPoints.RushObjective));
+            Assert.That(CommandPoints.TakeMoveOption(_context, _myUnit, CommandPoints.RushObjective), Is.True);
+            Assert.That(CommandPoints.MoveBonus(_myUnit), Is.EqualTo((0f, 4f, 0f)));
+            DataBinding<ModelData> model = _myBinding.GetValue().ModelBindings[0];
+            List<ModelMoveEntry> Move(float z) => new() { new ModelMoveEntry(model, new List<Position> { new Position(30f, z) }) };
+            float budget(ModelMoveEntry _) => 16f;                             // 12" Rush + 4"
+            Assert.That(CommandPoints.RushObjectiveProblem(_context.TableState, _myUnit, Move(21f), budget), Is.Null, "11\": no extra used");
+            Assert.That(CommandPoints.RushObjectiveProblem(_context.TableState, _myUnit, Move(25f), budget), Is.Null, "15\", ends 2\" from the marker");
+            _store.Create(new ObjectiveData(new Position(5f, 60f), _store));
+            Place(_myUnit, 50f, 10f);
+            List<ModelMoveEntry> far = new() { new ModelMoveEntry(model, new List<Position> { new Position(50f, 25f) }) };
+            Assert.That(CommandPoints.RushObjectiveProblem(_context.TableState, _myUnit, far, budget), Is.Not.Null, "15\" and nowhere near one");
+            CommandPoints.RefundMoveOption(_context, _myUnit);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(8), "backed out: refunded");
+        }
+
+        [Test]
+        public async Task SupremeCaster_TokenPaysTheCostFirst()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 6, theirs: 1);
+            Assert.That(CommandPoints.CanSupremeCaster(_context, _myUnit), Is.False, "not a Caster");
+            _myUnit.Tokens.AddToken(FDG.Rules.Tokens.TokenDefinitionCatalog.Create(FDG.Rules.Foundation.TokenType.CpSupremeCaster));
+            Assert.That(CommandPoints.SupremeTokens(_myUnit), Is.EqualTo(1));
+            Assert.That(CommandPoints.SpendSupremeTokens(_myUnit, 2), Is.EqualTo(1), "one token towards a cost of 2");
+            Assert.That(CommandPoints.SupremeTokens(_myUnit), Is.EqualTo(0));
+            Assert.That(CommandPoints.SpendSupremeTokens(_myUnit, 2), Is.EqualTo(0));
+            for (int i = 0; i < 2; i++)
+                _myUnit.Tokens.AddToken(FDG.Rules.Tokens.TokenDefinitionCatalog.Create(FDG.Rules.Foundation.TokenType.CpSupremeCaster));
+            Assert.That(CommandPoints.SpendSupremeTokens(_myUnit, 1), Is.EqualTo(1), "never more than the cost");
+            Assert.That(CommandPoints.SupremeTokens(_myUnit), Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task KillingBlow_ADeadModelStillStrikes_ThisMelee()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 3, theirs: 1);
+            ModelData model = _myBinding.GetValue().ModelBindings[0].GetValue();
+            await CommandPoints.OfferKillingBlow(_context, _myUnit, _theirUnit);
+            Assert.That(CommandPoints.StrikesOnceMore(model), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(5));
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(4), "Strategic has no Killing Blow");
+            model.DealWounds(model.TotalWounds);
+            Assert.That(((IModel)model).GetIsAlive(), Is.False);
+            Place(_myUnit, 30f, 20f);
+            Place(_theirUnit, 30f, 21.2f);
+            var mine = _myBinding.GetValue().ModelBindings;
+            var theirs = _store.GetAllValues<ArmyData>().First(a => a.PlayerID.Equals(_them)).UnitBindings[0].GetValue().ModelBindings;
+            Assert.That(FDG.Stages.MeleeRangeUtilities.GetModelsInMeleeRange(mine, theirs), Has.Count.EqualTo(1), "dead, but still strikes");
+            CommandPoints.EndOfMelee(_myUnit, _theirUnit);
+            Assert.That(FDG.Stages.MeleeRangeUtilities.GetModelsInMeleeRange(mine, theirs), Is.Empty, "the melee is over: gone");
+        }
     }
 }

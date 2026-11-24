@@ -119,6 +119,12 @@ namespace FDG.Stages
                 throw new RequestResponseInvalidException(
                     $"Response to {nameof(DefinePathStage)} movement request was invalid: {building}");
 
+            // Command Points - Rush Objective: the extra 4" only for a move that ends within 3" of an objective.
+            if (CommandPoints.RushObjectiveProblem(context.GameContext.TableState, context.MovingUnit.GetValue(), movements,
+                    entry => pathRequest.PlayerBudgetFor(entry.Model.GetValue().ID).rush) is { } rushObjective)
+                throw new RequestResponseInvalidException(
+                    $"Response to {nameof(DefinePathStage)} movement request was invalid: {rushObjective}");
+
             context.SubmitValidPathTemplate(movements);
 
             await OnPathDefined.Activate(context);

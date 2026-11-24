@@ -18,7 +18,7 @@ namespace FDG.Stages
         /// flows through here so they can't disagree.</summary>
         public static bool AreModelsInMeleeRange(IModel model, IModel enemy)
         {
-            if (!model.GetIsAlive() || !enemy.GetIsAlive()) return false;
+            if ((!model.GetIsAlive() && !CommandPoints.StrikesOnceMore(model)) || !enemy.GetIsAlive()) return false;
 
             float horizontal = DistanceUtilities.GetBaseToBaseDistanceInches_2D(
                 model.Position, enemy.Position, model.BaseShape, model.Facing, enemy.BaseShape, enemy.Facing);
@@ -63,7 +63,7 @@ namespace FDG.Stages
         /// <paramref name="enemyModels"/>.</summary>
         public static bool IsModelInMeleeRange(ModelData model, IReadOnlyList<DataBinding<ModelData>> enemyModels)
         {
-            if (!((IModel)model).GetIsAlive()) return false;
+            if (!((IModel)model).GetIsAlive() && !CommandPoints.StrikesOnceMore(model)) return false;
 
             foreach (DataBinding<ModelData> enemyBinding in enemyModels)
             {
@@ -101,7 +101,8 @@ namespace FDG.Stages
             foreach (DataBinding<ModelData> binding in models)
             {
                 ModelData model = binding.GetValue();
-                if (!((IModel)model).GetIsAlive()) continue;
+                // Command Points - Killing Blow: a model killed in this melee "may strike one more time".
+                if (!((IModel)model).GetIsAlive() && !CommandPoints.StrikesOnceMore(model)) continue;
 
                 foreach (Weapon weapon in model.Weapons)
                 {

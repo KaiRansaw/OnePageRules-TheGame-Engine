@@ -113,7 +113,8 @@ namespace FDG.Stages
             // #197 P23 — the purse, not the unit's own pool: a nearby friendly Spell Accumulator's tokens
             // are spendable "as if they were their own spell tokens", so they count toward affordability
             // everywhere an owned token does.
-            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, caster);
+            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, caster)
+                + CommandPoints.SupremeTokens(caster);   // Command Points - Supreme Caster: pays a spell's cost
 
             // #197 P23 — where the cast may originate: the caster's own position, plus any Spell Conduit
             // relaying for it. Relays come first, so preferring the head of the viable list prefers the
@@ -189,8 +190,11 @@ namespace FDG.Stages
                 GameContext.Log($"{caster.Name} casts with +{usedRange}\" range.");
             if (targets.Any(t => !ITeamExtensions.AreAllied(GameContext.TableState.Teams.Objects, caster.PlayerID, t.GetValue().PlayerID)))
                 QuestFlags.TargetedAnEnemy(GameContext, caster);
+            // Command Points - Supreme Caster: its token goes on the cost first ("may not be spent to give casters
+            // +1/-1"), so any boost comes out of the ordinary purse.
+            int supremeSpent = CommandPoints.SpendSupremeTokens(caster, chosen.Threshold);
             IReadOnlyList<SpellPurse.Loan> loans = SpellPurse.Spend(GameContext.TableState,
-                GameContext.RuleEvaluator, caster, chosen.Threshold + boostTokens);
+                GameContext.RuleEvaluator, caster, chosen.Threshold - supremeSpent + boostTokens);
             // #414 - the Power half of the boost, spent at the same moment and on the same terms (win or
             // lose). Through CastPower so the Diseased condition still bites on Power spent this way.
             await CastPower.Spend(GameContext, context.ActivatingUnit.GetValue(), boostPower,

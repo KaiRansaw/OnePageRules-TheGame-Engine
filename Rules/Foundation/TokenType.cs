@@ -78,6 +78,9 @@ public readonly record struct TokenType(string Id)
     public const string CP_COMBAT_FATIGUE_ID = "CpCombatFatigue";
     public const string CP_CLOSING_FIRE_ID = "CpClosingFire";
     public const string CP_FRENZIED_ATTACK_ID = "CpFrenziedAttack";
+    public const string CP_RUSH_OBJECTIVE_ID = "CpRushObjective";
+    public const string CP_SUPREME_CASTER_ID = "CpSupremeCaster";
+    public const string CP_KILLING_BLOW_ID = "CpKillingBlow";
 
     // Granted numeric roll modifiers (#033 stat-modifier primitive): a spell/ability grants the bearer a
     // signed delta to a specific roll for a duration. The roll kind is the token TYPE (so different rolls
@@ -470,4 +473,7 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType CpCombatFatigue = new(CP_COMBAT_FATIGUE_ID);
     public static readonly TokenType CpClosingFire = new(CP_CLOSING_FIRE_ID);
     public static readonly TokenType CpFrenziedAttack = new(CP_FRENZIED_ATTACK_ID);
+    public static readonly TokenType CpRushObjective = new(CP_RUSH_OBJECTIVE_ID);
+    public static readonly TokenType CpSupremeCaster = new(CP_SUPREME_CASTER_ID);
+    public static readonly TokenType CpKillingBlow = new(CP_KILLING_BLOW_ID);
 }

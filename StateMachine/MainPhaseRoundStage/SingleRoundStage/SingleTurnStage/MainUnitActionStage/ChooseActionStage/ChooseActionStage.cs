@@ -709,6 +709,15 @@ namespace FDG.Stages
                         });
                         continue;
                     }
+                    if (stratagem == CommandPoints.SupremeCaster)
+                    {
+                        outcomes.Add(option, async () =>
+                        {
+                            await CommandPoints.TakeSupremeCaster(GameContext, cpUnit);
+                            await Enter(context);
+                        });
+                        continue;
+                    }
                     if (stratagem == CommandPoints.StrategicRelocation || stratagem == CommandPoints.CoordinatedMove)
                     {
                         outcomes.Add(option, async () =>
@@ -993,7 +1002,8 @@ namespace FDG.Stages
         {
             UnitData unit = context.ActivatingUnit.GetValue();
             // Command Points: a Push Forward / Sweeping Move whose move never happened gives its CP back.
-            if (context.ExtraAction is CommandPoints.PushForward or CommandPoints.SweepingMove && !context.HasMoved)
+            if (context.ExtraAction is CommandPoints.PushForward or CommandPoints.SweepingMove or CommandPoints.RushObjective
+                && !context.HasMoved)
             {
                 CommandPoints.RefundMoveOption(GameContext, unit);
                 context.ExtraAction = null;
@@ -1247,7 +1257,8 @@ namespace FDG.Stages
 
             // The purse (own tokens + nearby friendly Spell Accumulators), so the Cast action is offered
             // whenever the unit could actually pay - CastSpellStage's picker prices spells the same way.
-            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit);
+            int tokens = SpellPurse.Available(GameContext.TableState, GameContext.RuleEvaluator, unit)
+                + CommandPoints.SupremeTokens(unit);
             PlayerID player = context.ActivatingPlayer();
 
             ArmyData army = GameContext.GameDataStore().GetAllValues<ArmyData>()

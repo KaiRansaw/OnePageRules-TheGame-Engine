@@ -81,6 +81,7 @@ namespace FDG.Stages
                 containers.AddRange(combatant.Models.Select(model => model.Tokens));
             }
             new TokenClearService().ClearForHook(EHookID.Melee_OnPostMelee, containers);
+            CommandPoints.EndOfMelee(context.AttackingUnit.GetValue(), context.DefendingUnit.GetValue());
 
             await ToFinished.Activate(context);
         }

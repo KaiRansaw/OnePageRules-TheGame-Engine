@@ -9,6 +9,7 @@ using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Dispatch.Contexts;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
 using FDG.StateMachine;
@@ -208,6 +209,92 @@ namespace FDG
             }
             await c.Announce($"Strategic Relocation: {unit.Name} is placed again.", BattlefieldEffects.Amber, EBannerTier.Toast);
             return true;
+        }
+
+        // ================================================================= Tactical - Rush Objective / Supreme Caster
+
+        /// <summary>
+        /// Rush Objective: "Pick one friendly unit that is using a Rush action, and it may add +4\" to its movement if it
+        /// ends up within 3\" of an objective." From the action menu (like Push Forward); the extra 4\" is only legal for a
+        /// move that ends with a model within 3\" of an objective marker (base edge to marker). Null when the move is fine;
+        /// otherwise the reason, for the move screen and the path check.
+        /// </summary>
+        public static string? RushObjectiveProblem(ITableState table, IUnit unit, IReadOnlyList<ModelMoveEntry> moves,
+            Func<ModelMoveEntry, float> rushBudget)
+        {
+            if (!unit.Tokens.HasToken(TokenType.CpRushObjective)) return null;
+            bool usedExtra = moves.Any(m => m.Positions.Count > 0
+                && MovementUtilities.GetTotalMoveDistance(m) > rushBudget(m) - 4f + 0.01f);
+            if (!usedExtra) return null;
+            bool near = moves.Any(m =>
+            {
+                if (m.Positions.Count == 0) return false;
+                ModelData model = m.Model.GetValue();
+                Position end = m.Positions[^1];
+                return table.Objectives.Objects.Any(o =>
+                    BaseShapeGeometry.SurfaceDistanceToPoint2D(model.BaseShape, end, model.Facing, o.Position) <= 3f + 0.01f);
+            });
+            return near ? null : "Rush Objective: the extra 4\" only counts if the unit ends within 3\" of an objective";
+        }
+
+        /// <summary>Supreme Caster tokens the unit holds (spendable on a spell's cost only).</summary>
+        public static int SupremeTokens(IUnit unit) => unit.Tokens.GetTokenCount(TokenType.CpSupremeCaster);
+
+        /// <summary>Spends Supreme Caster tokens towards a spell's cost first; returns how many were used.</summary>
+        public static int SpendSupremeTokens(IUnit caster, int cost)
+        {
+            int n = Math.Min(cost, SupremeTokens(caster));
+            if (n > 0) caster.Tokens.RemoveTokens(TokenType.CpSupremeCaster, n);
+            return n;
+        }
+
+        /// <summary>
+        /// Supreme Caster: "One friendly Caster gets 1 spell token, which may not be spent to give casters +1/-1 to their
+        /// casting rolls." From a Caster's action menu, when it isn't already holding one; the token pays a spell's cost
+        /// and nothing else. Bots don't use it.
+        /// </summary>
+        public static bool CanSupremeCaster(IGameContext c, IUnit unit) =>
+            On(c) && Can(c, unit.PlayerID, SupremeCaster) && SupremeTokens(unit) == 0 && SpellTargeting.IsCaster(c, unit);
+
+        public static async Task TakeSupremeCaster(IGameContext c, IUnit unit)
+        {
+            if (!CanSupremeCaster(c, unit) || !Use(c, unit.PlayerID, SupremeCaster)) return;
+            unit.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.CpSupremeCaster));
+            await c.Announce($"Supreme Caster: {unit.Name} gets a spell token (for a spell's cost only).", BattlefieldEffects.Amber, EBannerTier.Toast);
+        }
+
+        // ================================================================= Shock - Killing Blow
+
+        /// <summary>Whether a dead model still strikes (Killing Blow, this melee).</summary>
+        public static bool StrikesOnceMore(IModel model) => model.Tokens.HasToken(TokenType.CpKillingBlow);
+
+        /// <summary>
+        /// Killing Blow: "Pick one friendly unit that is fighting in melee. Any friendly model that is killed during this
+        /// melee may strike one more time with all of its weapons before it is removed." Offered as the melee starts
+        /// (charged unit's player first): every living model of the picked unit is marked, and a marked model that dies
+        /// before its unit strikes still strikes with it. Bots use it for a charged unit of 2+ models.
+        /// </summary>
+        public static async Task OfferKillingBlow(IGameContext c, IUnit charged, IUnit charger)
+        {
+            if (!On(c)) return;
+            foreach (IUnit unit in new[] { charged, charger })
+            {
+                var living = unit.Models.Where(m => m.GetIsAlive()).ToList();
+                if (living.Count == 0 || !HasDoctrine(c, unit.PlayerID, KillingBlow)) continue;
+                if (!await Offer(c, unit.PlayerID, KillingBlow,
+                        $"{unit.Name} is fighting in melee. Any of its models killed in this melee still strike before they're removed?",
+                        botSays: unit == charged && living.Count > 1, askOncePerRound: false)) continue;
+                foreach (IModel m in living)
+                    if (!m.Tokens.HasToken(TokenType.CpKillingBlow)) m.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.CpKillingBlow));
+            }
+        }
+
+        /// <summary>The melee is over: Killing Blow's marks go.</summary>
+        public static void EndOfMelee(params IUnit[] units)
+        {
+            foreach (IUnit unit in units)
+                foreach (IModel m in unit.Models)
+                    if (m.Tokens.HasToken(TokenType.CpKillingBlow)) m.Tokens.RemoveTokens(TokenType.CpKillingBlow, m.Tokens.GetTokenCount(TokenType.CpKillingBlow));
         }
     }
 }
