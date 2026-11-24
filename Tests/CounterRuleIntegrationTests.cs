@@ -53,6 +53,24 @@ namespace FDG.Tests
                 "the banner tells the player the charged unit strikes first thanks to Counter.");
         }
 
+        /// <summary>Twists &amp; Gambits, gambit B2 Seize &amp; Guard's power: "Counter on all melee weapons until the end of
+        /// the round", given as a round-long rule grant on the unit.</summary>
+        [Test]
+        public async Task GrantedCounter_ForTheRound_StrikesFirst()
+        {
+            _ctx = new WoundTestContext(_store, new CapturingWoundRequester(), presenter: _presenter,
+                ruleResolver: CoreRuleCatalog.CreateResolver());
+            DataBinding<UnitData> charger = MakeUnit(modelCount: 3);
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+            defender.GetValue().Tokens.AddToken(new FDG.Rules.Tokens.Token(FDG.Rules.Foundation.TokenType.RuleGrant, 1,
+                new FDG.Rules.Foundation.TokenClearTrigger.RoundEnd(),
+                Payload: new FDG.Rules.Tokens.TokenPayload.RuleGrant("Counter", FDG.Rules.Foundation.ELifetime.ThisRound)));
+
+            var context = await RunStage(charger, defender);
+
+            Assert.That(context.AttackingUnit.GetValue(), Is.SameAs(defender.GetValue()));
+        }
+
         [Test]
         public async Task NoCounter_KeepsNormalOrder()
         {

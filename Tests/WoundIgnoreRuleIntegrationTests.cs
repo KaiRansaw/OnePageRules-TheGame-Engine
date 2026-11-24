@@ -63,6 +63,23 @@ namespace FDG.Tests
                 "Unstoppable suppresses Regeneration end-to-end; the full wound count is assigned.");
         }
 
+        /// <summary>Twists &amp; Gambits, gambit A3 Aggressive Takeover's power, granted for the round: Regeneration is
+        /// ignored.</summary>
+        [Test]
+        public async Task AggressiveTakeoverGrant_SuppressesRegeneration()
+        {
+            _ctx = new WoundTestContext(_store, _requester, new ProbabilisticDiceRoller(), ruleResolver: CoreRuleCatalog.CreateResolver());
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            attacker.GetValue().Tokens.AddToken(new FDG.Rules.Tokens.Token(TokenType.RuleGrant, 1, new TokenClearTrigger.RoundEnd(),
+                Payload: new FDG.Rules.Tokens.TokenPayload.RuleGrant(CampaignEventRuleCatalog.AggressiveTakeoverName, ELifetime.ThisRound)));
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+            AttachRule(defender, "Regeneration", CoreRuleCatalog.Regeneration);
+
+            await RunStage(attacker, defender, failedSaves: 3);
+
+            Assert.That(_requester.Captured!.TotalWoundsToAssign, Is.EqualTo(3f).Within(0.0001f));
+        }
+
         // #093 combat-kind threaded into the save context: "Unstoppable when shooting" suppresses
         // Regeneration on a shooting attack (Not(IsMelee) holds), so all wounds land.
         [Test]

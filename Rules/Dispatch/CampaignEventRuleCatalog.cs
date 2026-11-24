@@ -32,7 +32,28 @@ public static class CampaignEventRuleCatalog
     public static SpecialRuleDefinition Slowed { get; } = Movement(SlowedName, -1f, -2f,
         EValence.Negative, "Campaign event: moves -1\" on Advance and -2\" on Rush/Charge actions.");
 
-    public static IReadOnlyList<SpecialRuleDefinition> All => new[] { Hastened, Slowed };
+    /// <summary>Twists &amp; Gambits, gambit A3's power (Advanced Rulebooks 3.6.0: GF p45, GFF p42, AoF p45, AoFS p42):
+    /// "One friendly unit's weapons ignore the Stealth and Regeneration rule until the end of the round." Granted for
+    /// the round by <c>FDG.Missions.TwistsGambits</c>; shooting and melee both run through these hooks.</summary>
+    public const string AggressiveTakeoverName = "Gambit: Aggressive Takeover";
+
+    public static SpecialRuleDefinition AggressiveTakeover { get; } = new(AggressiveTakeoverName,
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollModifier,
+                new Condition.Always(),
+                new Effect.IgnoreRule("Stealth"),
+                ELifetime.ThisAttack),
+            new HookEntry(EHookID.Shooting_OnSaveRollComplete,
+                new Condition.Always(),
+                new Effect.IgnoreRule("Regeneration"),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Gambit: this unit's weapons ignore the Stealth and Regeneration rules until the end of the round.");
+
+    public static IReadOnlyList<SpecialRuleDefinition> All => new[] { Hastened, Slowed, AggressiveTakeover };
 
     /// <summary>
     /// The shared shape: one hook per action type, because <see cref="Effect.MovementBonus"/> is per

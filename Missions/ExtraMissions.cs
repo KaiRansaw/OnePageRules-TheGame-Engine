@@ -138,7 +138,8 @@ namespace FDG.Missions
             + "When playing with twists and gambits, set up the mission normally, placing 5 objectives, of which two must be placed inside deployment zones (one objective per zone), and three must be placed outside of deployment zones (number these objectives from 1 to 3).\n"
             + "At the end of each round, players score victory points: 1 VP for each enemy unit they destroyed, 1 VP for each objective they control, 1 VP if they control more objectives than their opponent.\n"
             + "After 4 rounds have been played, the game ends, and the player that scored most VPs wins.\n"
-            + "The underdog: at the beginning of each round, if one player has fewer VPs than the other, then they count as the underdog for that round. Each round a random twist applies, and the underdog picks what it affects (no underdog: the twist is ignored).");
+            + "The underdog: at the beginning of each round, if one player has fewer VPs than the other, then they count as the underdog for that round. Each round a random twist applies, and the underdog picks what it affects (no underdog: the twist is ignored).\n"
+            + "Gambits: at the beginning of the game, each player gets three random gambits, and when they use or score a gambit, they must roll for a new gambit. At the end of each round, players may also discard one of their gambits and roll for a new one. Once per round, players may either use one gambit's power at the beginning of the round, or score one of their gambits at the end of the round for 4 VPs.");
 
         /// <summary>"When playing Attack &amp; Defend missions, the player that wins the deployment roll-off gets to pick if
         /// they want to be attacker or defender for this match."</summary>

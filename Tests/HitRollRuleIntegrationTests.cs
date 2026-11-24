@@ -601,6 +601,21 @@ namespace FDG.Tests
                 "no Unstoppable on the weapon fired - the penalty applies as usual.");
         }
 
+        /// <summary>Twists &amp; Gambits, gambit A3 Aggressive Takeover's power: the unit's weapons ignore Stealth.</summary>
+        [Test]
+        public async Task AggressiveTakeoverGrant_IgnoresTheDefendersStealth()
+        {
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(FarPos);
+            AttachStealth(defender);
+            attacker.GetValue().Tokens.AddToken(new Token(FDG.Rules.Foundation.TokenType.RuleGrant, 1, new TokenClearTrigger.RoundEnd(),
+                Payload: new TokenPayload.RuleGrant(CampaignEventRuleCatalog.AggressiveTakeoverName, ELifetime.ThisRound)));
+
+            DetermineHitRollResults result = await RunStage(attacker, defender);
+
+            Assert.That(result.HitRollNeeded, Is.EqualTo(4), "the granted gambit suppresses Stealth's -1.");
+        }
+
         private static Weapon UnstoppableWeapon()
         {
             var weapon = new Weapon("Unstoppable Gun", rangeInches: 48f, attacks: 1, armorPenetration: 0);

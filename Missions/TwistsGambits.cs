@@ -30,6 +30,15 @@ namespace FDG.Missions
         public Dictionary<int, int> KillBonus { get; set; } = new();
         /// <summary>The last round's scoring, for the Mission panel ("seat: text").</summary>
         public List<string> LastScore { get; set; } = new();
+        /// <summary>Each seat's three gambits ("A1".."B6"), dealt at the start of the game.</summary>
+        public Dictionary<int, List<string>> Hand { get; set; } = new();
+        public bool Dealt { get; set; }
+        /// <summary>Seats that used a gambit's power this round - they can't score one at its end.</summary>
+        public List<int> PowerUsed { get; set; } = new();
+        /// <summary>Units that shot or fought in melee this round (unit ids) - Silent Assault.</summary>
+        public List<string> Attacked { get; set; } = new();
+        /// <summary>Units that fought in melee this round (unit ids) - Storm Strike.</summary>
+        public List<string> Fought { get; set; } = new();
     }
 
     /// <summary>
@@ -39,7 +48,7 @@ namespace FDG.Missions
     /// AoF's Strategic Divide scores "when controlled" where the others say "when seized".
     /// Judgement calls: house rules C, "Twists &amp; Gambits readings".
     /// </summary>
-    public static class TwistsGambits
+    public static partial class TwistsGambits
     {
         public static readonly TextColor Gold = new(255, 200, 90, 255);
 
@@ -167,7 +176,16 @@ namespace FDG.Missions
             t.PickedUnits.Clear();
             t.PickedObjectives.Clear();
             t.Twist = "";
+            t.PowerUsed.Clear();
+            t.Attacked.Clear();
+            t.Fought.Clear();
+            await RollTwist(c, s, t, round);
+            await GambitsRoundStart(c, t, round);
+            ExtraMissions.SaveState(c, s);
+        }
 
+        private static async Task RollTwist(IGameContext c, ExtraMissionState s, TwistsGambitsState t, int round)
+        {
             var seats = Seats(c).ToList();
             t.Underdog = -1;
             if (seats.Count == 2)
@@ -183,7 +201,6 @@ namespace FDG.Missions
             {
                 c.Log($"Twists & Gambits, round {round}: twist {code} {name} - no underdog (equal VP), so it is ignored.");
                 await c.Announce($"Twist: {name} - ignored (no underdog)", Gold, EBannerTier.Toast);
-                ExtraMissions.SaveState(c, s);
                 return;
             }
             t.Twist = code;
@@ -191,7 +208,6 @@ namespace FDG.Missions
             c.Log($"Twists & Gambits, round {round}: {under.Name} is the underdog. Twist {code} {name}: {text}");
             await c.Announce($"Twist: {name} - {under.Name} is the underdog", Gold, EBannerTier.Notice);
             await ApplyTwist(c, t, under);
-            ExtraMissions.SaveState(c, s);
         }
 
         private static List<IUnit> UnitsOf(IGameContext c, int slot) =>
@@ -397,6 +413,7 @@ namespace FDG.Missions
                 t.KillBonus[scorer] = t.KillBonus.GetValueOrDefault(scorer) + 1;
                 c.Log($"Duel of Fate: {dead.Name} destroyed - +1 VP for {Seat(c, scorer)?.Name}.");
             }
+            ExtraMissions.SaveState(c, ExtraMissions.StateFor(c));
         }
 
         // ---------------------------------------------------------------- the end of the round
@@ -413,6 +430,7 @@ namespace FDG.Missions
             var held = new Dictionary<int, List<string>>();
             foreach (IObjective o in c.TableState.Objectives.Objects)
                 if (Holder(c, o) is var h and >= 0) (held.TryGetValue(h, out var l) ? l : held[h] = new List<string>()).Add(Key(o.Position));
+            bool Holds(int slot, string key) => held.GetValueOrDefault(slot)?.Contains(key) == true;
             bool Seized(int slot, string key) => held.GetValueOrDefault(slot)?.Contains(key) == true && t.OwnerAtStart.GetValueOrDefault(key, -1) != slot;
             int perObjective = ObjectiveVp(c.Settings.GameSystem);
             t.LastScore.Clear();
@@ -450,6 +468,9 @@ namespace FDG.Missions
                 }
                 if (twist > 0) parts.Add($"twist +{twist}");
                 vp += twist;
+                int gambit = await ScoreGambit(c, t, seat, Holds, Seized, round);
+                if (gambit > 0) parts.Add($"gambit +{gambit}");
+                vp += gambit;
                 s.Vp[slot] = s.Vp.GetValueOrDefault(slot) + vp;
                 string line = $"{seat.Name} +{vp} VP ({(parts.Count > 0 ? string.Join(", ", parts) : "nothing")}) - {s.Vp[slot]} in all";
                 t.LastScore.Add(line);
@@ -462,6 +483,8 @@ namespace FDG.Missions
                     if (hero.Models.Any(m => m.GetIsAlive() && BaseShapeGeometry.SurfaceDistanceToPoint2D(m.BaseShape, m.Position, m.Facing, boon.Position) <= 3f + 0.01f))
                         await new GameOperationServices(c).RestoreD3(hero, "Conqueror's Boon");
 
+            await OfferDiscards(c, t, round);
+
             // Objective Denied's Dangerous area is this round's only.
             foreach (DataReference r in c.GameDataStore.GetAllDataReferences<TerrainData>().ToList())
                 if (c.GameDataStore.IsValid(r, out _) && c.GameDataStore.GetValue<TerrainData>(r).Name == DeniedTerrainName)
@@ -469,7 +492,8 @@ namespace FDG.Missions
         }
 
         /// <summary>The Mission panel's lines (text, hover).</summary>
-        public static IEnumerable<(string Text, string Hover)> PanelLines(ITableState table, TwistsGambitsState t)
+        public static IEnumerable<(string Text, string Hover)> PanelLines(ITableState table, TwistsGambitsState t,
+            EGameSystem system = EGameSystem.GrimdarkFuture)
         {
             var seats = table.Players.Objects.Where(p => p.IsFilled).ToList();
             string Name(int slot) => seats.FirstOrDefault(p => p.SlotID == slot)?.Name ?? "?";
@@ -492,6 +516,12 @@ namespace FDG.Missions
             }
             foreach (IObjective o in table.Objectives.Objects.OrderBy(o => LabelOf(Key(o.Position))))
                 yield return ($"{LabelOf(Key(o.Position))}: {HolderName(o)}", "");
+            foreach ((int slot, List<string> hand) in t.Hand.OrderBy(kv => kv.Key))
+                if (hand.Count > 0)
+                    yield return ($"{Name(slot)}'s gambits: {string.Join(", ", hand.Select(g => Gambits[g].Name))}",
+                        string.Join("\n\n", hand.Distinct().Select(g =>
+                            $"{Gambits[g].Name}\nPower: {PowerText(system, g)}\nScoring ({GambitVp} VP): {ScoringText(system, g)}"))
+                        + "\n\nOnce per round: use one power at the start of the round, or score one gambit at its end.");
             foreach (string line in t.LastScore) yield return ("Last round: " + line, "");
         }
     }
