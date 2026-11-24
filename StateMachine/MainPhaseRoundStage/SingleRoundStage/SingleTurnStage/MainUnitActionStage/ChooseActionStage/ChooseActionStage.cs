@@ -687,7 +687,7 @@ namespace FDG.Stages
 
             // Command Points - Push Forward / Sweeping Move: on a fresh activation's menu, only when the player can
             // use them (their doctrine, the CP). Picking one spends it and moves with the bonus.
-            if (context.ExtraAction == null && !context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
+            if (context.ExtraAction == null && !context.HasMoved && !context.HasAttacked
                 && !QuestActions.IsQuestGame(GameContext))
             {
                 UnitData cpUnit = context.ActivatingUnit.GetValue();
@@ -695,6 +695,8 @@ namespace FDG.Stages
                              canMove && canCharge && ChargeContactRules.CanFightInMelee(cpUnit)))
                 {
                     if (outcomes.ContainsKey(option)) continue;
+                    // "has just been activated, but that hasn't done anything yet".
+                    if (stratagem == CommandPoints.StrategicRelocation && context.IrreversibleActionTaken) continue;
                     validOptions.Add(option);
                     optionDescriptions[option] = text;
                     if (stratagem == CommandPoints.TacticalRetreat)
@@ -702,6 +704,19 @@ namespace FDG.Stages
                         outcomes.Add(option, async () =>
                         {
                             await CommandPoints.TakeTacticalRetreat(GameContext, cpUnit);
+                            context.MarkIrreversibleAction();
+                            await Enter(context);
+                        });
+                        continue;
+                    }
+                    if (stratagem == CommandPoints.StrategicRelocation || stratagem == CommandPoints.CoordinatedMove)
+                    {
+                        outcomes.Add(option, async () =>
+                        {
+                            bool used = stratagem == CommandPoints.StrategicRelocation
+                                ? await CommandPoints.TakeStrategicRelocation(GameContext, cpUnit)
+                                : await CommandPoints.TakeCoordinatedMove(GameContext, cpUnit);
+                            if (used) context.MarkIrreversibleAction();
                             await Enter(context);
                         });
                         continue;

@@ -85,6 +85,9 @@ namespace FDG.Stages
                 }
             }
 
+            // Command Points - Vanish: "At the end of the round, pick one friendly unit with Ambush and remove it".
+            await CommandPoints.OfferVanish(GameContext);
+
             // Game-mode round-end steps (Horde Mode: objective damage and its mission-end checks). Run
             // BEFORE the round-end rules and token sweep below so they see the same "arrived this round"
             // and Shaken state the objective check above used. None in the standard game.

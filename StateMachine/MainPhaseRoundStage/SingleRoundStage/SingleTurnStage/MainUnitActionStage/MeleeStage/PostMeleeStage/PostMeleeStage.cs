@@ -60,6 +60,9 @@ namespace FDG.Stages
                 {
                     context.PostCombatMovers.Add(combatantBinding);
                 }
+
+                // Command Points - Hit & Run: "may move by up to 3\" in any direction" after fighting.
+                await CommandPoints.OfferHitAndRun(GameContext, combatant);
             }
 
             // #197 P12: the per-melee token sweep. Melee_OnPostMelee was a hook nothing swept, so a

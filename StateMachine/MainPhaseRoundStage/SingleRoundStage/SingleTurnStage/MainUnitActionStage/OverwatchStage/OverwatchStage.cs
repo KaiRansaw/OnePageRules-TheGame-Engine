@@ -42,6 +42,10 @@ namespace FDG.Stages
         private DataBinding<UnitData>? _shooter;
         private readonly HashSet<UnitID> _asked = new();
         private bool _inProgress;
+        // Command Points: the reaction's one target (Closing Fire: the charger; Frenzied Attack: the new enemy), and
+        // whether this trigger already offered Frenzied Attack.
+        private UnitID? _onlyTarget;
+        private bool _frenzyAsked;
 
         public OverwatchStage(IGameContext gameContext, IStateMachineLayer<IUnitActionContext> parent, ETrigger trigger)
             : base(gameContext, parent)
@@ -56,6 +60,7 @@ namespace FDG.Stages
             if (!_inProgress)
             {
                 _asked.Clear();
+                _frenzyAsked = false;
                 _inProgress = true;
             }
 
@@ -63,12 +68,16 @@ namespace FDG.Stages
             {
                 UnitData done = finished.GetValue();
                 if (done.Tokens.HasToken(TokenType.OverwatchFiring)) done.Tokens.RemoveTokens(TokenType.OverwatchFiring);
+                if (done.Tokens.HasToken(TokenType.CpClosingFire)) done.Tokens.RemoveTokens(TokenType.CpClosingFire);
+                if (done.Tokens.HasToken(TokenType.CpFrenziedAttack)) done.Tokens.RemoveTokens(TokenType.CpFrenziedAttack);
                 _shooter = null;
+                _onlyTarget = null;
             }
 
             UnitData mover = context.ActivatingUnit.GetValue();
-            if (ExtraActions.IsOn(GameContext, EExtraActions.Overwatch) && mover.GetIsAlive() && mover.GetIsOnBattlefield())
+            if (mover.GetIsAlive() && mover.GetIsOnBattlefield())
             {
+                if (ExtraActions.IsOn(GameContext, EExtraActions.Overwatch))
                 foreach (DataBinding<UnitData> candidate in Candidates(context))
                 {
                     UnitData watcher = candidate.GetValue();
@@ -90,6 +99,38 @@ namespace FDG.Stages
                     await base.Enter(context);
                     return;
                 }
+
+                if (_trigger == ETrigger.Movement)
+                {
+                    // Command Points - Closing Fire: each unit the mover charged (now in contact) may shoot at it.
+                    foreach (DataBinding<UnitData> candidate in ClosingFireCandidates(context))
+                    {
+                        UnitData charged = candidate.GetValue();
+                        _asked.Add(charged.ID);
+                        if (!ChooseRangedAttackStage.HasAnyFireableTarget(candidate, GameContext, onlyTarget: mover.ID)) continue;
+                        if (!await CommandPoints.OfferClosingFire(GameContext, charged, mover)) continue;
+                        _shooter = candidate;
+                        _onlyTarget = mover.ID;
+                        GameContext.Log($"{charged.Name} uses Closing Fire on {mover.Name}.");
+                        await base.Enter(context);
+                        return;
+                    }
+                }
+                else if (!_frenzyAsked && !mover.Tokens.HasToken(TokenType.Shaken))
+                {
+                    // Command Points - Frenzied Attack: the shooter may turn on another enemy within 12" of its target.
+                    _frenzyAsked = true;
+                    List<IUnit> targets = CommandPoints.FrenzyTargets(GameContext, mover)
+                        .Where(t => ChooseRangedAttackStage.HasAnyFireableTarget(context.ActivatingUnit, GameContext, onlyTarget: t.ID))
+                        .ToList();
+                    if (await CommandPoints.OfferFrenziedAttack(GameContext, mover, targets) is { } pick)
+                    {
+                        _shooter = context.ActivatingUnit;
+                        _onlyTarget = pick;
+                        await base.Enter(context);
+                        return;
+                    }
+                }
             }
 
             _inProgress = false;
@@ -103,6 +144,25 @@ namespace FDG.Stages
                 }
             }
             await ToFinished.Activate(context);
+        }
+
+        /// <summary>Closing Fire: the enemy units in contact with the mover after its move (it charged them), not yet asked.</summary>
+        private IEnumerable<DataBinding<UnitData>> ClosingFireCandidates(IUnitActionContext context)
+        {
+            UnitData mover = context.ActivatingUnit.GetValue();
+            ITeam? moverTeam = GameContext.TableState.Teams.Objects.FirstOrDefault(t => t.IsPlayerOnTeam(mover.PlayerID));
+            foreach (ArmyData army in GameContext.GameDataStore.GetAllValues<ArmyData>().ToList())
+            {
+                if (army.PlayerID.Equals(mover.PlayerID) || (moverTeam != null && moverTeam.IsPlayerOnTeam(army.PlayerID))) continue;
+                foreach (DataBinding<UnitData> binding in army.UnitBindings)
+                {
+                    UnitData unit = binding.GetValue();
+                    if (_asked.Contains(unit.ID) || !unit.GetIsAlive() || !unit.GetIsOnBattlefield()) continue;
+                    if (unit.Tokens.HasToken(TokenType.Shaken) || TransportUtilities.IsEmbarked(unit)) continue;
+                    if (!CommandPoints.InContact(unit, mover)) continue;
+                    yield return binding;
+                }
+            }
         }
 
         /// <summary>The enemy units still able to react to this trigger, not yet asked.</summary>
@@ -138,7 +198,7 @@ namespace FDG.Stages
         {
             return new CombatActionContext(contextSelf.GameContext, _shooter!, isMelee: false, attackerMoved: false)
             {
-                OnlyTargetUnit = contextSelf.ActivatingUnit.GetValue().ID,
+                OnlyTargetUnit = _onlyTarget ?? contextSelf.ActivatingUnit.GetValue().ID,
             };
         }
 

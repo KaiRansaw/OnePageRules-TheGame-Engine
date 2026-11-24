@@ -200,7 +200,10 @@ namespace FDG.Stages
 
             // Extra Actions (Advanced Rulebooks 3.6.0): Last Stand -1, Focused Fire +1 within 12", Heavy Charge
             // +1 in melee, Overwatch -1, and the target's Stealth Move -1 from over 12". Named on the chips.
-            bool coveringFire = !metaData.IsMelee && attacker.Tokens.HasToken(Rules.Foundation.TokenType.CoveringFire);
+            // Command Points - Frenzied Attack: "only hits on unmodified results of 6", the Covering Fire override.
+            bool frenzied = !metaData.IsMelee && !metaData.IsSpell && attacker.Tokens.HasToken(Rules.Foundation.TokenType.CpFrenziedAttack);
+            bool coveringFire = !metaData.IsMelee && (attacker.Tokens.HasToken(Rules.Foundation.TokenType.CoveringFire) || frenzied);
+            if (!metaData.IsMelee && !metaData.IsSpell) CommandPoints.NoteShot(GameContext, attacker, defender);
             // Command Points - Disrupted Sight: the target's player may give the shooter -1 to hit for this shooting.
             if (!fatiguedInMelee && !coveringFire && !metaData.IsMelee && !metaData.IsSpell)
                 await CommandPoints.OfferDisruptedSight(GameContext, attacker, defender, results.HitRollNeeded);
@@ -251,7 +254,8 @@ namespace FDG.Stages
             if (coveringFire)
             {
                 results.HitRollNeeded = 6;
-                GameContext.Log($"{attacker.Name} lays down Covering Fire - hits only on unmodified 6s.");
+                GameContext.Log(frenzied ? $"{attacker.Name} makes a Frenzied Attack - hits only on unmodified 6s."
+                    : $"{attacker.Name} lays down Covering Fire - hits only on unmodified 6s.");
             }
 
             results.ThresholdTags = ComposeThresholdTags(baseQuality, named, grantedNet, fatiguedInMelee,

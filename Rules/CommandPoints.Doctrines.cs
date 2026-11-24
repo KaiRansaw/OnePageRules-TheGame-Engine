@@ -115,12 +115,14 @@ namespace FDG
         {
             TokenType.CpLightningReflexes, TokenType.CpHeightenedSenses, TokenType.CpDisruptedSight,
             TokenType.CpPushForward, TokenType.CpSweepingMove, TokenType.CpCombatFatigue,
+            TokenType.CpClosingFire, TokenType.CpFrenziedAttack,
         };
 
         /// <summary>The end of a unit activation: the "for that shooting / movement" stratagems end.</summary>
         public static void EndOfActivation(IGameContext c)
         {
             if (!On(c)) return;
+            ShotTargets.Remove(c.GameDataStore);
             foreach (IUnit unit in c.TableState.Units.Objects)
                 foreach (TokenType t in ActivationTokens)
                 {
@@ -141,6 +143,12 @@ namespace FDG
                 yield return ($"{PushForward} (1 CP)", PushForward, "Command Points: Advance or Rush with +2\" to the move.");
             if (canCharge && Can(c, unit.PlayerID, SweepingMove) && HasDoctrine(c, unit.PlayerID, SweepingMove))
                 yield return ($"{SweepingMove} (1 CP)", SweepingMove, "Command Points: Charge with +4\" to the move.");
+            if (canMove && Can(c, unit.PlayerID, StrategicRelocation))
+                yield return ($"{StrategicRelocation} (3 CP)", StrategicRelocation,
+                    "Command Points: place this unit anywhere within 6\" of where it stands, then carry on with this activation.");
+            if (canMove && Can(c, unit.PlayerID, CoordinatedMove) && CoordinatedPartners(c, unit).Any())
+                yield return ($"{CoordinatedMove} (2 CP)", CoordinatedMove,
+                    "Command Points: this unit and another friendly unit within 12\" each move up to 3\" in any direction.");
             if (CanTacticalRetreat(c, unit))
                 yield return ($"{TacticalRetreat} (3 CP)", TacticalRetreat,
                     "Command Points: fall back 2D3+2\" directly away from the closest enemy, then carry on with this activation.");
@@ -148,7 +156,8 @@ namespace FDG
 
         /// <summary>Whether an action-menu entry is one of these (bots leave them alone).</summary>
         public static bool IsMoveOption(string option) =>
-            option == $"{PushForward} (1 CP)" || option == $"{SweepingMove} (1 CP)" || option == $"{TacticalRetreat} (3 CP)";
+            option == $"{PushForward} (1 CP)" || option == $"{SweepingMove} (1 CP)" || option == $"{TacticalRetreat} (3 CP)"
+            || option == $"{StrategicRelocation} (3 CP)" || option == $"{CoordinatedMove} (2 CP)";
 
         /// <summary>The move option was picked: spend it and mark the unit.</summary>
         public static bool TakeMoveOption(IGameContext c, IUnit unit, string stratagem)
@@ -225,9 +234,14 @@ namespace FDG
         }
 
         /// <summary>The hit modifiers from the doctrine tokens (Disrupted Sight -1 when shooting).</summary>
-        public static IReadOnlyList<GrantedModifier> HitModifiers(IUnit attacker, bool melee, bool spell) =>
-            !melee && !spell && attacker.Tokens.HasToken(TokenType.CpDisruptedSight)
-                ? new[] { new GrantedModifier(DisruptedSight, -1) } : Array.Empty<GrantedModifier>();
+        public static IReadOnlyList<GrantedModifier> HitModifiers(IUnit attacker, bool melee, bool spell)
+        {
+            if (melee || spell) return Array.Empty<GrantedModifier>();
+            var list = new List<GrantedModifier>();
+            if (attacker.Tokens.HasToken(TokenType.CpDisruptedSight)) list.Add(new GrantedModifier(DisruptedSight, -1));
+            if (attacker.Tokens.HasToken(TokenType.CpClosingFire)) list.Add(new GrantedModifier(ClosingFire, -1));
+            return list;
+        }
 
         /// <summary>Armour Breaker, offered to the attacker's player once hits have landed and the target can still
         /// save (its Defense roll needs 6+ or less). True = -1 to those Defense rolls. Bots: yes on 2+ hits.</summary>

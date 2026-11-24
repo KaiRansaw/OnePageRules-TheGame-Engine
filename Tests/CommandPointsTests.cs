@@ -338,7 +338,8 @@ namespace FDG.Tests
             await CommandPoints.Settle(_context);
             Doctrines(mine: 1, theirs: 3);
             var options = CommandPoints.MoveOptions(_context, _myUnit, canMove: true, canCharge: true).ToList();
-            Assert.That(options.Select(o => o.Stratagem), Is.EqualTo(new[] { CommandPoints.PushForward }), "Strategic: no Sweeping Move");
+            Assert.That(options.Select(o => o.Stratagem), Does.Contain(CommandPoints.PushForward));
+            Assert.That(options.Select(o => o.Stratagem), Does.Not.Contain(CommandPoints.SweepingMove), "Strategic: no Sweeping Move");
             Assert.That(CommandPoints.MoveOptions(_context, _myUnit, canMove: false, canCharge: false), Is.Empty);
             Assert.That(CommandPoints.TakeMoveOption(_context, _myUnit, CommandPoints.PushForward), Is.True);
             Assert.That(CommandPoints.MoveBonus(_myUnit), Is.EqualTo((2f, 2f, 0f)));
@@ -478,6 +479,92 @@ namespace FDG.Tests
             Assert.That(_myUnit.Models.First().Position.z, Is.EqualTo(r).Within(0.05f), "stops at the edge, never leaves the table");
             Assert.That(_myUnit.GetIsAlive(), Is.True);
             Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7));
+        }
+
+        // ================================================================= doctrine stratagems, last batch
+
+        [Test]
+        public async Task FrenziedAttack_PicksAnotherEnemyWithin12_OfTheOneShot()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            UnitData first = _theirUnit;
+            Army(_them, 500);
+            UnitData second = _theirUnit;
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 4, theirs: 1);
+            Place(_myUnit, 30f, 10f);
+            Place(first, 30f, 30f);
+            Place(second, 40f, 30f);
+            Assert.That(CommandPoints.FrenzyTargets(_context, _myUnit), Is.Empty, "it hasn't shot yet");
+            CommandPoints.NoteShot(_context, _myUnit, first);
+            Assert.That(CommandPoints.FrenzyTargets(_context, _myUnit).Select(u => u.ID), Is.EqualTo(new[] { second.ID }));
+            Place(second, 60f, 30f);
+            Assert.That(CommandPoints.FrenzyTargets(_context, _myUnit), Is.Empty, "30\" from the one shot");
+            Place(second, 40f, 30f);
+            Assert.That(await CommandPoints.OfferFrenziedAttack(_context, _myUnit, new[] { (IUnit)second }), Is.EqualTo(second.ID));
+            Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.CpFrenziedAttack));
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(6));
+            CommandPoints.EndOfActivation(_context);
+            Assert.That(CommandPoints.FrenzyTargets(_context, _myUnit), Is.Empty, "a new activation forgets the shots");
+            Assert.That(_myUnit.Tokens.HasToken(FDG.Rules.Foundation.TokenType.CpFrenziedAttack), Is.False);
+        }
+
+        [Test]
+        public async Task ClosingFire_IsMinusOneToHit_AtTheCharger()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 4);
+            Place(_myUnit, 30f, 20f);
+            Place(_theirUnit, 30f, 40f);
+            Assert.That(CommandPoints.InContact(_theirUnit, _myUnit), Is.False);
+            Place(_theirUnit, 30f, 21.5f);
+            Assert.That(CommandPoints.InContact(_theirUnit, _myUnit), Is.True, "bases touching after the charge");
+            Assert.That(await CommandPoints.OfferClosingFire(_context, _theirUnit, _myUnit), Is.True);
+            Assert.That(CommandPoints.HitModifiers(_theirUnit, melee: false, spell: false).Single().Source, Is.EqualTo(CommandPoints.ClosingFire));
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(1), "4 - 3");
+            Assert.That(await CommandPoints.OfferClosingFire(_context, _myUnit, _theirUnit), Is.False, "not my doctrine");
+        }
+
+        [Test]
+        public async Task Vanish_SendsAnAmbushUnitBackToReserve()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 6, theirs: 6);
+            int asked = _asked.Count;
+            await CommandPoints.OfferVanish(_context);
+            Assert.That(_asked.Count, Is.EqualTo(asked), "nobody has a unit with Ambush - nothing asked");
+            _myUnit.AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule("Ambush", FDG.Rules.Dispatch.CoreRuleCatalog.Ambush));
+            await CommandPoints.OfferVanish(_context);
+            Assert.That(FDG.Rules.Dispatch.ReserveRules.IsInReserve(_myUnit), Is.True);
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(6));
+            Assert.That(CommandPoints.Of(_context, _them), Is.EqualTo(4), "their unit has no Ambush");
+        }
+
+        [Test]
+        public async Task CoordinatedMove_AndStrategicRelocation_OnTheMenu()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: r => r is PlaceObjectsRequest<ModelData>
+                ? new FDG.StageResolution.Cancelled<List<PlacedObjectEntry<ModelData>>>() : Says(true)(r));
+            UnitData mine = _myUnit;
+            Army(_me, 500);
+            UnitData friend = _myUnit;
+            _myUnit = mine;
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 1, theirs: 1);
+            Place(mine, 30f, 10f);
+            Place(friend, 30f, 30f);
+            var names = CommandPoints.MoveOptions(_context, mine, canMove: true, canCharge: false).Select(o => o.Stratagem).ToList();
+            Assert.That(names, Does.Contain(CommandPoints.StrategicRelocation));
+            Assert.That(names, Does.Not.Contain(CommandPoints.CoordinatedMove), "the friend is 20\" away");
+            Place(friend, 30f, 20f);
+            Assert.That(CommandPoints.MoveOptions(_context, mine, true, false).Select(o => o.Stratagem), Does.Contain(CommandPoints.CoordinatedMove));
+            Assert.That(CommandPoints.CoordinatedPartners(_context, mine).Single().ID, Is.EqualTo(friend.ID));
+            Assert.That(await CommandPoints.TakeStrategicRelocation(_context, mine), Is.False, "cancelled the placement");
+            Assert.That(CommandPoints.Can(_context, _me, CommandPoints.StrategicRelocation), Is.True, "nothing spent");
+            Assert.That(CommandPoints.IsMoveOption("Coordinated Move (2 CP)") && CommandPoints.IsMoveOption("Strategic Relocation (3 CP)"),
+                "bots leave them alone");
         }
     }
 }
