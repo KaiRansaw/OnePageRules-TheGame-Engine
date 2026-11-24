@@ -50,6 +50,19 @@ namespace FDG.Stages
                 return;
             }
 
+            // Fog of War - Combat Hesitation: behind on activations, the player may try to pass the turn.
+            int round = GameProgressUtilities.TryGetProgress(GameContext.GameDataStore)?.RoundCount ?? 1;
+            if (await FogOfWar.Hesitate(GameContext, context.ActivatedPlayer, round, context.OpponentHasMoreUnitsToActivate))
+            {
+                context.MarkTurnDelayed();
+                await ToDelayedTurnEnd.Activate(context);
+                return;
+            }
+
+            // Fog of War - Shifting Focus: only units in the rolled table section may be picked.
+            var focus = FogOfWar.Focus(GameContext, context.ActivatedPlayer,
+                context.PlayerUnactivatedUnits.Select(b => (IUnit)b.GetValue()).Where(u => u.GetIsAlive()).ToList());
+
             //Find all units.
             List<SelectionRequest<UnitData>.ValidOption> validOptions = new List<SelectionRequest<UnitData>.ValidOption>();
             List<SelectionRequest<UnitData>.InvalidOption> invalidOptions = new List<SelectionRequest<UnitData>.InvalidOption>();
@@ -72,7 +85,13 @@ namespace FDG.Stages
                     }
 
                     string label = GetOptionLabel(potentialUnit.GetValue(), allUnits);
-                    if (context.PlayerUnactivatedUnits.Contains(potentialUnit))
+                    if (context.PlayerUnactivatedUnits.Contains(potentialUnit) && focus is { } f
+                        && !f.Units.Contains(potentialUnit.GetValue().ID))
+                    {
+                        invalidOptions.Add(new SelectionRequest<UnitData>.InvalidOption(potentialUnit, label,
+                            $"Shifting Focus: not in section {f.Section}."));
+                    }
+                    else if (context.PlayerUnactivatedUnits.Contains(potentialUnit))
                     {
                         validOptions.Add(new SelectionRequest<UnitData>.ValidOption(potentialUnit, label));
                     }

@@ -83,6 +83,10 @@ namespace FDG.Stages
             // and Shaken state the objective check above used. None in the standard game.
             // Extra Missions: carried and destroyed markers, the first seizer, progressive VP.
             await FDG.Missions.ExtraMissions.AfterSeizing(GameContext, roundJustFinished);
+            // Fog of War - Prolonged Battle: from the end of round 4, roll to see whether the game goes on. Before
+            // anything asks whether this was the final round.
+            await FDG.FogOfWar.ProlongedRoll(GameContext, roundJustFinished,
+                FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings, GameContext.GameDataStore));
             await FDG.Missions.SideMissions.RoundEnd(GameContext, roundJustFinished,
                 roundJustFinished >= FDG.StateMachine.HordeRules.RoundLimit(GameContext.Settings, GameContext.GameDataStore));
 

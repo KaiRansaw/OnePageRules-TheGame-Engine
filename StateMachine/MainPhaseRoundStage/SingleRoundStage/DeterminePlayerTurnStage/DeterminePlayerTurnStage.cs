@@ -85,6 +85,18 @@ namespace FDG.Stages
                 nextPlayerID = runPlayer;
                 context.Cursor.PointAt(runPlayer);
             }
+            // Fog of War - Ebb & Flow: the next activation goes to whoever's token is drawn from the bag.
+            else if (FogOfWar.IsOn(GameContext, EAdvancedRules.EbbAndFlow))
+            {
+                nextPlayerID = FogOfWar.DrawNext(GameContext, context);
+                if (nextPlayerID == null)
+                {
+                    context.Log("No players left to activate. Ending round.");
+                    await OnNoPlayersLeft.Activate(context);
+                    return;
+                }
+                context.Cursor.PointAt(nextPlayerID.Value);
+            }
             else if (context.TryAdvanceToNextPlayer(out ITeam? _, out nextPlayerID) == false)
             {
                 context.Log("No players left to activate. Ending round.");

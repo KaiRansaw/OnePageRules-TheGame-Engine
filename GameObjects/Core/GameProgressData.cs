@@ -140,6 +140,9 @@ namespace FDG
         /// <summary>Battlefield Effects (Advanced Rulebooks): the special condition and what it rolled. Null outside them.</summary>
         public FDG.BattlefieldEffectsState? Battlefield { get; set; }
 
+        /// <summary>Fog of War (Advanced Rulebooks): Prolonged Battle's rolls. Null outside it.</summary>
+        public FDG.FogOfWarState? FogOfWar { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

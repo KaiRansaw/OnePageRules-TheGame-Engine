@@ -39,8 +39,9 @@ namespace FDG.StateMachine
                 && FDG.Missions.ExtraMissions.Of(settings) == FDG.Missions.EExtraMission.Random
                 && GameProgressUtilities.ExtraMission(store) is { } state
                 && FDG.Missions.ExtraMissionCatalog.IsAttackDefend(state.Mission))
-                return FDG.Missions.AttackDefend.Rounds;
-            return limit;
+                limit = FDG.Missions.AttackDefend.Rounds;
+            // Fog of War - Prolonged Battle: each successful continue roll adds a round.
+            return FDG.FogOfWar.ProlongedLimit(settings, store, limit) ?? limit;
         }
 
         /// <summary>1-based wave a round belongs to: rounds 1-3 are wave 1, 4-6 wave 2, and so on.</summary>

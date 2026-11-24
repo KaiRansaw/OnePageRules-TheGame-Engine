@@ -62,6 +62,8 @@ namespace FDG
                 progress.EventAreas = TryGetProgress(store)?.EventAreas;
             if (progress.Battlefield == null)
                 progress.Battlefield = TryGetProgress(store)?.Battlefield;
+            if (progress.FogOfWar == null)
+                progress.FogOfWar = TryGetProgress(store)?.FogOfWar;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null
