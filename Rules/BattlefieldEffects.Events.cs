@@ -420,7 +420,7 @@ namespace FDG
         private static float Dist(float ax, float az, float bx, float bz) => MathF.Sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz));
 
         /// <summary>Moves a whole unit one straight block, stopping at the table edge and at anything in the way.</summary>
-        private static float MoveBlock(IGameContext c, UnitData unit, float mx, float mz, float inches)
+        internal static float MoveBlock(IGameContext c, UnitData unit, float mx, float mz, float inches)
         {
             var living = unit.Models.OfType<ModelData>().Where(m => m.GetIsAlive()).ToList();
             float t = 1f;

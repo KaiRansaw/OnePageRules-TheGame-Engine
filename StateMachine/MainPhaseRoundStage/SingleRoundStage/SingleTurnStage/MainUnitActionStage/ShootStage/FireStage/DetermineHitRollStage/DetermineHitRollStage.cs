@@ -220,6 +220,7 @@ namespace FDG.Stages
                     .Concat(BattlefieldEffects.HitModifiers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
                     .Concat(metaData.IsSpell ? Array.Empty<GrantedModifier>() : BattlefieldEffects.EventHitModifiers(GameContext, attacker, defender, metaData.IsMelee))
                     .Concat(CommandPoints.HitModifiers(attacker, metaData.IsMelee, metaData.IsSpell))
+                    .Concat(PoliticalIntrigue.HitModifiers(GameContext, attacker, defender, metaData.IsSpell))
                     .ToList();
                 if (extra.Count > 0)
                 {

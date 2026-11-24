@@ -387,6 +387,8 @@ namespace FDG.Stages
                 ignoresDangerous = false;
                 dangerTerrain = startedIn;
             }
+            // Political Intrigue - Deceiver: "may ignore Difficult and Dangerous terrain until the end of the round".
+            if (PoliticalIntrigue.IgnoresDangerous(unit.GetValue())) { ignoresDangerous = true; dangerTerrain = relevantTerrain; }
             dangerResult = Commit(gameContext, paths, dangerTerrain, unit.GetValue(), ignoresDangerousTerrain: ignoresDangerous);
             return true;
         }

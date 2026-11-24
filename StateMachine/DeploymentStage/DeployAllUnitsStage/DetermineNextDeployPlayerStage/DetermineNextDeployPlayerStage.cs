@@ -45,6 +45,7 @@ namespace FDG.Stages
             {
                 // Command Points: the playstyle and each player's doctrine are settled "before the game begins".
                 await CommandPoints.Settle(GameContext);
+                await PoliticalIntrigue.Settle(GameContext);
                 // Fog of War - Escalating Battles: each player picks the detachment that deploys now.
                 await FogOfWar.OpeningDetachments(GameContext, context);
                 context.HasStarted = true;

@@ -63,6 +63,28 @@ namespace FDG.Tests
             Assert.That(saveNeeded, Is.EqualTo(6), "defense 4 + full AP 2 = 6, no reduction.");
         }
 
+        /// <summary>Political Intrigue - the Warden and the Trader, granted for the round: AP(-1) against the Warden's
+        /// unit, AP(+1) for the Trader's.</summary>
+        [Test]
+        public async Task PoliticianGrants_WardenCutsAp_TraderAddsAp()
+        {
+            _ctx = new TestGameContext(_store, new FixedDiceRoller(6), ruleResolver: CoreRuleCatalog.CreateResolver());
+            DataBinding<UnitData> attacker = MakeUnit(AttackerPos);
+            DataBinding<UnitData> defender = MakeUnit(DefenderPos);
+            Grant(defender, CampaignEventRuleCatalog.WardenName);
+            Assert.That(await RunSavePipeline(attacker, defender, weaponAp: 2), Is.EqualTo(5), "AP(2) - 1");
+
+            DataBinding<UnitData> trader = MakeUnit(AttackerPos);
+            DataBinding<UnitData> target = MakeUnit(DefenderPos);
+            Grant(trader, CampaignEventRuleCatalog.TraderName);
+            Assert.That(await RunSavePipeline(trader, target, weaponAp: 0), Is.EqualTo(5), "AP(0) + 1");
+        }
+
+        private static void Grant(DataBinding<UnitData> unit, string rule) =>
+            unit.GetValue().Tokens.AddToken(new FDG.Rules.Tokens.Token(FDG.Rules.Foundation.TokenType.RuleGrant, 1,
+                new FDG.Rules.Foundation.TokenClearTrigger.RoundEnd(),
+                Payload: new FDG.Rules.Tokens.TokenPayload.RuleGrant(rule, FDG.Rules.Foundation.ELifetime.ThisRound)));
+
         private async Task<int> RunSavePipeline(
             DataBinding<UnitData> attacker, DataBinding<UnitData> defender, int weaponAp)
         {

@@ -53,7 +53,47 @@ public static class CampaignEventRuleCatalog
         Valence: EValence.Positive,
         Description: "Gambit: this unit's weapons ignore the Stealth and Regeneration rules until the end of the round.");
 
-    public static IReadOnlyList<SpecialRuleDefinition> All => new[] { Hastened, Slowed, AggressiveTakeover };
+    /// <summary>Political Intrigue (GF p49, AoF p49): the politicians' round-long effects, granted by <c>FDG.PoliticalIntrigue</c>.
+    /// Trader: "the target friendly unit gets AP(+1)" (also the one-attack mark on an enemy unit). Warden: "enemy units get
+    /// AP(-1), to a min. of AP(0), when attacking the target friendly unit". Deceiver: a marker the Dangerous-terrain tests
+    /// read (Strider is granted beside it for Difficult terrain).</summary>
+    public const string TraderName = "Politician: Trader";
+    public const string WardenName = "Politician: Warden";
+    public const string DeceiverName = "Politician: Deceiver";
+
+    public static SpecialRuleDefinition Trader { get; } = new(TraderName,
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                new Condition.Always(),
+                new Effect.RollModifier(ERollKind.Save, Delta: -1),
+                ELifetime.ThisAttack),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Politician (Trader): this unit's attacks get AP(+1).");
+
+    public static SpecialRuleDefinition Warden { get; } = new(WardenName,
+        new[]
+        {
+            new HookEntry(EHookID.Shooting_OnHitRollComplete,
+                // Granted to the whole unit, so every model has it (the lint's defensive-rule gate).
+                new Condition.AllModelsHaveThisRule(),
+                new Effect.ReduceArmorPenetration(1),
+                ELifetime.ThisAttack,
+                ERuleSeat.Subject),
+        },
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Politician (Warden): enemy units get AP(-1), to a min. of AP(0), when attacking this unit.");
+
+    public static SpecialRuleDefinition Deceiver { get; } = new(DeceiverName,
+        Array.Empty<HookEntry>(),
+        Array.Empty<ActivatedAbility>(),
+        Valence: EValence.Positive,
+        Description: "Politician (Deceiver): this unit ignores Difficult and Dangerous terrain until the end of the round.");
+
+    public static IReadOnlyList<SpecialRuleDefinition> All => new[] { Hastened, Slowed, AggressiveTakeover, Trader, Warden, Deceiver };
 
     /// <summary>
     /// The shared shape: one hook per action type, because <see cref="Effect.MovementBonus"/> is per

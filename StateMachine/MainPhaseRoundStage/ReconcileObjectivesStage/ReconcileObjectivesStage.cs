@@ -151,6 +151,7 @@ namespace FDG.Stages
             CriticalHits.RoundEnd(GameContext);
             BattlefieldEffects.RoundEnd(GameContext);
             CommandPoints.RoundEnd(GameContext);
+            PoliticalIntrigue.RoundEnd(GameContext);
             // Battlefield Effects - objective effects: rolled the first time each marker is seized.
             await BattlefieldEffects.AfterObjectives(GameContext);
             await BattlefieldEffects.EventsRoundEnd(GameContext);

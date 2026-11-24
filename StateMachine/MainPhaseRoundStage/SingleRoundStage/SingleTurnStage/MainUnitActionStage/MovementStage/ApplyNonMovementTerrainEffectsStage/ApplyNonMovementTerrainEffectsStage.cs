@@ -26,6 +26,7 @@ namespace FDG.Stages
             // Flying (AllTerrain scope) ignores Dangerous-terrain effects — no rolls, no wounds.
             bool ignoresDangerousTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(
                 movingUnit.GetValue(), GameContext.RuleEvaluator);
+            bool deceiver = PoliticalIntrigue.IgnoresDangerous(movingUnit.GetValue());   // Political Intrigue - Deceiver
 
             // "Counts as being in Dangerous Terrain" (#153): every moving model tests this move. Read-only
             // query — the one-shot grant is spent later by ExecuteMoveStage, after this stage has read it.
@@ -46,6 +47,7 @@ namespace FDG.Stages
                 ignoresDangerousTerrain = false;
                 dangerTerrain = startedIn;
             }
+            if (deceiver) { ignoresDangerousTerrain = true; dangerTerrain = context.RelevantTerrain; }
 
             // Command Points - Hindered Advance: an opponent may make the terrain this unit moves through count as
             // Dangerous for this move.

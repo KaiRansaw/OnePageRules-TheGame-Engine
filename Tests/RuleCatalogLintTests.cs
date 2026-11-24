@@ -40,6 +40,8 @@ namespace FDG.Tests
                 "it by name and deals X hits per wound taken back at the attacker (#197 P11).",
             ["Deathstrike"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name and deals X hits per killed model back at the attacker (#197 P11).",
+            ["Politician: Deceiver"] = "engine-marker: no dispatch entries; PoliticalIntrigue.IgnoresDangerous reads the grant " +
+                "in MovementExecutor, ApplyNonMovementTerrainEffectsStage and GameOperationServices.ForceDangerousTerrainTest.",
             ["Trait: Elite"] = "engine-marker: Horde Mode trait with no dispatch entries; MoraleUtilities." +
                 "TakeMoraleTest reads its grant (HordeExperience.CanUseElite/SpendElite) for the once-per-GAME " +
                 "re-roll, which it now offers rather than auto-spending (#409 made it per game, #414 made it ask). " +

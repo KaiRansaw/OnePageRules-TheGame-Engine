@@ -27,6 +27,22 @@ namespace FDG
         public string? PendingTarget { get; set; }
         /// <summary>This round's directives, for the Mission panel ("Kai: Influence - Objective 2").</summary>
         public List<string> RoundLog { get; set; } = new();
+
+        // ---- politicians (build 3.30)
+        /// <summary>1 Open, 2 Open + Hidden, 3 Hidden; 0 = not settled yet.</summary>
+        public int Playstyle { get; set; }
+        /// <summary>Each player's two politicians (player id -> names).</summary>
+        public Dictionary<string, List<string>> Politicians { get; set; } = new();
+        /// <summary>Politicians picked in secret and not used yet (player id -> names).</summary>
+        public Dictionary<string, List<string>> Hidden { get; set; } = new();
+        /// <summary>Politicians used this round (player id -> names).</summary>
+        public Dictionary<string, List<string>> PoliticiansUsed { get; set; } = new();
+        /// <summary>"Once per game" politicians already used (player id -> names).</summary>
+        public Dictionary<string, List<string>> Spent { get; set; } = new();
+        /// <summary>Mastermind on Influence: "playerId|x|z" - +1 to hit against enemies within 3" of the point, this round.</summary>
+        public List<string> MastermindAreas { get; set; } = new();
+        /// <summary>Escalator on Industry: the shooter gets a second shooting (unit id).</summary>
+        public string? SecondShot { get; set; }
     }
 
     /// <summary>
@@ -35,7 +51,7 @@ namespace FDG
     /// players may choose to use one directive that hasn't been used yet this round. Note that players may not use
     /// directives if they've run out of units to activate." Judgement calls: house rules C, "Political Intrigue readings".
     /// </summary>
-    public static class PoliticalIntrigue
+    public static partial class PoliticalIntrigue
     {
         public const string Directives = "Directives";
         public const string Influence = "Influence";
@@ -50,6 +66,7 @@ namespace FDG
         public static readonly IReadOnlyList<(string Name, EAdvancedRules Flag)> All = new (string, EAdvancedRules)[]
         {
             (Directives, EAdvancedRules.PoliticalDirectives),
+            (PoliticiansOption, EAdvancedRules.Politicians),
         };
 
         public static readonly IReadOnlyDictionary<string, string> DirectiveText = new Dictionary<string, string>
@@ -66,19 +83,25 @@ namespace FDG
         public static bool BooksHaveIt(EGameSystem system) =>
             system is EGameSystem.GrimdarkFuture or EGameSystem.AgeOfFantasy;
 
-        public static string BookText(string name) =>
+        public static string BookText(string name) => name == PoliticiansOption ? PoliticiansBookText :
             "Twice per round, instead of activating one of their units, players may choose to use one directive that hasn't been used yet this round. "
             + "Note that players may not use directives if they've run out of units to activate.\n"
             + string.Join("\n", Order.Select(d => $"{d}: {DirectiveText[d]}"));
 
-        public static string GameText(string name) =>
+        public static string GameText(string name) => name == PoliticiansOption ? PoliticiansGameText :
             "At the start of each of your turns you're asked whether to use a directive instead of activating a unit (twice per round, "
             + "each directive once). Answer \"no more this round\" to stop being asked until the next round. Bots use them too.";
 
-        public static bool On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.PoliticalDirectives);
+        /// <summary>Directives are on with either box ticked (politicians use directives).</summary>
+        public static bool On(IGameContext c) =>
+            AdvancedRules.IsOn(c, EAdvancedRules.PoliticalDirectives) || AdvancedRules.IsOn(c, EAdvancedRules.Politicians);
 
         public static PoliticalIntrigueState? State(IReadableGameDataStore store) =>
-            GameProgressUtilities.TryGetProgress(store)?.PoliticalIntrigue;
+            GameProgressUtilities.TryGetProgress(store)?.PoliticalIntrigue
+            ?? (Pending.TryGetValue(store, out PoliticalIntrigueState? p) ? p : null);
+
+        /// <summary>Politicians are picked before the progress record exists; held here until it does.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadableGameDataStore, PoliticalIntrigueState> Pending = new();
 
         private static PoliticalIntrigueState StateFor(IGameContext c, int round)
         {
@@ -89,6 +112,8 @@ namespace FDG
                 s.Used.Clear();
                 s.Declined.Clear();
                 s.RoundLog.Clear();
+                s.PoliticiansUsed.Clear();
+                s.MastermindAreas.Clear();
             }
             return s;
         }
@@ -96,7 +121,12 @@ namespace FDG
         internal static void Save(IGameContext c, PoliticalIntrigueState s)
         {
             GameProgressData? progress = GameProgressUtilities.TryGetProgress(c.GameDataStore);
-            if (progress == null) return;
+            if (progress == null)
+            {
+                Pending.Remove(c.GameDataStore);
+                Pending.Add(c.GameDataStore, s);
+                return;
+            }
             progress.PoliticalIntrigue = s;
             GameProgressUtilities.WriteProgress(c.GameDataStore, progress);
         }
@@ -238,8 +268,10 @@ namespace FDG
                     int idx = labels.IndexOf(answer);
                     IObjective target = held[idx >= 0 ? idx : 0];
                     string label = ObjectiveLabel(c, target);
+                    string? politician = await Declare(c, s, player, directive, null, target);
                     target.SetOwner(null);
-                    await Note(c, s, $"{me}: Influence - {label} is neutral");
+                    await Note(c, s, $"{me}: Influence{By(politician)} - {label} is neutral");
+                    await PoliticianEffect(c, s, player, politician, directive, null, target);
                     return EOutcome.Used;
                 }
                 case Propaganda:
@@ -247,11 +279,13 @@ namespace FDG
                     var enemies = Enemies(c, player).Where(u => !u.Tokens.HasToken(TokenType.Shaken)).ToList();
                     if (await PickUnit(c, player, enemies, "Propaganda: pick an enemy unit - it takes a Morale Test, and is Shaken if it fails.",
                             enemies.OrderByDescending(Cost).FirstOrDefault()) is not { } enemy) return EOutcome.None;
+                    string? politician = await Declare(c, s, player, directive, enemy, null);
                     MoraleUtilities.MoraleTestOutcome test = await MoraleUtilities.TakeMoraleTest(c, enemy, enemy.Quality,
                         EMoraleTrigger.OtherSource, failureCausesShakenOrRout: true);
                     if (!test.Passed && !enemy.Tokens.HasToken(TokenType.Shaken) && UnitPsychology.BindingOf(c, enemy) is { } b)
                         await MoraleUtilities.ApplyShakenWithPresentation(c, b);
-                    await Note(c, s, $"{me}: Propaganda - {enemy.Name} {(test.Passed ? "holds firm" : "is Shaken")}");
+                    await Note(c, s, $"{me}: Propaganda{By(politician)} - {enemy.Name} {(test.Passed ? "holds firm" : "is Shaken")}");
+                    await PoliticianEffect(c, s, player, politician, directive, enemy, null);
                     return EOutcome.Used;
                 }
                 case Recruitment:
@@ -259,8 +293,10 @@ namespace FDG
                     var hurt = Mine(c, player).Where(Missing).ToList();
                     if (await PickUnit(c, player, hurt, "Recruitment: pick one of your units - it restores D3 models/wounds.",
                             hurt.OrderByDescending(Cost).FirstOrDefault()) is not { } unit) return EOutcome.None;
+                    string? politician = await Declare(c, s, player, directive, unit, null);
                     await new GameOperationServices(c).RestoreD3(unit, "Recruitment");
-                    await Note(c, s, $"{me}: Recruitment - {unit.Name}");
+                    await Note(c, s, $"{me}: Recruitment{By(politician)} - {unit.Name}");
+                    await PoliticianEffect(c, s, player, politician, directive, unit, null);
                     return EOutcome.Used;
                 }
                 case Industry:
@@ -272,9 +308,11 @@ namespace FDG
                     if (await PickUnit(c, player, targets, $"Industry: pick the enemy unit {shooter.Name} shoots at.",
                             targets.OrderBy(t => UnitCompareUtilities.MinDistanceBetweenUnits(shooter, t, out _, out _, includeVertical: true)).FirstOrDefault()) is not { } target)
                         return EOutcome.None;
+                    string? politician = await Declare(c, s, player, directive, shooter, null);
                     s.PendingShooter = shooter.ID.ID.ToString();
                     s.PendingTarget = target.ID.ID.ToString();
-                    await Note(c, s, $"{me}: Industry - {shooter.Name} shoots at {target.Name}");
+                    await Note(c, s, $"{me}: Industry{By(politician)} - {shooter.Name} shoots at {target.Name}");
+                    await PoliticianEffect(c, s, player, politician, directive, shooter, null);   // before the shot: +1 to hit, AP...
                     return EOutcome.Shoot;
                 }
                 case Mobilization:
@@ -282,13 +320,18 @@ namespace FDG
                     var units = Mine(c, player);
                     if (await PickUnit(c, player, units, "Mobilization: pick one of your units - it may move up to 6\" in any direction now.",
                             units.FirstOrDefault()) is not { } unit) return EOutcome.None;
-                    await Note(c, s, $"{me}: Mobilization - {unit.Name}");
+                    string? politician = await Declare(c, s, player, directive, unit, null);
+                    await Note(c, s, $"{me}: Mobilization{By(politician)} - {unit.Name}");
+                    if (politician == Deceiver) await PoliticianEffect(c, s, player, politician, directive, unit, null);   // before the move
                     await new GameOperationServices(c).MoveUnit(unit, MobilizationInches, isOptional: true);
+                    if (politician != Deceiver) await PoliticianEffect(c, s, player, politician, directive, unit, null);
                     return EOutcome.Used;
                 }
             }
             return EOutcome.None;
         }
+
+        private static string By(string? politician) => politician != null ? $" (by the {politician})" : "";
 
         private static async Task Note(IGameContext c, PoliticalIntrigueState s, string line)
         {

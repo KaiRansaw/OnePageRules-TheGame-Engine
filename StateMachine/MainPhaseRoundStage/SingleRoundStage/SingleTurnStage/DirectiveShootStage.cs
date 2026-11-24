@@ -27,7 +27,14 @@ namespace FDG.Stages
         {
             if (_shooter != null)
             {
-                // The shot is done (OnShotDone comes back here).
+                // The shot is done (OnShotDone comes back here). Escalator: a second shooting, maybe at another target.
+                if (await PoliticalIntrigue.TakeSecondShot(GameContext, _shooter.GetValue()) is { } second
+                    && ChooseRangedAttackStage.HasAnyFireableTarget(_shooter, GameContext, onlyTarget: second))
+                {
+                    _target = second;
+                    await base.Enter(context);
+                    return;
+                }
                 _shooter = null;
                 _target = null;
                 await ToFinished.Activate(context);

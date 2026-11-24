@@ -147,7 +147,7 @@ namespace FDG.Stages
         public async Task ForceDangerousTerrainTest(IUnit unit)
         {
             bool ignoresDangerousTerrain = Rules.Dispatch.MovementRuleQueries.IgnoresAllTerrain(
-                unit, _gameContext.RuleEvaluator);
+                unit, _gameContext.RuleEvaluator) || PoliticalIntrigue.IgnoresDangerous(unit);
             if (ignoresDangerousTerrain)
             {
                 _gameContext.Log($"{unit.Name} ignores all terrain, so it takes no dangerous terrain test.");

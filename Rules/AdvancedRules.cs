@@ -46,6 +46,7 @@ namespace FDG
         CommandPoints = 1UL << 31,
         // Political Intrigue (GF p49, AoF p49 only). Bits 32-34 are Command Points' playstyle pick - skipped.
         PoliticalDirectives = 1UL << 35,
+        Politicians = 1UL << 36,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>

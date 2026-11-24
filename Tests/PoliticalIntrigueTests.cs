@@ -44,18 +44,21 @@ namespace FDG.Tests
         }
 
         /// <summary>Answers a directive offer with <paramref name="directive"/> (null = the recommended answer).</summary>
-        private void Build(string? directive = null, int face = 4, EGameSystem system = EGameSystem.GrimdarkFuture)
+        private void Build(string? directive = null, int face = 4, EGameSystem system = EGameSystem.GrimdarkFuture,
+            EAdvancedRules flags = EAdvancedRules.PoliticalDirectives, string? politician = null)
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.GameSystem = system;
-            settings.AdvancedRules = EAdvancedRules.PoliticalDirectives;
+            settings.AdvancedRules = flags;
             _context = new TestGameContext(_store, new FixedFaceDiceRoller(face), settings: settings,
                 playerRequester: new Answer(r =>
                 {
                     _asked.Add(r);
                     if (r is StringSelectionRequest q)
                     {
+                        if (politician != null && q.DisplayName == "Political Intrigue - politician")
+                            return q.ValidOptions.FirstOrDefault(o => o.StartsWith(politician)) ?? q.ValidOptions[0];
                         if (directive != null && q.DisplayName == "Political Intrigue - directive")
                             return q.ValidOptions.FirstOrDefault(o => o.StartsWith(directive)) ?? q.ValidOptions[0];
                         return q.Recommended ?? q.ValidOptions[0];
@@ -210,6 +213,141 @@ namespace FDG.Tests
             Marker.SetOwner(_me);
             Assert.That(PoliticalIntrigue.BotPick(_context, _me, new[] { PoliticalIntrigue.Influence, PoliticalIntrigue.Mobilization }), Is.Null,
                 "never its own objective, never a planless move");
+        }
+        // ================================================================= politicians
+
+        private void Politicians(params string[] names)
+        {
+            var st = PoliticalIntrigue.State(_store) ?? new PoliticalIntrigueState { Round = 1 };
+            st.Playstyle = 1;
+            st.Politicians[_me.ToString()] = names.ToList();
+            PoliticalIntrigue.Save(_context, st);
+        }
+
+        private void BuildP(string directive, string politician, int face = 4) =>
+            Build(directive, face, flags: EAdvancedRules.Politicians, politician: politician);
+
+        [Test]
+        public void ThePoliticians_AreTheBooks()
+        {
+            Assert.That(PoliticalIntrigue.PoliticianList, Has.Count.EqualTo(10));
+            Assert.That(PoliticalIntrigue.PoliticianList.Where(p => p.OncePerGame).Select(p => p.Name),
+                Is.EquivalentTo(new[] { "Warmonger", "Negotiator", "Manipulator", "Escalator" }));
+            Assert.That(PoliticalIntrigue.PoliticianNamed("Trader"), Has.Property("TypeA").EqualTo("Propaganda").And.Property("TypeB").EqualTo("Industry"));
+            Assert.That(PoliticalIntrigue.PoliticianList.All(p => p.Text.All(ch => ch < 128)), "ASCII");
+            var pairs = PoliticalIntrigue.PoliticianList.Select(p => p.TypeA + "/" + p.TypeB).ToList();
+            Assert.That(pairs.Distinct().Count(), Is.EqualTo(10), "every pair of the five directives once");
+            var resolver = FDG.Rules.Dispatch.CoreRuleCatalog.CreateResolver();
+            foreach (string rule in new[] { FDG.Rules.Dispatch.CampaignEventRuleCatalog.TraderName,
+                         FDG.Rules.Dispatch.CampaignEventRuleCatalog.WardenName, FDG.Rules.Dispatch.CampaignEventRuleCatalog.DeceiverName })
+                Assert.That(resolver.TryResolve(rule, out _), Is.True, rule + " must resolve, or its grant does nothing");
+        }
+
+        [Test]
+        public async Task BeforeTheGame_ThePlaystyleIsRolled_AndBotsPickTwo()
+        {
+            Build(face: 5, flags: EAdvancedRules.Politicians);
+            await PoliticalIntrigue.Settle(_context);
+            Assert.That(State.Playstyle, Is.EqualTo(3), "a 5 on the D3 roll = Hidden");
+            Assert.That(State.Politicians[_me.ToString()], Is.EqualTo(new[] { "Mastermind", "Warmonger" }));
+            Assert.That(State.Hidden[_them.ToString()], Has.Count.EqualTo(2));
+            Assert.That(PoliticalIntrigue.VisiblePoliticians(State, _them, new[] { _me }), Is.All.EqualTo("a secret politician"));
+            Assert.That(PoliticalIntrigue.VisiblePoliticians(State, _them, new[] { _them }), Has.Some.StartsWith("Mastermind"));
+            Assert.That(PoliticalIntrigue.On(_context), Is.True, "politicians bring the directives with them");
+        }
+
+        [Test]
+        public async Task Mastermind_OnInfluence_PlusOneNearTheObjective_ForMySideOnly()
+        {
+            BuildP(PoliticalIntrigue.Influence, "Mastermind");
+            Politicians("Mastermind");
+            Marker.SetOwner(_them);
+            await Offer();
+            _theirUnit.Models.OfType<ModelData>().Single().SetPosition(new Position(41f, 24f));
+            Assert.That(PoliticalIntrigue.HitModifiers(_context, _myUnit, _theirUnit, spell: false).Sum(m => m.Delta), Is.EqualTo(1));
+            foreach (ModelData m in _myUnit.Models.OfType<ModelData>()) m.SetPosition(new Position(39f + m.Position.x / 100f, 25f));
+            Assert.That(PoliticalIntrigue.HitModifiers(_context, _theirUnit, _myUnit, spell: false), Is.Empty, "the enemy's attacks don't get it");
+            _theirUnit.Models.OfType<ModelData>().Single().SetPosition(new Position(20f, 30f));
+            Assert.That(PoliticalIntrigue.HitModifiers(_context, _myUnit, _theirUnit, spell: false), Is.Empty, "not within 3\"");
+            Assert.That(State.PoliticiansUsed[_me.ToString()], Does.Contain("Mastermind"));
+        }
+
+        [Test]
+        public async Task Warmonger_D3Wounds_OncePerGame()
+        {
+            BuildP(PoliticalIntrigue.Propaganda, "Warmonger", face: 6);
+            _theirUnit.Models.OfType<ModelData>().Single().SetMaxWounds(6);
+            Politicians("Warmonger");
+            await Offer();
+            Assert.That(_theirUnit.Models.Single().WoundsDealt, Is.EqualTo(3f), "a 6 = 3 wounds");
+            State.PoliticiansUsed.Clear();   // a later round
+            Assert.That(PoliticalIntrigue.Eligible(State, _me, PoliticalIntrigue.Influence), Is.Empty, "once per game");
+        }
+
+        [Test]
+        public async Task Trader_Warden_Visionary_Escalator()
+        {
+            BuildP(PoliticalIntrigue.Industry, "Trader");
+            Politicians("Trader");
+            Assert.That(await Offer(), Is.EqualTo(PoliticalIntrigue.EOutcome.Shoot));
+            Assert.That(_myUnit.Tokens.GetAllTokens(TokenType.RuleGrant).Any(t => t.Payload is FDG.Rules.Tokens.TokenPayload.RuleGrant g
+                && g.RuleName == FDG.Rules.Dispatch.CampaignEventRuleCatalog.TraderName), Is.True);
+
+            BuildP(PoliticalIntrigue.Propaganda, "Trader", face: 6);
+            Politicians("Trader");
+            await Offer();
+            Assert.That(_theirUnit.Tokens.HasToken(TokenType.Mark), Is.True, "the next attack on it gets AP(+1)");
+
+            BuildP(PoliticalIntrigue.Recruitment, "Warden");
+            ((ModelData)_myUnit.Models[0]).DealWounds(1f);
+            Politicians("Warden");
+            await Offer();
+            Assert.That(_myUnit.Tokens.GetAllTokens(TokenType.RuleGrant).Any(t => t.Payload is FDG.Rules.Tokens.TokenPayload.RuleGrant g
+                && g.RuleName == FDG.Rules.Dispatch.CampaignEventRuleCatalog.WardenName), Is.True);
+
+            BuildP(PoliticalIntrigue.Recruitment, "Visionary");
+            ((ModelData)_myUnit.Models[0]).DealWounds(1f);
+            _myUnit.Tokens.AddToken(FDG.Rules.Tokens.TokenDefinitionCatalog.Create(TokenType.Shaken));
+            Politicians("Visionary");
+            await Offer();
+            Assert.That(_myUnit.Tokens.HasToken(TokenType.Shaken), Is.False);
+
+            BuildP(PoliticalIntrigue.Industry, "Escalator");
+            Politicians("Escalator");
+            await Offer();
+            Assert.That(State.SecondShot, Is.EqualTo(_myUnit.ID.ID.ToString()));
+        }
+
+        [Test]
+        public async Task Deceiver_OnInfluence_DangerousArea_UntilTheRoundEnds()
+        {
+            BuildP(PoliticalIntrigue.Influence, "Deceiver");
+            Politicians("Deceiver");
+            Marker.SetOwner(_them);
+            await Offer();
+            Assert.That(_context.TableState.Terrain.Objects.Count(t => t.TerrainType.HasFlag(ETerrainType.Dangerous)
+                && t.TerrainType.HasFlag(ETerrainType.Difficult)), Is.EqualTo(1));
+            PoliticalIntrigue.RoundEnd(_context);
+            Assert.That(_context.TableState.Terrain.Objects, Is.Empty);
+        }
+
+        [Test]
+        public async Task NoPolitician_KeepsItSecret_AndUnused()
+        {
+            BuildP(PoliticalIntrigue.Influence, PoliticalIntrigue.NoPolitician);
+            Politicians("Mastermind");
+            State.Hidden[_me.ToString()] = new List<string> { "Mastermind" };
+            Marker.SetOwner(_them);
+            await Offer();
+            Assert.That(State.Hidden[_me.ToString()], Does.Contain("Mastermind"));
+            Assert.That(State.MastermindAreas, Is.Empty);
+
+            BuildP(PoliticalIntrigue.Influence, "Mastermind");
+            Politicians("Mastermind");
+            State.Hidden[_me.ToString()] = new List<string> { "Mastermind" };
+            Marker.SetOwner(_them);
+            await Offer();
+            Assert.That(State.Hidden[_me.ToString()], Is.Empty, "revealed when used for the first time");
         }
     }
 }
