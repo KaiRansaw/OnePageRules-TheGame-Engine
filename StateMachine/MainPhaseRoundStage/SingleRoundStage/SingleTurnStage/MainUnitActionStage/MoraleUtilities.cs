@@ -140,6 +140,12 @@ namespace FDG.Stages
                 grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(
                     ExtraActions.InLastStand(testingUnit) ? ExtraActions.LastStand : UnitPsychology.Suppression, lastStand) }).ToList();
             }
+            // Living Spells - Screaming Horror: -1 within 6".
+            if (LivingSpells.MoraleModifier(gameContext, testingUnit) is int horror and < 0)
+            {
+                grantedNet += horror;
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(LivingSpells.ScreamingHorror, horror) }).ToList();
+            }
             // Army Terrain - Faction Relic: +1 within 12".
             if (ArmyTerrain.MoraleModifier(gameContext, testingUnit) is int relic and > 0)
             {

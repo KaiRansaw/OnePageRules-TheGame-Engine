@@ -185,7 +185,9 @@ namespace FDG.Stages
                  // Battlefield Effects - Gravity Field: "Units within 3" of this objective count as being inside Difficult Terrain".
                  || BattlefieldEffects.InGravityField(GameContext, unit)
                  // Random Events - the Alien/Rat Swarm: "The area within 3" of the marker counts as Difficult terrain".
-                 || BattlefieldEffects.InSwarm(GameContext, unit))
+                 || BattlefieldEffects.InSwarm(GameContext, unit)
+                 // Living Spells - Magic Shackles: "Units within 6" count as being in Difficult terrain".
+                 || LivingSpells.InShackles(GameContext, unit))
                 && !MovementRuleQueries.IgnoresDifficultTerrain(GameContext, unit);
             float difficultCap = GameWideConstants.BookDifficultTerrainMoveCapInches;
             if (countsAsDifficult)

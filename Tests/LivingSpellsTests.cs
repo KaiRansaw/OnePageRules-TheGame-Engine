@@ -148,18 +148,20 @@ namespace FDG.Tests
         [Test]
         public async Task Settle_EachArmyGetsAPrimitiveSpell_PickedOrRolled()
         {
-            // The bot rolls: a 3 -> Cogs of Time.
-            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 3);
+            // Kai picks Shard of Mist and rolls a 4 (Soul-Drain Platform); the bot rolls a 3 (Cogs of Time).
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 4, 3);
             new PlayerSlot(0, teamNumber: 0, _me, new ArmyListFile(), _store).AssignPlayerController(new Seat("Kai", _me));
             new PlayerSlot(1, teamNumber: 1, _them, new ArmyListFile(), _store).AssignPlayerController(new Seat("Bot", _them));
-            _answer = q => q.TargetPlayerID == _me ? q.ValidOptions.First(o => o.StartsWith("Shard of Mist")) : q.Recommended!;
+            _answer = q => q.TargetPlayerID == _me && q.ValidOptions.Any(o => o.StartsWith("Shard of Mist"))
+                ? q.ValidOptions.First(o => o.StartsWith("Shard of Mist")) : q.Recommended!;
             await LivingSpells.Settle(_context);
-            Assert.That(_asked, Has.Count.EqualTo(2), "one question per army - only the Primitive Spells are in so far");
+            Assert.That(_asked, Has.Count.EqualTo(4), "a question per army per category - Primitive and Intricate so far");
             Assert.That(_asked[0].ValidOptions, Has.Count.EqualTo(7), "Roll + the six");
-            Assert.That(State.Picks[_me.ID.ToString()], Is.EqualTo(new[] { LivingSpells.ShardOfMist }));
-            Assert.That(State.Picks[_them.ID.ToString()], Is.EqualTo(new[] { LivingSpells.CogsOfTime }));
+            Assert.That(State.Picks[_me.ID.ToString()][0], Is.EqualTo(LivingSpells.ShardOfMist));
+            Assert.That(State.Picks[_me.ID.ToString()], Has.Count.EqualTo(2));
+            Assert.That(State.Picks[_them.ID.ToString()][0], Is.EqualTo(LivingSpells.CogsOfTime));
             await LivingSpells.Settle(_context);
-            Assert.That(_asked, Has.Count.EqualTo(2), "settled once");
+            Assert.That(_asked, Has.Count.EqualTo(4), "settled once");
         }
 
         [Test]
@@ -331,6 +333,105 @@ namespace FDG.Tests
         {
             Assert.That(LivingSpells.IsMarker(new TerrainData(ETerrainType.None, new CircularZone(new Float2(0f, 0f), 1f), 0f, name: "Living spell: X (P)")), Is.True);
             Assert.That(LivingSpells.IsMarker(new TerrainData(ETerrainType.None, new CircularZone(new Float2(0f, 0f), 1f), 0f, name: "Forest")), Is.False);
+        }
+
+        // ---------------------------------------------------------------- Intricate Spells (build 3.40)
+
+        [Test]
+        public async Task HungeringJaws_HitsWhatItMovesThrough()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 6, 6, 1, 1, 1, 1, 1, 1);
+            UnitData inPath = Unit(_them, new Position(28f, 30f), 10);
+            UnitData aside = Unit(_them, new Position(28f, 40f), 10);
+            Put(_me, LivingSpells.HungeringJaws, 20f, 30f, fx: 1f, fz: 0f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(inPath.Models.Count(m => !m.GetIsAlive()), Is.EqualTo(6), "2D3 = 6 hits, every save failed");
+            Assert.That(aside.Models.All(m => m.GetIsAlive()), Is.True);
+        }
+
+        [Test]
+        public void MagicShackles_Within6_CountsAsDifficult()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData near = Unit(_them, new Position(25f, 20f), 1);
+            UnitData far = Unit(_them, new Position(35f, 20f), 1);
+            Put(_me, LivingSpells.MagicShackles, 20f, 20f);
+            Assert.That(LivingSpells.InShackles(_context, near), Is.True);
+            Assert.That(LivingSpells.InShackles(_context, far), Is.False);
+        }
+
+        [Test]
+        public void ScreamingHorror_MinusOneMoraleWithin6()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData near = Unit(_them, new Position(25f, 20f), 1);
+            UnitData far = Unit(_them, new Position(35f, 20f), 1);
+            Put(_me, LivingSpells.ScreamingHorror, 20f, 20f);
+            Assert.That(LivingSpells.MoraleModifier(_context, near), Is.EqualTo(-1));
+            Assert.That(LivingSpells.MoraleModifier(_context, far), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task HealingSwarm_ACasterMovesIt_ThenItHeals()
+        {
+            // Random caster: 1 of 1; heal D3 from a 6 = 3.
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 1, 6, 6, 6);
+            Unit(_me, new Position(22f, 20f), 1, casterLevel: 1);
+            UnitData hurt = Unit(_me, new Position(31f, 20f), 1, tough: 6);
+            ((ModelData)hurt.Models[0]).RemainingWoundsBinding.SetValue(2f);
+            LivingSpellPiece p = Put(_me, LivingSpells.HealingSwarm, 20f, 20f);
+            _place = new Position(28f, 20f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(p.X, Is.EqualTo(28f).Within(0.01f), "the caster within 6\" moved it");
+            Assert.That(hurt.Models[0].WoundsDealt, Is.EqualTo(1), "then it healed D3 (3)");
+        }
+
+        [Test]
+        public async Task HealingSwarm_NoCasterNear_StaysPut()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 6);
+            Unit(_me, new Position(40f, 20f), 1, casterLevel: 1);
+            LivingSpellPiece p = Put(_me, LivingSpells.HealingSwarm, 20f, 20f);
+            _place = new Position(28f, 20f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(p.X, Is.EqualTo(20f).Within(0.01f));
+        }
+
+        [Test]
+        public async Task SoulDrainPlatform_GoesUnderTheCaster_FollowsIt_AndDrains()
+        {
+            // The drain: a random unit (1 of 2 -> the first) takes D3 (a 6 = 3).
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 1, 6);
+            UnitData wizard = Unit(_me, new Position(20f, 20f), 1, casterLevel: 1, tough: 6);
+            UnitData other = Unit(_them, new Position(24f, 20f), 1, tough: 6);
+            _place = new Position(30f, 20f);
+            await LivingSpells.Resolve(_context, wizard, "Living Spell: Soul-Drain Platform");
+            LivingSpellPiece p = State.OnTable.Single();
+            Assert.That(p.X, Is.EqualTo(20f).Within(0.01f), "placed under the caster, not where asked");
+            wizard.Models[0].SetPosition(new Position(26f, 22f));
+            await LivingSpells.EndOfActivation(_context, wizard);
+            Assert.That(p.X, Is.EqualTo(26f).Within(0.01f), "it moves with the caster");
+            await LivingSpells.OnActivation(_context, wizard);
+            Assert.That(wizard.Models[0].WoundsDealt + other.Models[0].WoundsDealt, Is.EqualTo(3), "one unit within 6\" takes D3");
+            await LivingSpells.OnActivation(_context, other);
+            Assert.That(wizard.Models[0].WoundsDealt + other.Models[0].WoundsDealt, Is.EqualTo(3), "only its caster's activation drains");
+        }
+
+        [Test]
+        public async Task ArcanePalisade_IsAWall_AndNotOnTopOfModels()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData wizard = Unit(_me, new Position(20f, 20f), 1, casterLevel: 1);
+            UnitData squad = Unit(_them, new Position(28f, 20f), 1);
+            _place = new Position(28f, 20f);
+            _answer = q => q.ValidOptions.First(o => o == LivingSpells.FaceAhead);
+            await LivingSpells.Resolve(_context, wizard, "Living Spell: Arcane Palisade");
+            LivingSpellPiece p = State.OnTable.Single();
+            var d = LivingSpells.Find(EGameSystem.GrimdarkFuture, LivingSpells.ArcanePalisade)!;
+            Assert.That(LivingSpells.DistanceTo(p, d, 28f, 20f), Is.GreaterThanOrEqualTo(squad.Models[0].BaseRadiusInches), "moved off the squad");
+            TerrainData wall = _store.GetAllValues<TerrainData>().Single(LivingSpells.IsMarker);
+            Assert.That(wall.TerrainType.HasFlag(ETerrainType.Impassible) && wall.TerrainType.HasFlag(ETerrainType.Blocking), Is.True);
+            Assert.That(wall.Shape.IsPointWithinZone(new Float2(p.X, p.Z)), Is.True);
         }
     }
 }

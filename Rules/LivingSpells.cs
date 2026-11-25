@@ -66,7 +66,9 @@ namespace FDG
         public static readonly string[] Categories = { Primitive, Intricate, Forbidden };
 
         public const string BurningPyre = "Burning Pyre", SuffocatingCloud = "Suffocating Cloud", CogsOfTime = "Cogs of Time",
-            DeathlyPendulum = "Deathly Pendulum", ShardOfMist = "Shard of Mist";
+            DeathlyPendulum = "Deathly Pendulum", ShardOfMist = "Shard of Mist", HungeringJaws = "Hungering Jaws",
+            MagicShackles = "Magic Shackles", HealingSwarm = "Healing Swarm", SoulDrainPlatform = "Soul-Drain Platform",
+            ScreamingHorror = "Screaming Horror", ArcanePalisade = "Arcane Palisade";
 
         public static string Gates(EGameSystem s) => s is EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish ? "Linked Voidgates" : "Linked Jumpgates";
 
@@ -78,12 +80,12 @@ namespace FDG
             new Def(Primitive, 4, DeathlyPendulum, 1, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round, and then units within 6\" of it take 2D3 hits. If it gets to a table edge, it is removed."),
             new Def(Primitive, 5, ShardOfMist, 1, ESize.Small, EMove.None, "Units within 6\" get -1 to hit rolls when shooting."),
             new Def(Primitive, 6, Gates(s), 1, ESize.Small, EMove.None, "Place one additional copy of this spell within 24\" of it. When a unit ends its activation within 3\" of one of the copies of this spell, it may be placed anywhere within 3\" of another copy of this spell."),
-            new Def(Intricate, 1, "Hungering Jaws", 2, ESize.Large, EMove.Straight, "This spell needs to have a clearly marked front. This spell moves 12\" straight at the end of each round. If it gets to a table edge, it is removed. Units it moves through take 2D3 hits."),
-            new Def(Intricate, 2, "Magic Shackles", 2, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round. If it gets to a table edge, it is removed. Units within 6\" count as being in Difficult terrain."),
-            new Def(Intricate, 3, "Healing Swarm", 2, ESize.Small, EMove.CasterMoves, "At the end of each round, one random caster within 6\" may move this spell by up to 12\" in any direction, and then units within 6\" of it restore D3 models/wounds."),
-            new Def(Intricate, 4, "Soul-Drain Platform", 2, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it. When activated, one random unit (including the caster) within 6\" takes D3 wounds."),
-            new Def(Intricate, 5, "Screaming Horror", 2, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round. If it gets to a table edge, it is removed. Units within 6\" get -1 to Morale Test rolls."),
-            new Def(Intricate, 6, "Arcane Palisade", 2, ESize.Long, EMove.None, "This spell counts as Impassable and Sight Blocking terrain."),
+            new Def(Intricate, 1, HungeringJaws, 2, ESize.Large, EMove.Straight, "This spell needs to have a clearly marked front. This spell moves 12\" straight at the end of each round. If it gets to a table edge, it is removed. Units it moves through take 2D3 hits."),
+            new Def(Intricate, 2, MagicShackles, 2, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round. If it gets to a table edge, it is removed. Units within 6\" count as being in Difficult terrain."),
+            new Def(Intricate, 3, HealingSwarm, 2, ESize.Small, EMove.CasterMoves, "At the end of each round, one random caster within 6\" may move this spell by up to 12\" in any direction, and then units within 6\" of it restore D3 models/wounds."),
+            new Def(Intricate, 4, SoulDrainPlatform, 2, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it. When activated, one random unit (including the caster) within 6\" takes D3 wounds."),
+            new Def(Intricate, 5, ScreamingHorror, 2, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round. If it gets to a table edge, it is removed. Units within 6\" get -1 to Morale Test rolls."),
+            new Def(Intricate, 6, ArcanePalisade, 2, ESize.Long, EMove.None, "This spell counts as Impassable and Sight Blocking terrain."),
             new Def(Forbidden, 1, "Killing Sun", 3, ESize.Large, EMove.CasterMoves, "At the end of each round, one random caster within 6\" may move this spell by up to 12\" in any direction. Units it moves through take 2D3 hits."),
             new Def(Forbidden, 2, "Divine Maelstrom", 3, ESize.Small, EMove.None, "Units within 6\" count as being in Cover terrain."),
             new Def(Forbidden, 3, "Sword Swarm", 3, ESize.Small, EMove.None, "Units within 6\" get +1 to hit rolls in melee."),
@@ -92,8 +94,8 @@ namespace FDG
             new Def(Forbidden, 6, "Vortex Platform", 3, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it, and the caster gets +1 to casting rolls."),
         };
 
-        /// <summary>The spells in the game so far (build 3.39: the Primitive Spells).</summary>
-        public static bool Built(Def d) => d.Category == Primitive;
+        /// <summary>The spells in the game so far (build 3.40: the Primitive and Intricate Spells).</summary>
+        public static bool Built(Def d) => d.Category is Primitive or Intricate;
 
         public static Def? Find(EGameSystem s, string name) => Table(s).FirstOrDefault(d => d.Name == name);
 
@@ -119,8 +121,8 @@ namespace FDG
             + "Primitive Spells, Intricate Spells, Forbidden Spells.\n"
             + string.Join("\n", Table(s).Select(d => $"{d.Category} {d.Number}. {d.Name} ({d.Value}) - {d.Size} Spell: {d.Text}"));
 
-        public const string GameText = "Before deployment each army picks (or rolls) one spell per category - only the Primitive Spells are "
-            + "in the game so far. A caster casts one from its spell list as \"Living Spell: X\" and places it within 12\"; casting another "
+        public const string GameText = "Before deployment each army picks (or rolls) one spell per category - the Primitive and Intricate "
+            + "Spells are in the game so far. A caster casts one from its spell list as \"Living Spell: X\" and places it within 12\"; casting another "
             + "removes the old one. An enemy caster within 12\" can pick \"Unbind: X\" the same way. Spells that move do so at the end of "
             + "the round. They show on the table as plain pieces and on the Mission panel.";
 
@@ -262,8 +264,10 @@ namespace FDG
             // "Each army may only have one living spell in play at a time ... the previous one is removed from play."
             foreach (LivingSpellPiece old in s.OnTable.Where(p => p.Owner == Key(caster.PlayerID)).ToList())
                 Remove(c, s, old, $"{old.Name} makes way for the {d.Name}");
-            Position at = await PlaceNear(c, caster.PlayerID, $"Living Spell: place the {d.Name} within 12\" of {caster.Name}",
-                Centre(caster), 12f + CasterRadius(caster) + Radius(d.Size), d.Size);
+            // Platforms: "The caster must be placed on top of this spell" - it goes under the caster.
+            Position at = d.Move == EMove.Platform ? Centre(caster)
+                : await PlaceNear(c, caster.PlayerID, $"Living Spell: place the {d.Name} within 12\" of {caster.Name}",
+                    Centre(caster), 12f + CasterRadius(caster) + Radius(d.Size), d.Size);
             var piece = new LivingSpellPiece
             {
                 Owner = Key(caster.PlayerID),
@@ -275,6 +279,14 @@ namespace FDG
             };
             if (d.Move == EMove.Straight || d.Size == ESize.Long)
                 (piece.Fx, piece.Fz) = await AskFacing(c, caster, at, d);
+            if (d.Name == ArcanePalisade)
+            {
+                // A wall can't come down on top of models: moved to the nearest clear spot (house rules C).
+                Position clear = ClearSpot(c, piece, d, at, Centre(caster), 12f + CasterRadius(caster) + LongLength / 2f);
+                piece.X = clear.x;
+                piece.Z = clear.z;
+                at = clear;
+            }
             if (d.Name == Gates(system))
             {
                 // "Place one additional copy of this spell within 24\" of it" - edge to edge.
@@ -407,6 +419,34 @@ namespace FDG
 
         public const string MarkerPrefix = "Living spell: ";
 
+        /// <summary>Arcane Palisade's height for sight: the book gives none; a wall a model can't see over.</summary>
+        public const float PalisadeHeight = 4f;
+
+        /// <summary>The nearest spot (within the reach of the caster) where the spell covers no model's base.</summary>
+        private static Position ClearSpot(IGameContext c, LivingSpellPiece p, Def d, Position wanted, Position near, float reach)
+        {
+            bool Clear(Position at)
+            {
+                var probe = new LivingSpellPiece { X = at.x, Z = at.z, Fx = p.Fx, Fz = p.Fz };
+                return !c.TableState.Units.Objects.Where(u => u.GetIsAlive() && u.GetIsOnBattlefield())
+                    .SelectMany(u => u.Models.Where(m => m.GetIsAlive()))
+                    .Any(m => DistanceTo(probe, d, m.Position.x, m.Position.z) < m.BaseRadiusInches + 0.05f);
+            }
+            if (Clear(wanted)) return wanted;
+            float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
+            float m0 = d.Size == ESize.Long ? LongLength / 2f : Radius(d.Size);
+            for (float r = 0.5f; r <= 24f; r += 0.5f)
+                for (int i = 0; i < 24; i++)
+                {
+                    float a = i * MathF.PI / 12f;
+                    var at = new Position(wanted.x + MathF.Cos(a) * r, wanted.z + MathF.Sin(a) * r);
+                    if (at.x < m0 || at.x > w - m0 || at.z < m0 || at.z > h - m0) continue;
+                    if (Position.GetDistance2D(at, near) > reach) continue;
+                    if (Clear(at)) return at;
+                }
+            return wanted;
+        }
+
         public static bool IsMarker(ITerrain t) => t.Name != null && t.Name.StartsWith(MarkerPrefix, StringComparison.Ordinal);
 
         private static string MarkerName(LivingSpellPiece p) => $"{MarkerPrefix}{p.Name} ({p.OwnerName})";
@@ -428,7 +468,9 @@ namespace FDG
                     } });
                 }
                 else shape = new CircularZone(new Float2(x, z), Radius(d.Size));
-                c.GameDataStore.Create(new TerrainData(ETerrainType.None, shape, heightInches: 0f, name: MarkerName(p), kind: "Hazard"));
+                bool wall = d.Name == ArcanePalisade;
+                c.GameDataStore.Create(new TerrainData(wall ? ETerrainType.Impassible | ETerrainType.Blocking : ETerrainType.None, shape,
+                    heightInches: wall ? PalisadeHeight : 0f, name: MarkerName(p), kind: wall ? "Wall" : "Hazard"));
             }
         }
 
@@ -476,10 +518,57 @@ namespace FDG
             return list;
         }
 
+        /// <summary>Magic Shackles: a unit within 6" counts as being in Difficult terrain (its moves are capped).</summary>
+        public static bool InShackles(IGameContext c, IUnit unit) =>
+            Live(c).Any(x => x.Def.Name == MagicShackles && Within(unit, x.Piece, x.Def, 6f));
+
+        /// <summary>Screaming Horror: -1 to Morale Test rolls within 6".</summary>
+        public static int MoraleModifier(IGameContext c, IUnit unit) =>
+            Live(c).Any(x => x.Def.Name == ScreamingHorror && Within(unit, x.Piece, x.Def, 6f)) ? -1 : 0;
+
+        /// <summary>Platforms: "as long as the caster is on top of this spell, the spell moves with it" - kept under the
+        /// living caster.</summary>
+        public static void FollowCasters(IGameContext c)
+        {
+            if (!On(c) || State(c.GameDataStore) is not { } s) return;
+            bool changed = false;
+            foreach ((LivingSpellPiece p, Def d) in Live(c).Where(x => x.Def.Move == EMove.Platform).ToList())
+            {
+                IUnit? caster = c.TableState.Units.Objects.FirstOrDefault(u => AdvancedCasting.Id(u) == p.Caster);
+                if (caster == null || !caster.GetIsAlive() || !caster.GetIsOnBattlefield()) continue;
+                Position at = Centre(caster);
+                if (MathF.Abs(at.x - p.X) < 0.01f && MathF.Abs(at.z - p.Z) < 0.01f) continue;
+                p.X = at.x;
+                p.Z = at.z;
+                Draw(c, p, d);
+                changed = true;
+            }
+            if (changed) Save(c, s);
+        }
+
+        /// <summary>A unit activates. Soul-Drain Platform: when its caster activates, "one random unit (including the
+        /// caster) within 6\" takes D3 wounds".</summary>
+        public static async Task OnActivation(IGameContext c, IUnit unit)
+        {
+            if (!On(c)) return;
+            FollowCasters(c);
+            foreach ((LivingSpellPiece p, Def d) in Live(c).Where(x => x.Def.Name == SoulDrainPlatform && x.Piece.Caster == AdvancedCasting.Id(unit)).ToList())
+            {
+                var near = UnitsWithin(c, p, d, 6f);
+                if (near.Count == 0) continue;
+                IUnit victim = near[(c.DiceRoller.RollDecisiveFace(near.Count) - 1) % near.Count];
+                int d3 = D3(c);
+                c.Log($"Soul-Drain Platform: {victim.Name} takes {d3} wound{(d3 == 1 ? "" : "s")}.");
+                await c.Announce($"Soul-Drain Platform drains {victim.Name}.", Violet, EBannerTier.Toast);
+                await CasualtyPresentation.ApplyUnitWounds(c, victim, d3);
+            }
+        }
+
         /// <summary>Linked Jumpgates / Voidgates: a unit (either side) ending its activation within 3" of a copy may be placed
         /// within 3" of the other (asked; bots say no).</summary>
         public static async Task EndOfActivation(IGameContext c, IUnit unit)
         {
+            FollowCasters(c);
             if (!unit.GetIsAlive() || unit is not UnitData data) return;
             foreach ((LivingSpellPiece p, Def d) in Live(c).Where(x => x.Def.Name == Gates(c.Settings.GameSystem) && x.Piece.X2 != null).ToList())
             {
@@ -528,6 +617,13 @@ namespace FDG
                     }
                     continue;
                 }
+                if (d.Name == HealingSwarm)
+                {
+                    await MoveByCaster(c, p, d);
+                    foreach (IUnit u in UnitsWithin(c, p, d, 6f))
+                        await new GameOperationServices(c).RestoreD3(u, HealingSwarm);
+                    continue;
+                }
                 if (d.Move is not (EMove.Corner or EMove.Straight)) continue;
 
                 float sx = p.X, sz = p.Z;
@@ -546,6 +642,14 @@ namespace FDG
                     {
                         c.Log($"Suffocating Cloud: {u.Name} takes a Dangerous Terrain Test.");
                         await new GameOperationServices(c).ForceDangerousTerrainTest(u);
+                    }
+
+                if (d.Name == HungeringJaws)
+                    foreach (IUnit u in UnitsSwept(c, p, d, sx, sz, dx, dz, travel).ToList())
+                    {
+                        int hits = D3(c) + D3(c);
+                        c.Log($"Hungering Jaws: {u.Name} takes {hits} hits.");
+                        await CampaignEventRunner.DealHits(c, u, hits, HungeringJaws);
                     }
 
                 if (offTable)
@@ -568,6 +672,24 @@ namespace FDG
         }
 
         private static int D3(IGameContext c) => (c.DiceRoller.RollDecisiveFace() + 1) / 2;
+
+        /// <summary>"One random caster within 6\" may move this spell by up to 12\" in any direction": a caster of either
+        /// side is picked at random and its player places the spell (keeping it where it is is allowed).</summary>
+        private static async Task<(float X, float Z, bool Moved)> MoveByCaster(IGameContext c, LivingSpellPiece p, Def d)
+        {
+            var casters = c.TableState.Units.Objects.Where(u => u.GetIsAlive() && u.GetIsOnBattlefield()
+                && AdvancedCasting.CasterLevel(u) > 0 && Within(u, p, d, 6f)).ToList();
+            if (casters.Count == 0) return (p.X, p.Z, false);
+            IUnit mover = casters[(c.DiceRoller.RollDecisiveFace(casters.Count) - 1) % casters.Count];
+            var from = new Position(p.X, p.Z);
+            Position to = await PlaceNear(c, mover.PlayerID, $"{d.Name}: {mover.Name} may move it up to 12\" (click where it is to leave it)",
+                from, 12f, d.Size);
+            p.X = to.x;
+            p.Z = to.z;
+            Draw(c, p, d);
+            c.Log($"{d.Name}: {mover.Name} moves it to ({to.x:0.0}, {to.z:0.0}).");
+            return (from.x, from.z, true);
+        }
 
         private static List<IUnit> UnitsWithin(IGameContext c, LivingSpellPiece p, Def d, float inches) =>
             c.TableState.Units.Objects.Where(u => u.GetIsAlive() && u.GetIsOnBattlefield() && Within(u, p, d, inches)).ToList();

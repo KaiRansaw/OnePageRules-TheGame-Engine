@@ -74,6 +74,8 @@ namespace FDG.Stages
             // Battlefield Effects: Deadly Vortex's die, Zero Gravity's charge reach, Dark Skies / Muddy Terrain kept right.
             await BattlefieldEffects.OnActivation(GameContext, unit);
             await ArmyTerrain.OnActivation(GameContext, unit);
+            // Living Spells: platforms follow their casters; Soul-Drain Platform drains as its caster activates.
+            await LivingSpells.OnActivation(GameContext, unit);
 
             await ResolvePassiveEntries(context, unit);
 
