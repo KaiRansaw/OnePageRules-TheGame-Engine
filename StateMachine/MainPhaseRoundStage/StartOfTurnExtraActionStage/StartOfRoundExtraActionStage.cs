@@ -132,6 +132,8 @@ namespace FDG.Stages
         /// </summary>
         private async Task GrantRoundStartTokens()
         {
+            // Relic Wargear (Skirmish books): the banners reach the Hero's unit and the three nearest friends for the round.
+            await RelicWargear.RoundStart(GameContext);
             foreach (ArmyData army in GameContext.GameDataStore.GetAllValues<ArmyData>().ToList())
             {
                 foreach (DataBinding<UnitData> unitBinding in army.UnitBindings.ToList())
@@ -156,6 +158,8 @@ namespace FDG.Stages
                     // Heavy Backlash - Drained: "lowers its caster level by 1", one fewer token per round per level.
                     AdvancedCasting.AfterRoundStartGrant(GameContext, unit,
                         unit.Tokens.GetTokenCount(TokenType.SpellTokens) - tokensBefore);
+                    // Relic Wargear - Charmed Helmet (+1) and a Spellthieving Weapon's toll.
+                    RelicWargear.AfterRoundStartGrant(GameContext, unit);
                     int excess = unit.Tokens.GetTokenCount(TokenType.SpellTokens)
                         - GameWideConstants.MAX_SPELL_TOKENS;
                     if (excess > 0)

@@ -313,6 +313,9 @@ namespace FDG.Stages
             int threshold = twoD6 ? AdvancedCasting.ClampTwoD6(baseNeeded - netModifier)
                 : pools ? DiceUtilities.ClampSuccessRollNeeded(baseNeeded - netModifier)
                 : DiceUtilities.ClampSuccessRollNeeded(CAST_SUCCESS_THRESHOLD - netModifier);
+            // Relic Wargear - Power Wand: once per game, "the Hero casts its next spell on a roll of 2+".
+            if (await RelicWargear.PowerWandOffer(GameContext, caster, chosen.Name))
+                threshold = twoD6 ? AdvancedCasting.ClampTwoD6(2) : 2;
             IDiceResults castRoll = null;
             int dieA = 0, dieB = 0;
             bool success;
@@ -437,6 +440,18 @@ namespace FDG.Stages
             // own attack/dice/wound beats then play out the damage the landing depicted.
             await PresentSpellVisual(ESpellVisual.CastSuccess, casterPositions, chosen.Name);
             await PresentTargetVisuals(chosen, targets);
+
+            // Relic Wargear - Channeling Staff: a target past the spell's own range spends the army's staff.
+            if (targets.Any(t => !SpellTargeting.GetEligibleTargets(GameContext, context.ActivatingUnit, player, chosen.Target,
+                    castOrigin.IsSelf ? null : castOrigin.Unit, withStaff: false).Contains(t)))
+                await RelicWargear.StaffUsed(GameContext, caster, chosen.Name);
+            // Relic Wargear - Dispel Scroll / Hex Scroll: an enemy Hero within 12" may stop the spell or hurt the caster.
+            if (await RelicWargear.AfterEnemyCast(GameContext, caster, chosen.Name))
+            {
+                if (backlash) await AdvancedCasting.Backlash(GameContext, caster);
+                await OnFinished.Activate(context);
+                return;
+            }
 
             // Advanced Casting - Living Spells: placed on the table (or, for an unbind, taken off it) instead of an effect.
             if (LivingSpells.IsOption(chosen.Name))

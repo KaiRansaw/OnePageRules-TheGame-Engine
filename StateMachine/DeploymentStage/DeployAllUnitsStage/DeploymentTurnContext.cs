@@ -40,6 +40,9 @@ namespace FDG.Stages
         /// <summary>Fog of War - Escalating Battles: takes units out of this deployment (they wait for a later round).</summary>
         public void HoldBack(Func<DataBinding<UnitData>, bool> held);
 
+        /// <summary>Relic Wargear - Ranger's Standard: a unit given Scout before deployment leaves the normal pool for the Scout pass.</summary>
+        public void DeferNewScouts();
+
         public DataBinding<UnitData>? CurrentDeployingUnit { get; set; }
 
         /// <summary>
@@ -85,6 +88,18 @@ namespace FDG.Stages
         {
             foreach (List<DataBinding<UnitData>> pool in UndeployedUnits.Values) pool.RemoveAll(u => held(u));
             _deferredUnits.RemoveAll(e => held(e.Unit));
+        }
+
+        public void DeferNewScouts()
+        {
+            if (MissionPlan is { CustomZones: true }) return;
+            foreach (List<DataBinding<UnitData>> pool in UndeployedUnits.Values)
+                foreach (DataBinding<UnitData> unit in pool.ToList())
+                    if (TryGetDefer(unit, out RuleOperation.DeferDeployment defer) && defer.Timing == EDeferTiming.AfterNormalDeployment)
+                    {
+                        pool.Remove(unit);
+                        _deferredUnits.Add(new DeferredUnitEntry(unit, defer));
+                    }
         }
 
         public DataBinding<UnitData>? CurrentDeployingUnit { get; set; } = null;

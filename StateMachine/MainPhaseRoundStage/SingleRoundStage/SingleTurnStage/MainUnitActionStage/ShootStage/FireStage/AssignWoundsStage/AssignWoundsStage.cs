@@ -128,6 +128,19 @@ namespace FDG.Stages
                     if (packets[i].Wounds > 0f)
                         packets[i] = packets[i].WithWounds(await BattlefieldEffects.FogIgnore(GameContext, defender, packets[i].Wounds));
 
+            // Relic Wargear - Scroll of Shielding: wounds from a spell, a die each, 4+ ignored (once per game).
+            if (metaData.IsSpell && packets.Sum(p => p.Wounds) >= 1f)
+            {
+                float before = packets.Sum(p => p.Wounds);
+                float cut = before - await RelicWargear.ShieldFromSpell(GameContext, defender, before);
+                for (int i = packets.Count - 1; i >= 0 && cut > 0f; i--)
+                {
+                    float take = System.Math.Min(cut, packets[i].Wounds);
+                    packets[i] = packets[i].WithWounds(packets[i].Wounds - take);
+                    cut -= take;
+                }
+            }
+
             // Critical Hits: "if the hit isn't blocked the target takes 1 wound" (on top of the hit's own).
             if (hitResults.CriticalWoundIfUnblocked && rollToSaveResults.FailedSaveList != null
                 && rollToSaveResults.FailedSaveList.Any(f => f.RollNeededInfo.Source.Kind == EHitSourceKind.Critical && f.SaveCount > 0f))

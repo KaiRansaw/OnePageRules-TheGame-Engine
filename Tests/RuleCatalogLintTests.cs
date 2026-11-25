@@ -40,6 +40,8 @@ namespace FDG.Tests
                 "it by name and deals X hits per wound taken back at the attacker (#197 P11).",
             ["Deathstrike"] = "engine-marker: no dispatch entries or abilities; ResolveMeleeReflectStage detects " +
                 "it by name and deals X hits per killed model back at the attacker (#197 P11).",
+            ["Relic: Standard of Discipline"] = "engine-marker: no dispatch entries; RelicWargear.PassesOnTwo reads the grant " +
+                "in MoraleUtilities.TakeMoraleTest (the roll needed becomes 2+).",
             ["Politician: Deceiver"] = "engine-marker: no dispatch entries; PoliticalIntrigue.IgnoresDangerous reads the grant " +
                 "in MovementExecutor, ApplyNonMovementTerrainEffectsStage and GameOperationServices.ForceDangerousTerrainTest.",
             ["Trait: Elite"] = "engine-marker: Horde Mode trait with no dispatch entries; MoraleUtilities." +

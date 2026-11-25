@@ -76,6 +76,7 @@ namespace FDG.Stages
             await ArmyTerrain.OnActivation(GameContext, unit);
             // Living Spells: platforms follow their casters; Soul-Drain Platform drains as its caster activates.
             await LivingSpells.OnActivation(GameContext, unit);
+            await RelicWargear.OnActivation(GameContext, unit);
 
             await ResolvePassiveEntries(context, unit);
 

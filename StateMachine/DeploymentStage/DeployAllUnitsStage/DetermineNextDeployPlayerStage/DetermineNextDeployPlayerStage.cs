@@ -50,6 +50,8 @@ namespace FDG.Stages
                 await AdvancedCasting.Settle(GameContext);
                 // Advanced Casting - Living Spells: each army's spell from each category.
                 await LivingSpells.Settle(GameContext);
+                // Advanced Casting - Relic Wargear: each Hero's item; a Ranger's Standard Scout then waits for the Scout pass.
+                if (await RelicWargear.Settle(GameContext)) context.DeferNewScouts();
                 // Fog of War - Escalating Battles: each player picks the detachment that deploys now.
                 await FogOfWar.OpeningDetachments(GameContext, context);
                 context.HasStarted = true;

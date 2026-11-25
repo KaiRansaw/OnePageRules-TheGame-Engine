@@ -25,7 +25,7 @@ namespace FDG.Stages
         /// </summary>
         public static List<DataBinding<UnitData>> GetEligibleTargets(IGameContext gameContext,
             DataBinding<UnitData> caster, PlayerID casterPlayer, TargetSelector selector,
-            IUnit? origin = null)
+            IUnit? origin = null, bool withStaff = true)
         {
             IUnit measureFrom = origin ?? caster.GetValue();
             TeamData team = gameContext.GameDataStore().GetAllValues<TeamData>()
@@ -43,6 +43,8 @@ namespace FDG.Stages
             // a hero using Infiltrating Step.
             QuestProgress? quest = gameContext.TableState.Progress.Quest;
             float extraRange = QuestFlags.SpellRangeBonus(quest, caster.GetValue());
+            // Relic Wargear - Channeling Staff: while the army's staff is unused, a cast may reach double the range.
+            if (withStaff) extraRange += RelicWargear.StaffRange(gameContext, caster.GetValue(), selector.RangeInches);
 
             foreach (DataBinding<UnitData> unit in allUnits)
             {

@@ -103,7 +103,7 @@ namespace FDG.Tests
             {
                 Assert.That(AdvancedRules.Chapters(s), Does.Contain(AdvancedRules.AdvancedCastingChapter), s.ToString());
                 Assert.That(AdvancedRules.In(AdvancedRules.AdvancedCastingChapter, s).Select(o => o.Name),
-                    Is.EqualTo(new[] { AdvancedCasting.SpellBooks, AdvancedCasting.TwoD6Casting, AdvancedCasting.MagicPools, AdvancedCasting.HeavyBacklash, LivingSpells.Option }), s.ToString());
+                    Is.EqualTo(new[] { AdvancedCasting.SpellBooks, AdvancedCasting.TwoD6Casting, AdvancedCasting.MagicPools, AdvancedCasting.HeavyBacklash, LivingSpells.Option, RelicWargear.OptionName(s) }), s.ToString());
                 foreach (AdvancedRuleOption o in AdvancedRules.In(AdvancedRules.AdvancedCastingChapter, s))
                     Assert.That((o.BookText + o.GameText).All(ch => ch < 128), $"ASCII: {s} {o.Name}");
             }

@@ -31,7 +31,14 @@ namespace FDG.Stages
             // Fortified (defender) reduces the WEAPON's AP, floored at 0 — so it does nothing against an
             // AP(0) hit, unlike a flat +1 save. Rule-granted AP (Rending/Thrust) rides SaveModifier below
             // and is not reduced here.
-            int ap = Math.Max(0, metaData.WeaponType.ArmorPenetration - rollToHitResults.ArmorPenetrationReduction);
+            int ap = Math.Max(0, RelicWargear.ArmorPenetration(GameContext, metaData.AttackingUnit.GetValue(), metaData.DefendingUnit.GetValue(),
+                metaData.WeaponType, metaData.WeaponType.ArmorPenetration, metaData.IsSpell) - rollToHitResults.ArmorPenetrationReduction);
+            // Relic Wargear - the Hero's armour, while it stands alone: Helmet of Fortune, Silver-Steel Shield, Glittering
+            // Chainmail, Dragon Shield.
+            (int relicDefense, int? relicOverride, int relicAp, string? relicSource) =
+                RelicWargear.SaveChanges(GameContext, metaData.DefendingUnit.GetValue(), metaData.IsMelee);
+            if (relicOverride is int counts) baseDefense = Math.Min(baseDefense, counts);
+            if (relicAp > 0) ap = Math.Max(0, ap - relicAp);
 
             // #042 save-modifier rules (Rending) folded their net modifier at hit-roll-complete and
             // carried it here; a negative delta to the save roll raises the threshold. Subtract it,
@@ -83,6 +90,12 @@ namespace FDG.Stages
                 grantedDefense += ExtraActions.Net(challenge);
                 grantedDetail = grantedDetail.Concat(challenge).ToList();
                 GameContext.Log($"{metaData.DefendingUnit.GetValue().Name}: {challenge[0].Source} +1 to Defense.");
+            }
+
+            if (relicDefense != 0 && relicSource != null)
+            {
+                grantedDefense += relicDefense;
+                grantedDetail = grantedDetail.Concat(new[] { new GrantedModifier(relicSource, relicDefense) }).ToList();
             }
 
             // Army Terrain - Magic Armory: +1 to Defense rolls within 6".

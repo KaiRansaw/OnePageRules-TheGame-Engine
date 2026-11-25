@@ -74,6 +74,8 @@ namespace FDG
                 progress.AdvancedCasting = TryGetProgress(store)?.AdvancedCasting;
             if (progress.LivingSpells == null)
                 progress.LivingSpells = TryGetProgress(store)?.LivingSpells;
+            if (progress.RelicWargear == null)
+                progress.RelicWargear = TryGetProgress(store)?.RelicWargear;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

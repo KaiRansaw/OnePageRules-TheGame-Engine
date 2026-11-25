@@ -54,6 +54,10 @@ namespace FDG.Stages
                     throw new Exception($"Tried to deal {woundsToDeal} to a model with only {modelRemainingWounds} left.");
                 }
 
+                // Relic Wargear - the Hero's own items: Armour of Destiny, Talisman of Preservation, Dawnstone, Luckstone.
+                if (woundsToDeal >= 1f)
+                    woundsToDeal = await RelicWargear.HeroWounds(GameContext, defendingUnit, model, woundsToDeal, metaData.IsSpell);
+
                 // Command Points - Eternal Vigilance: a wound that would kill the model is ignored on a 4+.
                 if (woundsToDeal >= 1f && woundsToDeal >= modelRemainingWounds - 0.0001f
                     && await CommandPoints.OfferEternalVigilance(GameContext, defendingUnit, model))
@@ -81,6 +85,10 @@ namespace FDG.Stages
                     await GameContext.Presenter.Present(new ModelWoundedBeat(model.ID, model.Position, overlap, woundsToDeal));
                 }
             }
+
+            // Relic Wargear - Spellthieving Weapon: an enemy caster loses spell tokens for each wound.
+            RelicWargear.AfterWounds(GameContext, metaData.AttackingUnit.GetValue(), defendingUnit, metaData.WeaponType,
+                totalWoundsApplied, metaData.IsSpell);
 
             // Unit Psychology - Retreating: shooting wounds are noted; the unit falls back at the end of the activation.
             if (!metaData.IsMelee && !metaData.IsSpell && totalWoundsApplied > 0)

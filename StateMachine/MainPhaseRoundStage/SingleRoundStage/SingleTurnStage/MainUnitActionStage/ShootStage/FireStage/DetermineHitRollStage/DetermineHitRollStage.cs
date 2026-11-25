@@ -85,6 +85,9 @@ namespace FDG.Stages
             {
                 baseQuality = Math.Min(baseQuality, qualityFloor.Quality);
             }
+            // Relic Wargear - Biting Weapon: "hits at Quality 2+".
+            if (RelicWargear.Quality(GameContext, attacker, metaData.WeaponType, metaData.IsSpell) is int biting)
+                baseQuality = Math.Min(baseQuality, biting);
 
             // #015 Attack count: how many attack dice this volley rolls (weapon Attacks × weapons
             // firing). Computed here, beside the hit threshold, so attack-count modifiers fold at this
@@ -112,6 +115,10 @@ namespace FDG.Stages
                 attackCount *= 2f;
                 GameContext.Log($"Suppressing Fire: {attacker.Name}'s shooting attacks are doubled ({attackCount:0.#}).");
             }
+
+            // Relic Wargear - Weapon of Bloodshed / Kingslayer Weapon: +3 Attacks.
+            if (metaData.AttackCountOverride == null)
+                attackCount += RelicWargear.AttackBonus(GameContext, attacker, defender, metaData.WeaponType, metaData.IsSpell);
 
             DetermineHitRollResults results = new DetermineHitRollResults(baseQuality, attackCount);
 
@@ -142,7 +149,8 @@ namespace FDG.Stages
             // Command Points - Combat Fatigue: an opponent may try to make the striker count as Fatigued for this melee.
             if (metaData.IsMelee && !metaData.IsSpell && !FatigueUtilities.CountsAsFatiguedInMelee(attacker))
                 await CommandPoints.OfferCombatFatigue(GameContext, attacker);
-            bool fatiguedInMelee = metaData.IsMelee && FatigueUtilities.CountsAsFatiguedInMelee(attacker);
+            bool fatiguedInMelee = metaData.IsMelee && FatigueUtilities.CountsAsFatiguedInMelee(attacker)
+                && !RelicWargear.IgnoresFatigue(GameContext, attacker, metaData.WeaponType);   // Relic Wargear - Fencer's Blade
 
             // #033 granted "+X to hit" buffs on the attacker (one-shot / duration) fold in with the same
             // sign convention; one-shot ("next time") grants are consumed by this roll - skipped while
@@ -223,6 +231,8 @@ namespace FDG.Stages
                     .Concat(PoliticalIntrigue.HitModifiers(GameContext, attacker, defender, metaData.IsSpell))
                     .Concat(ArmyTerrain.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
                     .Concat(LivingSpells.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell))
+                    // Relic Wargear - Protective Gem / Opal Amulet: the defender's player may give -1 to hit, once per game.
+                    .Concat(await RelicWargear.HitOffers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell))
                     .ToList();
                 if (extra.Count > 0)
                 {

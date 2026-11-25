@@ -97,6 +97,12 @@ namespace FDG.Stages
                 if (!forced) FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
                 return new MoraleTestOutcome(passed: forced, baseRollNeeded, passedViaReroll: false);
             }
+            // Relic Wargear - Terrifying Mask: once per game an enemy Hero's player may make this test fail outright.
+            if (await RelicWargear.MaskFails(gameContext, testingUnit))
+            {
+                FDG.Missions.MissionCardEvents.MoraleFailed(gameContext, testingUnit);
+                return new MoraleTestOutcome(passed: false, baseRollNeeded, passedViaReroll: false);
+            }
             if (testingUnit.Tokens.HasToken(TokenType.Shaken))
             {
                 if (await TryConvertFailure(gameContext, testingUnit, failureCausesShakenOrRout))
@@ -154,6 +160,8 @@ namespace FDG.Stages
             }
             int rollNeeded = DiceUtilities.ClampSuccessRollNeeded(baseRollNeeded - modifiers.Net(ERollKind.Morale)
                 - grantedNet - underdogNet);
+            // Relic Wargear - Standard of Discipline: "pass Morale Tests on rolls of 2+".
+            if (RelicWargear.PassesOnTwo(testingUnit)) rollNeeded = System.Math.Min(rollNeeded, 2);
 
             // Decisive single die — one concrete face even under the probabilistic roller (#090).
             IDiceResults initialRoll;
