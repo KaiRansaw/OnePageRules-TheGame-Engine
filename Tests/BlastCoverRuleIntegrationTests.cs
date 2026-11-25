@@ -47,6 +47,23 @@ namespace FDG.Tests
         }
 
         [Test]
+        public async Task DivineMaelstrom_DefenderInTheOpen_GetsCover()
+        {
+            // Living Spells (build 3.41): "units within 6\" count as being in Cover terrain".
+            var open = new Position(20, 30);
+            CoverCheckResults before = await RunStage(MakeUnit(new[] { open }));
+            Assert.That(before.DefenseRollBonus, Is.EqualTo(0), "out in the open");
+            GameSettings settings = GameSettings.GetDefault();
+            settings.AdvancedRules = EAdvancedRules.LivingSpells;
+            _ctx = new TestGameContext(_store, new FixedDiceRoller(4), settings: settings);
+            var state = new LivingSpellsState();
+            state.OnTable.Add(new LivingSpellPiece { Owner = "x", OwnerName = "X", Name = LivingSpells.DivineMaelstrom, X = 24f, Z = 30f });
+            LivingSpells.Save(_ctx, state);
+            CoverCheckResults after = await RunStage(MakeUnit(new[] { open }));
+            Assert.That(after.DefenseRollBonus, Is.EqualTo(1), "within 6\" of the Maelstrom");
+        }
+
+        [Test]
         public void SightRuleQueries_DeriveIgnoresCover_FromBlast()
         {
             var weapon = new Weapon("Test", rangeInches: 24f, attacks: 1, armorPenetration: 0);

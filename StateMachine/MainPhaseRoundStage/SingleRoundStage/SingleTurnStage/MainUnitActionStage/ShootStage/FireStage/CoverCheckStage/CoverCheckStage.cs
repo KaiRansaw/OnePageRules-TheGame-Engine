@@ -48,6 +48,13 @@ namespace FDG.Stages
                 GameContext.Log("Protective Dome: the target counts as in Cover.");
             }
 
+            // Living Spells - Divine Maelstrom: "units within 6\" count as being in Cover terrain".
+            if (bonus == 0 && LivingSpells.InMaelstrom(GameContext, metaData.DefendingUnit.GetValue()))
+            {
+                bonus = 1;
+                GameContext.Log("Divine Maelstrom: the target counts as in Cover.");
+            }
+
             // #042 Blast: the attacking weapon ignores cover — drop the bonus. Derived from the attacker's
             // rules via the shared query so the cover stage, targeting options, and movement options agree.
             if (bonus > 0 && SightRuleQueries.IgnoresCover(

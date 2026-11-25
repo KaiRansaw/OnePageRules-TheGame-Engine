@@ -122,6 +122,8 @@ namespace FDG.Stages
             // Battlefield Effects - terrain effects: rolled the first time a unit enters a piece; Infestation / Spores /
             // Booby Traps on the way through.
             await BattlefieldEffects.AfterMove(GameContext, movingUnit, terrainMoves);
+            // Living Spells - Twin Shock-Spheres: a unit moving through the line takes 2D3 hits.
+            await LivingSpells.AfterMove(GameContext, movingUnit, terrainMoves);
 
             await OnMoveExecuted.Activate(context);
         }

@@ -23,6 +23,7 @@ namespace FDG.Tests
         private readonly List<StringSelectionRequest> _asked = new();
         private Func<StringSelectionRequest, string>? _answer;
         private Position? _place;
+        private readonly Queue<Position> _places = new();
         private bool _gate;
         private Position? _gateTo;
 
@@ -49,10 +50,11 @@ namespace FDG.Tests
             settings.GameSystem = system;
             settings.AdvancedRules = rules;
             _asked.Clear();
+            _places.Clear();
             _context = new TestGameContext(_store, new Faces(faces), settings: settings, playerRequester: new Answer(r => r switch
             {
                 StringSelectionRequest q => Record(q),
-                PlaceObjectiveRequest pl => _place ?? throw new InvalidOperationException("no spot"),
+                PlaceObjectiveRequest pl => _places.Count > 0 ? _places.Dequeue() : _place ?? throw new InvalidOperationException("no spot"),
                 YesNoRequest => _gate,
                 PlaceObjectsRequest<ModelData> po => _gateTo == null
                     ? new Cancelled<List<PlacedObjectEntry<ModelData>>>()
@@ -148,20 +150,21 @@ namespace FDG.Tests
         [Test]
         public async Task Settle_EachArmyGetsAPrimitiveSpell_PickedOrRolled()
         {
-            // Kai picks Shard of Mist and rolls a 4 (Soul-Drain Platform); the bot rolls a 3 (Cogs of Time).
-            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 4, 3);
+            // Kai picks Shard of Mist, rolls a 4 (Soul-Drain Platform) and a 1 (Killing Sun); the bot rolls a 3 (Cogs of Time).
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 4, 1, 3, 2, 2);
             new PlayerSlot(0, teamNumber: 0, _me, new ArmyListFile(), _store).AssignPlayerController(new Seat("Kai", _me));
             new PlayerSlot(1, teamNumber: 1, _them, new ArmyListFile(), _store).AssignPlayerController(new Seat("Bot", _them));
             _answer = q => q.TargetPlayerID == _me && q.ValidOptions.Any(o => o.StartsWith("Shard of Mist"))
                 ? q.ValidOptions.First(o => o.StartsWith("Shard of Mist")) : q.Recommended!;
             await LivingSpells.Settle(_context);
-            Assert.That(_asked, Has.Count.EqualTo(4), "a question per army per category - Primitive and Intricate so far");
+            Assert.That(_asked, Has.Count.EqualTo(6), "a question per army per category - Primitive, Intricate and Forbidden");
             Assert.That(_asked[0].ValidOptions, Has.Count.EqualTo(7), "Roll + the six");
             Assert.That(State.Picks[_me.ID.ToString()][0], Is.EqualTo(LivingSpells.ShardOfMist));
-            Assert.That(State.Picks[_me.ID.ToString()], Has.Count.EqualTo(2));
+            Assert.That(State.Picks[_me.ID.ToString()], Has.Count.EqualTo(3));
+            Assert.That(State.Picks[_me.ID.ToString()][2], Is.EqualTo(LivingSpells.KillingSun), "rolled a 1");
             Assert.That(State.Picks[_them.ID.ToString()][0], Is.EqualTo(LivingSpells.CogsOfTime));
             await LivingSpells.Settle(_context);
-            Assert.That(_asked, Has.Count.EqualTo(4), "settled once");
+            Assert.That(_asked, Has.Count.EqualTo(6), "settled once");
         }
 
         [Test]
@@ -432,6 +435,129 @@ namespace FDG.Tests
             TerrainData wall = _store.GetAllValues<TerrainData>().Single(LivingSpells.IsMarker);
             Assert.That(wall.TerrainType.HasFlag(ETerrainType.Impassible) && wall.TerrainType.HasFlag(ETerrainType.Blocking), Is.True);
             Assert.That(wall.Shape.IsPointWithinZone(new Float2(p.X, p.Z)), Is.True);
+        }
+
+        // ---------------------------------------------------------------- Forbidden Spells (build 3.41)
+
+        [Test]
+        public async Task KillingSun_ACasterMovesIt_AndItHitsWhatItCrosses()
+        {
+            // Random caster: 1 of 1; then 2D3 = 6 hits, every save failed.
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 1, 6, 6, 1, 1, 1, 1, 1, 1);
+            Unit(_me, new Position(20f, 25f), 1, casterLevel: 1);
+            UnitData inPath = Unit(_them, new Position(23f, 20f), 10);
+            UnitData aside = Unit(_them, new Position(31f, 25f), 10);   // 5" from where it stops, but not on its path
+            LivingSpellPiece p = Put(_me, LivingSpells.KillingSun, 20f, 20f);
+            _place = new Position(31f, 20f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(p.X, Is.EqualTo(31f).Within(0.01f));
+            Assert.That(inPath.Models.Count(m => !m.GetIsAlive()), Is.EqualTo(6));
+            Assert.That(aside.Models.All(m => m.GetIsAlive()), Is.True);
+        }
+
+        [Test]
+        public async Task KillingSun_LeftWhereItIs_HitsNobody()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 1, 6, 6, 1, 1, 1, 1, 1, 1);
+            Unit(_me, new Position(20f, 25f), 1, casterLevel: 1);
+            UnitData under = Unit(_them, new Position(21f, 20f), 10);
+            Put(_me, LivingSpells.KillingSun, 20f, 20f);
+            _place = new Position(20f, 20f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(under.Models.All(m => m.GetIsAlive()), Is.True, "it only hits what it moves through");
+        }
+
+        [Test]
+        public void DivineMaelstrom_Within6_CountsAsInCover()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData near = Unit(_them, new Position(25f, 20f), 1);
+            UnitData far = Unit(_them, new Position(35f, 20f), 1);
+            Put(_me, LivingSpells.DivineMaelstrom, 20f, 20f);
+            Assert.That(LivingSpells.InMaelstrom(_context, near), Is.True);
+            Assert.That(LivingSpells.InMaelstrom(_context, far), Is.False);
+        }
+
+        [Test]
+        public void SwordSwarm_AndSpiritSeeker_MeleeOnly()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData near = Unit(_them, new Position(25f, 20f), 1);
+            UnitData far = Unit(_them, new Position(45f, 20f), 1);
+            UnitData seeker = Unit(_them, new Position(45f, 40f), 1);
+            Put(_me, LivingSpells.SwordSwarm, 20f, 20f);
+            Put(_them, LivingSpells.SpiritSeeker, 50f, 40f);
+            Assert.That(LivingSpells.HitModifiers(_context, near, true, false).Sum(m => m.Delta), Is.EqualTo(1));
+            Assert.That(LivingSpells.HitModifiers(_context, near, false, false), Is.Empty, "not when shooting");
+            Assert.That(LivingSpells.HitModifiers(_context, far, true, false), Is.Empty);
+            Assert.That(LivingSpells.HitModifiers(_context, seeker, true, false).Sum(m => m.Delta), Is.EqualTo(-1));
+            Assert.That(LivingSpells.HitModifiers(_context, near, true, true), Is.Empty, "not spells");
+        }
+
+        [Test]
+        public async Task TwinShockSpheres_SecondCopyWithin12_AndTheLineHits()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 6, 6, 1, 1, 1, 1, 1, 1);
+            UnitData wizard = Unit(_me, new Position(20f, 10f), 1, casterLevel: 1);
+            _places.Enqueue(new Position(25f, 15f));
+            _places.Enqueue(new Position(55f, 15f));    // asked 30" away: pulled back to 12"
+            await LivingSpells.Resolve(_context, wizard, "Living Spell: Twin Shock-Spheres");
+            LivingSpellPiece p = State.OnTable.Single();
+            Assert.That(p.X2, Is.Not.Null, "two copies");
+            float gap = MathF.Sqrt((p.X2!.Value - p.X) * (p.X2.Value - p.X) + (p.Z2!.Value - p.Z) * (p.Z2.Value - p.Z));
+            Assert.That(gap - 2f * LivingSpells.Radius(LivingSpells.ESize.Small), Is.EqualTo(12f).Within(0.05f), "pulled back to 12\" edge to edge");
+
+            // Line from (30, 30) to (30, 40): a squad walking across it takes 2D3 = 6 hits.
+            p.X = 30f; p.Z = 30f; p.X2 = 30f; p.Z2 = 40f;
+            LivingSpells.Save(_context, State);
+            UnitData squad = Unit(_them, new Position(34f, 35f), 10);
+            var from = new Position(26f, 35f);
+            await LivingSpells.AfterMove(_context, squad, new[] { (from, (IReadOnlyList<Position>)new[] { new Position(34f, 35f) }) });
+            Assert.That(squad.Models.Count(m => !m.GetIsAlive()), Is.EqualTo(6));
+        }
+
+        [Test]
+        public async Task TwinShockSpheres_AMoveThatStaysOnOneSide_IsSafe()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells, 6, 6, 1, 1, 1, 1, 1, 1);
+            LivingSpellPiece p = Put(_me, LivingSpells.TwinShockSpheres, 30f, 30f);
+            p.X2 = 30f; p.Z2 = 40f;
+            LivingSpells.Save(_context, State);
+            UnitData squad = Unit(_them, new Position(26f, 35f), 10);
+            await LivingSpells.AfterMove(_context, squad, new[] { (new Position(20f, 35f), (IReadOnlyList<Position>)new[] { new Position(26f, 35f) }) });
+            Assert.That(squad.Models.All(m => m.GetIsAlive()), Is.True);
+            await LivingSpells.AfterMove(_context, squad, new[] { (new Position(26f, 45f), (IReadOnlyList<Position>)new[] { new Position(34f, 45f) }) });
+            Assert.That(squad.Models.All(m => m.GetIsAlive()), Is.True, "passing beyond the end of the line");
+        }
+
+        [Test]
+        public void SpiritSeeker_MovesStraight()
+        {
+            var d = LivingSpells.Find(EGameSystem.AgeOfFantasy, LivingSpells.SpiritSeeker)!;
+            Assert.That(d.Move, Is.EqualTo(LivingSpells.EMove.Straight));
+            Assert.That(LivingSpells.Built(d), Is.True);
+        }
+
+        [Test]
+        public async Task SpiritSeeker_RollsForwardAtRoundEnd()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            LivingSpellPiece p = Put(_me, LivingSpells.SpiritSeeker, 20f, 20f, fx: 1f, fz: 0f);
+            await LivingSpells.RoundEnd(_context);
+            Assert.That(p.X, Is.EqualTo(32f).Within(0.01f));
+        }
+
+        [Test]
+        public async Task VortexPlatform_UnderItsCaster_PlusOneToCast()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            UnitData wizard = Unit(_me, new Position(20f, 20f), 1, casterLevel: 1);
+            UnitData other = Unit(_me, new Position(30f, 20f), 1, casterLevel: 1);
+            _place = new Position(40f, 20f);
+            await LivingSpells.Resolve(_context, wizard, "Living Spell: Vortex Platform");
+            Assert.That(State.OnTable.Single().X, Is.EqualTo(20f).Within(0.01f), "under the caster");
+            Assert.That(LivingSpells.CastBonus(_context, wizard), Is.EqualTo(1));
+            Assert.That(LivingSpells.CastBonus(_context, other), Is.EqualTo(0), "only its own caster");
         }
     }
 }

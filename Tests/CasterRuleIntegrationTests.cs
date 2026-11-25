@@ -1819,6 +1819,31 @@ namespace FDG.Tests
             Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2), "nothing to cast");
         }
 
+        [Test]
+        public async Task LivingSpell_VortexPlatformUnderTheCaster_PlusOneToTheCastingRoll()
+        {
+            // A 3 fails a 4+ cast; on its Vortex Platform the caster needs only 3+.
+            var ctx = LivingContext(3);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 2, System.Array.Empty<RuntimeSpell>(), new Position(20f, 20f));
+            var state = new LivingSpellsState();
+            state.Picks[_player.ID.ToString()] = new List<string> { LivingSpells.BurningPyre };
+            state.OnTable.Add(new LivingSpellPiece { Owner = _player.ID.ToString(), OwnerName = "Me", Name = LivingSpells.VortexPlatform,
+                X = 20f, Z = 20f, Caster = AdvancedCasting.Id(caster.GetValue()) });
+            LivingSpells.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(LivingSpells.State(_store)!.OnTable.Select(p => p.Name), Is.EqualTo(new[] { LivingSpells.BurningPyre }),
+                "3 + 1 casts (the Pyre replaces the platform - one living spell per army)");
+
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ctx = LivingContext(3);
+            caster = MakeCasterUnit(3, 2, System.Array.Empty<RuntimeSpell>(), new Position(20f, 20f));
+            state = new LivingSpellsState();
+            state.Picks[_player.ID.ToString()] = new List<string> { LivingSpells.BurningPyre };
+            LivingSpells.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(LivingSpells.State(_store)!.OnTable, Is.Empty, "without it a 3 fails");
+        }
+
         private sealed class FaceRoller : IDiceRoller
         {
             private readonly int[] _faces;

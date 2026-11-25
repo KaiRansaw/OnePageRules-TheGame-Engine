@@ -68,7 +68,9 @@ namespace FDG
         public const string BurningPyre = "Burning Pyre", SuffocatingCloud = "Suffocating Cloud", CogsOfTime = "Cogs of Time",
             DeathlyPendulum = "Deathly Pendulum", ShardOfMist = "Shard of Mist", HungeringJaws = "Hungering Jaws",
             MagicShackles = "Magic Shackles", HealingSwarm = "Healing Swarm", SoulDrainPlatform = "Soul-Drain Platform",
-            ScreamingHorror = "Screaming Horror", ArcanePalisade = "Arcane Palisade";
+            ScreamingHorror = "Screaming Horror", ArcanePalisade = "Arcane Palisade", KillingSun = "Killing Sun",
+            DivineMaelstrom = "Divine Maelstrom", SwordSwarm = "Sword Swarm", TwinShockSpheres = "Twin Shock-Spheres",
+            SpiritSeeker = "Spirit Seeker", VortexPlatform = "Vortex Platform";
 
         public static string Gates(EGameSystem s) => s is EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish ? "Linked Voidgates" : "Linked Jumpgates";
 
@@ -86,16 +88,16 @@ namespace FDG
             new Def(Intricate, 4, SoulDrainPlatform, 2, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it. When activated, one random unit (including the caster) within 6\" takes D3 wounds."),
             new Def(Intricate, 5, ScreamingHorror, 2, ESize.Small, EMove.Corner, "This spell moves 12\" towards a random table corner at the end of each round. If it gets to a table edge, it is removed. Units within 6\" get -1 to Morale Test rolls."),
             new Def(Intricate, 6, ArcanePalisade, 2, ESize.Long, EMove.None, "This spell counts as Impassable and Sight Blocking terrain."),
-            new Def(Forbidden, 1, "Killing Sun", 3, ESize.Large, EMove.CasterMoves, "At the end of each round, one random caster within 6\" may move this spell by up to 12\" in any direction. Units it moves through take 2D3 hits."),
-            new Def(Forbidden, 2, "Divine Maelstrom", 3, ESize.Small, EMove.None, "Units within 6\" count as being in Cover terrain."),
-            new Def(Forbidden, 3, "Sword Swarm", 3, ESize.Small, EMove.None, "Units within 6\" get +1 to hit rolls in melee."),
-            new Def(Forbidden, 4, "Twin Shock-Spheres", 3, ESize.Small, EMove.None, "Place one additional copy of this spell within 12\" of it, and draw a straight line between all copies of it. When a unit moves through the line, it takes 2D3 hits."),
-            new Def(Forbidden, 5, "Spirit Seeker", 3, ESize.Small, EMove.Straight, "This spell needs to have a clearly marked front. This spell moves 12\" straight at the end of each round. If it gets to a table edge, it is removed. Units within 6\" get -1 to hit rolls in melee."),
-            new Def(Forbidden, 6, "Vortex Platform", 3, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it, and the caster gets +1 to casting rolls."),
+            new Def(Forbidden, 1, KillingSun, 3, ESize.Large, EMove.CasterMoves, "At the end of each round, one random caster within 6\" may move this spell by up to 12\" in any direction. Units it moves through take 2D3 hits."),
+            new Def(Forbidden, 2, DivineMaelstrom, 3, ESize.Small, EMove.None, "Units within 6\" count as being in Cover terrain."),
+            new Def(Forbidden, 3, SwordSwarm, 3, ESize.Small, EMove.None, "Units within 6\" get +1 to hit rolls in melee."),
+            new Def(Forbidden, 4, TwinShockSpheres, 3, ESize.Small, EMove.None, "Place one additional copy of this spell within 12\" of it, and draw a straight line between all copies of it. When a unit moves through the line, it takes 2D3 hits."),
+            new Def(Forbidden, 5, SpiritSeeker, 3, ESize.Small, EMove.Straight, "This spell needs to have a clearly marked front. This spell moves 12\" straight at the end of each round. If it gets to a table edge, it is removed. Units within 6\" get -1 to hit rolls in melee."),
+            new Def(Forbidden, 6, VortexPlatform, 3, ESize.Large, EMove.Platform, "The caster must be placed on top of this spell. As long as the caster is on top of this spell, the spell moves with it, and the caster gets +1 to casting rolls."),
         };
 
         /// <summary>The spells in the game so far (build 3.40: the Primitive and Intricate Spells).</summary>
-        public static bool Built(Def d) => d.Category is Primitive or Intricate;
+        public static bool Built(Def d) => d.Category is Primitive or Intricate or Forbidden;
 
         public static Def? Find(EGameSystem s, string name) => Table(s).FirstOrDefault(d => d.Name == name);
 
@@ -286,6 +288,14 @@ namespace FDG
                 piece.X = clear.x;
                 piece.Z = clear.z;
                 at = clear;
+            }
+            if (d.Name == TwinShockSpheres)
+            {
+                // "Place one additional copy of this spell within 12\" of it" - edge to edge.
+                Position second = await PlaceNear(c, caster.PlayerID, $"Living Spell: place the second {d.Name} within 12\" of the first",
+                    at, 12f + 2f * Radius(d.Size), d.Size);
+                piece.X2 = second.x;
+                piece.Z2 = second.z;
             }
             if (d.Name == Gates(system))
             {
@@ -508,14 +518,78 @@ namespace FDG
         /// <summary>Cogs of Time (+1) and Shard of Mist (-1) to hit when shooting, for a shooter within 6".</summary>
         public static IReadOnlyList<GrantedModifier> HitModifiers(IGameContext c, IUnit attacker, bool melee, bool spell)
         {
-            if (spell || melee) return Array.Empty<GrantedModifier>();
+            if (spell) return Array.Empty<GrantedModifier>();
             var list = new List<GrantedModifier>();
             foreach ((LivingSpellPiece p, Def d) in Live(c))
             {
+                if (melee)
+                {
+                    // Sword Swarm (+1) and Spirit Seeker (-1): "units within 6\" get +1 / -1 to hit rolls in melee".
+                    if (d.Name == SwordSwarm && Within(attacker, p, d, 6f)) list.Add(new GrantedModifier(SwordSwarm, 1));
+                    if (d.Name == SpiritSeeker && Within(attacker, p, d, 6f)) list.Add(new GrantedModifier(SpiritSeeker, -1));
+                    continue;
+                }
                 if (d.Name == CogsOfTime && Within(attacker, p, d, 6f)) list.Add(new GrantedModifier(CogsOfTime, 1));
                 if (d.Name == ShardOfMist && Within(attacker, p, d, 6f)) list.Add(new GrantedModifier(ShardOfMist, -1));
             }
             return list;
+        }
+
+        /// <summary>Divine Maelstrom: "units within 6\" count as being in Cover terrain".</summary>
+        public static bool InMaelstrom(IGameContext c, IUnit unit) =>
+            Live(c).Any(x => x.Def.Name == DivineMaelstrom && Within(unit, x.Piece, x.Def, 6f));
+
+        /// <summary>Vortex Platform: "as long as the caster is on top of this spell ... the caster gets +1 to casting rolls".
+        /// The platform is kept under its caster, so its own caster always gets it.</summary>
+        public static int CastBonus(IGameContext c, IUnit caster) =>
+            Live(c).Any(x => x.Def.Name == VortexPlatform && x.Piece.Caster == AdvancedCasting.Id(caster)) ? 1 : 0;
+
+        /// <summary>Twin Shock-Spheres: "when a unit moves through the line, it takes 2D3 hits". Moving through = a model's
+        /// centre crosses the line between the two copies, or the move ends with its base touching it.</summary>
+        public static async Task AfterMove(IGameContext c, IUnit unit, IReadOnlyList<(Position From, IReadOnlyList<Position> Path)> moves)
+        {
+            if (!On(c) || !unit.GetIsAlive()) return;
+            foreach ((LivingSpellPiece p, Def d) in Live(c).Where(x => x.Def.Name == TwinShockSpheres && x.Piece.X2 != null).ToList())
+            {
+                float ax = p.X, az = p.Z, bx = p.X2!.Value, bz = p.Z2!.Value;
+                bool through = false;
+                foreach ((Position from, IReadOnlyList<Position> path) in moves)
+                {
+                    if (path.Count == 0) continue;
+                    Position prev = from;
+                    foreach (Position q in path)
+                    {
+                        if (Crosses(prev.x, prev.z, q.x, q.z, ax, az, bx, bz)) { through = true; break; }
+                        prev = q;
+                    }
+                    if (through) break;
+                }
+                if (!through)
+                    through = unit.Models.Any(m => m.GetIsAlive() && SegmentDistance(m.Position.x, m.Position.z, ax, az, bx, bz) <= m.BaseRadiusInches
+                        && moves.Any(mv => mv.Path.Count > 0 && Position.GetDistance2D(mv.Path[^1], m.Position) < 0.01f));
+                if (!through) continue;
+                int hits = D3(c) + D3(c);
+                c.Log($"Twin Shock-Spheres: {unit.Name} moves through the line - {hits} hits.");
+                await c.Announce($"{unit.Name} crosses the Twin Shock-Spheres.", Violet, EBannerTier.Toast);
+                await CampaignEventRunner.DealHits(c, unit, hits, TwinShockSpheres);
+                if (!unit.GetIsAlive()) return;
+            }
+        }
+
+        private static bool Crosses(float px, float pz, float qx, float qz, float ax, float az, float bx, float bz)
+        {
+            static float Cross(float ox, float oz, float ux, float uz, float vx, float vz) => (ux - ox) * (vz - oz) - (uz - oz) * (vx - ox);
+            float d1 = Cross(ax, az, bx, bz, px, pz), d2 = Cross(ax, az, bx, bz, qx, qz);
+            float d3 = Cross(px, pz, qx, qz, ax, az), d4 = Cross(px, pz, qx, qz, bx, bz);
+            return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+        }
+
+        private static float SegmentDistance(float x, float z, float ax, float az, float bx, float bz)
+        {
+            float vx = bx - ax, vz = bz - az, len2 = vx * vx + vz * vz;
+            float t = len2 < 1e-6f ? 0f : Math.Clamp(((x - ax) * vx + (z - az) * vz) / len2, 0f, 1f);
+            float dx = ax + vx * t - x, dz = az + vz * t - z;
+            return MathF.Sqrt(dx * dx + dz * dz);
         }
 
         /// <summary>Magic Shackles: a unit within 6" counts as being in Difficult terrain (its moves are capped).</summary>
@@ -622,6 +696,20 @@ namespace FDG
                     await MoveByCaster(c, p, d);
                     foreach (IUnit u in UnitsWithin(c, p, d, 6f))
                         await new GameOperationServices(c).RestoreD3(u, HealingSwarm);
+                    continue;
+                }
+                if (d.Name == KillingSun)
+                {
+                    // "One random caster within 6\" may move this spell by up to 12\" ... Units it moves through take 2D3 hits."
+                    (float fx, float fz, bool moved) = await MoveByCaster(c, p, d);
+                    float run = MathF.Sqrt((p.X - fx) * (p.X - fx) + (p.Z - fz) * (p.Z - fz));
+                    if (!moved || run < 0.01f) continue;
+                    foreach (IUnit u in UnitsSwept(c, p, d, fx, fz, (p.X - fx) / run, (p.Z - fz) / run, run).ToList())
+                    {
+                        int hits = D3(c) + D3(c);
+                        c.Log($"Killing Sun: {u.Name} takes {hits} hits.");
+                        await CampaignEventRunner.DealHits(c, u, hits, KillingSun);
+                    }
                     continue;
                 }
                 if (d.Move is not (EMove.Corner or EMove.Straight)) continue;

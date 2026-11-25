@@ -142,6 +142,23 @@ namespace FDG.Tests
                 "but the Fast model may advance 6\", and the recorded distance is a max over models");
         }
 
+        // Living Spells (build 3.41) - Twin Shock-Spheres: the line's hits are dealt by the REAL ExecuteMoveStage.
+        [Test]
+        public async Task AMoveAcrossTheShockSpheresLine_TakesItsHits()
+        {
+            World world = World.Build(_store, new CapturingStringSelectionRequester("x"), dice: new FixedDiceRoller(1));
+            GameSettings settings = GameSettings.GetDefault();
+            settings.AdvancedRules = EAdvancedRules.LivingSpells;
+            world.Ctx.Settings = settings;
+            var state = new LivingSpellsState();
+            state.OnTable.Add(new LivingSpellPiece { Owner = "x", OwnerName = "X", Name = LivingSpells.TwinShockSpheres,
+                X = 13f, Z = 5f, X2 = 13f, Z2 = 15f });
+            LivingSpells.Save(world.Ctx, state);
+            var moveCtx = new MovementActionContext(world.Ctx, world.Unit);
+            await MoveAndReconcile(world, moveCtx, 6f);
+            Assert.That(world.Unit.GetValue().GetIsAlive(), Is.False, "2 hits (all 1s), both saves failed");
+        }
+
         // ── harness ────────────────────────────────────────────────────────────────────────────────────
 
         // Commits a move of the given length through the REAL ExecuteMoveStage (which spends the one-shot
@@ -194,7 +211,7 @@ namespace FDG.Tests
             // A rifle-armed unit with an enemy well inside range, so Shoot's target check never decides
             // the outcome - only the move/shoot distance gate does.
             public static World Build(GameDataStore store, IPlayerRequestByID requester, int extraModels = 0,
-                Position? enemyPosition = null)
+                Position? enemyPosition = null, IDiceRoller? dice = null)
             {
                 var player = new PlayerID(Guid.NewGuid());
                 var enemyPlayer = new PlayerID(Guid.NewGuid());
@@ -225,7 +242,7 @@ namespace FDG.Tests
                     new List<DataBinding<UnitData>> { store.GetDataBinding<UnitData>(store.Create(enemy)) }));
 
                 // The resolver is what lets a token-granted rule name resolve back to its definition.
-                var ctx = new TriggeredMoveTestContext(store, requester,
+                var ctx = new TriggeredMoveTestContext(store, requester, diceRoller: dice,
                     ruleResolver: CoreRuleCatalog.CreateResolver());
                 var unitCtx = new UnitActionContext(ctx, unitBinding);
                 unitCtx.Reset(unitBinding);

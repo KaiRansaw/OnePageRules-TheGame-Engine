@@ -290,7 +290,8 @@ namespace FDG.Stages
             int passive = passiveSink.Net(ERollKind.Cast);
 
             // Battlefield Effects - Arcane Power: "All casters get +1 to their spell casting rolls."
-            int netModifier = (pools ? 0 : boost) + assist + granted + passive + castOrigin.RollBonus + BattlefieldEffects.CastBonus(GameContext);
+            int netModifier = (pools ? 0 : boost) + assist + granted + passive + castOrigin.RollBonus + BattlefieldEffects.CastBonus(GameContext)
+                + LivingSpells.CastBonus(GameContext, caster);
 
             // #274 — the caster's own models, reused by every spell visual below.
             List<Position> casterPositions = AttackBeatPositions.AlivePlaced(context.ActivatingUnit);
