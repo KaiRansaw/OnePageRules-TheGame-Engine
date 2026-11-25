@@ -222,6 +222,7 @@ namespace FDG.Stages
                     .Concat(CommandPoints.HitModifiers(attacker, metaData.IsMelee, metaData.IsSpell))
                     .Concat(PoliticalIntrigue.HitModifiers(GameContext, attacker, defender, metaData.IsSpell))
                     .Concat(ArmyTerrain.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
+                    .Concat(LivingSpells.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell))
                     .ToList();
                 if (extra.Count > 0)
                 {

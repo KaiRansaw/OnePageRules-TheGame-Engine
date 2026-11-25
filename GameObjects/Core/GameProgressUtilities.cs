@@ -72,6 +72,8 @@ namespace FDG
                 progress.ArmyTerrain = TryGetProgress(store)?.ArmyTerrain;
             if (progress.AdvancedCasting == null)
                 progress.AdvancedCasting = TryGetProgress(store)?.AdvancedCasting;
+            if (progress.LivingSpells == null)
+                progress.LivingSpells = TryGetProgress(store)?.LivingSpells;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

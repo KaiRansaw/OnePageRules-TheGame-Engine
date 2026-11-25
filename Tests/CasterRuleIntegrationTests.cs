@@ -1770,6 +1770,55 @@ namespace FDG.Tests
             Assert.That(caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant), Is.Not.Empty, "a 6 among the casting dice");
         }
 
+        // ---------------------------------------------------------------- Advanced Casting - Living Spells (build 3.39)
+
+        private TriggeredMoveTestContext LivingContext(params int[] faces)
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new CannedCastRequester(), new FaceRoller(faces));
+            GameSettings settings = GameSettings.GetDefault();
+            settings.AdvancedRules = EAdvancedRules.LivingSpells;
+            ctx.Settings = settings;
+            return ctx;
+        }
+
+        [Test]
+        public async Task LivingSpell_IsInThePicker_AndIsPlacedWhenCast()
+        {
+            var ctx = LivingContext(5);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 2, System.Array.Empty<RuntimeSpell>(), new Position(20f, 20f));
+            var state = new LivingSpellsState();
+            state.Picks[_player.ID.ToString()] = new List<string> { LivingSpells.BurningPyre };
+            LivingSpells.Save(ctx, state);
+            Assert.That(await Cast(ctx, caster), Is.True);
+            var onTable = LivingSpells.State(_store)!.OnTable;
+            Assert.That(onTable.Select(p => p.Name), Is.EqualTo(new[] { LivingSpells.BurningPyre }), "a 5 casts it; it goes on the table");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(1), "its value (1) is paid like any spell");
+            Assert.That(_store.GetAllValues<TerrainData>().Count(t => LivingSpells.IsMarker(t)), Is.EqualTo(1), "and is drawn on the table");
+        }
+
+        [Test]
+        public async Task LivingSpell_EnemyCasterWithin12_CanUnbindIt()
+        {
+            var ctx = LivingContext(5);
+            DataBinding<UnitData> caster = MakeCasterUnit(3, 2, System.Array.Empty<RuntimeSpell>(), new Position(20f, 20f));
+            var enemy = new PlayerID(System.Guid.NewGuid());
+            var state = new LivingSpellsState();
+            state.OnTable.Add(new LivingSpellPiece { Owner = enemy.ID.ToString(), OwnerName = "Foe", Name = LivingSpells.ShardOfMist, X = 28f, Z = 20f });
+            LivingSpells.Save(ctx, state);
+            Assert.That(await Cast(ctx, caster), Is.True);
+            Assert.That(LivingSpells.State(_store)!.OnTable, Is.Empty, "unbound");
+
+            _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            ctx = LivingContext(5);
+            caster = MakeCasterUnit(3, 2, System.Array.Empty<RuntimeSpell>(), new Position(20f, 20f));
+            state = new LivingSpellsState();
+            state.OnTable.Add(new LivingSpellPiece { Owner = enemy.ID.ToString(), OwnerName = "Foe", Name = LivingSpells.ShardOfMist, X = 40f, Z = 20f });
+            LivingSpells.Save(ctx, state);
+            await Cast(ctx, caster);
+            Assert.That(LivingSpells.State(_store)!.OnTable, Has.Count.EqualTo(1), "20\" away: out of unbinding reach");
+            Assert.That(caster.GetValue().Tokens.GetTokenCount(TokenType.SpellTokens), Is.EqualTo(2), "nothing to cast");
+        }
+
         private sealed class FaceRoller : IDiceRoller
         {
             private readonly int[] _faces;

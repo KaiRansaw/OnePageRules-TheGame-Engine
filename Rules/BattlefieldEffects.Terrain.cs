@@ -128,6 +128,8 @@ namespace FDG
             for (int i = 0; i < pieces.Count; i++)
             {
                 ITerrain t = pieces[i];
+                // Living spells and the Defensive Barrier's ring aren't terrain pieces of their own.
+                if (LivingSpells.IsMarker(t) || ArmyTerrain.BarrierTeam(t) != null) continue;
                 bool through = moves.Any(m =>
                 {
                     Position prev = m.From;

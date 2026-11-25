@@ -353,7 +353,7 @@ namespace FDG
         /// (a caster that appeared after the game began).</summary>
         public static bool InBook(IGameContext c, IUnit caster, string spell)
         {
-            if (!BooksOn(c)) return true;
+            if (!BooksOn(c) || LivingSpells.IsOption(spell)) return true;   // living spells aren't on the spell list
             List<string>? book = State(c.GameDataStore)?.Books.GetValueOrDefault(Id(caster));
             return book == null || book.Contains(spell);
         }

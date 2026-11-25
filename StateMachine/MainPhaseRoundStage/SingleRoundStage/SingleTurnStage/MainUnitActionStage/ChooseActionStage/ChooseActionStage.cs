@@ -1273,7 +1273,10 @@ namespace FDG.Stages
             ArmyData army = GameContext.GameDataStore().GetAllValues<ArmyData>()
                 .FirstOrDefault(a => a.PlayerID == player);
 
-            if (army == null || army.Spells.Count == 0)
+            // Advanced Casting - Living Spells: the army's living spells and unbinds count as spells to cast.
+            List<RuntimeSpell> allSpells = army == null ? new List<RuntimeSpell>()
+                : army.Spells.Concat(LivingSpells.OfferSpells(GameContext, unit, player)).ToList();
+            if (allSpells.Count == 0)
             {
                 reasonIfCant = "No spells available.";
                 return false;
@@ -1283,7 +1286,7 @@ namespace FDG.Stages
             // for the rest of it. Filtered here as well as in CastSpellStage's picker because Cast must stop
             // being offered once nothing castable remains — otherwise picking it enters a stage that finds no
             // castable spell and loops straight back, the same no-progress cycle the target gate guards.
-            List<RuntimeSpell> untried = army.Spells
+            List<RuntimeSpell> untried = allSpells
                 .Where(spell => spell.Threshold > 0 && !context.HasAttemptedSpell(spell.Name))
                 .ToList();
 

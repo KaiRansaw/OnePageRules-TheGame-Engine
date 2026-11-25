@@ -437,6 +437,15 @@ namespace FDG.Stages
             await PresentSpellVisual(ESpellVisual.CastSuccess, casterPositions, chosen.Name);
             await PresentTargetVisuals(chosen, targets);
 
+            // Advanced Casting - Living Spells: placed on the table (or, for an unbind, taken off it) instead of an effect.
+            if (LivingSpells.IsOption(chosen.Name))
+            {
+                await LivingSpells.Resolve(GameContext, caster, chosen.Name);
+                if (backlash) await AdvancedCasting.Backlash(GameContext, caster);
+                await OnFinished.Activate(context);
+                return;
+            }
+
             // 6a. Damage spell → resolve each chosen target through the looped child pipeline.
             if (chosen.Effect is Effect.DealHits dealHits)
             {
@@ -658,7 +667,8 @@ namespace FDG.Stages
             }
 
             List<SpellOffer> offer = new List<SpellOffer>();
-            foreach (RuntimeSpell spell in army.Spells)
+            // Advanced Casting - Living Spells: the army's living spells, and "Unbind: X" for enemy ones within 12".
+            foreach (RuntimeSpell spell in army.Spells.Concat(LivingSpells.OfferSpells(GameContext, caster.GetValue(), player)))
             {
                 if (spell.Threshold <= 0) continue; // malformed — never offered, matching the old filter
                 if (context.HasAttemptedSpell(spell.Name))
@@ -707,7 +717,8 @@ namespace FDG.Stages
                         + (AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name) ? "" : ", not in book");
                     else if (twoD6) label += needed == AdvancedCasting.TwoD6OffBook ? $" - {needed}+ on 2D6, not in book" : $" - {needed}+ on 2D6";
                     else if (!AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name)) label += " - not in book";
-                    return new ChooseSpellRequest.SpellOption(label, SpellText.Describe(o.Spell.Definition), o.Spell.Threshold,
+                    return new ChooseSpellRequest.SpellOption(label,
+                        LivingSpells.Describe(GameContext, o.Spell.Name) ?? SpellText.Describe(o.Spell.Definition), o.Spell.Threshold,
                         o.Castable, o.Reason, twoD6 ? needed : null);
                 })
                 .ToList();

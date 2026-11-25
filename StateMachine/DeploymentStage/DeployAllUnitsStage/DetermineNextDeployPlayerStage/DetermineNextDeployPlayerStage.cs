@@ -48,6 +48,8 @@ namespace FDG.Stages
                 await PoliticalIntrigue.Settle(GameContext);
                 // Advanced Casting - Spell Books: "before the game begins", each caster's book.
                 await AdvancedCasting.Settle(GameContext);
+                // Advanced Casting - Living Spells: each army's spell from each category.
+                await LivingSpells.Settle(GameContext);
                 // Fog of War - Escalating Battles: each player picks the detachment that deploys now.
                 await FogOfWar.OpeningDetachments(GameContext, context);
                 context.HasStarted = true;

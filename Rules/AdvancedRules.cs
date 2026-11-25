@@ -54,6 +54,7 @@ namespace FDG
         TwoD6Casting = 1UL << 39,
         MagicPools = 1UL << 40,
         HeavyBacklash = 1UL << 41,
+        LivingSpells = 1UL << 42,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -102,6 +103,9 @@ namespace FDG
                 foreach ((string name, EAdvancedRules flag) in AdvancedCasting.All)
                     list.Add(new AdvancedRuleOption(AdvancedCastingChapter, name, flag, s => s == book,
                         AdvancedCasting.BookText(name, book), AdvancedCasting.GameText(name)));
+            foreach (EGameSystem book in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
+                list.Add(new AdvancedRuleOption(AdvancedCastingChapter, LivingSpells.Option, EAdvancedRules.LivingSpells, s => s == book,
+                    LivingSpells.BookText(book), LivingSpells.GameText));
             foreach ((string name, EAdvancedRules flag) in PoliticalIntrigue.All)
                 list.Add(new AdvancedRuleOption(PoliticalIntrigueChapter, name, flag, PoliticalIntrigue.BooksHaveIt,
                     PoliticalIntrigue.BookText(name), PoliticalIntrigue.GameText(name)));
