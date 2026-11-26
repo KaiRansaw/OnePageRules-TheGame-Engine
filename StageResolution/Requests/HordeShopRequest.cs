@@ -137,6 +137,30 @@ namespace FDG.StageResolution.Requests
         [JsonProperty]
         public float ReinforceRangeInches { get; set; } = 9f;
 
+        /// <summary>Meat Grinder recruitment (Advanced Rulebooks 3.6.0) reuses this shop: recruits only, deployed in the
+        /// player's own deployment zone. The fields below change what the shop says; null / false = Horde Mode.</summary>
+        [JsonProperty]
+        public bool RecruitOnly { get; set; }
+
+        /// <summary>The shop's heading and the line under it (null = "Horde Shop" / "Wave N complete").</summary>
+        [JsonProperty]
+        public string? Title { get; set; }
+
+        [JsonProperty]
+        public string? Subtitle { get; set; }
+
+        /// <summary>Where recruits go, in words (null = near the seized objectives).</summary>
+        [JsonProperty]
+        public string? DeployNote { get; set; }
+
+        /// <summary>Bots buy units with their points (Meat Grinder). Horde Mode's bots keep theirs.</summary>
+        [JsonProperty]
+        public bool BotsRecruit { get; set; }
+
+        /// <summary>The points banked in all (display only); <see cref="PointsAvailable"/> may be capped below it.</summary>
+        [JsonProperty]
+        public int PointsBanked { get; set; }
+
         [JsonConstructor]
         public HordeShopRequest(PlayerID targetPlayerID, TaskID taskID, int wave, int pointsAvailable,
             string faction, string armyName, List<HordeShopObjective> seizedObjectives)

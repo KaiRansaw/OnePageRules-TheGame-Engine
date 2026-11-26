@@ -36,6 +36,7 @@ namespace FDG.Stages
             // Extra Missions: "If the unit is Shaken or destroyed at any point, the marker is dropped".
             FDG.Missions.ExtraMissions.DropCarried(GameContext);
             FDG.Missions.AttackDefend.AfterActivation(GameContext);
+            FDG.Missions.MeatGrinder.AfterActivation(GameContext);
             // Unit Psychology: retreats from this activation's shooting, and Suppression's owed Morale Tests.
             await UnitPsychology.EndOfActivation(GameContext);
             await CriticalHits.EndOfActivation(GameContext);

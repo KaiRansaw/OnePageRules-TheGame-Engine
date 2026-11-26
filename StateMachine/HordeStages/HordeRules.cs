@@ -31,6 +31,9 @@ namespace FDG.StateMachine
             if (limit == GameWideConstants.NUMBER_OF_ROUNDS
                 && FDG.Missions.ExtraMissionCatalog.IsAttackDefend(FDG.Missions.ExtraMissions.Of(settings)))
                 return FDG.Missions.AttackDefend.Rounds;
+            // Meat Grinder: "The game ends after 6 rounds" / "After 6 rounds have been played the game ends".
+            if (limit == GameWideConstants.NUMBER_OF_ROUNDS && FDG.Missions.MeatGrinder.IsMeatGrinder(FDG.Missions.ExtraMissions.Of(settings)))
+                return FDG.Missions.MeatGrinder.Rounds;
             return limit;
         }
 

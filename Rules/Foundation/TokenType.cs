@@ -69,6 +69,8 @@ public readonly record struct TokenType(string Id)
     public const string DEEP_RAGE_ID = "DeepRage";
     // Fog of War - Escalating Battles: held back with its detachment (token count = detachment number).
     public const string HELD_DETACHMENT_ID = "HeldDetachment";
+    // Meat Grinder - Respawning: destroyed, waiting in reserves to roll its way back (never brought on by Ambush).
+    public const string RESPAWNING_ID = "Respawning";
     // Command Points - doctrine stratagems that last "for that shooting" / that move (cleared at the end of the activation).
     public const string CP_LIGHTNING_REFLEXES_ID = "CpLightningReflexes";
     public const string CP_HEIGHTENED_SENSES_ID = "CpHeightenedSenses";
@@ -465,6 +467,7 @@ public readonly record struct TokenType(string Id)
     public static readonly TokenType BootsRush = new(BOOTS_RUSH_ID);
     public static readonly TokenType DeepRage = new(DEEP_RAGE_ID);
     public static readonly TokenType HeldDetachment = new(HELD_DETACHMENT_ID);
+    public static readonly TokenType Respawning = new(RESPAWNING_ID);
     public static readonly TokenType CpLightningReflexes = new(CP_LIGHTNING_REFLEXES_ID);
     public static readonly TokenType CpHeightenedSenses = new(CP_HEIGHTENED_SENSES_ID);
     public static readonly TokenType CpDisruptedSight = new(CP_DISRUPTED_SIGHT_ID);

@@ -38,6 +38,13 @@ namespace FDG.Missions
         /// <summary>Twists &amp; Gambits (Advanced Rulebooks 3.6.0, its own chapter - never rolled by Random): 5 markers,
         /// VP every round, the underdog's twist each round, and each player's gambits. See <see cref="TwistsGambits"/>.</summary>
         TwistsAndGambits,
+        /// <summary>Meat Grinder Battles (Advanced Rulebooks 3.6.0, its own chapter - never rolled by Random): destroyed
+        /// units respawn from reserves. See <see cref="MeatGrinder"/>.</summary>
+        MeatGrinderRespawning,
+        /// <summary>Meat Grinder Battles: units are recruited with points earned each round.</summary>
+        MeatGrinderRecruitment,
+        /// <summary>Meat Grinder recruitment with the optional underdog system.</summary>
+        MeatGrinderRecruitmentUnderdog,
         /// <summary>Rolled before the game, as the book's random mission selection.</summary>
         Random = 100,
     }
@@ -49,6 +56,8 @@ namespace FDG.Missions
         OneNearCentreByDefender, D3Plus2ByDefender, D3AlternatingDefenderFirst, OneNearEdgeByDefender,
         // Twists & Gambits: three numbered markers outside the deployment zones, one inside each zone.
         ThreeOutsideOneEachInZone,
+        // Meat Grinder: "Set up the mission normally, placing 5 objectives".
+        Five,
     }
 
     public sealed record ExtraMissionInfo(EExtraMission Mission, string Name, bool Progressive, EMissionMarkers Markers,
@@ -141,12 +150,39 @@ namespace FDG.Missions
             + "The underdog: at the beginning of each round, if one player has fewer VPs than the other, then they count as the underdog for that round. Each round a random twist applies, and the underdog picks what it affects (no underdog: the twist is ignored).\n"
             + "Gambits: at the beginning of the game, each player gets three random gambits, and when they use or score a gambit, they must roll for a new gambit. At the end of each round, players may also discard one of their gambits and roll for a new one. Once per round, players may either use one gambit's power at the beginning of the round, or score one of their gambits at the end of the round for 4 VPs.");
 
+        private const string GrinderIntro = "Meat Grinder battles are long battles where more and more units are deployed as the game goes on, making for bloody battles with lots of casualties.\n"
+            + "Set up the mission normally, placing 5 objectives, and using the standard deployment rules.\n";
+
+        /// <summary>Meat Grinder Battles (GF p51, GFF p49, AoF p51, AoFS p49), the book's words.</summary>
+        public static IReadOnlyList<ExtraMissionInfo> MeatGrinder { get; } = new[]
+        {
+            new ExtraMissionInfo(EExtraMission.MeatGrinderRespawning, "Meat Grinder: Respawning", false, EMissionMarkers.Five, false, false,
+                GrinderIntro
+                + "When a unit is destroyed, it is placed in reserves with X tokens, where X is one for every full 5% of the total points of the army the unit cost.\n"
+                + "Players may also voluntarily destroy any of their units that have half or less of their total size or Tough value (for single-model units) left when they are activated.\n"
+                + "At the beginning of each round, starting with the player that activates next, players alternate in rolling one die for each unit in reserves, trying to roll higher than the total number of tokens on that unit. If successful, remove all tokens from the unit and deploy it following the standard deployment rules. If failed, remove one token from the unit instead.\n"
+                + "When an enemy unit is destroyed, players score X VPs, where X is that unit's point value (rounding up), and at the end of the game players get X/2 VPs (rounding up) for enemy units with half or less of their total size or Tough value (for single-model units) on the table.\n"
+                + "The game ends after 6 rounds, players get X VPs for each objective they control, where X equals 20% of the total points of each army (rounding up). The player with most VPs wins."),
+            new ExtraMissionInfo(EExtraMission.MeatGrinderRecruitment, "Meat Grinder: Recruitment", true, EMissionMarkers.Five, false, false,
+                GrinderIntro + GrinderRecruitText),
+            new ExtraMissionInfo(EExtraMission.MeatGrinderRecruitmentUnderdog, "Meat Grinder: Recruitment + Underdog", true, EMissionMarkers.Five, false, false,
+                GrinderIntro + GrinderRecruitText + "\n"
+                + "Underdog System: Starting at the end of the third round, at the end of each round, if one player has fewer VPs than the other, then they count as the underdog for that round. Only the underdog scores as many points as 15% of total game size at the end of the round."),
+        };
+
+        private const string GrinderRecruitText =
+            "Select a total game size, and players start the game with as many points as 50% of total game size to recruit units (rounding up), which are then deployed at the beginning of the game as usual.\n"
+            + "At the end of each round, players get as many points as 15% of total game size, plus as many points as X * 1% of total game size for each objective they control (rounding up), where X is the current round number.\n"
+            + "At the beginning of each round, starting with the player that activates next, players may alternate in spending their points to recruit units and deploy them following the standard deployment rules, however players may spend max. as many points as 30% of total game size each round (rounding up). Recruited units can't seize or contest objectives on the round they deploy.\n"
+            + "At the end of each round players get X VP for each objective marker they control, where X is the current round number.\n"
+            + "After 6 rounds have been played the game ends, and the player that scored most VPs wins.";
+
         /// <summary>"When playing Attack &amp; Defend missions, the player that wins the deployment roll-off gets to pick if
         /// they want to be attacker or defender for this match."</summary>
         public const string RolesText = "When playing Attack & Defend missions, the player that wins the deployment roll-off gets to pick if they want to be attacker or defender for this match.";
 
         public static ExtraMissionInfo Of(EExtraMission m) => m == EExtraMission.TwistsAndGambits ? TwistsAndGambits
-            : All.FirstOrDefault(i => i.Mission == m) ?? All[0];
+            : MeatGrinder.FirstOrDefault(i => i.Mission == m) ?? All.FirstOrDefault(i => i.Mission == m) ?? All[0];
 
         public static string Name(EExtraMission m) => m == EExtraMission.Random ? "Random" : Of(m).Name;
 
@@ -156,7 +192,8 @@ namespace FDG.Missions
 
         /// <summary>The order the lobby lists them in.</summary>
         public static IReadOnlyList<EExtraMission> LobbyOrder { get; } =
-            All.Select(i => i.Mission).Append(EExtraMission.TwistsAndGambits).Append(EExtraMission.Random).ToList();
+            All.Select(i => i.Mission).Append(EExtraMission.TwistsAndGambits).Concat(MeatGrinder.Select(i => i.Mission))
+                .Append(EExtraMission.Random).ToList();
 
         /// <summary>The Advanced Rulebooks have them: GF, GF: Firefight, AoF, AoF: Skirmish (not the Quest games).</summary>
         public static bool Available(EGameSystem system) =>
@@ -232,6 +269,9 @@ namespace FDG.Missions
 
         /// <summary>Twists &amp; Gambits - see <see cref="TwistsGambits"/>.</summary>
         public TwistsGambitsState? Twists { get; set; }
+
+        /// <summary>Meat Grinder - see <see cref="MeatGrinder"/>.</summary>
+        public MeatGrinderState? Grinder { get; set; }
     }
 
     /// <summary>The rules that make the Extra Missions play.</summary>
@@ -303,12 +343,18 @@ namespace FDG.Missions
                 c.Log("Twists & Gambits is written for two players - playing Duel instead.");
                 mission = EExtraMission.None;
             }
+            if (FDG.Missions.MeatGrinder.IsMeatGrinder(mission) && c.TableState.Players.Objects.Count(p => p.IsFilled) != 2)
+            {
+                c.Log("Meat Grinder is written for two players - playing Duel instead.");
+                mission = EExtraMission.None;
+            }
             if (ExtraMissionCatalog.IsAttackDefend(mission) && !twoSides)
             {
                 c.Log($"{ExtraMissionCatalog.Of(mission).Name} needs exactly two sides (an attacker and a defender) - playing Duel instead.");
                 mission = EExtraMission.None;
             }
             var fresh = new ExtraMissionState { Mission = mission };
+            if (FDG.Missions.MeatGrinder.IsMeatGrinder(mission)) FDG.Missions.MeatGrinder.Begin(c, fresh);
             Save(c, fresh);
             if (mission == EExtraMission.None)
             {
@@ -336,6 +382,7 @@ namespace FDG.Missions
                 EMissionMarkers.OneEachOnZoneEdge or EMissionMarkers.TwoEachInZone => 0,
                 EMissionMarkers.OneNearCentreByDefender or EMissionMarkers.OneNearEdgeByDefender => 1,
                 EMissionMarkers.ThreeOutsideOneEachInZone => 3,
+                EMissionMarkers.Five => 5,
                 _ => null,
             };
 
@@ -353,6 +400,7 @@ namespace FDG.Missions
             {
                 EMissionMarkers.D3Plus2 or EMissionMarkers.D3Plus2ByDefender => true,
                 EMissionMarkers.Three => mapMarkers == 3,
+                EMissionMarkers.Five => mapMarkers == 5,
                 _ => false,
             };
         }
@@ -669,6 +717,7 @@ namespace FDG.Missions
                     c.Log($"{info.Name}, round {round}: {seat.Name} scores {gained} VP ({s.Vp[slot]} in all).");
                 }
             }
+            if (FDG.Missions.MeatGrinder.IsMeatGrinder(m)) FDG.Missions.MeatGrinder.RoundEnd(c, s, round);
             Save(c, s);
         }
 
@@ -681,6 +730,7 @@ namespace FDG.Missions
             ExtraMissionInfo info = ExtraMissionCatalog.Of(m);
             ExtraMissionState s = State(c);
             if (info.AttackDefend) return AttackDefend.FinalScore(c, s);
+            if (FDG.Missions.MeatGrinder.IsMeatGrinder(m)) return FDG.Missions.MeatGrinder.FinalScore(c, s);
             if (info.Progressive) return (new Dictionary<int, int>(s.Vp), "VP");
             if (m == EExtraMission.Sabotage)
             {

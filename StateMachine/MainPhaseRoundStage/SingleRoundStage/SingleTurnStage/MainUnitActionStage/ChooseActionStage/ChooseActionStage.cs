@@ -739,6 +739,22 @@ namespace FDG.Stages
                 }
             }
 
+            // Meat Grinder - Respawning: "Players may also voluntarily destroy any of their units that have half or less of
+            // their total size or Tough value left when they are activated." On a fresh activation only.
+            if (!context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken
+                && context.ActivatingUnit.GetValue() is { } grinderUnit
+                && FDG.Missions.MeatGrinder.CanWithdraw(GameContext, grinderUnit)
+                && !outcomes.ContainsKey(FDG.Missions.MeatGrinder.WithdrawOption))
+            {
+                validOptions.Add(FDG.Missions.MeatGrinder.WithdrawOption);
+                optionDescriptions[FDG.Missions.MeatGrinder.WithdrawOption] = FDG.Missions.MeatGrinder.WithdrawText(GameContext, grinderUnit);
+                outcomes.Add(FDG.Missions.MeatGrinder.WithdrawOption, async () =>
+                {
+                    await FDG.Missions.MeatGrinder.Withdraw(GameContext, grinderUnit);
+                    await ToReconcileEndOfActivation.Activate(context);
+                });
+            }
+
             // Kai, 2026-11-08: a unit whose ONLY legal action is Pass shows a Pass button rather than skipping
             // silently, so the player sees the activation happen and can read why nothing else was offered.
             // Only on a pristine activation - once the unit has moved or attacked, an empty menu means the

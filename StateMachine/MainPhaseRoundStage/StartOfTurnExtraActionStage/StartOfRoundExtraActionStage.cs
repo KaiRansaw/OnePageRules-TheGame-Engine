@@ -58,6 +58,8 @@ namespace FDG.Stages
             await FDG.Missions.SideMissions.RoundStart(GameContext, context.RoundCount);
             // Twists & Gambits: the underdog and this round's twist.
             await FDG.Missions.TwistsGambits.RoundStart(GameContext, context.RoundCount);
+            // Meat Grinder: reserve rolls (Respawning) or the recruitment shop.
+            await FDG.Missions.MeatGrinder.RoundStart(GameContext, context.RoundCount, context.TeamActivateOrder);
             // Battlefield Effects: the special condition (settled before round 1) and Damnation's sacrifice.
             await BattlefieldEffects.RoundStart(GameContext, context.RoundCount);
             // Command Points: the Growing and Temporary playstyles hand out CP.
@@ -200,6 +202,7 @@ namespace FDG.Stages
                     return u.GetIsAlive()
                         && ReserveRules.IsInReserve(u)
                         && !u.Tokens.HasToken(TokenType.HeldDetachment)
+                        && !u.Tokens.HasToken(TokenType.Respawning)
                         && !u.Tokens.HasToken(TokenType.Conceded)
                         && TryGetLaterRoundDefer(u, out RuleOperation.DeferDeployment d, out _)
                         && roundCount >= d.MinArrivalRound;

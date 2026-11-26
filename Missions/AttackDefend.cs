@@ -103,6 +103,10 @@ namespace FDG.Missions
         /// </summary>
         public static int PointsLimit(int armyPoints, EExtraMission mission, int attackerTeam, int seatTeam)
         {
+            // Meat Grinder recruitment: "players start the game with as many points as 50% of total game size to recruit
+            // units (rounding up), which are then deployed at the beginning of the game" - the starting list is bought
+            // out of that half.
+            if (MeatGrinder.IsRecruitment(mission)) return MeatGrinder.StartingPoints(armyPoints);
             attackerTeam = AttackerOf(attackerTeam);
             if (attackerTeam <= 0 || seatTeam != attackerTeam || !ExtraMissionCatalog.Of(mission).AttackerBonusPoints) return armyPoints;
             return armyPoints + armyPoints / 4;

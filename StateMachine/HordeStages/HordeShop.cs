@@ -180,41 +180,17 @@ namespace FDG.Stages
 
             if (!hasRecruits) return;
 
-            // Build every recruit the way a deploying unit is built, then let heroes join their units.
-            var built = new List<(UnitFileEntry Entry, UnitData Unit)>();
             var objectiveFor = new Dictionary<UnitData, HordeShopObjective>();
-            for (int i = 0; i < recruits!.Units.Count; i++)
-            {
-                UnitFileEntry entry = recruits.Units[i];
-                int number = i < reply.ObjectiveNumbers.Count ? reply.ObjectiveNumbers[i] : objectives[0].Number;
-                HordeShopObjective objective = objectives.FirstOrDefault(o => o.Number == number) ?? objectives[0];
-
-                var unit = new UnitData(player, entry, gameContext.GameDataStore, resolver,
-                    recruits.DefaultRangedEffectSet, recruits.DefaultMeleeEffectSet);
-                GameBootstrap.AttachRulesFromArmyList(unit, entry, resolver);
-                unit.HordeLoadoutJson = i < reply.RecruitLoadouts.Count ? reply.RecruitLoadouts[i] : null;
-                built.Add((entry, unit));
-                objectiveFor[unit] = objective;
-            }
-
-            IReadOnlyList<UnitData> survivors = HeroJoinResolver.Apply(built, message => gameContext.Log("  " + message),
-                CoreRulesProfile.For(gameContext).HeroJoinToughCap,
-                CoreRulesProfile.For(gameContext).CampaignSkillsCoverHeroUnit);
-            gameContext.Log($"  Recruited: {string.Join(", ", recruits.Units.Select(u => $"{u.Name} ({u.PointCost} pts)"))}.");
+            IReadOnlyList<UnitData> survivors = BuildRecruits(gameContext, player, armyBinding, recruits!, reply, resolver,
+                (unit, i) =>
+                {
+                    int number = i < reply.ObjectiveNumbers.Count ? reply.ObjectiveNumbers[i] : objectives[0].Number;
+                    objectiveFor[unit] = objectives.FirstOrDefault(o => o.Number == number) ?? objectives[0];
+                });
 
             foreach (UnitData unit in survivors)
             {
-                UnitCreationRules.Apply(unit, gameContext.RuleEvaluator);
-                ReserveRules.PlaceInReserve(unit); // off the table until it is placed below
-                DataReference reference = gameContext.GameDataStore.Create(unit);
-                DataBinding<UnitData> binding = gameContext.GameDataStore.GetDataBinding<UnitData>(reference);
-                army.UnitBindings.Add(binding);
-            }
-            gameContext.GameDataStore.SetValue(armyBinding.Reference, army);
-
-            foreach (UnitData unit in survivors)
-            {
-                HordeShopObjective objective = objectiveFor[unit];
+                HordeShopObjective objective = objectiveFor.TryGetValue(unit, out HordeShopObjective? o) ? o : objectives[0];
                 await gameContext.Announce($"{unit.Name} recruited!", ShopColor);
                 var anchor = new Float2(objective.X, objective.Z);
                 Func<float, IBoundedZone> zone = radius => new TableCornerZone(anchor, radius,
@@ -225,7 +201,46 @@ namespace FDG.Stages
             }
         }
 
-        private static ArmyListFile? ReadList(IGameContext gameContext, string? json)
+        /// <summary>
+        /// Builds every recruit in <paramref name="recruits"/> the way a deploying unit is built, lets heroes join their
+        /// units, and adds them to the army off the table (in reserve) - the caller places them. Shared by Horde Mode's
+        /// shop and Meat Grinder recruitment. <paramref name="noteBuilt"/> sees each built unit with its row in the list.
+        /// </summary>
+        internal static IReadOnlyList<UnitData> BuildRecruits(IGameContext gameContext, PlayerID player,
+            DataBinding<ArmyData> armyBinding, ArmyListFile recruits, HordeShopReply reply, IRuleResolver resolver,
+            Action<UnitData, int>? noteBuilt = null)
+        {
+            ArmyData army = armyBinding.GetValue();
+            var built = new List<(UnitFileEntry Entry, UnitData Unit)>();
+            for (int i = 0; i < recruits.Units.Count; i++)
+            {
+                UnitFileEntry entry = recruits.Units[i];
+                var unit = new UnitData(player, entry, gameContext.GameDataStore, resolver,
+                    recruits.DefaultRangedEffectSet, recruits.DefaultMeleeEffectSet);
+                GameBootstrap.AttachRulesFromArmyList(unit, entry, resolver);
+                unit.HordeLoadoutJson = i < reply.RecruitLoadouts.Count ? reply.RecruitLoadouts[i] : null;
+                built.Add((entry, unit));
+                noteBuilt?.Invoke(unit, i);
+            }
+
+            IReadOnlyList<UnitData> survivors = HeroJoinResolver.Apply(built, message => gameContext.Log("  " + message),
+                CoreRulesProfile.For(gameContext).HeroJoinToughCap,
+                CoreRulesProfile.For(gameContext).CampaignSkillsCoverHeroUnit);
+            gameContext.Log($"  Recruited: {string.Join(", ", recruits.Units.Select(u => $"{u.Name} ({u.PointCost} pts)"))}.");
+
+            foreach (UnitData unit in survivors)
+            {
+                UnitCreationRules.Apply(unit, gameContext.RuleEvaluator);
+                ReserveRules.PlaceInReserve(unit); // off the table until it is placed
+                DataReference reference = gameContext.GameDataStore.Create(unit);
+                DataBinding<UnitData> binding = gameContext.GameDataStore.GetDataBinding<UnitData>(reference);
+                army.UnitBindings.Add(binding);
+            }
+            gameContext.GameDataStore.SetValue(armyBinding.Reference, army);
+            return survivors;
+        }
+
+        internal static ArmyListFile? ReadList(IGameContext gameContext, string? json)
         {
             if (string.IsNullOrWhiteSpace(json)) return null;
             try
@@ -446,7 +461,7 @@ namespace FDG.Stages
             }
         }
 
-        private static void MergeRuleData(IGameContext gameContext, ArmyData army, ArmyListFile recruits,
+        internal static void MergeRuleData(IGameContext gameContext, ArmyData army, ArmyListFile recruits,
             IRuleResolver resolver)
         {
             ArmyRuleDataPersistence.PersistedArmyRuleData? persisted = army.RestoreRuleData();
