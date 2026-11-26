@@ -62,6 +62,9 @@ namespace FDG.Stages
             IReadOnlyList<PlacementDisc> keepOut = Array.Empty<PlacementDisc>();
             if (context.MissionPlan?.Current is { } step)
                 (zone, minFromEnemies, keepOut) = FDG.Missions.AttackDefend.Zone(GameContext, step.Zone, deployingUnit, zone);
+            // Tactical Phase - Forward Positions: within 3" of the unit's own markers or 12" of its far corner.
+            else if (TacticalPhase.DeployZone(GameContext, deployingUnit) is { } forward)
+                zone = forward;
             // Fog of War - Surprise Engagement: the unit goes in a rolled section of the zone.
             else if (FogOfWar.DeploySection(GameContext, deployingUnit, zone) is { } section)
                 zone = section;

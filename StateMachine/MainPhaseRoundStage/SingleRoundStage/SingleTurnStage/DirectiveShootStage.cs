@@ -14,6 +14,10 @@ namespace FDG.Stages
     {
         public StageBinding ToFinished;
         public StageBinding OnShotDone;
+        /// <summary>Tactical Phase - Shoot Pathfinders: after the free shot, back to picking a unit (the turn isn't spent).</summary>
+        public StageBinding ToChooseUnit;
+
+        private bool _pathfinderShot;
 
         private DataBinding<UnitData>? _shooter;
         private UnitID? _target;
@@ -28,7 +32,7 @@ namespace FDG.Stages
             if (_shooter != null)
             {
                 // The shot is done (OnShotDone comes back here). Escalator: a second shooting, maybe at another target.
-                if (await PoliticalIntrigue.TakeSecondShot(GameContext, _shooter.GetValue()) is { } second
+                if (!_pathfinderShot && await PoliticalIntrigue.TakeSecondShot(GameContext, _shooter.GetValue()) is { } second
                     && ChooseRangedAttackStage.HasAnyFireableTarget(_shooter, GameContext, onlyTarget: second))
                 {
                     _target = second;
@@ -37,7 +41,28 @@ namespace FDG.Stages
                 }
                 _shooter = null;
                 _target = null;
+                if (_pathfinderShot)
+                {
+                    _pathfinderShot = false;
+                    await ToChooseUnit.Activate(context);
+                    return;
+                }
                 await ToFinished.Activate(context);
+                return;
+            }
+            if (TacticalPhase.HasActiveShot(GameContext))
+            {
+                if (TacticalPhase.TakeActiveShot(GameContext) is not { } free
+                    || !ChooseRangedAttackStage.HasAnyFireableTarget(free.Shooter, GameContext, onlyTarget: free.Target))
+                {
+                    GameContext.Log("Shoot Pathfinders: the shot can no longer be taken (gone, out of range or out of sight).");
+                    await ToChooseUnit.Activate(context);
+                    return;
+                }
+                _pathfinderShot = true;
+                _shooter = free.Shooter;
+                _target = free.Target;
+                await base.Enter(context);
                 return;
             }
             if (PoliticalIntrigue.TakePendingShot(GameContext) is not { } shot
@@ -63,6 +88,7 @@ namespace FDG.Stages
         {
             ToFinished = new StageBinding(this);
             OnShotDone = new StageBinding(this);
+            ToChooseUnit = new StageBinding(this);
 
             Dictionary<string, Transition> dictionary = new TransitionSetBuilder(this)
                 .AddChild(new ChooseRangedAttackStage(GameContext, this), out var chooseRangedWeapon)
@@ -72,6 +98,7 @@ namespace FDG.Stages
                 .AddChild(new DetermineCanKeepShootingStage(GameContext, this), out var determineCanKeepShooting)
                 .AddSibling(nameof(ToFinished), ToFinished, out string _)
                 .AddSibling(nameof(OnShotDone), OnShotDone, out string shotDoneEvent)
+                .AddSibling(nameof(ToChooseUnit), ToChooseUnit, out string _)
                 .Build();
 
             startingChild = chooseRangedWeapon;

@@ -57,6 +57,9 @@ namespace FDG
         LivingSpells = 1UL << 42,
         // Advanced Casting - Relic Wargear / Magic Items (all four books). Bits 44-45 hold the selection method.
         RelicWargear = 1UL << 43,
+        // Tactical Phase (GF: Firefight / AoF: Skirmish p46).
+        ForwardPositions = 1UL << 46,
+        BattlePreparations = 1UL << 47,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -70,6 +73,7 @@ namespace FDG
         public const string UnitPsychologyChapter = "Unit Psychology";
         public const string BrutalDamageChapter = "Brutal Damage";
         public const string CriticalHitsChapter = "Critical Hits";
+        public const string TacticalPhaseChapter = "Tactical Phase";
         public const string BattlefieldEffectsChapter = "Battlefield Effects";
         public const string FogOfWarChapter = "Fog of War";
         public const string CommandPointsChapter = "Command Points";
@@ -114,6 +118,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in PoliticalIntrigue.All)
                 list.Add(new AdvancedRuleOption(PoliticalIntrigueChapter, name, flag, PoliticalIntrigue.BooksHaveIt,
                     PoliticalIntrigue.BookText(name), PoliticalIntrigue.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in TacticalPhase.All)
+                list.Add(new AdvancedRuleOption(TacticalPhaseChapter, name, flag, TacticalPhase.BooksHaveIt,
+                    TacticalPhase.BookText(name), TacticalPhase.GameText(name)));
             foreach ((string name, EAdvancedRules flag) in CriticalHits.All)
                 list.Add(new AdvancedRuleOption(CriticalHitsChapter, name, flag, CriticalHits.BooksHaveIt,
                     CriticalHits.BookText(name), CriticalHits.GameText(name)));
@@ -131,6 +138,7 @@ namespace FDG
             [ArmyTerrainChapter] = "Army terrain allows each army to place a special piece of terrain that affects the game in different interesting ways.",
             [AdvancedCastingChapter] = AdvancedCasting.Intro + " Pick any of the following.",
             [PoliticalIntrigueChapter] = "Political Intrigue rules add a new strategic layer on top of the regular game, giving players the ability to influence the game and mess with each other's plans.",
+            [TacticalPhaseChapter] = "The Tactical Phase is an optional replacement to the normal deployment phase, which adds some interesting strategies to the pre-game sequence. Pick any of the following. Note that if you are using all of them, then the steps must be followed in that order before the game begins.",
             [CriticalHitsChapter] = "Critical Hits rules make weapons a lot deadlier by modifying how units are damaged with a little bit of luck. Use the generic tables, or the weapon type tables instead.",
         };
 

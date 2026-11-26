@@ -77,6 +77,7 @@ namespace FDG.Stages
             chooseUnitToActivateStage.ToDirectiveShot.Bind(directiveShootStage.Name);
             directiveShootStage.OnShotDone.Bind(directiveShootStage.Name);
             directiveShootStage.ToFinished.Bind(reconcileEndOfActivationStage.Name);
+            directiveShootStage.ToChooseUnit.Bind(chooseUnitToActivateStage.Name);
             mainUnitActionStage.ToReconcileEndOfActivation.Bind(reconcileEndOfActivationStage.Name);
             // #248: a pristine activation was backed out — return to unit selection. Stays inside this
             // stage (no turn-end reconcile fires), the unit remains unactivated in the pool, and the next

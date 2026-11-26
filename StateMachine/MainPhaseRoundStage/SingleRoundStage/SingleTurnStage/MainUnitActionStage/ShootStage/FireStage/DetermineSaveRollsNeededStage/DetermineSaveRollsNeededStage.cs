@@ -105,6 +105,13 @@ namespace FDG.Stages
                 grantedDefense += ExtraActions.Net(armory);
                 grantedDetail = grantedDetail.Concat(armory).ToList();
             }
+            // Tactical Phase - Fortify Terrain: +1 to Defense rolls inside a piece the unit's side fortified.
+            IReadOnlyList<GrantedModifier> fortified = TacticalPhase.SaveModifiers(GameContext, metaData.DefendingUnit.GetValue());
+            if (fortified.Count > 0)
+            {
+                grantedDefense += ExtraActions.Net(fortified);
+                grantedDetail = grantedDetail.Concat(fortified).ToList();
+            }
 
             // Command Points - Armour Breaker: the attacker's player may give the target -1 to its Defense rolls against
             // these hits (offered only when the roll could still succeed).

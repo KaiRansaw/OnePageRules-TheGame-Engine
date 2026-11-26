@@ -124,6 +124,8 @@ namespace FDG.Stages
             await BattlefieldEffects.AfterMove(GameContext, movingUnit, terrainMoves);
             // Living Spells - Twin Shock-Spheres: a unit moving through the line takes 2D3 hits.
             await LivingSpells.AfterMove(GameContext, movingUnit, terrainMoves);
+            // Tactical Phase - Battle Preparations: enemy traps (within 1") and sabotaged terrain (moving into it).
+            await TacticalPhase.AfterMove(GameContext, movingUnit, terrainMoves);
 
             await OnMoveExecuted.Activate(context);
         }

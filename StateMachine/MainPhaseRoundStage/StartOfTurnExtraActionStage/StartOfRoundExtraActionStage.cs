@@ -28,6 +28,9 @@ namespace FDG.Stages
         {
             context.LogDebug($"Entered {nameof(StartOfRoundExtraActionStage)}.");
 
+            // Tactical Phase: the forward markers come off; Battle Preparations' three rounds - before the game begins.
+            await TacticalPhase.BeforeRoundOne(GameContext, context.RoundCount);
+
             await context.Announce($"Round {context.RoundCount}", new TextColor(120, 200, 255, 255),
                 EBannerTier.Headline);
 

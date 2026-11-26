@@ -182,6 +182,9 @@ namespace FDG
             return at >= 0 && int.TryParse(name.AsSpan(at + 6).TrimEnd(']'), out int team) ? team : null;
         }
 
+        /// <summary>The team registered for a model by <see cref="RegisterTeams"/>, or null.</summary>
+        public static int? TeamOfModel(IModel m) => ModelTeam.TryGetValue(m, out StrongBox<int>? box) ? box.Value : null;
+
         /// <summary>True when this terrain is a Defensive Barrier area of the moving model's own side (not Difficult for it).</summary>
         public static bool FriendlyBarrier(ITerrain terrain, IModel mover) =>
             BarrierTeam(terrain) is int team && ModelTeam.TryGetValue(mover, out StrongBox<int>? box) && box.Value == team;

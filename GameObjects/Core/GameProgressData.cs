@@ -161,6 +161,9 @@ namespace FDG
         /// <summary>Advanced Casting - Relic Wargear / Magic Items: each Hero's item and what has been used. Null outside it.</summary>
         public FDG.RelicWargearState? RelicWargear { get; set; }
 
+        /// <summary>Tactical Phase (Forward Positions / Battle Preparations); null when not in play.</summary>
+        public FDG.TacticalPhaseState? TacticalPhase { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

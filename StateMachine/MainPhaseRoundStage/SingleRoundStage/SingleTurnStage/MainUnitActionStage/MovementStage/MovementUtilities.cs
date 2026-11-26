@@ -1176,6 +1176,12 @@ namespace FDG.Stages
                 IModel mover = geometry[0].Move.Model.GetValue();
                 difficult = difficult.Where(t => !ArmyTerrain.FriendlyBarrier(t, mover)).ToList();
             }
+            // Tactical Phase - Fortify Terrain: "all friendly units may ignore its movement penalty".
+            if (difficult.Count > 0 && geometry.Length > 0 && TacticalPhase.AnyIgnore)
+            {
+                IModel mover = geometry[0].Move.Model.GetValue();
+                difficult = difficult.Where(t => !TacticalPhase.IgnoresPenalty(t, mover)).ToList();
+            }
             bool anySteep = false;
             foreach (ITerrain t in TerrainSets(terrain).Pieces)
                 if (t.TerrainType.HasFlag(ETerrainType.Steep)) { anySteep = true; break; }

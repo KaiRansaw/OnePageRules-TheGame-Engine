@@ -99,6 +99,8 @@ namespace FDG.Stages
             await FDG.Missions.AttackDefend.AfterMarkersPlaced(context.GameContext);
             // Army Terrain: each army's piece, in its own zone, before any unit is deployed.
             if (byTeam.Count > 0) await ArmyTerrain.Place(context.GameContext, byTeam);
+            // Tactical Phase - Forward Positions Setup: after the objectives, before any unit is deployed.
+            if (byTeam.Count == 2) await TacticalPhase.ForwardPositions(context.GameContext, byTeam);
 
             await ToRollForFirstDeployment.Activate(context);
         }

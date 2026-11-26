@@ -34,6 +34,14 @@ namespace FDG.Stages
         {
             context.LogDebug("Entered Choose Unit to Activate stage.");
 
+            // Tactical Phase - Shoot Pathfinders: the queued shot, at the start of the shooter's side's first turn. It is
+            // not the turn: the directive shooting stage comes back here afterwards and the player activates as usual.
+            if (TacticalPhase.StartFreeShot(GameContext, context.ActivatedPlayer))
+            {
+                await ToDirectiveShot.Activate(context);
+                return;
+            }
+
             // #197 P19 turn-order override: a unit flagged to take the next activation is not a choice -
             // something else already made it. Skips the menu AND the Delayed Action offer below, because
             // both are ways of deciding what happens next and that decision is already made.
