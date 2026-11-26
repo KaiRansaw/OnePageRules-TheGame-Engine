@@ -1630,6 +1630,7 @@ namespace FDG.Network.Connection.Lobby
         public string? MapWeather => string.IsNullOrEmpty(_gameSettings.MapWeather) ? null : _gameSettings.MapWeather;
         public string? MapGround => string.IsNullOrEmpty(_gameSettings.MapGround) ? null : _gameSettings.MapGround;
         public string? MapSky => string.IsNullOrEmpty(_gameSettings.MapSky) ? null : _gameSettings.MapSky;
+        public string? MapScenery => string.IsNullOrEmpty(_gameSettings.MapScenery) ? null : _gameSettings.MapScenery;
         public string? MapLight => string.IsNullOrEmpty(_gameSettings.MapLight) ? null : _gameSettings.MapLight;
 
         public void SetTableSize((float W, float H)? size)
@@ -1653,6 +1654,7 @@ namespace FDG.Network.Connection.Lobby
             _gameSettings.MapWeather = null;
             _gameSettings.MapGround = null;
             _gameSettings.MapSky = null;
+            _gameSettings.MapScenery = null;
             _gameSettings.MapLight = null;
             if (string.IsNullOrWhiteSpace(_gameSettings.TerrainLayoutPath)) return;
             SaveLoad.TerrainLayoutFile? layout =
@@ -1665,6 +1667,7 @@ namespace FDG.Network.Connection.Lobby
                 if (!string.IsNullOrEmpty(layout.Weather)) _gameSettings.MapWeather = layout.Weather;
                 if (!string.IsNullOrEmpty(layout.Ground)) _gameSettings.MapGround = layout.Ground;
                 if (!string.IsNullOrEmpty(layout.Sky)) _gameSettings.MapSky = layout.Sky;
+                if (!string.IsNullOrEmpty(layout.Scenery)) _gameSettings.MapScenery = layout.Scenery;
                 if (!string.IsNullOrEmpty(layout.Light)) _gameSettings.MapLight = layout.Light;
             }
             if (layout is not { TableWidthInches: > 0f, TableHeightInches: > 0f }) return;

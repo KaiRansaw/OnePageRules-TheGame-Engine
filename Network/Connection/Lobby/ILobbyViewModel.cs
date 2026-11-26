@@ -296,6 +296,8 @@ namespace FDG.Network.Connection.Lobby
         /// <summary>The chosen map's sky picture id and light settings, or null. Cosmetic.</summary>
         string? MapSky => null;
         string? MapLight => null;
+        /// <summary>The chosen map's scenery round the table, or null. Cosmetic.</summary>
+        string? MapScenery => null;
 
         /// <summary>Picks a table size (host only). Null = automatic, by army points.</summary>
         void SetTableSize((float W, float H)? size);

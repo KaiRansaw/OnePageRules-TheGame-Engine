@@ -69,6 +69,10 @@ namespace FDG.SaveLoad
         /// turn (degrees), brightness, warmth, sky turn. Read by the front end (FdgApp MapAtmosphere.Light). Cosmetic.</summary>
         public string Light { get; set; } = string.Empty;
 
+        /// <summary>The scenery round the table (Kai, 2026-11-26): "" = generated from the horizon style, else the front end's
+        /// text (FdgApp MapScenery: the set, density and seed, and any pieces placed by hand). Cosmetic.</summary>
+        public string Scenery { get; set; } = string.Empty;
+
         public List<TerrainPieceEntry> Pieces { get; set; } = new List<TerrainPieceEntry>();
 
         /// <summary>

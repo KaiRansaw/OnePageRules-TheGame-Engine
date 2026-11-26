@@ -190,6 +190,8 @@ namespace FDG
         public string? MapGround;
         /// <summary>The chosen map's sky and light (<see cref="SaveLoad.TerrainLayoutFile.Sky"/>, <see cref="SaveLoad.TerrainLayoutFile.Light"/>), or null. Cosmetic.</summary>
         public string? MapSky;
+        /// <summary>The chosen map's scenery round the table (<see cref="SaveLoad.TerrainLayoutFile.Scenery"/>), or null. Cosmetic.</summary>
+        public string? MapScenery;
         public string? MapLight;
 
         /// <summary>
