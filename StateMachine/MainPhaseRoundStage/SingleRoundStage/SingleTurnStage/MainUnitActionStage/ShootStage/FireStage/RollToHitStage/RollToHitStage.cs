@@ -140,7 +140,8 @@ namespace FDG.Stages
 
             // Command Points - High / Supreme Command: +1 to a die that just missed. The lifted dice join as their own hit
             // group at base AP, and the rules above already read the real faces, so a 5 lifted to 6 never counts as a 6.
-            int commandHits = await CommandPoints.CommandDice(GameContext, attacker.PlayerID, rollToHitResults, hitRollNeeded, "hit roll");
+            int commandHits = await CommandPoints.CommandDice(GameContext, attacker.PlayerID, rollToHitResults, hitRollNeeded, "hit roll",
+                $"{attacker.Name} attacking {defender.Name}");
             if (commandHits > 0)
             {
                 failedResults = CommandPoints.Lift(rollToHitResults, hitRollNeeded - 1, commandHits).SubsetBelow(hitRollNeeded);

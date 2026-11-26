@@ -80,6 +80,11 @@ namespace FDG
 
         private static string Cp(IGameContext c, PlayerID p) => $"you have {Of(c, p)} CP";
 
+        /// <summary>The question's heading - the screen shows the part before ": " as the title and the rest underneath
+        /// (Kai, 2026-11-25: say what the CP are for and against, short).</summary>
+        internal static string Head(IGameContext c, PlayerID p, string stratagem, int cost) =>
+            $"{stratagem}? {cost} CP ({Of(c, p)} left)";
+
         // ================================================================= High / Supreme Command
 
         public const string NoThanks = "No thanks";
@@ -109,12 +114,12 @@ namespace FDG
         /// (otherwise High Command does the same for less). Bots take High Command whenever it's offered and Supreme
         /// Command whenever it lifts 2+ dice.
         /// </summary>
-        public static Task<int> CommandDice(IGameContext c, PlayerID player, IDiceResults roll, int need, string what) =>
-            CommandDice(c, player, OneShort(roll, need), need, what);
+        public static Task<int> CommandDice(IGameContext c, PlayerID player, IDiceResults roll, int need, string what, string? about = null) =>
+            CommandDice(c, player, OneShort(roll, need), need, what, about);
 
         /// <summary>The same, given how many dice missed by 1 (a Defense roll can mix save targets; <paramref name="need"/> is
         /// only shown).</summary>
-        public static async Task<int> CommandDice(IGameContext c, PlayerID player, int shy, int need, string what)
+        public static async Task<int> CommandDice(IGameContext c, PlayerID player, int shy, int need, string what, string? about = null)
         {
             if (!On(c) || shy <= 0) return 0;
             var options = new List<string>();
@@ -125,7 +130,7 @@ namespace FDG
             if (options.Count == 0) return 0;
             options.Add(NoThanks);
             string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(player,
-                $"Command Points ({Cp(c, player)}): your {what} has {shy} {(shy == 1 ? "die" : "dice")} that missed by 1 (needed {need}+). Spend CP?",
+                $"Command Points? {Of(c, player)} CP left: {(about != null ? about + " - " : "")}{shy} {(shy == 1 ? "die" : "dice")} on the {what} missed the {need}+ by 1. Add +1 to {(shy == 1 ? "it" : "them")}?",
                 options, new List<StringSelectionRequest.InvalidOption>(), displayName: "Deciding on a stratagem")
             { Recommended = options[0] });
             int lifted = answer == supreme && Use(c, player, SupremeCommand) ? shy
@@ -154,7 +159,7 @@ namespace FDG
             {
                 if (!On(c) || Of(c, o) < cost) continue;
                 bool stop = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(o,
-                    $"Command Points ({Cp(c, o)}): {c.GetPlayerName(user)} used {stratagem}. Spend {cost} CP to stop it having any effect?",
+                    $"Stop {stratagem}? {cost} CP ({Of(c, o)} left): {c.GetPlayerName(user)} used {stratagem}. Spend {cost} CP so it has no effect?",
                     defaultAnswer: true, displayName: "Deciding whether to stop a stratagem"));
                 if (stop && Spend(c, o, cost, $"stopping {stratagem}"))
                 {
@@ -178,7 +183,7 @@ namespace FDG
             if (Can(c, active, WaiveInitiative) && !WasDeclined(c, waiveKey))
             {
                 bool waive = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(active,
-                    $"Command Points ({Cp(c, active)}): Waive Initiative for 2 CP - make your opponent activate a unit first? (They may spend 2 CP to stop it.)",
+                    $"{Head(c, active, WaiveInitiative, 2)}: pass this turn so your opponent activates a unit first? (They may pay 2 CP to stop it.)",
                     defaultAnswer: false, displayName: "Deciding on a stratagem"));
                 if (!waive) Decline(c, waiveKey);
                 else if (Use(c, active, WaiveInitiative))
@@ -192,7 +197,7 @@ namespace FDG
                 string seizeKey = $"{SeizeInitiative}:{round}:{o}";
                 if (!Can(c, o, SeizeInitiative) || WasDeclined(c, seizeKey)) continue;
                 bool seize = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(o,
-                    $"Command Points ({Cp(c, o)}): it's {c.GetPlayerName(active)}'s turn. Seize Initiative for 2 CP and activate one of your units instead? (They may spend 2 CP to stop it.)",
+                    $"{Head(c, o, SeizeInitiative, 2)}: it's {c.GetPlayerName(active)}'s turn - activate one of your units instead? (They may pay 2 CP to stop it.)",
                     defaultAnswer: false, displayName: "Deciding on a stratagem"));
                 if (!seize) { Decline(c, seizeKey); continue; }
                 if (!Use(c, o, SeizeInitiative)) continue;
@@ -214,7 +219,7 @@ namespace FDG
             string key = $"{DelayedDeployment}:deploy:{player}";
             if (!Can(c, player, DelayedDeployment) || WasDeclined(c, key)) return false;
             bool pass = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(player,
-                $"Command Points ({Cp(c, player)}): Delayed Deployment for 2 CP - pass this deployment turn so your opponent places a unit first? (They may spend 2 CP to stop it.) Say no and you won't be asked again this deployment.",
+                $"{Head(c, player, DelayedDeployment, 2)}: pass this deployment turn so your opponent places a unit first? (They may pay 2 CP to stop it. No = not asked again this deployment.)",
                 defaultAnswer: false, displayName: "Deciding on a stratagem"));
             if (!pass) { Decline(c, key); return false; }
             if (!Use(c, player, DelayedDeployment)) return false;
@@ -239,8 +244,8 @@ namespace FDG
             {
                 if (!Can(c, p, HiddenDeployment)) continue;
                 string text = first is { } f
-                    ? $"Command Points ({Cp(c, p)}): {c.GetPlayerName(f)} used Hidden Deployment. Spend 3 CP to do the same (remove up to 3 of your units and place them again, taking turns)?"
-                    : $"Command Points ({Cp(c, p)}): Hidden Deployment for 3 CP - remove up to 3 of your units and place them again? (Your opponent may spend 3 CP to do the same.)";
+                    ? $"{Head(c, p, HiddenDeployment, 3)}: {c.GetPlayerName(f)} used Hidden Deployment. Do the same - pick up to 3 of your units and place them again, taking turns?"
+                    : $"{Head(c, p, HiddenDeployment, 3)}: pick up to 3 of your units and place them again? (Your opponent may pay 3 CP to do the same.)";
                 bool yes = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(p, text,
                     defaultAnswer: false, displayName: "Deciding on a stratagem"));
                 if (!yes || !Use(c, p, HiddenDeployment)) continue;

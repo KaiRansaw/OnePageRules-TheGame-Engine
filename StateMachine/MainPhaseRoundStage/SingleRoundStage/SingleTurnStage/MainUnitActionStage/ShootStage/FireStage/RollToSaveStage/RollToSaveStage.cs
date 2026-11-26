@@ -50,7 +50,8 @@ namespace FDG.Stages
                 if (shortTotal > 0)
                 {
                     int need = rolled.First(r => CommandPoints.OneShort(r.Roll, r.Need) > 0).Need;
-                    int lifted = await CommandPoints.CommandDice(GameContext, saver.PlayerID, shortTotal, need, "Defense roll");
+                    int lifted = await CommandPoints.CommandDice(GameContext, saver.PlayerID, shortTotal, need, "Defense roll",
+                        $"{saver.Name} hit by {metaData.AttackingUnit.GetValue().Name}");
                     for (int i = 0; i < rolled.Count && lifted > 0; i++)
                     {
                         int here = Math.Min(lifted, CommandPoints.OneShort(rolled[i].Roll, rolled[i].Need));

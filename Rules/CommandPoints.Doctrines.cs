@@ -91,8 +91,8 @@ namespace FDG
             if (askOncePerRound && WasDeclined(c, key)) return false;
             int cost = CostOf(stratagem);
             bool yes = await c.PlayerRequester.RequestDecision<YesNoRequest, bool>(new YesNoRequest(player,
-                $"Command Points ({Cp(c, player)}): {stratagem} for {cost} CP - {question}"
-                + (askOncePerRound ? " (Say no and it won't ask again this round.)" : ""),
+                $"{Head(c, player, stratagem, cost)}: {question}"
+                + (askOncePerRound ? " (No = not asked again this round.)" : ""),
                 defaultAnswer: botSays, displayName: "Deciding on a stratagem"));
             if (!yes) { if (askOncePerRound) Decline(c, key); return false; }
             if (!Use(c, player, stratagem)) return false;

@@ -79,7 +79,7 @@ namespace FDG
             var options = targets.Select(t => t.Name).Distinct().ToList();
             options.Add(NoThanks);
             string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(shooter.PlayerID,
-                $"Command Points ({Cp(c, shooter.PlayerID)}): Frenzied Attack for 2 CP - {shooter.Name} shoots another enemy within 12\" of the one it shot, hitting only on 6s?",
+                $"{Head(c, shooter.PlayerID, FrenziedAttack, 2)}: {shooter.Name} shoots again at another enemy within 12\" of the one it shot, hitting only on 6s?",
                 options, new List<StringSelectionRequest.InvalidOption>(), displayName: "Deciding on a stratagem")
             { Recommended = Of(c, shooter.PlayerID) >= 4 ? options[0] : NoThanks });
             IUnit? pick = targets.FirstOrDefault(t => t.Name == answer);
@@ -128,7 +128,7 @@ namespace FDG
                 var options = units.Select(u => u.Name).Distinct().ToList();
                 options.Add(NoThanks);
                 string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(p,
-                    $"Command Points ({Cp(c, p)}): Vanish for 2 CP - take a unit with Ambush off the table (it drops any objectives) to deploy it again from next round?",
+                    $"{Head(c, p, Vanish, 2)}: take one of your Ambush units off the table (it drops any objectives) and deploy it again from next round?",
                     options, new List<StringSelectionRequest.InvalidOption>(), displayName: "Deciding on a stratagem")
                 { Recommended = NoThanks });
                 IUnit? unit = units.FirstOrDefault(u => u.Name == answer);

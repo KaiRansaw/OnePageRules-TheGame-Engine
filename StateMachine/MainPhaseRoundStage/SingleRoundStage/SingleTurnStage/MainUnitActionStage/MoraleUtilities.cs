@@ -197,7 +197,7 @@ namespace FDG.Stages
             }
 
             // Command Points - High Command: a Morale Test that missed by 1 can be passed with +1 to the die.
-            if (await CommandPoints.CommandDice(gameContext, testingUnit.PlayerID, initialRoll, rollNeeded, "Morale Test") > 0)
+            if (await CommandPoints.CommandDice(gameContext, testingUnit.PlayerID, initialRoll, rollNeeded, "Morale Test", testingUnit.Name) > 0)
             {
                 gameContext.Log($"{testingUnit.Name} passes its Morale Test with High Command.");
                 return new MoraleTestOutcome(passed: true, rollNeeded, passedViaReroll: false);
