@@ -343,6 +343,33 @@ namespace FDG.Tests
             return planner.Score(Endpoint(new Position(24f, 18f)));
         }
 
+        // --- Lane 2 (2026-11-27): Smash & Grab / The Rescue - the carrier makes for the table edge. ---
+
+        [Test]
+        public void Score_TheCarrierOfTheRelic_HeadsForTheTableEdge()
+        {
+            float Gain(bool carrying)
+            {
+                SetUp();
+                DataBinding<UnitData> us = Squad(_us, Carbine(), new Position(24f, 20f));
+                Squad(_them, Rifle(), new Position(60f, 40f));
+                if (carrying)
+                    GameProgressUtilities.SetExtraMission(_store, new FDG.Missions.ExtraMissionState
+                    {
+                        Mission = FDG.Missions.EExtraMission.SmashAndGrab,
+                        Carried = { new FDG.Missions.CarriedMarker { Unit = us.GetValue().ID.ID.ToString() } },
+                    });
+                var planner = new TacticianPlanner(_tableState, _evaluator);
+                planner.BeginActivation(us);
+                // The nearest edge is the bottom one (z = 0): 20" away, against 28" to the top.
+                return planner.Score(Endpoint(new Position(24f, 12f))) - planner.Score(Endpoint(new Position(24f, 28f)));
+            }
+
+            float plain = Gain(carrying: false), carrying = Gain(carrying: true);
+            Assert.That(carrying, Is.GreaterThan(plain + 1f),
+                $"carrying the relic, the move toward the nearest edge is worth far more than without it. plain={plain:F3} carrying={carrying:F3}");
+        }
+
         // --- Case 11: a real shot always beats hiding. Chris's "will it refuse to shoot?" worry. ---
 
         [Test]
