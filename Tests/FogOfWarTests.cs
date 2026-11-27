@@ -154,6 +154,10 @@ namespace FDG.Tests
             Assert.That(FogOfWar.ArmyPointsLimit(2000, EAdvancedRules.EscalatingFlexibleStrategies, EGameSystem.GrimdarkFuture, EGameMode.Standard),
                 Is.EqualTo(2000), "the option needs Escalating Battles");
             Assert.That(FogOfWar.ArmyPointsLimit(2000, both, EGameSystem.GrimdarkFuture, EGameMode.Horde), Is.EqualTo(2000), "not in Horde");
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, both, EGameSystem.GrimdarkFuture, EGameMode.Standard, Missions.EExtraMission.TheRaid),
+                Is.EqualTo(2000), "not with an Attack & Defend mission - it deploys its own way, so Escalating Battles is off");
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, both, EGameSystem.GrimdarkFuture, EGameMode.Standard, Missions.EExtraMission.Domination),
+                Is.EqualTo(3000));
 
             Build(face: 4, both);
             Assert.That(FogOfWar.DetachmentCount(_context.Settings), Is.EqualTo(6));

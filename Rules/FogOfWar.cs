@@ -297,17 +297,21 @@ namespace FDG
         public static bool FlexibleOn(GameSettings settings) =>
             AdvancedRules.IsOn(settings, EAdvancedRules.EscalatingBattles)
             && AdvancedRules.IsOn(settings, EAdvancedRules.EscalatingFlexibleStrategies)
-            && settings.GameMode == EGameMode.Standard;
+            && settings.GameMode == EGameMode.Standard
+            // Attack & Defend missions deploy their own way, so Escalating Battles (and its bigger armies) is off there.
+            && !ExtraMissionCatalog.IsAttackDefend(settings.ExtraMission);
 
         /// <summary>The lobby's form of <see cref="FlexibleOn(GameSettings)"/>, from its separate fields.</summary>
-        public static bool FlexibleOn(EAdvancedRules rules, EGameSystem system, EGameMode mode) =>
-            FlexibleOn(new GameSettings { AdvancedRules = rules, GameSystem = system, GameMode = mode });
+        public static bool FlexibleOn(EAdvancedRules rules, EGameSystem system, EGameMode mode,
+            EExtraMission extraMission = EExtraMission.None) =>
+            FlexibleOn(new GameSettings { AdvancedRules = rules, GameSystem = system, GameMode = mode, ExtraMission = extraMission });
 
         /// <summary>"Players build armies worth +50% as many points": the army's points limit for a game of
         /// <paramref name="armyPoints"/> (rounded down). The game's size - the table, the mission - stays at
         /// <paramref name="armyPoints"/>.</summary>
-        public static int ArmyPointsLimit(int armyPoints, EAdvancedRules rules, EGameSystem system, EGameMode mode) =>
-            FlexibleOn(rules, system, mode) && armyPoints > 0 && armyPoints < int.MaxValue / 2 ? armyPoints + armyPoints / 2 : armyPoints;
+        public static int ArmyPointsLimit(int armyPoints, EAdvancedRules rules, EGameSystem system, EGameMode mode,
+            EExtraMission extraMission = EExtraMission.None) =>
+            FlexibleOn(rules, system, mode, extraMission) && armyPoints > 0 && armyPoints < int.MaxValue / 2 ? armyPoints + armyPoints / 2 : armyPoints;
 
         /// <summary>Four detachments, or six with Flexible Strategies.</summary>
         public static int DetachmentCount(GameSettings settings) => FlexibleOn(settings) ? FlexibleDetachments : Detachments;
