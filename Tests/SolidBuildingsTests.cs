@@ -146,6 +146,19 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void AUnitCaughtAcrossAWall_MayAlwaysHoldStill()
+        {
+            // Lane 2 sweep, 2026-11-27: a consolidation took part of a unit out of its building, and from then on every
+            // move it was offered - even standing still - broke "the whole unit or none of it", so the game faulted.
+            TerrainData house = House(10, 10);
+            UnitData split = Unit(_me, 8.5f, 13f);   // x 8.5 (outside), 9.6 (outside), 10.7 (inside)
+            List<ModelMoveEntry> hold = MoveBy(split, 0f, 0f);
+
+            Assert.That(Problem(split, hold, house), Is.Null, "holding still is always allowed");
+            Assert.That(Problem(split, MoveBy(split, 0.5f, 0f), house), Is.Not.Null, "moving on still has to sort it out");
+        }
+
+        [Test]
         public void NoBuildings_NoProblem()
         {
             UnitData squad = Unit(_me, 4f, 12f);

@@ -91,6 +91,16 @@ namespace FDG.Stages
                     $"Response to {nameof(ConsolidateStage)} was invalid: {sb}");
             }
 
+            // #460 Solid Buildings: the building rules hold for a consolidation too - the whole unit in a building or
+            // none of it. A consolidation that split a unit across a wall left it with no legal move afterwards and the
+            // game faulted on its next activation (lane 2 sweep, 2026-11-27). Such a move is not made: it stays put.
+            if (DefinePathStage.BuildingProblem(context.GameContext.TableState, consolidatingUnit.GetValue(), movements) is { } building)
+            {
+                GameContext.Log($"Consolidation: {consolidatingUnit.GetValue().Name} stays put - {building}");
+                await OnConsolidated.Activate(context);
+                return;
+            }
+
             ApplyMovements(movements);
             await OnConsolidated.Activate(context);
         }

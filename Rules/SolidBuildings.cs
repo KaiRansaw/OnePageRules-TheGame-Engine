@@ -134,6 +134,11 @@ namespace FDG
                     ? move.Positions[^1] : model.Position);
             }
             if (ends.Count == 0) return null;
+            // Standing still never breaks the building rules, even for a unit already caught across a wall - it must
+            // always be able to hold (lane 2 sweep, 2026-11-27).
+            bool anyMoved = false;
+            for (int i = 0; i < ends.Count && !anyMoved; i++) anyMoved = Position.GetDistance2D(starts[i], ends[i]) > 0.001f;
+            if (!anyMoved) return null;
 
             ITerrain? from = buildings.FirstOrDefault(b => Inside(b, starts[0]));
             ITerrain? to = null;
