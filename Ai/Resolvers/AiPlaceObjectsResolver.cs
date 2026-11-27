@@ -242,6 +242,9 @@ namespace FDG.Ai.Resolvers
             return positions;
         }
 
+        // The fallback sweep's step (inches) once a whole-cell sweep finds no clear spot.
+        private const float FineStep = 0.5f;
+
         // Searches block centres (preferred lane/band first, then spiralling outward in `spacing` steps within
         // the in-bounds range) for one where the whole block is legal. Falls back to the clamped preferred
         // centre — block intact, so the unit is cohesion-valid even when the zone is too cramped to be clear.
@@ -267,6 +270,22 @@ namespace FDG.Ai.Resolvers
                     if (penalty <= 0f) return center;   // fully legal: unchanged fast path
                     if (penalty < bestPenalty) { bestPenalty = penalty; bestCentre = center; }
                 }
+
+            // The coarse sweep steps a whole cell at a time, so in a crowded zone it can step over the one
+            // clear gap between two blocks (seen in a 1000pt AoF sweep: three cavalry left 0.09" into a
+            // levy with room to spare beside it). Before settling for an overlap, sweep again at a fine step.
+            if (spacingX > FineStep || spacingZ > FineStep)
+            {
+                foreach (float cz in CandidateAxis(startCz, czMin, czMax, FineStep))
+                    foreach (float cx in CandidateAxis(startCx, cxMin, cxMax, FineStep))
+                    {
+                        var center = new Position(cx, cz);
+                        float penalty = BlockPenalty(center, zone, radius, offsets,
+                            existing, enemies, minEnemyDist);
+                        if (penalty <= 0f) return center;
+                        if (penalty < bestPenalty) { bestPenalty = penalty; bestCentre = center; }
+                    }
+            }
 
             return bestCentre;
         }
@@ -313,12 +332,14 @@ namespace FDG.Ai.Resolvers
             Float2 bestFacing = new Float2(0f, 1f);
             float bestPenalty = float.PositiveInfinity;
 
+            // Whole-cell steps first, then (as in FindBlockCenter) a fine step for the gap a cell step skips.
+            foreach ((float stepX, float stepZ) in new[] { (spacingX, spacingZ), (FineStep, FineStep) })
             foreach (var edge in edges.OrderBy(e => e.dist))
             {
                 float startCx = Math.Clamp(preferredCx, MathF.Min(edge.exMin, edge.exMax), MathF.Max(edge.exMin, edge.exMax));
                 float startCz = Math.Clamp(preferredCz, MathF.Min(edge.ezMin, edge.ezMax), MathF.Max(edge.ezMin, edge.ezMax));
-                foreach (float cz in CandidateAxis(startCz, edge.ezMin, edge.ezMax, spacingZ))
-                    foreach (float cx in CandidateAxis(startCx, edge.exMin, edge.exMax, spacingX))
+                foreach (float cz in CandidateAxis(startCz, edge.ezMin, edge.ezMax, stepZ))
+                    foreach (float cx in CandidateAxis(startCx, edge.exMin, edge.exMax, stepX))
                     {
                         var centre = new Position(cx, cz);
                         float penalty = BlockPenalty(centre, zone, radius, offsets,

@@ -1,3 +1,4 @@
+using System.Linq;
 using FDG.Ai.Resolvers;
 using FDG.Data;
 using FDG.StageResolution;
@@ -602,6 +603,57 @@ namespace FDG.Tests
             Assert.That(worst, Is.LessThan(0.4f),
                 $"a full zone must yield the least-overlapping centre the sweep saw, not a blind clamped " +
                 $"guess (worst interpenetration {worst:F2}in; the blind guess measured 0.82in)");
+        }
+
+        // A crowded zone with one clear gap that the whole-cell sweep steps over. Seen in a 1000pt AoF bot
+        // game (seed 32035): Pegasus Knights were deployed 0.09in into a Peasant Levy, and the re-place
+        // made it 0.13in, while a clear spot sat a fraction of a cell away. The sweep now tries a fine
+        // step before it settles for an overlap.
+        [Test]
+        public async Task CrowdedZone_FindsTheClearGapBetweenCells()
+        {
+            var store = GameDataStore.GameDataStoreBuilder.GetDefault();
+            var me = new PlayerID(System.Guid.NewGuid());
+            var ally = new PlayerID(System.Guid.NewGuid());
+            store.Create(new TeamData(1, new List<PlayerID> { me, ally }));
+
+            var zone = new RectangularZone(0f, 30f, 0f, 6f);
+            var hole = new Position(15.0f, 3.3f);
+            var occ = new List<DataBinding<ModelData>>();
+            for (float z = 0.55f; z < 6f; z += 1.1f)
+                for (float x = 0.55f; x < 30f; x += 1.1f)
+                {
+                    float dx = x - hole.x, dz = z - hole.z;
+                    if (MathF.Sqrt(dx * dx + dz * dz) < 1.95f) continue;
+                    occ.Add(store.GetDataBinding<ModelData>(store.Create(
+                        new ModelData(0.5f, new List<Weapon>(), new Position(x, z), store))));
+                }
+            var allyUnit = new UnitData(ally, "Crowd", 4, 4, occ);
+            store.Create(new ArmyData(ally, new List<DataBinding<UnitData>>
+                { store.GetDataBinding<UnitData>(store.Create(allyUnit)) }));
+
+            var placing = new List<DataBinding<ModelData>>
+            {
+                store.GetDataBinding<ModelData>(store.Create(
+                    new ModelData(1.0f, new List<Weapon>(), new Position(0f, 0f), store))),
+            };
+            store.Create(new UnitData(me, "Newcomer", 4, 4, placing));
+
+            var resolver = new AiPlaceObjectsResolver<ModelData>(new TableState(store));
+            var result = Unwrap(await resolver.Resolve(
+                new PlaceObjectsRequest<ModelData>(me, "Deploy", zone, placing)));
+
+            Position p = result.Single().Position;
+            float worst = 0f;
+            foreach (DataBinding<ModelData> o in occ)
+            {
+                ModelData om = o.GetValue();
+                float dx = p.x - om.Position.x, dz = p.z - om.Position.z;
+                worst = MathF.Max(worst, 1.5f - MathF.Sqrt(dx * dx + dz * dz));
+            }
+            Assert.That(worst, Is.LessThanOrEqualTo(0f),
+                $"the gap at ({hole.x},{hole.z}) is clear, so the bot must deploy into it, not " +
+                $"{worst:F2}in into the crowd (placed at {p.x:F2},{p.z:F2})");
         }
 
         // Dead models must not act as invisible occupants: casualties aren't drawn, so if they still
