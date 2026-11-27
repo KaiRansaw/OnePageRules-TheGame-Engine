@@ -679,7 +679,7 @@ namespace FDG
             if (Carrying(c, defender, item) is not { } x || x.Pick.Used) return Array.Empty<GrantedModifier>();
             if (Skirmish(c.Settings.GameSystem) && !Alone(defender, x.Model)) return Array.Empty<GrantedModifier>();
             if (!await Ask(c, defender.PlayerID, $"{x.Pick.Hero}: use the {item} (once per game) - {attacker.Name} gets -1 to hit {(melee ? "in this melee" : "with this shooting")}?",
-                    true, item))
+                    BigAttack(attacker, melee), item))
                 return Array.Empty<GrantedModifier>();
             await Use(c, x.Pick, $"{x.Pick.Hero} uses the {item}: {attacker.Name} gets -1 to hit.");
             return new[] { new GrantedModifier(item, -1) };
@@ -781,6 +781,17 @@ namespace FDG
         }
 
         // ---------------------------------------------------------------- morale
+
+        /// <summary>
+        /// A bot keeps its once-per-game -1 to hit for an attack worth stopping (lane 2, 2026-11-27 - it spent it on the
+        /// first pistol shot): 6+ attacks from the attacking unit's weapons of that kind, or one with AP(2)+.
+        /// </summary>
+        internal static bool BigAttack(IUnit attacker, bool melee)
+        {
+            var weapons = attacker.Models.Where(m => m.GetIsAlive()).SelectMany(m => m.Weapons)
+                .Where(w => melee ? w.RangeInches <= 0f : w.RangeInches > 0f).ToList();
+            return weapons.Sum(w => w.Attacks) >= 6 || weapons.Any(w => w.ArmorPenetration >= 2);
+        }
 
         /// <summary>Terrifying Mask: once per game, enemy units in melee with the Hero (the Skirmish books: within 6") fail
         /// their Morale Tests. Offered when such a unit is about to test; the use covers that test (house rules C).</summary>

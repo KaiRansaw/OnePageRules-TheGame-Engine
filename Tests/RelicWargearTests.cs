@@ -437,6 +437,22 @@ namespace FDG.Tests
             Assert.That(_yesNo, Has.Count.EqualTo(1));
         }
 
+        // Lane 2, 2026-11-27: a bot used its once-per-game gem on the first attack of the game, a single pistol shot.
+        [Test]
+        public async Task ABot_KeepsTheAmulet_ForAnAttackWorthStopping()
+        {
+            Build(EGameSystem.GrimdarkFuture, RelicWargear.Free);
+            var pistol = Unit(_them, new Position(20, 10), 1, weapons: Pistol());
+            var guns = Unit(_them, new Position(20, 20), 5, "Gunners", weapons: new Weapon("Rifle", 24f, 2, 0));
+            var captain = Unit(_me, new Position(10, 10), 1, "Captain", hero: true);
+            Give(captain, RelicWargear.OpalAmulet);
+            _yes = false;   // the player says no, so the item stays for the next question
+            await HitAndSave(pistol, captain, pistol.GetValue().Models[0].Weapons[0], false);
+            await HitAndSave(guns, captain, guns.GetValue().Models[0].Weapons[0], false);
+            Assert.That(_yesNo.Select(y => y.DefaultAnswer), Is.EqualTo(new[] { false, true }),
+                "the bot's answer: not for one pistol shot, yes for ten rifle shots");
+        }
+
         private async Task<float> ApplyToHero(DataBinding<UnitData> attacker, DataBinding<UnitData> hero, float wounds, bool spell = false)
         {
             var weapon = new Weapon("Gun", 24f, 1, 0);
