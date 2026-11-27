@@ -147,6 +147,35 @@ namespace FDG.Tests
             Assert.That(LivingSpells.Table(EGameSystem.GrimdarkFuture).Where(d => d.Category == LivingSpells.Forbidden).Select(d => d.Value), Is.All.EqualTo(3));
         }
 
+        // Lane 2, 2026-11-27: bots placed their spells with the objective placer (objective squares), wherever that put
+        // them. The engine now suggests the spot - among the enemy for a harmful spell, among its own units for a helpful
+        // one - and the bots take it.
+        [Test]
+        public void ABotsSpell_IsSuggestedAmongTheEnemy_OrAmongItsOwn()
+        {
+            Build(EGameSystem.GrimdarkFuture, EAdvancedRules.LivingSpells);
+            new PlayerSlot(0, teamNumber: 0, _me, new ArmyListFile(), _store).AssignPlayerController(new Seat("Kai", _me));
+            new PlayerSlot(1, teamNumber: 1, _them, new ArmyListFile(), _store).AssignPlayerController(new Seat("Bot", _them));
+            Unit(_me, new Position(24f, 10f), 1, casterLevel: 2);
+            UnitData own = Unit(_me, new Position(10f, 12f), 5);
+            UnitData foe = Unit(_them, new Position(30f, 20f), 5);
+            float Gap(Position p, UnitData u) => u.Models.Min(m => Position.GetDistance2D(m.Position, p));
+            var band = new RectangularZone(1f, 71f, 1f, 47f);
+            LivingSpells.Def Spell(string name) => LivingSpells.Table(EGameSystem.GrimdarkFuture).First(d => d.Name == name);
+
+            Position? pyre = LivingSpells.BestSpot(_context, _me, Spell(LivingSpells.BurningPyre), new Position(24f, 10f), 14f, band);
+            Position? cover = LivingSpells.BestSpot(_context, _me, Spell(LivingSpells.DivineMaelstrom), new Position(24f, 10f), 14f, band);
+
+            Assert.That(pyre, Is.Not.Null);
+            Assert.That(Gap(pyre!.Value, foe), Is.LessThan(7.5f), "the Burning Pyre goes among the enemy (6\" from its edge)");
+            Assert.That(Gap(pyre.Value, own), Is.GreaterThan(8f), "and away from its own squad");
+            Assert.That(cover, Is.Not.Null);
+            Assert.That(Gap(cover!.Value, own), Is.LessThan(7.5f), "the Divine Maelstrom covers its own squad");
+            Assert.That(Gap(cover.Value, foe), Is.GreaterThan(8f), "not the enemy's");
+            Assert.That(LivingSpells.BestSpot(_context, _me, Spell(LivingSpells.ArcanePalisade), new Position(24f, 10f), 14f, band), Is.Null,
+                "a wall has no side - the usual placement");
+        }
+
         [Test]
         public async Task Settle_EachArmyGetsAPrimitiveSpell_PickedOrRolled()
         {

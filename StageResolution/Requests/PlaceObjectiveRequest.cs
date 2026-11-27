@@ -38,6 +38,12 @@ namespace FDG.StageResolution.Requests
         /// </summary>
         public IBoundedZone? Reach { get; }
 
+        /// <summary>
+        /// The spot the engine judges best for the side placing it, when it can tell - a Living Spell put where it hurts
+        /// the enemy or helps its own side (lane 2, 2026-11-27). Bots take it; a player may ignore it. Null for markers.
+        /// </summary>
+        public Position? Suggested { get; init; }
+
         /// <summary>Whether <paramref name="p"/> is inside the band and, when there is one, the reach.</summary>
         public bool IsInLegalArea(Position p)
         {

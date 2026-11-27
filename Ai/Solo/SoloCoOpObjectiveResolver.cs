@@ -40,6 +40,8 @@ namespace FDG.Ai.Solo
 
         public Task<Position> Resolve(PlaceObjectiveRequest request)
         {
+            // A spot the engine already judged for this side (a Living Spell among the enemy - lane 2, 2026-11-27).
+            if (request.Suggested is { } suggested && request.IsInLegalArea(suggested)) return Task.FromResult(suggested);
             var existing = _tableState.Objectives.Objects.ToList();
             var impassable = _tableState.Terrain.Objects
                 .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible))

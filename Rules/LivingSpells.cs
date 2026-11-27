@@ -269,7 +269,7 @@ namespace FDG
             // Platforms: "The caster must be placed on top of this spell" - it goes under the caster.
             Position at = d.Move == EMove.Platform ? Centre(caster)
                 : await PlaceNear(c, caster.PlayerID, $"Living Spell: place the {d.Name} within 12\" of {caster.Name}",
-                    Centre(caster), 12f + CasterRadius(caster) + Radius(d.Size), d.Size);
+                    Centre(caster), 12f + CasterRadius(caster) + Radius(d.Size), d.Size, d);
             var piece = new LivingSpellPiece
             {
                 Owner = Key(caster.PlayerID),
@@ -333,7 +333,8 @@ namespace FDG
 
         /// <summary>Asks for a spot inside the table and within <paramref name="reach"/> (centres) of <paramref name="near"/>;
         /// a spot outside it is pulled back to the nearest legal one.</summary>
-        private static async Task<Position> PlaceNear(IGameContext c, PlayerID player, string prompt, Position near, float reach, ESize size)
+        private static async Task<Position> PlaceNear(IGameContext c, PlayerID player, string prompt, Position near, float reach, ESize size,
+            Def? spell = null)
         {
             float w = GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, h = GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES;
             float m = size == ESize.Long ? LongLength / 2f : Radius(size);
@@ -342,10 +343,61 @@ namespace FDG
             try
             {
                 wanted = await c.PlayerRequester.RequestDecision<PlaceObjectiveRequest, Position>(new PlaceObjectiveRequest(player, prompt, 1, 1,
-                    band, 0f, new CircularZone(new Float2(near.x, near.z), reach)));
+                    band, 0f, new CircularZone(new Float2(near.x, near.z), reach))
+                    { Suggested = spell == null ? null : BestSpot(c, player, spell, near, reach, band) });
             }
             catch (InvalidOperationException) { }
             return Clamp(near, wanted, reach, band);
+        }
+
+        /// <summary>
+        /// Which way a spell pulls, for the side placing it: +1 = put it among the enemy, -1 = among its own units, 0 = no
+        /// preference (lane 2, 2026-11-27: bots used the objective placer and dropped spells on objective squares). Spells
+        /// whose effect works on every unit near it (+1 to hit, cover, -1 to be hit) count as help for whoever stands there.
+        /// </summary>
+        public static int Pull(string spell) => spell switch
+        {
+            BurningPyre or SuffocatingCloud or DeathlyPendulum or HungeringJaws or MagicShackles or ScreamingHorror
+                or KillingSun or TwinShockSpheres or SpiritSeeker => +1,
+            CogsOfTime or ShardOfMist or HealingSwarm or DivineMaelstrom or SwordSwarm => -1,
+            _ => 0,
+        };
+
+        /// <summary>
+        /// The bot's spot for a spell (its <see cref="PlaceObjectiveRequest.Suggested"/>): on a grid inside the reach, the
+        /// point with the most enemy (or own, by <see cref="Pull"/>) unit points within the spell's area and the fewest of
+        /// the other side's. Null when the spell has no pull or nothing scores.
+        /// </summary>
+        internal static Position? BestSpot(IGameContext c, PlayerID player, Def d, Position near, float reach, RectangularZone band)
+        {
+            int pull = Pull(d.Name);
+            if (pull == 0) return null;
+            // The area the spell works in: 6" round its edge, or what it touches for the ones that hit as they move.
+            float area = d.Name is KillingSun or SuffocatingCloud or HungeringJaws or TwinShockSpheres ? 1f : 6f;
+            var units = c.TableState.Units.Objects.Where(u => u.GetIsAlive() && u.GetIsOnBattlefield()).ToList();
+            Position? best = null;
+            float bestScore = 0f;
+            for (float x = near.x - reach; x <= near.x + reach; x += 1.5f)
+                for (float z = near.z - reach; z <= near.z + reach; z += 1.5f)
+                {
+                    if (!band.IsPointWithinZone(new Float2(x, z))) continue;
+                    if ((x - near.x) * (x - near.x) + (z - near.z) * (z - near.z) > reach * reach) continue;
+                    float score = 0f;
+                    foreach (IUnit u in units)
+                    {
+                        bool inArea = u.Models.Any(m => m.GetIsAlive()
+                            && Position.GetDistance2D(m.Position, new Position(x, z)) - m.BaseRadiusInches - Radius(d.Size) <= area);
+                        if (!inArea) continue;
+                        bool enemy = !Friendly(c, player, Key(u.PlayerID));
+                        float worth = Math.Max(1, u.Models.Count(m => m.GetIsAlive()));
+                        // Healing helps only the hurt.
+                        if (d.Name == HealingSwarm && !enemy && !u.Models.Any(m => m.GetIsAlive() && m.RemainingWounds < m.TotalWounds)
+                            && u.Models.Count(m => m.GetIsAlive()) == u.Models.Count) worth = 0.1f;
+                        score += (enemy ? pull : -pull) * worth;
+                    }
+                    if (score > bestScore + 0.001f) { bestScore = score; best = new Position(x, z); }
+                }
+            return best;
         }
 
         private static Position Clamp(Position near, Position wanted, float reach, RectangularZone band)
@@ -771,7 +823,7 @@ namespace FDG
             IUnit mover = casters[(c.DiceRoller.RollDecisiveFace(casters.Count) - 1) % casters.Count];
             var from = new Position(p.X, p.Z);
             Position to = await PlaceNear(c, mover.PlayerID, $"{d.Name}: {mover.Name} may move it up to 12\" (click where it is to leave it)",
-                from, 12f, d.Size);
+                from, 12f, d.Size, d);
             p.X = to.x;
             p.Z = to.z;
             Draw(c, p, d);
