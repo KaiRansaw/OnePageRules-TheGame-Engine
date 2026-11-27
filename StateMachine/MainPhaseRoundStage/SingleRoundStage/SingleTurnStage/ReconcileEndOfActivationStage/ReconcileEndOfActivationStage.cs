@@ -44,6 +44,8 @@ namespace FDG.Stages
             // Army Terrain: Arcane Pillars' line and the Twin gates.
             if (context.ActivatedUnit?.GetValue() is { } activated) await ArmyTerrain.EndOfActivation(GameContext, activated);
             if (context.ActivatedUnit?.GetValue() is { } gated) await LivingSpells.EndOfActivation(GameContext, gated);
+            // City Fighting - Destructible Cover: reaction shots (Overwatch, stratagems) don't pass the post-shoot stage.
+            CityFighting.AfterShooting(GameContext);
             // "Frenzied units stop being frenzied at the end of their activation."
             if (context.ActivatedUnit?.GetValue() is { } finished && UnitPsychology.IsFrenzied(finished))
                 finished.Tokens.RemoveTokens(Rules.Foundation.TokenType.Frenzied, finished.Tokens.GetTokenCount(Rules.Foundation.TokenType.Frenzied));

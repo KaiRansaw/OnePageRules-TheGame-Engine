@@ -60,6 +60,15 @@ namespace FDG
         // Tactical Phase (GF: Firefight / AoF: Skirmish p46).
         ForwardPositions = 1UL << 46,
         BattlePreparations = 1UL << 47,
+        // City Fighting (GF: Firefight / AoF: Skirmish p47).
+        UrbanTerrain = 1UL << 48,
+        SewerSystems = 1UL << 49,
+        DefensivePositions = 1UL << 50,
+        CorneredUnits = 1UL << 51,
+        DestructibleCover = 1UL << 52,
+        ThrownObjects = 1UL << 53,
+        BuildingsOnFire = 1UL << 54,
+        HiddenMovement = 1UL << 55,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>
@@ -80,6 +89,7 @@ namespace FDG
         public const string PoliticalIntrigueChapter = "Political Intrigue";
         public const string ArmyTerrainChapter = "Army Terrain";
         public const string AdvancedCastingChapter = "Advanced Casting";
+        public const string CityFightingChapter = CityFighting.Chapter;
 
         public static readonly IReadOnlyList<AdvancedRuleOption> Catalog = BuildCatalog();
 
@@ -121,6 +131,9 @@ namespace FDG
             foreach ((string name, EAdvancedRules flag) in TacticalPhase.All)
                 list.Add(new AdvancedRuleOption(TacticalPhaseChapter, name, flag, TacticalPhase.BooksHaveIt,
                     TacticalPhase.BookText(name), TacticalPhase.GameText(name)));
+            foreach ((string name, EAdvancedRules flag) in CityFighting.All)
+                list.Add(new AdvancedRuleOption(CityFightingChapter, name, flag, CityFighting.BooksHaveIt,
+                    CityFighting.BookText(name), CityFighting.GameText(name)));
             foreach ((string name, EAdvancedRules flag) in CriticalHits.All)
                 list.Add(new AdvancedRuleOption(CriticalHitsChapter, name, flag, CriticalHits.BooksHaveIt,
                     CriticalHits.BookText(name), CriticalHits.GameText(name)));
@@ -139,6 +152,7 @@ namespace FDG
             [AdvancedCastingChapter] = AdvancedCasting.Intro + " Pick any of the following.",
             [PoliticalIntrigueChapter] = "Political Intrigue rules add a new strategic layer on top of the regular game, giving players the ability to influence the game and mess with each other's plans.",
             [TacticalPhaseChapter] = "The Tactical Phase is an optional replacement to the normal deployment phase, which adds some interesting strategies to the pre-game sequence. Pick any of the following. Note that if you are using all of them, then the steps must be followed in that order before the game begins.",
+            [CityFightingChapter] = CityFighting.Intro,
             [CriticalHitsChapter] = "Critical Hits rules make weapons a lot deadlier by modifying how units are damaged with a little bit of luck. Use the generic tables, or the weapon type tables instead.",
         };
 

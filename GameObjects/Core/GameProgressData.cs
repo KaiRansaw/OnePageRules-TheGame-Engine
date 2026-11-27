@@ -164,6 +164,9 @@ namespace FDG
         /// <summary>Tactical Phase (Forward Positions / Battle Preparations); null when not in play.</summary>
         public FDG.TacticalPhaseState? TacticalPhase { get; set; }
 
+        /// <summary>City Fighting: burning buildings, destroyed cover; null when not in play.</summary>
+        public FDG.CityFightingState? CityFighting { get; set; }
+
         /// <summary>Side-Missions (Advanced Rulebooks 3.6.0): the ones in play, VP, and what they count. Null outside them.</summary>
         public FDG.Missions.SideMissionState? SideMissions { get; set; }
 

@@ -159,6 +159,8 @@ namespace FDG.Stages
             await BattlefieldEffects.EventsRoundEnd(GameContext);
             // Advanced Casting - Living Spells: burn, move, hit.
             await LivingSpells.RoundEnd(GameContext);
+            // City Fighting - Buildings on Fire: Dangerous tests in burning buildings, then spread or burn out.
+            await CityFighting.RoundEnd(GameContext);
 
             // #432: and the terrain a campaign random event laid down for this round - a wood or a
             // minefield the event conjured. It is real terrain, so nothing else would ever take it away,

@@ -30,6 +30,8 @@ namespace FDG.Stages
         public override async Task Enter(ICombatActionContext context)
         {
             IUnit unit = context.AttackingUnit.GetValue();
+            // City Fighting - Destructible Cover: one die for each small Cover piece the shots went past.
+            CityFighting.AfterShooting(GameContext);
 
             // One per-action evaluation of the post-shoot hook for the shooter (seat Actor): a
             // Hit & Run / Harassing HookEntry yields an InvokeTriggeredMove the executor runs through

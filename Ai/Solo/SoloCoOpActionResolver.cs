@@ -68,6 +68,16 @@ namespace FDG.Ai.Solo
             // off the table for this one pick or we re-decline forever.
             bool movementDeclined = _latch?.Consume() == true;
 
+            // Test-only: FDG_CITY_AUDIT=1 makes the bot throw / set fires whenever it can, so a sweep plays those
+            // paths through the real action menu (the book's bot has no clause for them - house rules C).
+            if (CityFighting.AuditBots
+                && options.FirstOrDefault(CityFighting.IsActionOption) is { } city
+                && !_triedRuleActions.Contains(city))
+            {
+                _triedRuleActions.Add(city);
+                return Task.FromResult(city);
+            }
+
             // #423 Transport: "units inside of them must always disembark on their FIRST ACTIVATION (if
             // possible)." Unconditional and ranked above everything, because that is what the book says -
             // the baseline bot instead waits until its ride is within 12" of something worth having
@@ -327,6 +337,8 @@ namespace FDG.Ai.Solo
             || ExtraActions.All.Any(a => a.Name == option)
             // Command Points move stratagems cost CP and only pay off on a move the tree may not make (house rules C).
             || CommandPoints.IsMoveOption(option)
+            // City Fighting: throwing / setting fires are the player's calls; the book's bot has no clause (house rules C).
+            || CityFighting.IsActionOption(option)
             // Meat Grinder: withdrawing a weakened unit is the player's call; the book's bot never does it (house rules C).
             || Missions.MeatGrinder.IsOptionWithdraw(option);
 

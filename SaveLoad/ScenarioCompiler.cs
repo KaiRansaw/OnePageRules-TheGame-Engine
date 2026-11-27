@@ -108,9 +108,15 @@ namespace FDG.SaveLoad
 
             CreateObjectives(scenario, store);
 
-            CreateTerrain(scenario, store);
+            var burning = new List<string>();
+            CreateTerrain(scenario, store, burning);
 
             WriteProgress(scenario, settings, store, slots, unitsPerPlayer, activatedUnits);
+            if (burning.Count > 0 && GameProgressUtilities.TryGetProgress(store) is { } progress)
+            {
+                progress.CityFighting = new CityFightingState { Burning = burning };
+                GameProgressUtilities.WriteProgress(store, progress);
+            }
 
             return store;
         }
@@ -201,6 +207,21 @@ namespace FDG.SaveLoad
                         $"{string.Join(", ", FDG.ExtraActions.All.Select(a => a.Name))}).");
                 }
                 settings.ExtraActions |= flag;
+            }
+            foreach (string name in scenarioSettings.Advanced ?? new List<string>())
+            {
+                string wanted = name.Trim();
+                if (Enum.TryParse(wanted, ignoreCase: true, out EAdvancedRules one) && one != EAdvancedRules.None)
+                {
+                    settings.AdvancedRules |= one;
+                    continue;
+                }
+                string? chapter = AdvancedRules.Catalog.Select(o => o.Chapter).Distinct()
+                    .FirstOrDefault(c => c.Replace(" ", "").Equals(wanted.Replace(" ", ""), StringComparison.OrdinalIgnoreCase));
+                if (chapter == null)
+                    throw new ScenarioCompileException($"Unknown advanced rule '{name}' (use a flag name such as " +
+                        $"CorneredUnits, or a chapter: {string.Join(", ", AdvancedRules.Catalog.Select(o => o.Chapter).Distinct())}).");
+                settings.AdvancedRules |= AdvancedRules.ChapterFlags(chapter);
             }
             return settings;
         }
@@ -517,7 +538,7 @@ namespace FDG.SaveLoad
         /// as a plain <see cref="TerrainData"/>. Terrain rules (movement sweeps, cover, LoS) then
         /// see scenario terrain exactly as they see player-placed terrain.
         /// </summary>
-        private static void CreateTerrain(ScenarioFile scenario, GameDataStore store)
+        private static void CreateTerrain(ScenarioFile scenario, GameDataStore store, List<string> burning)
         {
             if (scenario.Terrain == null) return;
 
@@ -531,7 +552,9 @@ namespace FDG.SaveLoad
                 if (spec.HeightInches < 0f)
                     throw new ScenarioCompileException($"{what}: heightInches must be >= 0.");
 
-                store.Create(new TerrainData(type, shape, spec.HeightInches));
+                var piece = new TerrainData(type, shape, spec.HeightInches, name: spec.Name, kind: spec.Kind);
+                store.Create(piece);
+                if (spec.OnFire) burning.Add(CityFighting.Key(piece));
             }
         }
 

@@ -39,6 +39,8 @@ namespace FDG.Stages
                 RelicWargear.SaveChanges(GameContext, metaData.DefendingUnit.GetValue(), metaData.IsMelee);
             if (relicOverride is int counts) baseDefense = Math.Min(baseDefense, counts);
             if (relicAp > 0) ap = Math.Max(0, ap - relicAp);
+            // City Fighting - Cornered Units: AP(+1) to melee attacks against a cornered unit.
+            ap += CityFighting.ArmorPenetrationBonus(GameContext, metaData.DefendingUnit.GetValue(), metaData.IsMelee, metaData.IsSpell);
 
             // #042 save-modifier rules (Rending) folded their net modifier at hit-roll-complete and
             // carried it here; a negative delta to the save roll raises the threshold. Subtract it,

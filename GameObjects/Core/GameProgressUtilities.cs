@@ -78,6 +78,8 @@ namespace FDG
                 progress.RelicWargear = TryGetProgress(store)?.RelicWargear;
             if (progress.TacticalPhase == null)
                 progress.TacticalPhase = TryGetProgress(store)?.TacticalPhase;
+            if (progress.CityFighting == null)
+                progress.CityFighting = TryGetProgress(store)?.CityFighting;
             if (progress.Underdog == null)
                 progress.Underdog = TryGetProgress(store)?.Underdog;
             if (progress.Underdog == null

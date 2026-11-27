@@ -30,6 +30,9 @@ namespace FDG.Stages
                 FastPlay.ShootingOrigin(metaData.AttackingUnit.GetValue(), GameContext.Settings),
                 FastPlay.SimplifiedTerrain(GameContext.Settings));
 
+            // City Fighting - Destructible Cover: the small Cover between shooter and target is rolled for after the shooting.
+            CityFighting.NoteShot(GameContext, metaData.AttackingUnit.GetValue(), metaData.DefendingUnit.GetValue());
+
             // Majority rule: more than half of the living defending models in cover → +1 defense bonus.
             int bonus = majority.HasCover ? 1 : 0;
             // Battlefield Effects - Heavy Storm: the whole table counts as Cover; cover pieces give +2.

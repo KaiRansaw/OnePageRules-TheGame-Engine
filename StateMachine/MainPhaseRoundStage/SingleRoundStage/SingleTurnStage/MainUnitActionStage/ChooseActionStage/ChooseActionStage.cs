@@ -739,6 +739,28 @@ namespace FDG.Stages
                 }
             }
 
+            // City Fighting - Thrown Objects / Buildings on Fire: "instead of shooting their weapons". Taking one is the
+            // unit's attack for the activation; the menu then comes back (move first, if it hasn't).
+            foreach ((string cityOption, string cityText) in CityFighting.ActionOptions(GameContext, context))
+            {
+                if (outcomes.ContainsKey(cityOption)) continue;
+                validOptions.Add(cityOption);
+                optionDescriptions[cityOption] = cityText;
+                outcomes.Add(cityOption, async () =>
+                {
+                    UnitData cityUnit = context.ActivatingUnit.GetValue();
+                    bool done = cityOption == CityFighting.ThrowOption
+                        ? await CityFighting.Throw(GameContext, cityUnit)
+                        : await CityFighting.SetOnFire(GameContext, cityUnit);
+                    if (done)
+                    {
+                        context.RegisterAttackedFinished();
+                        context.MarkIrreversibleAction();
+                    }
+                    await Enter(context);
+                });
+            }
+
             // Meat Grinder - Respawning: "Players may also voluntarily destroy any of their units that have half or less of
             // their total size or Tough value left when they are activated." On a fresh activation only.
             if (!context.HasMoved && !context.HasAttacked && !context.IrreversibleActionTaken

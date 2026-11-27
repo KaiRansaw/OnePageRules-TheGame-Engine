@@ -231,6 +231,8 @@ namespace FDG.Stages
                     .Concat(PoliticalIntrigue.HitModifiers(GameContext, attacker, defender, metaData.IsSpell))
                     .Concat(ArmyTerrain.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell, metaData.IsCharging))
                     .Concat(LivingSpells.HitModifiers(GameContext, attacker, metaData.IsMelee, metaData.IsSpell))
+                    // City Fighting - Cornered Units: +1 to hit in melee against a cornered unit.
+                    .Concat(CityFighting.HitModifiers(GameContext, defender, metaData.IsMelee, metaData.IsSpell))
                     // Relic Wargear - Protective Gem / Opal Amulet: the defender's player may give -1 to hit, once per game.
                     .Concat(await RelicWargear.HitOffers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell))
                     .ToList();

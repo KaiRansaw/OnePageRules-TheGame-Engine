@@ -127,6 +127,39 @@ namespace FDG.Tests
         }
 
         [Test]
+        public void Compile_AdvancedRules_TerrainKinds_AndBurningBuildings_RideTheSave()
+        {
+            ScenarioFile scenario = MakeScenario();
+            scenario.Settings.GameSystem = "GFFirefight";
+            scenario.Settings.Advanced = new List<string> { "City Fighting", "ForwardPositions" };
+            scenario.Terrain = new List<ScenarioTerrain>
+            {
+                new ScenarioTerrain { Type = "Impassible|Blocking", Shape = "Rectangle", Center = new[] { 10f, 20f }, Size = new[] { 6f, 6f },
+                    HeightInches = 4f, Kind = "Building", Name = "Inn", OnFire = true },
+                new ScenarioTerrain { Type = "Cover", Shape = "Rectangle", Center = new[] { 30f, 20f }, Size = new[] { 2f, 2f }, Kind = "Barricade" },
+            };
+
+            GameDataStore store = CompileAndRoundTrip(scenario);
+
+            GameProgressData progress = GameProgressUtilities.TryGetProgress(store)!;
+            Assert.That(progress.Settings.AdvancedRules & EAdvancedRules.BuildingsOnFire, Is.Not.EqualTo(EAdvancedRules.None));
+            Assert.That(progress.Settings.AdvancedRules & EAdvancedRules.ForwardPositions, Is.Not.EqualTo(EAdvancedRules.None));
+            var terrain = store.GetAllDataReferences<TerrainData>().Select(r => store.GetValue<TerrainData>(r)).ToList();
+            TerrainData inn = terrain.Single(t => t.Name == "Inn");
+            Assert.That(inn.Kind, Is.EqualTo("Building"));
+            Assert.That(progress.CityFighting!.Burning, Is.EqualTo(new[] { CityFighting.Key(inn) }));
+            Assert.That(terrain.Single(t => t.Kind == "Barricade").Name, Is.Null.Or.Empty);
+        }
+
+        [Test]
+        public void Compile_UnknownAdvancedRule_Throws()
+        {
+            ScenarioFile scenario = MakeScenario();
+            scenario.Settings.Advanced = new List<string> { "Lava Floor" };
+            Assert.Throws<ScenarioCompileException>(() => CompileAndRoundTrip(scenario));
+        }
+
+        [Test]
         public void Compile_UnknownBackground_Throws()
         {
             ScenarioFile scenario = MakeScenario();

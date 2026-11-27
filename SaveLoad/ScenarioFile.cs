@@ -73,6 +73,16 @@ namespace FDG.SaveLoad
 
         /// <summary>Piece height in inches (defaults to 0; sight-line rules currently ignore it).</summary>
         public float HeightInches { get; set; }
+
+        /// <summary>Optional book terrain kind ("Building", "Ruins", "Barricade"...) - what City Fighting and the 3D
+        /// table read.</summary>
+        public string? Kind { get; set; }
+
+        /// <summary>Optional piece name (shown in the log and the Mission panel).</summary>
+        public string? Name { get; set; }
+
+        /// <summary>City Fighting - Buildings on Fire: the piece starts the scenario burning.</summary>
+        public bool OnFire { get; set; }
     }
 
     public class ScenarioSettings
@@ -104,6 +114,12 @@ namespace FDG.SaveLoad
         /// ...) or "All". None by default, like the lobby.
         /// </summary>
         public List<string>? ExtraActions { get; set; }
+
+        /// <summary>
+        /// Optional Advanced Rulebooks options, by flag name ("CorneredUnits", "BuildingsOnFire", ...) or chapter name
+        /// ("City Fighting", "CityFighting"). None by default, like the lobby.
+        /// </summary>
+        public List<string>? Advanced { get; set; }
     }
 
     public class ScenarioPlayer
