@@ -63,6 +63,10 @@ namespace FDG.Stages
                 .AddChild(new DetermineCanKeepSwingingStage(GameContext, this), out var determineCanKeepSwinging)
                 .AddChild(new OfferStrikeBackStage(GameContext, this), out var offerStrikeBack)
                 .AddChild(new StrikeBackStage(GameContext, this), out var strikeBack)
+                .AddChild(new OfferKillingBlowStrikeStage(GameContext, this), out var offerKillingBlow)
+                .AddChild(new KillingBlowStrikeStage(GameContext, this), out var killingBlow)
+                .AddChild(new OfferKillingBlowAfterWipeStage(GameContext, this), out var offerKillingBlowAfterWipe)
+                .AddChild(new KillingBlowAfterWipeStrikeStage(GameContext, this), out var killingBlowAfterWipe)
                 .AddChild(new DetermineMeleeWinnerStage(GameContext, this), out var determineMeleeWinner)
                 .AddChild(new DetermineMoraleSaveNeededStage(GameContext, this), out var determineMoraleSaveNeeded)
                 .AddChild(new RollForMoraleStage(GameContext, this), out var rollForMorale)
@@ -117,8 +121,18 @@ namespace FDG.Stages
             determineCanKeepSwinging.OnDefenderKilled.Bind(applyFatigueStage);
             offerStrikeBack.OnOfferAccepted.Bind(strikeBack);
             offerStrikeBack.OnOfferRejected.Bind(determineMeleeWinner);
-            strikeBack.FinishedStrikingBack.Bind(determineMeleeWinner);
-            strikeBack.OnAttackerKilled.Bind(applyFatigueStage);
+            // Command Points - Killing Blow: the first striker's models the strike-back killed strike once more before
+            // the winner is worked out (or, when the strike-back wiped the unit out, before fatigue as before).
+            strikeBack.FinishedStrikingBack.Bind(offerKillingBlow);
+            offerKillingBlow.OnNone.Bind(determineMeleeWinner);
+            offerKillingBlow.OnStrike.Bind(killingBlow);
+            killingBlow.FinishedStriking.Bind(determineMeleeWinner);
+            killingBlow.OnDefenderKilled.Bind(applyFatigueStage);
+            strikeBack.OnAttackerKilled.Bind(offerKillingBlowAfterWipe);
+            offerKillingBlowAfterWipe.OnNone.Bind(applyFatigueStage);
+            offerKillingBlowAfterWipe.OnStrike.Bind(killingBlowAfterWipe);
+            killingBlowAfterWipe.FinishedStriking.Bind(applyFatigueStage);
+            killingBlowAfterWipe.OnDefenderKilled.Bind(applyFatigueStage);
             determineMeleeWinner.OnNeedsRollToDecide.Bind(determineMoraleSaveNeeded);
             determineMeleeWinner.OnDoesntNeedRollToDecide.Bind(applyFatigueStage);
             determineMoraleSaveNeeded.ToRollForMorale.Bind(rollForMorale);

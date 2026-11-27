@@ -19,6 +19,9 @@ namespace FDG.Stages
             // #020: reaching this stage means the defender is actually striking back — record it so
             // ApplyFatigueStage fatigues the striker. (The charger's own fatigue is handled there too.)
             context.RegisterDefenderStruckBack();
+            // Command Points - Killing Blow: note which of the first striker's models are still standing, so the ones
+            // the strike-back kills can strike once more afterwards (KillingBlowStrikes).
+            KillingBlowStrikes.SnapshotBeforeStrikeBack(context);
             await base.Enter(context);
         }
 

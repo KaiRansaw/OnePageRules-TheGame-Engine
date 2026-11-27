@@ -67,6 +67,35 @@ namespace FDG.Tests
             Assert.That(defender.GetValue().ModelBindings[0].GetValue().Position.z, Is.EqualTo(20f).Within(0.0001f));
         }
 
+        // Lane 1 (2026-11-27), Command Points - Killing Blow: "Any friendly model that is killed during this melee may
+        // strike one more time with all of its weapons before it is removed." The charger strikes, then the strike-back
+        // kills it - after its own strike. With Killing Blow on it, the dead charger strikes once more; without, it
+        // doesn't. (A model killed BEFORE its unit strikes already struck with it.)
+        [Test]
+        public async Task KillingBlow_AChargerKilledByTheStrikeBack_StrikesOnceMore()
+        {
+            async Task<int> ChargerWeaponPicks(bool killingBlow)
+            {
+                var (ctx, requester, charger, _) = BuildMelee(chargerWeapons: 2);
+                ModelData chargerModel = charger.GetValue().ModelBindings[0].GetValue();
+                if (killingBlow)
+                    chargerModel.Tokens.AddToken(FDG.Rules.Tokens.TokenDefinitionCatalog.Create(FDG.Rules.Foundation.TokenType.CpKillingBlow));
+
+                var melee = new MeleeStage(ctx, new NoOpLayer<IUnitActionContext>());
+                melee.OnFinishedMelee.Bind("finishedMelee");
+                melee.BackToChooseAction.Bind("backToChooseAction");
+                await melee.Enter(new UnitActionContext(ctx, charger));
+
+                Assert.That(((IModel)chargerModel).GetIsAlive(), Is.False, "premise: the strike-back killed the charger");
+                return requester.WeaponPicksBy.Count(p => p.Equals(charger.GetValue().PlayerID));
+            }
+
+            int without = await ChargerWeaponPicks(false);
+            int with = await ChargerWeaponPicks(true);
+            Assert.That(without, Is.GreaterThan(0), "premise: the charger's own strike asks which weapon to swing");
+            Assert.That(with, Is.EqualTo(2 * without), "the Killing Blow strike swings all its weapons once more");
+        }
+
         // ──────────────────────────────────────────────────────────────────────
         // Helpers
         // ──────────────────────────────────────────────────────────────────────
@@ -75,7 +104,7 @@ namespace FDG.Tests
         // (Defense 2, AP 0 - saved on a 4), and the defender's strike-back cannot be saved (Defense 4 + AP 3,
         // clamped to 6+ - failed on a 4), which kills the one-model charger outright.
         private static (WoundTestContext ctx, MeleeRequester requester,
-            DataBinding<UnitData> charger, DataBinding<UnitData> defender) BuildMelee()
+            DataBinding<UnitData> charger, DataBinding<UnitData> defender) BuildMelee(int chargerWeapons = 1)
         {
             var store = GameDataStore.GameDataStoreBuilder.GetDefault();
             var requester = new MeleeRequester();
@@ -88,7 +117,8 @@ namespace FDG.Tests
 
             DataBinding<UnitData> charger = MakeUnit(store, chargerPlayer, "Charger", quality: 4, defense: 4,
                 weapon: new Weapon("Blade", rangeInches: 0f, attacks: 1, armorPenetration: 0),
-                positions: new[] { new Position(20f, 20f) });
+                positions: new[] { new Position(20f, 20f) },
+                extra: chargerWeapons > 1 ? new Weapon("Knife", rangeInches: 0f, attacks: 1, armorPenetration: 0) : null);
             DataBinding<UnitData> defender = MakeUnit(store, defenderPlayer, "Defender", quality: 4, defense: 2,
                 weapon: new Weapon("Halberd", rangeInches: 0f, attacks: 1, armorPenetration: 3),
                 positions: new[] { new Position(22f, 20f) });
@@ -100,13 +130,13 @@ namespace FDG.Tests
         }
 
         private static DataBinding<UnitData> MakeUnit(GameDataStore store, PlayerID playerID, string name,
-            int quality, int defense, Weapon weapon, Position[] positions)
+            int quality, int defense, Weapon weapon, Position[] positions, Weapon? extra = null)
         {
             var modelBindings = positions.Select(position =>
             {
                 var model = new ModelData(
                     baseRadiusInches: 0.75f,
-                    weapons: new List<Weapon> { weapon },
+                    weapons: extra == null ? new List<Weapon> { weapon } : new List<Weapon> { weapon, extra },
                     initialPosition: position,
                     gameDataStore: store);
                 return store.GetDataBinding<ModelData>(store.Create(model));
@@ -121,6 +151,7 @@ namespace FDG.Tests
         private sealed class MeleeRequester : IPlayerRequestByID
         {
             public ConsolidationMoveRequest? Consolidation { get; private set; }
+            public List<PlayerID> WeaponPicksBy { get; } = new();
 
             public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request)
                 where TRequest : IStageTaskRequest<TReply>
@@ -131,6 +162,7 @@ namespace FDG.Tests
                         return Reply<TReply>(new Selected<DataBinding<UnitData>>(defenderPick.ValidOptions[0].Option));
 
                     case StringSelectionRequest weaponPick:
+                        WeaponPicksBy.Add(weaponPick.TargetPlayerID);
                         return Reply<TReply>(weaponPick.ValidOptions[0]);
 
                     case YesNoRequest:
