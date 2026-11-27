@@ -61,6 +61,19 @@ namespace FDG.Missions
                 or EGameSystem.GFFirefight or EGameSystem.AoFSkirmish;
 
         public static int GiantSlayerTough(EGameSystem system) => LargeGame(system) ? 12 : 9;
+
+        /// <summary>The two fantasy books (Mission Cards / Advanced Rulebook v3.6.0, AoF and AoF: Skirmish) print their
+        /// own card titles and pay 2 VP for Spellbreaker (62) and Cleanse the Skies (63); the sci-fi books pay 1.</summary>
+        public static bool FantasyDeck(EGameSystem system) =>
+            system is EGameSystem.AgeOfFantasy or EGameSystem.AoFSkirmish;
+
+        /// <summary>Card 65 in GF / AoF: "Destroy one enemy <b>unit</b> with Tough(X) or higher" - the whole unit. GF:
+        /// Firefight / AoF: Skirmish: "Destroy one enemy <b>model</b> with Tough(X) or higher".</summary>
+        public static bool GiantSlayerCountsUnits(EGameSystem system) => LargeGame(system);
+
+        /// <summary>Card 63 in Grimdark Future: "Destroy one enemy unit with the Aircraft or Flying rule." The other three
+        /// books say Flying only (none of their armies has Aircraft).</summary>
+        public static bool BringThemDownCountsAircraft(EGameSystem system) => system is EGameSystem.GrimdarkFuture;
         public const int GiantSlayerBigTough = 18;
         public static int AssassinateMany(EGameSystem system) => LargeGame(system) ? 3 : 2;
 
@@ -82,68 +95,75 @@ namespace FDG.Missions
                     new[] { C($"Control objective {i} at the beginning and end of the same round.", 2) }));
             }
             int tough = GiantSlayerTough(system), many = AssassinateMany(system);
+            bool fantasy = FantasyDeck(system);
+            string T(string scifi, string fant) => fantasy ? fant : scifi;
+            int purityVp = fantasy ? 2 : 1;
+            string giantWhat = GiantSlayerCountsUnits(system) ? "unit" : "model";
+            string flyingText = BringThemDownCountsAircraft(system)
+                ? "Destroy one enemy unit with the Aircraft or Flying rule."
+                : "Destroy one enemy unit with the Flying rule.";
             cards.AddRange(new[]
             {
-                new MissionCardDef(41, "Move Out", new[] { C("Have no friendly units within your deployment zone.", 1) }),
-                new MissionCardDef(42, "Infiltrate", new[]
+                new MissionCardDef(41, T("Move Out", "On the March"), new[] { C("Have no friendly units within your deployment zone.", 1) }),
+                new MissionCardDef(42, T("Infiltrate", "Delve Deep"), new[]
                 {
                     C("Have at least one friendly unit within the enemy's deployment zone.", 1),
                     C("Have at least three friendly units within the enemy's deployment zone.", 2),
                 }),
-                new MissionCardDef(43, "Keep at Bay", new[]
+                new MissionCardDef(43, T("Keep at Bay", "Hold the Line"), new[]
                 {
                     C("Have at least three friendly units within your deployment zone whilst no enemy units are within your deployment zone.", 1),
                 }, "This card can't be scored at the end of round 1."),
-                new MissionCardDef(44, "Changing Priority", new[]
+                new MissionCardDef(44, T("Changing Priority", "Shifting Strategy"), new[]
                 {
                     C("Roll one D6 when you draw this card. Control the objective with that number.", 1),
                     C("Control the objective with that number after it was controlled by the enemy at the beginning of the round.", 2),
                 }),
-                new MissionCardDef(45, "Tactical Precision", new[] { C("Control any three objectives.", 2) }),
-                new MissionCardDef(46, "Tactical Perfection", new[] { C("Control all objectives.", 5) }),
-                new MissionCardDef(51, "Fire at Will", new[]
+                new MissionCardDef(45, T("Tactical Precision", "Area Dominance"), new[] { C("Control any three objectives.", 2) }),
+                new MissionCardDef(46, T("Tactical Perfection", "Total Dominance"), new[] { C("Control all objectives.", 5) }),
+                new MissionCardDef(51, T("Fire at Will", "Volley Fire"), new[]
                 {
                     C("Destroy one enemy unit by shooting.", 1), C("Destroy three or more enemy units by shooting.", 2),
                 }),
-                new MissionCardDef(52, "In the Trenches", new[]
+                new MissionCardDef(52, T("In the Trenches", "Charge"), new[]
                 {
                     C("Destroy one enemy unit in melee.", 1), C("Destroy three or more enemy units in melee.", 2),
                 }),
-                new MissionCardDef(53, "Lay Them Low", new[]
+                new MissionCardDef(53, T("Lay Them Low", "Cut Them Down"), new[]
                 {
                     C("Destroy one enemy unit.", 1), C("Destroy three or more enemy units.", 2),
                     C("Destroy six or more enemy units.", 5),
                 }),
-                new MissionCardDef(54, "Outmaneuver", new[]
+                new MissionCardDef(54, T("Outmaneuver", "Outflank"), new[]
                 {
                     C("No enemy units within 6\" of the table centre.", 1),
                     C("No enemy units within 12\" of the table centre.", 2),
                 }),
-                new MissionCardDef(55, "Intimidate", new[]
+                new MissionCardDef(55, T("Intimidate", "Terrify"), new[]
                 {
                     C("One enemy unit fails a morale test.", 1), C("Three or more enemy units fail a morale test.", 2),
                 }),
-                new MissionCardDef(56, "Attunement", new[]
+                new MissionCardDef(56, T("Attunement", "Arcane Channeling"), new[]
                 {
                     C("Successfully cast one spell.", 1), C("Successfully cast three or more spells.", 2),
                 }),
-                new MissionCardDef(61, "Decapitate", new[]
+                new MissionCardDef(61, T("Decapitate", "Slay the King"), new[]
                 {
                     C("In this or any previous round, destroy the enemy Hero with the highest cost. In case of a tie in cost any of them counts.", 2),
                 }),
-                new MissionCardDef(62, "Purity", new[] { C("Destroy one enemy model with the Caster rule.", 1) }),
-                new MissionCardDef(63, "Bring Them Down", new[] { C("Destroy one enemy unit with the Flying rule.", 1) }),
-                new MissionCardDef(64, "Assassinate", new[]
+                new MissionCardDef(62, T("Purity", "Spellbreaker"), new[] { C("Destroy one enemy model with the Caster rule.", purityVp) }),
+                new MissionCardDef(63, T("Bring Them Down", "Cleanse the Skies"), new[] { C(flyingText, purityVp) }),
+                new MissionCardDef(64, T("Assassinate", "Executioner"), new[]
                 {
                     C("Destroy one enemy model with the Hero rule.", 1),
                     C($"Destroy {(many == 3 ? "three" : "two")} or more enemy models with the Hero rule.", 2),
                 }),
-                new MissionCardDef(65, "Giant Slayer", new[]
+                new MissionCardDef(65, T("Giant Slayer", "Big Game Hunter"), new[]
                 {
-                    C($"Destroy one enemy model with Tough({tough}) or higher.", 1),
-                    C($"Destroy one enemy model with Tough({GiantSlayerBigTough}) or higher.", 2),
+                    C($"Destroy one enemy {giantWhat} with Tough({tough}) or higher.", 1),
+                    C($"Destroy one enemy {giantWhat} with Tough({GiantSlayerBigTough}) or higher.", 2),
                 }),
-                new MissionCardDef(66, "Show No Mercy", new[]
+                new MissionCardDef(66, T("Show No Mercy", "Take No Prisoners"), new[]
                 {
                     C("Win a melee by three or more wounds.", 1), C("Win a melee by six or more wounds.", 2),
                 }),
@@ -221,6 +241,10 @@ namespace FDG.Missions
         /// <summary>"shooting", "melee", "spell" or "other".</summary>
         public string Cause { get; set; } = "other";
         public bool Flying { get; set; }
+        /// <summary>The unit had the Aircraft rule (card 63 in Grimdark Future: "the Aircraft or Flying rule").</summary>
+        public bool Aircraft { get; set; }
+        /// <summary>The unit's toughest model's Tough (card 65 in GF / AoF counts destroyed UNITS with Tough(X)+).</summary>
+        public int Tough { get; set; }
         /// <summary>The killing unit contained a Hero (Tactical Paragons).</summary>
         public bool KillerHero { get; set; }
     }

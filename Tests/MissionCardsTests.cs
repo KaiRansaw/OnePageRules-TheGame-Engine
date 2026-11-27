@@ -154,8 +154,10 @@ namespace FDG.Tests
             Assert.That(Vp(44, Board(owners: Owned((4, Me))), state), Is.EqualTo(0), "wrong objective");
         }
 
-        private static MissionKill Kill(int round, int victim, int killer, string cause, bool flying = false) =>
-            new() { Round = round, VictimSlot = victim, KillerSlot = killer, Cause = cause, Flying = flying };
+        private static MissionKill Kill(int round, int victim, int killer, string cause, bool flying = false,
+            bool aircraft = false, int tough = 1) =>
+            new() { Round = round, VictimSlot = victim, KillerSlot = killer, Cause = cause, Flying = flying,
+                Aircraft = aircraft, Tough = tough };
 
         [Test]
         public void KillCards_CountThisRoundAndHowItDied()
@@ -198,7 +200,54 @@ namespace FDG.Tests
             Assert.That(Vp(65, board, state, EGameSystem.AoFSkirmish), Is.EqualTo(1), "Skirmish: Tough(9)");
             Assert.That(Vp(65, board, state, EGameSystem.AgeOfFantasy), Is.EqualTo(0), "AoF: needs Tough(12)");
             state.ModelDeaths.Add(Death(2, Them, tough: 18));
+            Assert.That(Vp(65, board, state, EGameSystem.AoFSkirmish), Is.EqualTo(2), "Skirmish: a Tough(18) MODEL");
+            Assert.That(Vp(65, board, state, EGameSystem.AgeOfFantasy), Is.EqualTo(0),
+                "AoF / GF: 'destroy one enemy UNIT with Tough(18)' - a model out of a unit that still stands is not enough");
+            state.Kills.Add(Kill(2, Them, Me, "melee", tough: 18));
             Assert.That(Vp(65, board, state, EGameSystem.AgeOfFantasy), Is.EqualTo(2));
+            Assert.That(Vp(65, board, state, EGameSystem.GrimdarkFuture), Is.EqualTo(2));
+        }
+
+        // Mission Cards v3.6.0 (GF, GFF) and the AoF / AoF: Skirmish Advanced Rulebooks' card pages (p74 / p71): the
+        // fantasy deck pays 2 VP for Spellbreaker (62) and Cleanse the Skies (63), the sci-fi deck 1 VP for Purity and
+        // Bring Them Down; GF's card 63 reads "the Aircraft or Flying rule".
+        [Test]
+        public void PurityAndBringThemDown_PayWhatEachBookPrints()
+        {
+            var state = new MissionCardState();
+            state.ModelDeaths.Add(Death(2, Them, caster: true));
+            state.Kills.Add(Kill(2, Them, Me, "shooting", flying: true));
+            var board = Board(round: 2);
+            foreach (EGameSystem sci in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight })
+            {
+                Assert.That(Vp(62, board, state, sci), Is.EqualTo(1), sci + " Purity");
+                Assert.That(Vp(63, board, state, sci), Is.EqualTo(1), sci + " Bring Them Down");
+            }
+            foreach (EGameSystem fantasy in new[] { EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
+            {
+                Assert.That(Vp(62, board, state, fantasy), Is.EqualTo(2), fantasy + " Spellbreaker");
+                Assert.That(Vp(63, board, state, fantasy), Is.EqualTo(2), fantasy + " Cleanse the Skies");
+            }
+            Assert.That(MissionCardCatalog.Card(EGameSystem.AgeOfFantasy, 63).Title, Is.EqualTo("Cleanse the Skies"));
+            Assert.That(MissionCardCatalog.Card(EGameSystem.AoFSkirmish, 41).Title, Is.EqualTo("On the March"));
+            Assert.That(MissionCardCatalog.Card(EGameSystem.GFFirefight, 41).Title, Is.EqualTo("Move Out"));
+        }
+
+        [Test]
+        public void BringThemDown_CountsAircraft_InGrimdarkFutureOnly()
+        {
+            var state = new MissionCardState();
+            state.Kills.Add(Kill(2, Them, Me, "shooting", aircraft: true));
+            var board = Board(round: 2);
+            Assert.That(Vp(63, board, state, EGameSystem.GrimdarkFuture), Is.EqualTo(1),
+                "'Destroy one enemy unit with the Aircraft or Flying rule.'");
+            Assert.That(Vp(63, board, state, EGameSystem.GFFirefight), Is.EqualTo(0), "Firefight's card: Flying only");
+            Assert.That(MissionCardCatalog.Card(EGameSystem.GrimdarkFuture, 63).Conditions.Single().Text,
+                Does.Contain("Aircraft or Flying"));
+            Assert.That(MissionCardCatalog.Card(EGameSystem.GrimdarkFuture, 65).Conditions[0].Text,
+                Is.EqualTo("Destroy one enemy unit with Tough(12) or higher."));
+            Assert.That(MissionCardCatalog.Card(EGameSystem.GFFirefight, 65).Conditions[0].Text,
+                Is.EqualTo("Destroy one enemy model with Tough(9) or higher."));
         }
 
         [Test]
@@ -411,6 +460,36 @@ namespace FDG.Tests
             {
                 Assert.That(discarded, Is.Not.Empty, "this seed deals a bot a dead card, and it is thrown away");
             }
+        }
+
+        /// <summary>
+        /// Lane 1 (2026-11-27) card-by-card audit: plays card games in all four card games and checks that every card
+        /// scored paid one of the VP values that game's own printing gives that card. Explicit (slow); run with
+        /// FDG_CARD_SEEDS=n for more games. Prints a tally of which cards were scored where.
+        /// </summary>
+        [Test, Explicit("slow - the card audit sweep")]
+        public async Task CardAudit_EveryScoredCard_PaysWhatThatGamesCardPrints()
+        {
+            int n = int.TryParse(Environment.GetEnvironmentVariable("FDG_CARD_SEEDS"), out int k) ? k : 8;
+            var tally = new SortedDictionary<string, int>();
+            var wrong = new List<string>();
+            EGameSystem[] systems = { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish };
+            for (int seed = 0; seed < n; seed++)
+            {
+                foreach (EGameSystem system in systems)
+                {
+                    var (_, state, _) = await PlayAGame(7100 + seed, system, EMissionCardGame.BattleOfWits);
+                    foreach (MissionScore score in state!.Scored)
+                    {
+                        MissionCardDef card = MissionCardCatalog.Card(system, score.Card);
+                        string key = $"{system,-15} {score.Card} {card.Title}";
+                        tally[key] = tally.TryGetValue(key, out int c) ? c + 1 : 1;
+                        if (!card.Conditions.Any(x => x.Vp == score.Vp)) wrong.Add($"{key}: scored {score.Vp} VP");
+                    }
+                }
+            }
+            foreach (var kv in tally) TestContext.WriteLine($"{kv.Key}: {kv.Value}");
+            Assert.That(wrong, Is.Empty);
         }
 
         /// <summary>

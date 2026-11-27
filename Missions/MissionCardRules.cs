@@ -163,7 +163,8 @@ namespace FDG.Missions
                     return state.TopHeroes.Any(kv => board.Enemies(kv.Key, slot) && kv.Value.Count > 0
                         && state.ModelDeaths.Any(d => d.VictimSlot == kv.Key && kv.Value.Contains(d.ModelId) && (!h || HeroKilled(d, board, slot))));
                 case 62: return ModelsKilled(state, board, slot, h, d => d.Caster) >= 1;
-                case 63: return UnitsKilled(state, board, slot, h, k => k.Flying) >= 1;
+                case 63: return UnitsKilled(state, board, slot, h,
+                    k => k.Flying || (k.Aircraft && MissionCardCatalog.BringThemDownCountsAircraft(system))) >= 1;
                 case 64: // Assassinate
                 {
                     int n = ModelsKilled(state, board, slot, h, d => d.Hero);
@@ -172,7 +173,9 @@ namespace FDG.Missions
                 case 65: // Giant Slayer
                 {
                     int need = condition == 0 ? MissionCardCatalog.GiantSlayerTough(system) : MissionCardCatalog.GiantSlayerBigTough;
-                    return ModelsKilled(state, board, slot, h, d => d.Tough >= need) >= 1;
+                    return MissionCardCatalog.GiantSlayerCountsUnits(system)
+                        ? UnitsKilled(state, board, slot, h, k => k.Tough >= need) >= 1
+                        : ModelsKilled(state, board, slot, h, d => d.Tough >= need) >= 1;
                 }
                 case 66: // Show No Mercy
                 {

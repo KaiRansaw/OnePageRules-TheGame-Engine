@@ -36,6 +36,8 @@ namespace FDG.Missions
         public bool WantsHero { get; private set; }
         public bool WantsCaster { get; private set; }
         public bool WantsFlying { get; private set; }
+        /// <summary>Card 63 in Grimdark Future also pays for Aircraft.</summary>
+        public bool WantsAircraftToo { get; private set; }
         /// <summary>Giant Slayer: the lowest Tough value that pays (0 = not on a card).</summary>
         public int WantsToughAtLeast { get; private set; }
         /// <summary>Decapitate: the enemy's highest-cost Hero model ids still worth killing.</summary>
@@ -114,7 +116,10 @@ namespace FDG.Missions
                 case 51: WantsShootingKills = true; return;
                 case 52: case 66: WantsMelee = true; return;
                 case 62: WantsCaster = true; return;
-                case 63: WantsFlying = true; return;
+                case 63:
+                    WantsFlying = true;
+                    WantsAircraftToo = MissionCardCatalog.BringThemDownCountsAircraft(system);
+                    return;
                 case 64: WantsHero = true; return;
                 case 65: WantsToughAtLeast = MissionCardCatalog.GiantSlayerTough(system); return;
                 case 61:
@@ -142,8 +147,8 @@ namespace FDG.Missions
         public bool IsCardTarget(IUnit enemy)
         {
             if (!WantsKills) return false;
-            if (WantsFlying && (MissionCardGame.HasRule(enemy.RuleDefinitions, "Flying")
-                                || enemy.Models.Any(m => m.GetIsAlive() && MissionCardGame.HasRule(m.RuleDefinitions, "Flying"))))
+            if (WantsFlying && MissionCardGame.IsBringThemDownTarget(enemy,
+                    WantsAircraftToo ? EGameSystem.GrimdarkFuture : EGameSystem.AgeOfFantasy))
                 return true;
             foreach (IModel model in enemy.Models)
             {

@@ -47,6 +47,14 @@ namespace FDG.Missions
             rules.Any(r => string.Equals(r.Definition.Name, name, StringComparison.Ordinal)
                            || string.Equals(r.RequestedName, name, StringComparison.Ordinal));
 
+        /// <summary>Card 63's target: a unit with Flying - or, in Grimdark Future, Aircraft ("the Aircraft or Flying rule").</summary>
+        internal static bool IsBringThemDownTarget(IUnit unit, EGameSystem system, bool livingModelsOnly = true)
+        {
+            bool Has(string rule) => HasRule(unit.RuleDefinitions, rule)
+                || unit.Models.Any(m => (!livingModelsOnly || m.GetIsAlive()) && HasRule(m.RuleDefinitions, rule));
+            return Has("Flying") || (MissionCardCatalog.BringThemDownCountsAircraft(system) && Has("Aircraft"));
+        }
+
         internal static bool IsHeroRules(IReadOnlyList<ResolvedRule> rules) =>
             rules.Any(r => CoreRuleCatalog.IsHeroRuleName(r.Definition.Name) || CoreRuleCatalog.IsHeroRuleName(r.RequestedName));
 
@@ -108,6 +116,9 @@ namespace FDG.Missions
                 },
                 Flying = MissionCardGame.HasRule(dead.RuleDefinitions, "Flying")
                          || dead.Models.Any(m => MissionCardGame.HasRule(m.RuleDefinitions, "Flying")),
+                Aircraft = MissionCardGame.HasRule(dead.RuleDefinitions, "Aircraft")
+                           || dead.Models.Any(m => MissionCardGame.HasRule(m.RuleDefinitions, "Aircraft")),
+                Tough = dead.Models.Count == 0 ? 0 : dead.Models.Max(m => (int)MathF.Round(m.TotalWounds)),
                 KillerHero = MissionCardGame.UnitHasHero(killer),
             });
         }

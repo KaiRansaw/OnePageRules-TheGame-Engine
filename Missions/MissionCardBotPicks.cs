@@ -41,8 +41,7 @@ namespace FDG.Missions
             {
                 case 62: return Models(enemies).Any(x => MissionCardGame.IsCasterModel(x.Unit, x.Model)) ? 1f : 0f;
                 case 63:
-                    return enemies.Any(u => MissionCardGame.HasRule(u.RuleDefinitions, "Flying")
-                                            || u.Models.Any(m => m.GetIsAlive() && MissionCardGame.HasRule(m.RuleDefinitions, "Flying"))) ? 1f : 0f;
+                    return enemies.Any(u => MissionCardGame.IsBringThemDownTarget(u, System)) ? 1f : 0f;
                 case 64: return Models(enemies).Any(x => MissionCardGame.IsHeroModel(x.Unit, x.Model)) ? 1f : 0f;
                 case 65:
                     int tough = MissionCardCatalog.GiantSlayerTough(System);
