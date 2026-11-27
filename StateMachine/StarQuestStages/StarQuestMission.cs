@@ -48,6 +48,12 @@ namespace FDG.StateMachine
             secondarySetUpThisRound ? 3 : enemiesOnTable ? 1 : 2;
 
         public static int HazardPay(int difficulty) => 5 * difficulty;
+
+        /// <summary>The difficulty pick's hover text: the wave size (<see cref="WavePercent"/>) and the rewards.</summary>
+        public static string DifficultyDescription(EGameSystem system, int difficulty) =>
+            $"Enemy waves worth {WavePercent(difficulty)}% of the party's points. Rewards: "
+            + $"{FDG.Quest.QuestItemSkin.Money(system, HazardPay(difficulty))} hazard pay, {2 * difficulty} XP for the primary, "
+            + $"{difficulty} for the secondary.";
         public static int Xp(int difficulty, bool primary, bool secondary) => (primary ? 2 * difficulty : 0) + (secondary ? difficulty : 0);
 
         public static readonly string[] Injuries = { "", "Chest Wound", "Blinded Eye", "Smashed Leg", "Broken Arm", "Spinal Injury", "Crushed Spirit" };
@@ -172,7 +178,7 @@ namespace FDG.StateMachine
                 var request = new StringSelectionRequest(heroes[0].PlayerID, "Choose the mission's difficulty",
                     names, Array.Empty<StringSelectionRequest.InvalidOption>(),
                     optionDescriptions: names.Select((n, i) => (n, i + 1)).ToDictionary(p => p.n,
-                        p => $"Enemy waves worth {p.Item2 * 25}% of the party's points. Rewards: {FDG.Quest.QuestItemSkin.Money(GameContext.Settings.GameSystem, StarQuestMissionRules.HazardPay(p.Item2))} hazard pay, {2 * p.Item2} XP for the primary, {p.Item2} for the secondary."),
+                        p => StarQuestMissionRules.DifficultyDescription(GameContext.Settings.GameSystem, p.Item2)),
                     displayName: "Mission difficulty");
                 string pick = await GameContext.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
                 difficulty = Math.Max(1, names.IndexOf(pick) + 1);

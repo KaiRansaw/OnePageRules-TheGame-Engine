@@ -80,6 +80,16 @@ namespace FDG.Tests
 
         // A different curve end to end, not a tweak. Written out in full so a future edit has to disagree
         // with the book explicitly rather than drift.
+        // "Wave Size ... Difficulty 1 = 25%, Difficulty 2 = 50%, Difficulty 3 = 100%, Difficulty 4 = 200%". The budget was
+        // right; the difficulty pick's hover still said difficulty x 25% (75% for Expert, 100% for Legendary).
+        [TestCase(1, "25%")]
+        [TestCase(2, "50%")]
+        [TestCase(3, "100%")]
+        [TestCase(4, "200%")]
+        public void TheDifficultyPick_ShowsTheBooksWaveSize(int difficulty, string percent) =>
+            Assert.That(StarQuestMissionRules.DifficultyDescription(EGameSystem.GFStarQuest, difficulty),
+                Does.StartWith($"Enemy waves worth {percent} of the party's points."));
+
         [Test]
         public void XpForLevel_MatchesTheCampaignBuilder210Table()
         {
