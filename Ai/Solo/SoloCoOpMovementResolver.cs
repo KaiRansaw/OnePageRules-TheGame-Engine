@@ -54,12 +54,12 @@ namespace FDG.Ai.Solo
             // #460: the path check lets a model cross into a building (a flier passes over walls), but the building
             // rules - the whole unit goes in or none of it, room, 6" to leave - are the stage's next check, and a move
             // that breaks them faulted the game (lane 2 sweep, 2026-11-27: Flying riders arriving from Ambush on a
-            // Simplified Terrain table). Re-plan with the plain mover, else stand still.
+            // Simplified Terrain table). Re-plan with the plain mover, else hold exactly where it stands (a re-packed "stay" can itself step off the table or onto a friend).
             if (Breaks(request, result))
             {
                 result = await _baseline.Resolve(request);
                 if (Breaks(request, result))
-                    result = new Selected<List<ModelMoveEntry>>(Ai.Tactician.MovementPlanner.StayInPlace(request.UnitDataBinding));
+                    result = new Selected<List<ModelMoveEntry>>(Ai.Tactician.MovementPlanner.HoldExactPositions(request.UnitDataBinding.GetValue().ModelBindings.Where(m => m.GetValue().GetIsAlive()).ToList()));
             }
             return result;
         }

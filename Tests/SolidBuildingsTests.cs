@@ -275,6 +275,7 @@ namespace FDG.Tests
             _store.Create(new TeamData(0, new List<PlayerID> { _me }));
             _store.Create(new TeamData(1, new List<PlayerID> { _them }));
             UnitData squad = Unit(_me, 7f, 12f);   // models at x = 7, 8.1, 9.2
+            squad.ModelBindings[1].GetValue().SetPosition(new Position(8.1f, 12.8f));   // not a neat line: a re-pack would move it
             List<ModelMoveEntry> halfIn = MoveBy(squad, 2.5f, 0);   // only the last model ends inside (x 11.7)
             Assume.That(DefinePathStage.BuildingProblem(table, squad, halfIn), Is.Not.Null, "set-up: half the unit goes in");
             var plan = new FixedPlan(halfIn);
@@ -286,6 +287,10 @@ namespace FDG.Tests
             Assert.That(result, Is.InstanceOf<FDG.StageResolution.Selected<List<ModelMoveEntry>>>());
             var path = ((FDG.StageResolution.Selected<List<ModelMoveEntry>>)result).Value;
             Assert.That(DefinePathStage.BuildingProblem(table, squad, path), Is.Null, "never a move the stage refuses");
+            // Plan and fallback both broke the rules: the unit holds exactly where it stands. A re-packed "stay" moved
+            // models and could step them off the table or onto a friend (two more faults in the same sweep).
+            Assert.That(path.All(e => e.Positions.Count == 0
+                                      || Position.GetDistance2D(e.Positions[^1], e.Model.GetValue().Position) < 0.001f), Is.True);
         }
 
         [Test]

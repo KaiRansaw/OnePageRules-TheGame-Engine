@@ -140,7 +140,7 @@ namespace FDG.Ai.Tactician.Resolvers
             return BuildingSafe(request, _soloFallback.Resolve(request));
         }
 
-        /// <summary>The fallback's move too must keep the building rules; if not, the unit stands where it is.</summary>
+        /// <summary>The fallback's move too must keep the building rules; if not, the unit holds exactly where it stands (not a re-packed stay, which can step off the table).</summary>
         private async Task<CancellableResult<List<ModelMoveEntry>>> BuildingSafe(DefineMovementPathRequest request,
             Task<CancellableResult<List<ModelMoveEntry>>> pending)
         {
@@ -149,7 +149,7 @@ namespace FDG.Ai.Tactician.Resolvers
                 || DefinePathStage.BuildingProblem(_tableState, request.UnitDataBinding.GetValue(), path) == null)
                 return result;
             _log?.Invoke($"building {request.UnitDataBinding.GetValue().Name}: the fallback move broke the building rules - standing still");
-            return new Selected<List<ModelMoveEntry>>(MovementPlanner.StayInPlace(request.UnitDataBinding));
+            return new Selected<List<ModelMoveEntry>>(MovementPlanner.HoldExactPositions(request.UnitDataBinding.GetValue().ModelBindings.Where(m => m.GetValue().GetIsAlive()).ToList()));
         }
 
         // Re-plan toward the cached move's own destination at the SLOWEST model's allowance, with each
