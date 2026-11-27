@@ -1,3 +1,5 @@
+using FDG.Rules.Dispatch;
+using FDG.Utilities;
 using FDG.Ai;
 using FDG.Ai.Tactician;
 using FDG.Data;
@@ -214,6 +216,35 @@ namespace FDG.Tests
             Assert.That(Charge(9f, house), Is.True, "at the wall, 7\" from the model inside");
             Assert.That(Charge(9f, new TerrainData(ETerrainType.Cover, new RectangularZone(10, 20, 10, 20))), Is.False,
                 "an ordinary piece is no wall to touch");
+        }
+
+        [Test]
+        public void TheTacticalBots_ChargeAUnitInABuilding_AtItsWall()
+        {
+            // Lane 2, 2026-11-27: the Tactical and Expert bots graded a charge by base contact with the target's
+            // models, which sit deep inside the building, so every charge at an occupied building was Blocked - the
+            // building was a wall to them. The book: "To charge the building, simply move models in base contact with it".
+            var table = new TableState(_store);
+            TerrainData house = House(10, 10);
+            _store.Create(house);
+            _store.Create(new TeamData(0, new List<PlayerID> { _me }));
+            _store.Create(new TeamData(1, new List<PlayerID> { _them }));
+            UnitData inside = Unit(_them, 12f, 13f, models: 2);
+            _store.Create(new ArmyData(_them, new List<DataBinding<UnitData>> { _bindings[inside] }));
+            UnitData charger = Unit(_me, 1f, 13f);
+            _store.Create(new ArmyData(_me, new List<DataBinding<UnitData>> { _bindings[charger] }));
+
+            List<MacroAction> actions = MacroActionGenerator.Enumerate(new RuleEvaluator(new ProbabilisticDiceRoller()),
+                table, _bindings[charger]);
+            MacroAction? charge = actions.FirstOrDefault(a => a.Intent == EMacroIntent.ChargeToContact
+                                                             && ReferenceEquals(a.TargetEnemy, inside));
+
+            Assert.That(charge, Is.Not.Null, "a charge at the occupant is offered");
+            Assert.That(charge!.Feasibility, Is.EqualTo(EFeasibility.Reachable), "the wall is 6\" away - well within a charge");
+            Assert.That(charge.Move.Any(m => SolidBuildings.Touches(new ModelData(0.5f, new List<Weapon>(), m.Positions[^1], _store), house)),
+                Is.True, "the move ends at the wall");
+            Assert.That(charge.Move.All(m => !house.Shape.IsPointWithinZone(new Float2(m.Positions[^1].x, m.Positions[^1].z))),
+                Is.True, "and stays outside it");
         }
 
         [Test]

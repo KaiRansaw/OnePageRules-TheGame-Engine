@@ -498,6 +498,32 @@ namespace FDG.Ai.Tactician
             float contactDistance = leadRadius + (nearestModel?.BaseRadiusInches ?? 0.5f);
             string rationale = $"intent=ChargeToContact target={enemy.Name}";
 
+            // #460 Simplified Terrain (lane 2, 2026-11-27): "To charge the building, simply move models in base contact
+            // with it." An enemy inside a solid building is reached at its WALL - the planner's contact test (base to
+            // base with the target's models, deep inside) graded every such charge Blocked, so the Tactical and Expert
+            // bots treated an occupied building as a wall and never charged it. Aim at the wall's nearest point.
+            if (!ignoresAllTerrain && terrain.Any(SolidBuildings.Is)
+                && SolidBuildings.Holding(enemy, terrain) is { } building
+                && !ReferenceEquals(SolidBuildings.Holding(self, terrain), building)
+                && WallGoal(building, start, clearanceRadius) is { } wallGoal)
+            {
+                List<ModelMoveEntry> toWall = MovementPlanner.PlanMoveToward(unit, living, tableState, wallGoal,
+                    chargeReach, chargeReach, chargeBudgetFor,
+                    canMoveThroughEnemies, ignoresDifficult, ignoresAllTerrain, scene: scene);
+                bool atWall = toWall.Any(e =>
+                {
+                    Position p = e.Positions.Count > 0 ? e.Positions[^1] : e.Model.GetValue().Position;
+                    float r = e.Model.GetValue().BaseShape.CircumscribedRadiusInches;
+                    return building.Shape.DoesPathIntersectZone(new Float2(p.x, p.z), new Float2(p.x + 0.001f, p.z),
+                        r + GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL - 0.05f);
+                });
+                Position wallEnd = MoveCentroid(toWall, living);
+                float wallProgress = Distance(start, wallGoal) - Distance(wallEnd, wallGoal);
+                return new MacroAction(EMacroIntent.ChargeToContact, rationale + " (at the building wall)", EActionType.Charge,
+                    toWall, atWall ? EFeasibility.Reachable : wallProgress > 0.25f ? EFeasibility.BudgetClipped : EFeasibility.Blocked,
+                    wallEnd, TargetEnemy: enemy);
+            }
+
             List<ModelMoveEntry> move;
             // #361: clearanceRadius (circumscribed), matching what the swept-base validator will
             // accept - probing with the inscribed leadRadius sent wedged rect-based units down the
@@ -564,6 +590,28 @@ namespace FDG.Ai.Tactician
 
             return new MacroAction(EMacroIntent.ChargeToContact, rationale, EActionType.Charge,
                 move, feasibility, end, TargetEnemy: enemy);
+        }
+
+        /// <summary>
+        /// A point just outside the building's wall nearest <paramref name="start"/>, clear of it by the unit's base -
+        /// where a charge at an occupant ends. Null for a shape with no bounds or a start already inside it.
+        /// </summary>
+        private static Position? WallGoal(ITerrain building, Position start, float clearanceRadius)
+        {
+            if (building.Shape is not IBoundedZone bounded) return null;
+            ZoneBounds b = bounded.Bounds;
+            float x = Math.Clamp(start.x, b.Left, b.Right), z = Math.Clamp(start.z, b.Bottom, b.Top);
+            float dx = start.x - x, dz = start.z - z;
+            float d = MathF.Sqrt(dx * dx + dz * dz);
+            if (d < 0.01f) return null;
+            // Walk outward until the base is clear of the footprint (non-rectangular shapes inside their bounds).
+            for (float off = clearanceRadius + 0.15f; off <= clearanceRadius + 6f; off += 0.25f)
+            {
+                var p = new Position(x + dx / d * off, z + dz / d * off);
+                if (!building.Shape.DoesPathIntersectZone(new Float2(p.x, p.z), new Float2(p.x + 0.001f, p.z), clearanceRadius))
+                    return p;
+            }
+            return null;
         }
 
         /// <summary>
