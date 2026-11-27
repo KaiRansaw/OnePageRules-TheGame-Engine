@@ -51,22 +51,21 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void Indirect_QuestNeedsNoHold_ButTakesMinusOneAfterMoving()
+        public void Indirect_QuestPlaysTheBooksHoldOnlyRule_NotArmyForgesOlderText()
         {
+            // GFSQ Core Rules v2.1.0 / AoFQ Beginner's Guide v2.1.0: "When using Hold actions and shooting, may target
+            // enemies that are not in line of sight ..." - the same rule as the standard games. Army Forge still serves
+            // the older "-1 to hit when shooting after moving" text for Quest; the books win on what a rule does.
             SpecialRuleDefinition gf = Rule(EGameSystem.GrimdarkFuture, "Indirect");
-            Assert.That(Conditions(gf).OfType<Condition.TokenPresent>().Any(), Is.True, "GF: Hold only");
-            Assert.That(gf.Passive.Any(h => h.Effect is Effect.RollModifier), Is.False, "GF: no to-hit penalty");
-
             foreach (EGameSystem quest in new[] { EGameSystem.GFStarQuest, EGameSystem.AoFQuest })
             {
                 SpecialRuleDefinition q = Rule(quest, "Indirect");
-                HookEntry penalty = q.Passive.Single(h => h.Effect is Effect.RollModifier);
-                Assert.That(((Effect.RollModifier)penalty.Effect).Delta, Is.EqualTo(-1));
-                Assert.That(penalty.Condition, Is.EqualTo(new Condition.TokenPresent(TokenType.MovedThisRound)));
-                Assert.That(q.Passive.Where(h => h.Effect is Effect.IgnoreLineOfSight).All(h => h.Condition is Condition.Always),
-                    Is.True, "no Hold requirement");
+                Assert.That(q, Is.SameAs(gf), quest + " plays the catalog's Indirect");
+                Assert.That(q.Passive.Any(h => h.Effect is Effect.RollModifier), Is.False, quest + ": no to-hit penalty");
+                Assert.That(Conditions(q).OfType<Condition.TokenPresent>().Any(), Is.True, quest + ": Hold only");
             }
-            Assert.That(OfficialRuleText.OwnText("Indirect", "grimdark-future-star-quest"), Does.Contain("-1 to hit"));
+            Assert.That(OfficialRuleText.OwnText("Indirect", "grimdark-future-star-quest"), Does.Contain("-1 to hit"),
+                "Army Forge still has the older text - if this fails, Army Forge caught up and this note can go");
         }
 
         [TestCase(EGameSystem.GrimdarkFuture, 1, false)]

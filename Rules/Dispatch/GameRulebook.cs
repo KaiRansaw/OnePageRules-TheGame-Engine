@@ -61,7 +61,9 @@ namespace FDG.Rules.Dispatch
         private static readonly List<(string Rule, EGameSystem[] Games, EReading Reading, string Note)> Ledger = new()
         {
             ("Slayer", SkirmishAndQuest, EReading.OwnDefinition, "Tough(9) in the skirmish games, Tough(27) in Quest (#463)."),
-            ("Indirect", Quest, EReading.OwnDefinition, "No Hold needed; -1 to hit when shooting after moving (#463)."),
+            ("Indirect", Quest, EReading.SameBehaviour, "Played as GF's Hold-only rule: Army Forge's Quest text is the older "
+                + "\"-1 to hit after moving\" shape, but GFSQ Core Rules v2.1.0 and the AoFQ Beginner's Guide v2.1.0 print \"When using "
+                + "Hold actions and shooting ...\" - the books win on what a rule does (2026-11-27; #463 had followed Army Forge)."),
             ("Furious Buff", new[] { EGameSystem.AoFSkirmish, EGameSystem.GFStarQuest, EGameSystem.AoFQuest }, EReading.OwnDefinition,
                 "Up to 3 units; once per game in Star Quest; AoF: Quest's \"nearest\" not enforced (house rule) (#463)."),
             ("Fanatic", new[] { EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish }, EReading.OwnDefinition,

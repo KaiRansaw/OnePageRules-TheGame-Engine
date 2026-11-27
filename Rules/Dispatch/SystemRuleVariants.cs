@@ -35,8 +35,8 @@ namespace FDG.Rules.Dispatch
             EGameSystem.GFFirefight => new[] { SlayerAt(9) },
             EGameSystem.AoFSkirmish => new[] { SlayerAt(9), FuriousBuffUpTo3, FanaticHeroOnly },
             EGameSystem.AgeOfFantasy => new[] { FanaticHeroAndUnit },
-            EGameSystem.GFStarQuest => new[] { SlayerAt(27), QuestIndirect, FuriousBuffOncePerGameUpTo3 },
-            EGameSystem.AoFQuest => new[] { SlayerAt(27), QuestIndirect, FuriousBuffUpTo3Nearest },
+            EGameSystem.GFStarQuest => new[] { SlayerAt(27), FuriousBuffOncePerGameUpTo3 },
+            EGameSystem.AoFQuest => new[] { SlayerAt(27), FuriousBuffUpTo3Nearest },
             _ => Array.Empty<SpecialRuleDefinition>(),
         };
 
@@ -67,32 +67,10 @@ namespace FDG.Rules.Dispatch
             Description: $"On a Hold action and shooting, or when charging, this model's weapons get AP(+2) if most models in the target have Tough({tough}) or higher.");
 
         // ── Indirect ─────────────────────────────────────────────────────────────────────────────
-        // Both Quest systems: "May target enemies that are not in line of sight as if in line of sight, and
-        // ignores cover from sight obstructions, but gets -1 to hit rolls when shooting after moving." - the
-        // pre-3.6.0 shape: no Hold requirement, a -1 to hit instead. The four standard games say "When using
-        // Hold actions and shooting, ..." with no penalty (the catalog's definition).
-
-        private static SpecialRuleDefinition QuestIndirect { get; } = new("Indirect",
-            new[]
-            {
-                new HookEntry(EHookID.Shooting_OnSaveRollModifier,
-                    new Condition.Always(),
-                    new Effect.IgnoreLineOfSight(),
-                    ELifetime.ThisAttack),
-                new HookEntry(EHookID.Shooting_OnSaveRollModifier,
-                    new Condition.Always(),
-                    new Effect.IgnoreCover(),
-                    ELifetime.ThisAttack),
-                new HookEntry(EHookID.Shooting_OnHitRollModifier,
-                    new Condition.TokenPresent(TokenType.MovedThisRound),
-                    new Effect.RollModifier(ERollKind.Hit, Delta: -1),
-                    ELifetime.ThisAttack),
-            },
-            Array.Empty<ActivatedAbility>(),
-            ERuleScope.Weapon,
-            Valence: EValence.Positive,
-            Description: "Fires at targets out of line of sight as if in sight and ignores cover from sight "
-                + "obstructions, but gets -1 to hit when shooting after moving.");
+        // No Quest variant (2026-11-27). Army Forge's Quest text is the pre-3.6.0 shape ("... but gets -1 to hit rolls
+        // when shooting after moving", no Hold); GFSQ Core Rules v2.1.0 and the AoFQ Beginner's Guide v2.1.0 print the
+        // standard games' "When using Hold actions and shooting, ..." - the books win on what a rule does, so both Quest
+        // systems play the catalog's Hold-only Indirect. (#463 had followed Army Forge here.)
 
         // ── Furious Buff ─────────────────────────────────────────────────────────────────────────
         // GF / AoF: "pick one friendly unit within 12"". AoF: Skirmish: "pick up to 3 friendly units".
