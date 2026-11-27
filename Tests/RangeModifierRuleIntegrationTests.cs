@@ -233,6 +233,22 @@ namespace FDG.Tests
             Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), mortar, far.GetValue(), _ctx.RuleEvaluator), Is.EqualTo(24f));
         }
 
+        // The bots plan their approach with the reach a shot will really have (Star Quest AI "move to range").
+        [Test]
+        public void QuestNight_BotsPlanWithTheTwelveInchReach()
+        {
+            var mortar = new Weapon("Mortar", rangeInches: 30f, attacks: 1, armorPenetration: 0);
+            mortar.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
+            DataBinding<UnitData> rifles = MakeArmyUnit(_attackerPlayer, new Position(0, 0, 0), Rifle(24f));
+            DataBinding<UnitData> mortars = MakeArmyUnit(_attackerPlayer, new Position(5, 0, 0), mortar);
+            Assert.That(Ai.AiCombatMath.MaxRange(rifles.GetValue()), Is.EqualTo(24f));
+
+            rifles.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.NightSight));
+            mortars.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.NightSight));
+            Assert.That(Ai.AiCombatMath.MaxRange(rifles.GetValue()), Is.EqualTo(12f));
+            Assert.That(Ai.AiCombatMath.MaxRange(mortars.GetValue()), Is.EqualTo(30f), "Indirect fires past it");
+        }
+
         [TestCase("Night", true)]
         [TestCase("Dawn", false)]
         [TestCase("Dusk", false)]

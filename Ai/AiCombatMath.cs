@@ -35,9 +35,17 @@ namespace FDG.Ai
                 .Any(mb => LineOfSightUtilities.HasLineOfSight(SightEnd.Of(ma), SightEnd.Of(mb), terrain)));
 
         /// <summary>The longest ranged weapon on any living model, or 0 for a melee-only unit.</summary>
-        public static float MaxRange(IUnit unit) =>
-            unit.Models.Where(m => m.GetIsAlive()).SelectMany(m => m.Weapons)
-                .Select(w => w.RangeInches).DefaultIfEmpty(0f).Max();
+        public static float MaxRange(IUnit unit)
+        {
+            // Quest Night ("line of sight is limited to 12""): plan with the reach the shot will actually have.
+            float? night = Rules.Dispatch.RangeRuleQueries.NightSightLimit(unit);
+            return unit.Models.Where(m => m.GetIsAlive()).SelectMany(m => m.Weapons)
+                .Select(w => night is { } n && !IgnoresSight(w) ? Math.Min(w.RangeInches, n) : w.RangeInches)
+                .DefaultIfEmpty(0f).Max();
+        }
+
+        private static bool IgnoresSight(IWeapon w) =>
+            w.RuleDefinitions.Any(r => string.Equals(r.Definition.Name, "Indirect", StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// Average wounds the unit's weapons of one kind would deal to the target (hit, then fail to block).
