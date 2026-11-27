@@ -195,6 +195,10 @@ namespace FDG.Ai.Tactician
         // objective we do not already own; below MoveObjective so ARRIVING still dominates.
         public static float MoveObjectiveApproach = 0.4f;
 
+        // Smash & Grab / The Rescue (lane 2, 2026-11-27): a carried prize decides the mission, so making the edge with it
+        // (or getting at its carrier) outranks a marker - above MoveObjective.
+        public static float MoveMissionCarry = 1.25f;
+
         // ADDED 2026-11-15 (#462, Kai: the Tactical / Expert bots back in the lobby): mission cards. An objective a
         // card pays for weighs 1 + CardObjectivePerVp x VP in the objective terms (a Seize marker 2x, a Hold 3x),
         // and a card's kill target is worth CardTargetFactor x as much to shoot.

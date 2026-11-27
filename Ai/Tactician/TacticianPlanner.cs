@@ -1,3 +1,4 @@
+using FDG.Missions;
 using FDG.Data;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
@@ -1063,7 +1064,8 @@ namespace FDG.Ai.Tactician
                  // the wall the rear ranks halve their moves against; clearing it is what the M13
                  // SideStep candidates are for. Endpoint-only, so it compares candidates - the
                  // screen credit and marker deltas above outbid it whenever standing is real work.
-                 - TacticianWeights.MoveLaneBlock * LaneBlockValue(end);
+                 - TacticianWeights.MoveLaneBlock * LaneBlockValue(end)
+                 + TacticianWeights.MoveMissionCarry * MissionCarryValue(now, end, candidate);
 
             // #264 issue 2: the reachable bonus is a TIE-BREAK between candidates that are already
             // worth something ("if two plans are worth the same, take the one that actually gets
@@ -1073,6 +1075,36 @@ namespace FDG.Ai.Tactician
             // won and a walled unit rushed backwards to the table edge.
             bool tieBreak = candidate.Feasibility == EFeasibility.Reachable && substantive > 0f;
             return substantive + (tieBreak ? TacticianWeights.MoveReachableBonus : 0f);
+        }
+
+        /// <summary>
+        /// Smash &amp; Grab / The Rescue (lane 2, 2026-11-27): the Tactical and Expert bots knew nothing of a carried prize -
+        /// the carrier wandered and nobody chased it. The official bot's plan (<see cref="Solo.SoloAiMissions"/>) is the
+        /// model: the carrier makes for the nearest table edge; every non-Shaken enemy of the carrier closes on it, and a
+        /// charge at it is worth most. In twelfths of the move made good (1 = 12" closer), a charge at the carrier 1.5.
+        /// </summary>
+        private float MissionCarryValue(Position now, Position end, MacroAction candidate)
+        {
+            if (_activeUnit == null) return 0f;
+            ExtraMissionState? s;
+            try { s = GameProgressUtilities.ExtraMission(_tableState.DataStore); }
+            catch (Exception) { return 0f; }
+            if (s == null || s.Mission is not (EExtraMission.SmashAndGrab or EExtraMission.TheRescue) || s.Carried.Count == 0) return 0f;
+            UnitData self = _activeUnit.GetValue();
+            IUnit? carrier = _tableState.Units.Objects.FirstOrDefault(u => u.ID.ID.ToString() == s.Carried[0].Unit && u.GetIsAlive());
+            if (carrier == null) return 0f;
+            if (carrier.ID.ID == self.ID.ID)
+            {
+                Position edge = Solo.SoloAiMissions.EdgeGoal(self);
+                return Math.Clamp((Distance(now, edge) - Distance(end, edge)) / 12f, -1f, 1f);
+            }
+            if (ITeamExtensions.AreAllied(_tableState.Teams.Objects, self.PlayerID, carrier.PlayerID)) return 0f;
+            if (self.Tokens.HasToken(TokenType.Shaken)) return 0f;
+            if (candidate.ActionType == EActionType.Charge && candidate.TargetEnemy != null
+                && candidate.TargetEnemy.ID.ID == carrier.ID.ID && candidate.Feasibility == EFeasibility.Reachable)
+                return 1.5f;
+            Position at = new Position(carrier.Models.Where(m => m.GetIsAlive()).Average(m => m.Position.x), carrier.Models.Where(m => m.GetIsAlive()).Average(m => m.Position.z));
+            return Math.Clamp((Distance(now, at) - Distance(end, at)) / 12f, -1f, 1f);
         }
 
         /// <summary>
