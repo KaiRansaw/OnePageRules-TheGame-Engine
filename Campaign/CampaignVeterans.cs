@@ -216,12 +216,14 @@ namespace FDG.Campaign
         /// <summary>One line for the memorial page.</summary>
         public static string Epitaph(FallenUnit f)
         {
-            string what = f.UnitType.Length > 0 && f.UnitType != f.Name ? $" ({f.UnitType})" : "";
+            // Shown under the unit's name, so it starts with what the unit was rather than repeating the name.
+            string what = f.UnitType.Length > 0 ? f.UnitType : "Unit";
             string level = f.Level > 0 ? $", level {f.Level}" : "";
+            string salvaged = f.SalvagedFrom.Length > 0 ? $" (salvaged from {f.SalvagedFrom})" : "";
             string kills = f.HeroKills > 0 ? $"{f.Kills} kills and {f.HeroKills} Hero(es)" : $"{f.Kills} kill(s)";
             string how = f.FellTo.Length > 0 ? $"destroyed by {f.FellTo}" : "lost";
             string where = f.Against.Length > 0 ? $" against {f.Against}" : "";
-            return $"{f.Title}{what}{level}: {f.Missions} mission(s), {kills}. Fell in mission {f.Mission}{where}, {how}.";
+            return $"{what}{level}{salvaged}. {f.Missions} mission(s), {kills}. Fell in mission {f.Mission}{where}, {how}.";
         }
     }
 }
