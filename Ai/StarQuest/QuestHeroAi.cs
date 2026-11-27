@@ -18,7 +18,12 @@ namespace FDG.Ai.StarQuest
     }
 
     /// <summary>Where a hero is going and how close it needs to get.</summary>
-    public sealed record QuestHeroPlan(EHeroAim Aim, Position Goal, float StopWithin, string Why);
+    public sealed record QuestHeroPlan(EHeroAim Aim, Position Goal, float StopWithin, string Why)
+    {
+        /// <summary>For a corner aim (leaving, or a Capture / Retrieval carry): the corner itself. The hero has
+        /// arrived once its whole base is within 6" of it, wherever <see cref="Goal"/> (a free spot there) is.</summary>
+        public Position? Corner { get; init; }
+    }
 
     /// <summary>
     /// #419 - the hero side of the Quest AI.
@@ -139,8 +144,7 @@ namespace FDG.Ai.StarQuest
                     int corner = carried.ForSecondary
                         ? NearestCorner(hero)
                         : quest.HeroCorner >= 1 && quest.HeroCorner <= 4 ? quest.HeroCorner : NearestCorner(hero);
-                    return new QuestHeroPlan(EHeroAim.Deliver, StarQuestMissionRules.Corner(corner),
-                        ExitReachInches, $"carry it to corner {corner}");
+                    return CornerPlan(table, hero, EHeroAim.Deliver, corner, $"carry it to corner {corner}");
                 }
             }
 
@@ -154,8 +158,7 @@ namespace FDG.Ai.StarQuest
             {
                 int corner = ExitCorner(table, quest);
                 string why = quest.SecondaryDone ? "every objective is done" : "cut losses with the primary banked";
-                return new QuestHeroPlan(EHeroAim.Exfiltrate, StarQuestMissionRules.Corner(corner),
-                    ExitReachInches, $"leave by corner {corner} - {why}");
+                return CornerPlan(table, hero, EHeroAim.Exfiltrate, corner, $"leave by corner {corner} - {why}");
             }
 
             // 3. An objective marker for whichever objective is live. Mirrors QuestMission.AiGoal's choice of
@@ -230,7 +233,82 @@ namespace FDG.Ai.StarQuest
 
         /// <summary>True when the hero is close enough to act - no point moving.</summary>
         public static bool InReach(IUnit hero, QuestHeroPlan plan) =>
-            QuestMission.DistanceToPoint(hero, plan.Goal) <= plan.StopWithin;
+            plan.Corner is { } corner
+                ? FarthestToPoint(hero, corner) <= CornerReachInches - ArrivedMarginInches
+                : QuestMission.DistanceToPoint(hero, plan.Goal) <= plan.StopWithin;
+
+        /// <summary>The book's corner test: "within 6\" of one table corner", the whole base.</summary>
+        public const float CornerReachInches = 6f;
+
+        /// <summary>How far inside the 6" a hero has to be before it counts itself there.</summary>
+        private const float ArrivedMarginInches = 0.2f;
+
+        /// <summary>
+        /// A corner aim. The goal is a FREE spot inside the corner, not the corner point itself. Seen in a
+        /// played AoF: Quest mission (seed 91029): two heroes reached the corner first and stood across
+        /// the only straight line to it, so the third walked into them every round, stopped 6.9" out, and
+        /// the party - both objectives done - never left. 980 rounds of Scurry. Aiming each hero at its own
+        /// clear spot inside the 6" lets it walk round the others.
+        /// </summary>
+        private static QuestHeroPlan CornerPlan(ITableState table, IUnit hero, EHeroAim aim, int corner, string why)
+        {
+            Position cornerPoint = StarQuestMissionRules.Corner(corner);
+            Position? spot = FreeCornerSpot(table, hero, cornerPoint);
+            return new QuestHeroPlan(aim, spot ?? cornerPoint, spot != null ? 0f : ExitReachInches, why)
+            {
+                Corner = cornerPoint,
+            };
+        }
+
+        /// <summary>
+        /// The nearest point to the hero where its whole base sits inside the corner's 6" with room to
+        /// spare, clear of every enemy model by more than 1" (the general movement rule), off its friends, and of Impassable
+        /// terrain. Null when the corner has no room left - the walk then aims at the corner point as before.
+        /// </summary>
+        internal static Position? FreeCornerSpot(ITableState table, IUnit hero, Position cornerPoint)
+        {
+            IModel? me = hero.Models.FirstOrDefault(m => m.GetIsAlive());
+            if (me == null) return null;
+            float r = me.BaseRadiusInches;
+            // A stop distance of 0 walks the centre onto the spot (AiMoveExecutor.Toward), so the spot sits
+            // one radius plus a margin inside the 6". Hero bases are big (60mm in the played mission), so the
+            // margin is kept small or three of them do not fit in the corner at all.
+            float maxFromCorner = CornerReachInches - r - 0.3f;
+            if (maxFromCorner <= r) return null;
+
+            // Clear of enemies by the 1" movement rule; friends only need not to overlap - the party stood
+            // base to base in the played mission, and the exit has to fit the whole party.
+            var others = table.Units.Objects
+                .Where(u => u.ID != hero.ID && u.GetIsOnBattlefield())
+                .SelectMany(u => u.Models.Where(m => m.GetIsAlive())
+                    .Select(m => (Model: m, Gap: ITeamExtensions.AreAllied(table.Teams.Objects, u.PlayerID, hero.PlayerID) ? 0.1f : 1.05f)))
+                .ToList();
+            var impassable = table.Terrain.Objects
+                .Where(t => t.TerrainType.HasFlag(ETerrainType.Impassible) || t.TerrainType.HasFlag(ETerrainType.Climbable))
+                .ToList();
+            float sx = cornerPoint.x < StarQuestMissionRules.W / 2f ? 1f : -1f;
+            float sz = cornerPoint.z < StarQuestMissionRules.H / 2f ? 1f : -1f;
+
+            Position? best = null;
+            float bestDistance = float.MaxValue;
+            const float Step = 0.25f;
+            for (float dx = r + 0.05f; dx <= maxFromCorner; dx += Step)
+                for (float dz = r + 0.05f; dz <= maxFromCorner; dz += Step)
+                {
+                    if (dx * dx + dz * dz > maxFromCorner * maxFromCorner) continue;
+                    var p = new Position(cornerPoint.x + sx * dx, cornerPoint.z + sz * dz);
+                    if (others.Any(o => Position.GetDistance2D(o.Model.Position, p) < r + o.Model.BaseRadiusInches + o.Gap)) continue;
+                    if (PlacementUtilities.OverlapsImpassibleTerrain(p, r, impassable)) continue;
+                    float d = Position.GetDistance2D(me.Position, p);
+                    if (d < bestDistance) { bestDistance = d; best = p; }
+                }
+            return best;
+        }
+
+        private static float FarthestToPoint(IUnit hero, Position p) =>
+            hero.Models.Where(m => m.GetIsAlive())
+                .Select(m => Position.GetDistance2D(m.Position, p) + m.BaseRadiusInches)
+                .DefaultIfEmpty(float.MaxValue).Max();
 
         private static QuestMarker? Nearest(ITableState table, IUnit hero, IEnumerable<QuestMarker> markers) =>
             markers.OrderBy(m => QuestMission.DistanceToPoint(hero, QuestMission.Where(table, m)))

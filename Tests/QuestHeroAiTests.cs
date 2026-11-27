@@ -49,9 +49,9 @@ namespace FDG.Tests
             _context = new TestGameContext(_store, new FixedDiceRoller(4), settings: settings);
         }
 
-        private DataBinding<UnitData> Hero(string name, float x, float z)
+        private DataBinding<UnitData> Hero(string name, float x, float z, float baseRadius = 0.5f)
         {
-            var model = new ModelData(baseRadiusInches: 0.5f, weapons: new List<Weapon>(),
+            var model = new ModelData(baseRadiusInches: baseRadius, weapons: new List<Weapon>(),
                 initialPosition: new Position(x, z), gameDataStore: _store);
             DataBinding<ModelData> modelBinding = _store.GetDataBinding<ModelData>(_store.Create(model));
             var unit = new UnitData(_heroes, name, quality: 4, defense: 5,
@@ -208,8 +208,8 @@ namespace FDG.Tests
 
             Assert.That(plan!.Aim, Is.EqualTo(EHeroAim.Deliver));
             Position expected = StarQuestMissionRules.Corner(QuestHeroAi.NearestCorner(hero.GetValue()));
-            Assert.That(plan.Goal.x, Is.EqualTo(expected.x).Within(0.01f));
-            Assert.That(plan.Goal.z, Is.EqualTo(expected.z).Within(0.01f),
+            Assert.That(plan.Corner!.Value.x, Is.EqualTo(expected.x).Within(0.01f));
+            Assert.That(plan.Corner.Value.z, Is.EqualTo(expected.z).Within(0.01f),
                 "any corner counts, so the nearest one is the shortest walk.");
         }
 
@@ -234,8 +234,8 @@ namespace FDG.Tests
 
             Assert.That(plan!.Aim, Is.EqualTo(EHeroAim.Deliver));
             Position own = StarQuestMissionRules.Corner(4);
-            Assert.That(plan.Goal.x, Is.EqualTo(own.x).Within(0.01f));
-            Assert.That(plan.Goal.z, Is.EqualTo(own.z).Within(0.01f),
+            Assert.That(plan.Corner!.Value.x, Is.EqualTo(own.x).Within(0.01f));
+            Assert.That(plan.Corner.Value.z, Is.EqualTo(own.z).Within(0.01f),
                 "Retrieval only scores in the party's own corner, whichever is nearest.");
         }
 
@@ -279,11 +279,12 @@ namespace FDG.Tests
 
             Assert.That(first!.Aim, Is.EqualTo(EHeroAim.Exfiltrate));
             Assert.That(second!.Aim, Is.EqualTo(EHeroAim.Exfiltrate));
-            Assert.That(second.Goal.x, Is.EqualTo(first.Goal.x).Within(0.01f));
-            Assert.That(second.Goal.z, Is.EqualTo(first.Goal.z).Within(0.01f),
+            Assert.That(first.Corner, Is.Not.Null);
+            Assert.That(second.Corner!.Value.x, Is.EqualTo(first.Corner!.Value.x).Within(0.01f));
+            Assert.That(second.Corner.Value.z, Is.EqualTo(first.Corner.Value.z).Within(0.01f),
                 "every hero must pick the SAME corner - HeroesAtOneCorner wants them all at one, so two "
                 + "heroes heading for opposite corners means nobody ever leaves.");
-            Assert.That(first.StopWithin, Is.LessThan(6f),
+            Assert.That(Position.GetDistance2D(first.Goal, first.Corner.Value) + 0.5f, Is.LessThan(6f),
                 "the exit test measures the whole base within 6\", so the walk aims well inside it.");
         }
 
@@ -531,18 +532,57 @@ namespace FDG.Tests
             var resolver = new StarQuestMovementResolver(Table, _heroes, null, new StarQuestAiMemory());
             Position corner = StarQuestMissionRules.Corner(1);
 
-            float previous = QuestMission.DistanceToPoint(hero.GetValue(), corner);
-            for (int activation = 0; activation < 10 && previous > QuestHeroAi.ExitReachInches; activation++)
+            for (int activation = 0; activation < 10
+                && !QuestHeroAi.InReach(hero.GetValue(), QuestHeroAi.Plan(Table, hero.GetValue())!); activation++)
             {
                 var request = new DefineMovementPathRequest(_heroes, "Move", hero,
                     maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f,
                     mainActivationMove: true);
                 Apply(Unwrap(await resolver.Resolve(request)));
-                previous = QuestMission.DistanceToPoint(hero.GetValue(), corner);
+            }
+            ModelData model = hero.GetValue().ModelBindings[0].GetValue();
+            float farthest = Position.GetDistance2D(model.Position, corner) + model.BaseRadiusInches;
+
+            Assert.That(farthest, Is.LessThanOrEqualTo(QuestHeroAi.CornerReachInches),
+                "a party that cannot walk to its own corner can never finish a mission it has won.");
+        }
+
+        [Test]
+        public async Task AHeroAlreadyInTheCorner_DoesNotKeepTheNextOneOut()
+        {
+            // Found in a played AoF: Quest mission (seed 91029): both objectives done, the heroes (on 60mm
+            // bases) walked at the corner point and stopped as soon as an edge was 4" from it. The first one
+            // in stood right in the middle of the corner, the second fetched up against it 6.2" out, and the
+            // party never left (980 rounds of Scurry until the round cap). Each hero now aims at its own free
+            // spot inside the 6", so the second walks round the first.
+            Quest(q =>
+            {
+                q.PrimaryDone = true;
+                q.Secondary = 4;
+                q.SecondaryDone = true;
+                q.HeroCorner = 4;
+            });
+            Position corner = StarQuestMissionRules.Corner(4);
+            const float SixtyMil = 1.1811024f;
+            Hero("Wizard", corner.x - 1.5f, corner.z - 3.0f, SixtyMil);
+            DataBinding<UnitData> rogue = Hero("Rogue", corner.x - 3.9f, corner.z - 3.1f, SixtyMil);
+            var resolver = new StarQuestMovementResolver(Table, _heroes, null, new StarQuestAiMemory());
+
+            for (int activation = 0; activation < 3; activation++)
+            {
+                QuestHeroPlan plan = QuestHeroAi.Plan(Table, rogue.GetValue())!;
+                if (QuestHeroAi.InReach(rogue.GetValue(), plan)) break;
+                var request = new DefineMovementPathRequest(_heroes, "Move", rogue,
+                    maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f,
+                    mainActivationMove: true);
+                Apply(Unwrap(await resolver.Resolve(request)));
             }
 
-            Assert.That(previous, Is.LessThanOrEqualTo(QuestHeroAi.ExitReachInches),
-                "a party that cannot walk to its own corner can never finish a mission it has won.");
+            ModelData model = rogue.GetValue().ModelBindings[0].GetValue();
+            float farthest = Position.GetDistance2D(model.Position, corner) + model.BaseRadiusInches;
+            Assert.That(farthest, Is.LessThanOrEqualTo(6f),
+                $"the second hero must get its whole base within 6\" of the corner (it is {farthest:F2}\" out at " +
+                $"{model.Position.x:F1},{model.Position.z:F1}), or the mission can never end.");
         }
 
         private static List<ModelMoveEntry> Unwrap(CancellableResult<List<ModelMoveEntry>> result) =>
