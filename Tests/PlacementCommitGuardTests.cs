@@ -77,6 +77,43 @@ namespace FDG.Tests
                 "the violation must be named in the game log - a recurrence is a diagnosis, not a mystery");
         }
 
+        // The re-place can only search the request's zone; when that zone is packed it may come back
+        // deeper in than the placement it was asked to fix (a 1000pt AoF bot game: 0.09in became 0.13in).
+        // The guard keeps whichever overlaps less.
+        [Test]
+        public async Task ARePlaceThatIsWorse_KeepsTheOriginal()
+        {
+            // The zone is solid with bystanders; the incoming unit was set just outside it, brushing one.
+            var zone = new RectangularZone(0f, 6f, 0f, 3f);
+            var crowd = new List<DataBinding<ModelData>>();
+            for (float z = 0.5f; z < 3f; z += 1.0f)
+                for (float x = 0.5f; x < 6f; x += 1.0f)
+                    crowd.Add(_store.GetDataBinding<ModelData>(_store.Create(
+                        new ModelData(0.5f, new List<Weapon>(), new Position(x, z), _store))));
+            _store.Create(new UnitData(_me, "Crowd", 4, 4, crowd));
+
+            var models = new List<DataBinding<ModelData>>
+            {
+                _store.GetDataBinding<ModelData>(_store.Create(
+                    new ModelData(0.5f, new List<Weapon>(), new Position(0f, 0f), _store))),
+            };
+            _store.Create(new UnitData(_me, "Newcomer", 4, 4, models));
+            var request = new PlaceObjectsRequest<ModelData>(_me, "Place Unit Models", zone, models);
+            // 0.05in into the crowd's top-left model at (0.5, 2.5).
+            var placements = new List<PlacedObjectEntry<ModelData>>
+            {
+                new PlacedObjectEntry<ModelData>(models[0], new Position(0.5f, 3.45f), null),
+            };
+
+            List<PlacedObjectEntry<ModelData>> result =
+                await PlacementCommitGuard.EnsureClear(_ctx, request, placements);
+
+            Assert.That(result, Is.SameAs(placements),
+                "the only spots in the zone are deeper in the crowd, so the original placement stands");
+            Assert.That(_log.Lines.Any(l => l.Contains("no clear spot") && l.Contains("0.05in")), Is.True,
+                "the log names the overlap actually committed");
+        }
+
         // A 3-model unit already standing on the table.
         private List<DataBinding<ModelData>> CreatePlacedUnit(string name, Position centre)
         {

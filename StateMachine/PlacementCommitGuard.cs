@@ -85,12 +85,17 @@ namespace FDG.Stages
 
             (string stillBlocker, float stillDepth) =
                 WorstOverlap(gameContext.TableState, request, selected.Value);
+            // The re-place is a fresh search from a different start, so in a crowded zone it can come back
+            // worse than what it replaces (seen: 0.09in became 0.13in). Keep whichever overlaps less.
+            bool keepOriginal = stillDepth > depth;
             if (stillDepth > OverlapToleranceInches && logWarnings)
             {
                 gameContext.Log($"WARNING: no clear spot for {unitName}; committing the " +
-                    $"least-overlapping placement ({stillDepth:F2}in against {stillBlocker}).");
+                    (keepOriginal
+                        ? $"least-overlapping placement ({depth:F2}in against {blocker})."
+                        : $"least-overlapping placement ({stillDepth:F2}in against {stillBlocker})."));
             }
-            return selected.Value;
+            return keepOriginal ? placements : selected.Value;
         }
 
         // Deepest interpenetration between the proposed placements and any OTHER unit's living,
