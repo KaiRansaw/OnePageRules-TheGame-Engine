@@ -425,11 +425,13 @@ namespace FDG.StateMachine
             if (hero == null || xp <= 0) return;
             int before = hero.Level;
             hero.Xp += xp;
-            int after = QuestProgression.LevelForXp(hero.Xp);
+            // Quest Horde levels by its own book's table; missions by the Campaign Builder's.
+            bool horde = _gameContext.Settings.GameMode == EGameMode.StarQuestHorde;
+            int after = QuestProgression.LevelForXp(hero.Xp, horde);
             _gameContext.Log($"  {hero.Name} gains {xp} XP ({hero.Xp} total).");
             for (int level = before + 1; level <= after; level++)
             {
-                string[] options = QuestProgression.LevelOptions[level];
+                string[] options = QuestProgression.OptionsFor(level, horde);
                 string pick = options[0];
                 if (options.Length > 1)
                 {

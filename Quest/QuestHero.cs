@@ -193,14 +193,42 @@ namespace FDG.Quest
             new[] { "+1 Str", "+1 Dex", "+1 Wil" },
         };
 
+        /// <summary>
+        /// Quest Horde's own levelling table: Horde Mode v2.0.0 (GF: Star Quest and AoF: Quest - the current Horde
+        /// books) prints a different curve from the Campaign Builder v2.1.0 one above: level 2 at 2 XP, 15 at 122.
+        /// Horde heroes start at level 1 and earn XP per wave, so a Horde game levels by this table (bug hunt
+        /// 2026-11-27 run 4: Horde was using the Campaign Builder table, so a hero at 2 XP stayed level 1).
+        /// </summary>
+        public static readonly int[] HordeXpForLevel = { 0, 0, 2, 4, 8, 12, 18, 24, 32, 40, 50, 60, 82, 94, 108, 122 };
+
+        /// <summary>
+        /// Quest Horde's improvements per level (Horde Mode v2.0.0). Same as the Campaign Builder's except levels 4
+        /// and 8, which the Horde book has the other way round: 4 = +2 Tou / +1 Qua, 8 = +2 Tou / +2 Pow.
+        /// </summary>
+        public static readonly string[][] HordeLevelOptions = LevelOptions
+            .Select((o, level) => level switch
+            {
+                4 => new[] { "+2 Tou", "+1 Qua" },
+                8 => new[] { "+2 Tou", "+2 Pow" },
+                _ => o,
+            })
+            .ToArray();
+
         /// <summary>The level a hero with this much XP has reached.</summary>
-        public static int LevelForXp(int xp)
+        public static int LevelForXp(int xp) => LevelForXp(xp, horde: false);
+
+        /// <summary>The level a hero with this much XP has reached, by the Horde book's table when <paramref name="horde"/>.</summary>
+        public static int LevelForXp(int xp, bool horde)
         {
+            int[] table = horde ? HordeXpForLevel : XpForLevel;
             int level = 1;
             for (int l = 2; l <= MaxLevel; l++)
-                if (xp >= XpForLevel[l]) level = l;
+                if (xp >= table[l]) level = l;
             return level;
         }
+
+        /// <summary>The improvements on offer at a level, by the Horde book's table when <paramref name="horde"/>.</summary>
+        public static string[] OptionsFor(int level, bool horde) => (horde ? HordeLevelOptions : LevelOptions)[level];
 
         /// <summary>The highest skill / shop tier unlocked at a level: tier 1 at level 2, tier 2 at 5, tier 3 at 9.</summary>
         public static int TierUnlocked(int level) => level >= 9 ? 3 : level >= 5 ? 2 : level >= 2 ? 1 : 0;
