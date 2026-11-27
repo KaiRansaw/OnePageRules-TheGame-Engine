@@ -434,6 +434,25 @@ namespace FDG.Tests
             Assert.That(await CommandPoints.OfferEternalVigilance(_context, _theirUnit, _theirUnit.Models.First()), Is.False, "not their doctrine");
         }
 
+        // Lane 1 (2026-11-27): Eternal Vigilance also covers wounds that aren't an attack (Dangerous terrain, falling, a
+        // unit's pool of self-inflicted / event wounds) - "a wound which would kill it", whatever dealt it.
+        [Test]
+        public async Task EternalVigilance_AlsoSavesAModelFromANonAttackWound()
+        {
+            Build(face: 4, CommandPoints.Fixed, answer: Says(true), roller: new FaceSequence(1, 1, 4, 3));
+            await CommandPoints.Settle(_context);
+            Doctrines(mine: 2, theirs: 1);
+            IModel m = _myUnit.Models.First();
+
+            await FDG.Stages.CasualtyPresentation.ApplyUnitWounds(_context, _myUnit, 1f);
+            Assert.That(m.GetIsAlive(), Is.True, "the 4+ ignored the killing wound");
+            Assert.That(CommandPoints.Of(_context, _me), Is.EqualTo(7));
+
+            CommandPoints.NewActivation(_context);
+            await FDG.Stages.CasualtyPresentation.ApplyUnitWounds(_context, _myUnit, 1f);
+            Assert.That(m.GetIsAlive(), Is.False, "a 3: the wound lands");
+        }
+
         [Test]
         public async Task TotalShutdown_AndHinderedAdvance_BelongToTheirDoctrines()
         {

@@ -365,7 +365,28 @@ namespace FDG.Stages
                     success = castRoll.AtOrAbove(threshold) >= 1f;
                 }
             }
-            bool backlash = (twoD6 && dieA == dieB) || (pools && castDice.Contains(1));
+            // Command Points - High Command ("Add +1 to the result of any single die") on the casting roll (lane 1,
+            // 2026-11-27; it was offered on hit, Defense and morale rolls only). Offered when the cast missed by exactly
+            // 1: the single die one short of the threshold, or the 2D6 total one short. A natural 1 is never lifted
+            // (house rules C, "a roll of 1 always fails"). Magic Pools' many-dice casts are not offered yet.
+            bool rolledDoubles = twoD6 && dieA == dieB;   // the backlash reads the dice as rolled, before any +1
+            if (!success && !pools)
+            {
+                int face = twoD6 ? 0 : DecisiveFace(castRoll);
+                bool oneShort = twoD6 ? dieA + dieB == threshold - 1 && dieA + dieB > 2 : face == threshold - 1 && face > 1;
+                if (oneShort && await CommandPoints.CommandDice(GameContext, caster.PlayerID, 1, threshold, "casting roll", caster.Name) > 0)
+                {
+                    success = true;
+                    if (twoD6) { if (dieA < 6) dieA++; else dieB++; }
+                    else
+                    {
+                        var sides = new float[6];
+                        sides[face] = 1f;   // face + 1, 1-based
+                        castRoll = new DiceResults(sides);
+                    }
+                }
+            }
+            bool backlash = rolledDoubles || (pools && castDice.Contains(1));
 
             // #233 — show the die itself: tumbling roll with the shifted threshold, settling into a short
             // outcome summary. The banner below carries the full math. #289: FromDecisive - the cast die is

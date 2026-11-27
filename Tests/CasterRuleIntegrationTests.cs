@@ -590,6 +590,57 @@ namespace FDG.Tests
                 "the RuleGrant token carries the spell's granted rule");
         }
 
+        // Lane 1 (2026-11-27): Command Points' High Command - "Add +1 to the result of any single die" - is offered on the
+        // casting roll too. A 3 against the 4+ casts with it; the CP are spent. Without Command Points nothing is asked.
+        [TestCase(true)]
+        [TestCase(false)]
+        public async Task CastSpellStage_ACastOneShort_IsLiftedByHighCommand(bool commandPoints)
+        {
+            var asked = new List<string>();
+            var ctx = new TriggeredMoveTestContext(_store, new CpAnsweringRequester(new CannedCastRequester(), asked),
+                new FixedFaceDiceRoller(3));
+            if (commandPoints)
+            {
+                GameSettings settings = ctx.Settings;
+                settings.AdvancedRules = CommandPoints.WithPick(EAdvancedRules.CommandPoints, CommandPoints.Fixed);
+                ctx.Settings = settings;
+            }
+            _store.Create(new TeamData(1, new List<PlayerID> { _player }));
+            DataBinding<UnitData> caster = MakeCasterUnit(casterRating: 3, tokens: 2,
+                new[] { BuffSpell("Bless", threshold: 1, grantedRule: "Furious") }, new Position(10f, 10f));
+            caster.GetValue().PointCost = 1000;
+            await CommandPoints.Settle(ctx);
+            int cpBefore = CommandPoints.Of(ctx, _player);
+            UnitActionContext unitCtx = NewActivation(ctx, caster);
+
+            var stage = new CastSpellStage(ctx, new NoOpLayer<IUnitActionContext>());
+            stage.OnFinished.Bind("OnFinished");
+            await stage.Enter(unitCtx);
+
+            bool cast = caster.GetValue().Tokens.GetAllTokens(TokenType.RuleGrant).Any();
+            Assert.That(cast, Is.EqualTo(commandPoints), "a 3 casts only when High Command lifts it to 4");
+            Assert.That(asked.Any(a => a.Contains("casting roll")), Is.EqualTo(commandPoints));
+            if (commandPoints) Assert.That(CommandPoints.Of(ctx, _player), Is.EqualTo(cpBefore - 1), "High Command costs 1 CP");
+        }
+
+        /// <summary>Answers Command Points questions with the first option (the stratagem); everything else to the inner.</summary>
+        private sealed class CpAnsweringRequester : IPlayerRequestByID
+        {
+            private readonly IPlayerRequestByID _inner;
+            private readonly List<string> _asked;
+            public CpAnsweringRequester(IPlayerRequestByID inner, List<string> asked) { _inner = inner; _asked = asked; }
+
+            public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request) where TRequest : IStageTaskRequest<TReply>
+            {
+                if (request is StringSelectionRequest q)
+                {
+                    _asked.Add(q.Instructions);
+                    return Task.FromResult((TReply)(object)q.ValidOptions[0]);
+                }
+                return _inner.RequestDecision<TRequest, TReply>(request);
+            }
+        }
+
         // #033 Slice 3 — a damage spell runs the synthetic-hit save→wound pipeline against the target. AP(3)
         // pushes the save above 6, so the hit auto-fails and kills the 1-wound enemy; the cast then loops back.
         [Test]

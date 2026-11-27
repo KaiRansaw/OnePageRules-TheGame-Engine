@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using FDG.Data;
 using FDG.Presentation.Beats;
@@ -58,9 +59,22 @@ namespace FDG.Stages
                 // between the roll and here) has already had its death animated. Never twice.
                 if (entry.Wounds <= 0f || !entry.Model.GetIsAlive()) continue;
 
+                // Command Points - Eternal Vigilance ("Pick one friendly model that just suffered a wound which would kill
+                // it and roll one die, on a 4+ that wound is ignored.") - for the wounds that aren't an attack too
+                // (Dangerous terrain, falling, a unit's pool of self-inflicted / event wounds). Attacks are offered in
+                // ApplyWoundsStage. Lane 1, 2026-11-27.
+                float wounds = entry.Wounds;
+                if (wounds >= 1f && wounds >= entry.Model.RemainingWounds - 0.0001f
+                    && gameContext.TableState.Units.Objects.FirstOrDefault(u => u.ID.Equals(unit)) is { } owner
+                    && await CommandPoints.OfferEternalVigilance(gameContext, owner, entry.Model))
+                {
+                    wounds -= 1f;
+                    if (wounds <= 0f) continue;
+                }
+
                 // What actually lands - a model can't take more than it has left (the report totals these).
-                float landed = MathF.Min(entry.Wounds, entry.Model.RemainingWounds);
-                entry.Model.DealWounds(entry.Wounds);
+                float landed = MathF.Min(wounds, entry.Model.RemainingWounds);
+                entry.Model.DealWounds(wounds);
 
                 bool overlap = i != lastCasualtyIndex;
 
