@@ -70,7 +70,10 @@ namespace FDG.Stages
             // Extra Actions: Last Stand -1, Hunker Down +1 against shooting, Defensive Stance +1 in melee.
             IReadOnlyList<GrantedModifier> extraActions = ExtraActions.SaveModifiers(
                 metaData.DefendingUnit.GetValue(), metaData.IsMelee, metaData.IsSpell, GameContext.Settings,
-                metaData.AttackingUnit.GetValue());
+                metaData.AttackingUnit.GetValue())
+                // Versatile Defense: +1 when the defender picked it for this attack.
+                .Concat(VersatileDefense.SaveModifiers(GameContext, metaData.AttackingUnit.GetValue(),
+                    metaData.DefendingUnit.GetValue(), metaData.IsMelee)).ToList();
             if (extraActions.Count > 0)
             {
                 grantedDefense += ExtraActions.Net(extraActions);

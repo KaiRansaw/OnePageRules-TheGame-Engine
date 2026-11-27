@@ -218,6 +218,11 @@ namespace FDG.Stages
             // Command Points - Disrupted Sight: the target's player may give the shooter -1 to hit for this shooting.
             if (!fatiguedInMelee && !coveringFire && !metaData.IsMelee && !metaData.IsSpell)
                 await CommandPoints.OfferDisruptedSight(GameContext, attacker, defender, results.HitRollNeeded);
+            // Versatile Defense: the defender's player picks +1 Defense or -1 to hit as the attack comes in (asked even
+            // when the hit roll can't be modified, since the Defense half still counts).
+            IReadOnlyList<GrantedModifier> versatileDefense = await VersatileDefense.BeforeHitRoll(GameContext, attacker, defender,
+                metaData.IsMelee, metaData.IsSpell, metaData.IsCharging, distance, metaData.ChargeOriginDistanceInches,
+                results.HitRollNeeded);
             if (!fatiguedInMelee && !coveringFire)
             {
                 float extraDistance = UnitCompareUtilities.MinDistanceBetweenUnits(attacker, defender, out _, out _,
@@ -235,6 +240,7 @@ namespace FDG.Stages
                     .Concat(CityFighting.HitModifiers(GameContext, defender, metaData.IsMelee, metaData.IsSpell))
                     // Relic Wargear - Protective Gem / Opal Amulet: the defender's player may give -1 to hit, once per game.
                     .Concat(await RelicWargear.HitOffers(GameContext, attacker, defender, metaData.IsMelee, metaData.IsSpell))
+                    .Concat(versatileDefense)
                     .ToList();
                 if (extra.Count > 0)
                 {

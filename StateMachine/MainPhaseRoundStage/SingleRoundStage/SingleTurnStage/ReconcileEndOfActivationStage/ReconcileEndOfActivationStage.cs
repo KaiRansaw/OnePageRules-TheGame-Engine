@@ -41,6 +41,7 @@ namespace FDG.Stages
             await UnitPsychology.EndOfActivation(GameContext);
             await CriticalHits.EndOfActivation(GameContext);
             CommandPoints.EndOfActivation(GameContext);
+            VersatileDefense.EndOfActivation(GameContext);
             // Army Terrain: Arcane Pillars' line and the Twin gates.
             if (context.ActivatedUnit?.GetValue() is { } activated) await ArmyTerrain.EndOfActivation(GameContext, activated);
             if (context.ActivatedUnit?.GetValue() is { } gated) await LivingSpells.EndOfActivation(GameContext, gated);
