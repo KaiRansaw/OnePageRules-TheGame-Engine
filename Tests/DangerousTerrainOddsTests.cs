@@ -9,7 +9,7 @@ namespace FDG.Tests
     /// <summary>
     /// The move preview's Dangerous-terrain dice (Build 2.07). It must say exactly what the roll will do: the 3.6.0
     /// pool (the unit's remaining wounds), only when a path crosses, nothing for a flier, and in the skirmish and
-    /// Quest games a flier still pays for the minefield it starts in.
+    /// Quest games a flier still paid for the minefield it starts in (until Army Forge 3.6.1, 2026-11-27 - now none do).
     /// </summary>
     [TestFixture]
     public class DangerousTerrainOddsTests
@@ -51,10 +51,12 @@ namespace FDG.Tests
 
         [TestCase(EGameSystem.GrimdarkFuture, 0)]
         [TestCase(EGameSystem.AgeOfFantasy, 0)]
-        [TestCase(EGameSystem.GFFirefight, 1)]
-        [TestCase(EGameSystem.AoFSkirmish, 1)]
-        [TestCase(EGameSystem.GFStarQuest, 1)]
-        [TestCase(EGameSystem.AoFQuest, 1)]
+        // Were 1 until 2026-11-27: Army Forge 3.6.1 dropped "terrain it doesn't start its move in" from the
+        // skirmish and Quest Flying, so a flier leaving a minefield pays nothing in any system now.
+        [TestCase(EGameSystem.GFFirefight, 0)]
+        [TestCase(EGameSystem.AoFSkirmish, 0)]
+        [TestCase(EGameSystem.GFStarQuest, 0)]
+        [TestCase(EGameSystem.AoFQuest, 0)]
         public void AFlierLeavingAMinefield_PaysOnlyInTheGamesThatSaySo(EGameSystem system, int dice)
         {
             var a = Model(new Position(4, 0));

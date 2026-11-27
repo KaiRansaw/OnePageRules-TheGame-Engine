@@ -114,9 +114,16 @@ namespace FDG.Tests
         {
             Assert.That(CoreRulesProfile.For(EGameSystem.GrimdarkFuture).FlyingKeepsTerrainItStartsIn, Is.False);
             Assert.That(CoreRulesProfile.For(EGameSystem.AgeOfFantasy).FlyingKeepsTerrainItStartsIn, Is.False);
+            // Army Forge 3.6.1 (harvested 2026-11-27) dropped "it doesn't start its move in" from the skirmish and
+            // Quest Flying, so every system now waives all Difficult / Dangerous terrain.
             foreach (EGameSystem s in new[] { EGameSystem.GFFirefight, EGameSystem.AoFSkirmish, EGameSystem.GFStarQuest, EGameSystem.AoFQuest })
-                Assert.That(CoreRulesProfile.For(s).FlyingKeepsTerrainItStartsIn, Is.True, s.ToString());
-            Assert.That(OfficialRuleText.OwnText("Flying", "grimdark-future-firefight"), Does.Contain("doesn't start its move in"));
+            {
+                Assert.That(CoreRulesProfile.For(s).FlyingKeepsTerrainItStartsIn, Is.False, s.ToString());
+            }
+            foreach (string slug in new[] { "grimdark-future-firefight", "age-of-fantasy-skirmish", "grimdark-future-star-quest", "age-of-fantasy-quest" })
+            {
+                Assert.That(OfficialRuleText.OwnText("Flying", slug), Does.Not.Contain("doesn't start its move in"), slug);
+            }
 
             Assert.That(CoreRulesProfile.For(EGameSystem.GrimdarkFuture).HordeEliteIsPerRound, Is.False);
             Assert.That(CoreRulesProfile.For(EGameSystem.GFFirefight).HordeEliteIsPerRound, Is.True);

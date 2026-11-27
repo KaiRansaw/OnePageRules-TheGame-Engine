@@ -9,6 +9,10 @@ namespace FDG.Tests
     /// Age of Fantasy - "ignores the effects of Difficult and Dangerous terrain"; GF: Firefight, AoF: Skirmish and both
     /// Quest games - "...terrain it doesn't start its move in". So in those four, a flier standing in Difficult terrain
     /// at the start of its move is held to the Difficult cap like anyone else. Strider has no such clause.
+    ///
+    /// <para>2026-11-27: Army Forge's 3.6.1 books dropped that clause from all four - Flying now reads "ignores the
+    /// effects of Difficult and Dangerous terrain" everywhere - so a flier starting in Difficult ignores it in every
+    /// system. The cases below are the regression guard for that change.</para>
     /// </summary>
     [TestFixture]
     public class FlyingStartsInDifficultTests
@@ -18,13 +22,13 @@ namespace FDG.Tests
         [SetUp]
         public void SetUp() => _store = GameDataStore.GameDataStoreBuilder.GetDefault();
 
-        [TestCase(EGameSystem.GFFirefight, false)]
-        [TestCase(EGameSystem.AoFSkirmish, false)]
-        [TestCase(EGameSystem.GFStarQuest, false)]
-        [TestCase(EGameSystem.AoFQuest, false)]
+        [TestCase(EGameSystem.GFFirefight, true)]
+        [TestCase(EGameSystem.AoFSkirmish, true)]
+        [TestCase(EGameSystem.GFStarQuest, true)]
+        [TestCase(EGameSystem.AoFQuest, true)]
         [TestCase(EGameSystem.GrimdarkFuture, true)]
         [TestCase(EGameSystem.AgeOfFantasy, true)]
-        public void AFlierStartingInDifficult_IgnoresItOnlyInTheFullSizeGames(EGameSystem system, bool ignores)
+        public void AFlierStartingInDifficult_IgnoresItInEverySystem(EGameSystem system, bool ignores)
         {
             _store.Create(new TerrainData(ETerrainType.Difficult, new RectangularZone(-2, 2, -2, 2)));
             UnitData flier = MakeUnit(new Position(0, 0), "Flying", CoreRuleCatalog.Flying);

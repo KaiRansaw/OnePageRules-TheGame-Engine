@@ -88,8 +88,8 @@ namespace FDG.Rules.Dispatch
                 "These books print only \"killed after X wounds\"; the wound-assignment clause is the core rules' general allocation."),
 
             ("Flying", SkirmishAndQuest, EReading.KnownGap,
-                "Terrain it starts in: done for Dangerous and Difficult (CoreRulesProfile.FlyingKeepsTerrainItStartsIn, "
-                + "MovementRuleQueries.IgnoresDifficultTerrain(ctx, unit)). Not done: auto-passing jumping rolls (no jumping until multi-level maps)."),
+                "Only the jumping sentence differs from GF/AoF now (Army Forge 3.6.1 dropped \"it doesn't start its move in\", 2026-11-27). "
+                + "Not done: auto-passing jumping rolls (no jumping until multi-level maps)."),
             ("Strider", SkirmishAndQuest, EReading.KnownGap, "Halves jumping dice - no jumping until multi-level maps; Difficult terrain part is played."),
         };
 

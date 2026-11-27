@@ -145,9 +145,10 @@ namespace FDG.Rules.Dispatch
             // source for an army-wide cap in Firefight. Reading AoFS's clause across to it because both
             // are skirmish games is the mistake CLAUDE.md names as the easiest one to make here.
             CommandGroupCapIsPerArmy: false,
-            // #463: Flying "ignores the effects of Difficult and Dangerous terrain IT DOESN'T START ITS MOVE
-            // IN" (+ jumping, which the engine does not model) - GFF/AoFS/both Quest. GF and AoF waive all.
-            FlyingKeepsTerrainItStartsIn: true,
+            // #463 had Flying "ignores the effects of Difficult and Dangerous terrain IT DOESN'T START ITS MOVE
+            // IN" here. Army Forge (books 3.6.1, harvested 2026-11-27) dropped that clause in GFF/AoFS/both
+            // Quests: Flying now ignores all Difficult and Dangerous terrain, as in GF and AoF. Left false.
+            FlyingKeepsTerrainItStartsIn: false,
             // #463: Horde's Elite trait - "May re-roll one roll of any kind once per ROUND" in GFF and AoFS
             // (Army Forge), against GF/AoF's once per game.
             HordeEliteIsPerRound: true,
@@ -200,8 +201,8 @@ namespace FDG.Rules.Dispatch
             CommandGroupExtraPicks: 2,
             // No Quest book prints a Command Groups cap, so the book data's per-unit maxPicks stands.
             CommandGroupCapIsPerArmy: false,
-            // #463: the skirmish Flying wording, in both Quest systems too.
-            FlyingKeepsTerrainItStartsIn: true,
+            // #463's skirmish Flying wording was dropped by Army Forge 3.6.1 (2026-11-27) - see the skirmish profile.
+            FlyingKeepsTerrainItStartsIn: false,
             HeroJoinToughCap: 0,
             // Build 2.10 (core-rules prose check): no 3" move for the unit that wipes out the other. The four
             // 3.6.0 books: "If either unit is destroyed, the other may move by up to 3", else chargers must move
