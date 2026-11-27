@@ -61,8 +61,16 @@ namespace FDG.Stages
             var participants = new List<RuleParticipant> { RuleParticipant.Actor(attacker) };
             participants.AddRange(DetermineStrikeOrderStage.SubjectWithMeleeWeapons(defender));
 
-            IReadOnlyList<RuleOperation> operations = GameContext.RuleEvaluator.EvaluateAll(
-                new ChargeContactContext(attacker, defender), participants.ToArray());
+            // A quiet look first: the charge-contact hook is also where Impact lives, and a live evaluation
+            // narrates every rule that answers - so every melee without Ravage logged the charger's Impact
+            // dice a second time, and a unit with Impact striking back "rolled impact dice on the charge" it
+            // never made (bug hunt 2026-11-27). Only a melee with Ravage in it needs the live pass.
+            bool anyRavage = GameContext.RuleEvaluator
+                .EvaluateAllNamed(new ChargeContactContext(attacker, defender), participants.ToArray())
+                .Any(o => o.Op is RuleOperation.InvokeDealAutoWounds);
+            IReadOnlyList<RuleOperation> operations = anyRavage
+                ? GameContext.RuleEvaluator.EvaluateAll(new ChargeContactContext(attacker, defender), participants.ToArray())
+                : System.Array.Empty<RuleOperation>();
 
             List<RuleOperation.InvokeDealAutoWounds> autoWounds = operations
                 .OfType<RuleOperation.InvokeDealAutoWounds>().ToList();

@@ -216,17 +216,20 @@ namespace FDG
             if (!TerrainOn(c)) return;
             BattlefieldEffectsState s = Ensure(c);
             bool changed = false;
-            foreach (IObjective o in c.TableState.Objectives.Objects)
+            var markers = c.TableState.Objectives.Objects.ToList();
+            foreach (IObjective o in markers)
             {
                 if (o.OwnerID == null) continue;
+                // The number drawn on the marker on the table (bug hunt 2026-11-27: the line only gave a position).
+                int number = o.HordeNumber ?? markers.IndexOf(o) + 1;
                 string key = ObjectiveKey(o);
                 if (s.ObjectiveEffects.ContainsKey(key)) continue;
                 int die = HordePlacement.RollD6(c);
                 s.ObjectiveEffects[key] = die;
                 changed = true;
                 string name = ObjectiveEffectName(die, c.Settings.GameSystem);
-                c.Log($"Objective effect: the marker at ({o.Position.x:0},{o.Position.z:0}) is seized for the first time - rolled {die}: {name}. {ObjectiveEffectText(die)}");
-                if (die >= 3) await c.Announce($"Objective seized: {name} - {ObjectiveEffectText(die)}", Amber, EBannerTier.Toast);
+                c.Log($"Objective effect: objective {number} (at {o.Position.x:0},{o.Position.z:0}) is seized for the first time - rolled {die}: {name}. {ObjectiveEffectText(die)}");
+                if (die >= 3) await c.Announce($"Objective {number} seized: {name} - {ObjectiveEffectText(die)}", Amber, EBannerTier.Toast);
             }
             if (changed) Save(c, s);
         }

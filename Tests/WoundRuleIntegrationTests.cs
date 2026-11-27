@@ -530,13 +530,13 @@ namespace FDG.Tests
         // read-back no-ops without one. Tests that grant a rule by token (#197 P20's one-shot Unwieldy)
         // pass a resolver carrying that definition.
         public WoundTestContext(GameDataStore store, IPlayerRequestByID requester, IDiceRoller? diceRoller = null,
-            IPresenter? presenter = null, IRuleResolver? ruleResolver = null)
+            IPresenter? presenter = null, IRuleResolver? ruleResolver = null, ITextOutput? ruleLog = null)
         {
             GameDataStore = store;
             TableState = new TableState(store);
             PlayerRequester = requester;
             DiceRoller = diceRoller ?? new FixedDiceRoller(4);
-            RuleEvaluator = new RuleEvaluator(DiceRoller, ruleResolver: ruleResolver);
+            RuleEvaluator = new RuleEvaluator(DiceRoller, log: ruleLog, ruleResolver: ruleResolver);
             Presenter = presenter ?? new LocalPresenter(null, new InstantPresentationClock());
         }
 

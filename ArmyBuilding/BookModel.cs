@@ -131,13 +131,18 @@ namespace FDG.ArmyBuilding
         public List<UpgradeSection> Sections { get; set; } = new();
     }
 
-    /// <summary>A named piece of wargear: carries rules, no attack profile. Kept distinct from weapons so it
-    /// can be a Replace target and display under its own name.</summary>
+    /// <summary>A named piece of wargear: carries rules, no attack profile of its own. Kept distinct from weapons so
+    /// it can be a Replace target and display under its own name.</summary>
     public class ItemEntry
     {
         public string Name { get; set; } = string.Empty;
         public int Quantity { get; set; } = 1;
         public List<SpecialRuleEntry> Rules { get; set; } = new();
+
+        /// <summary>Weapons the item brings (Army Forge nests them in the item's content: Jackals' Charger Beast
+        /// carries its Explosive Spear inside "Beast Rider"). They also sit in the unit's weapon list - this copy
+        /// is what lets a Replace of the item take its weapons away with it. Per one copy of the item.</summary>
+        public List<WeaponFileEntry> Weapons { get; set; } = new();
     }
 
     /// <summary>What an upgrade section does to the unit when an option is chosen.</summary>

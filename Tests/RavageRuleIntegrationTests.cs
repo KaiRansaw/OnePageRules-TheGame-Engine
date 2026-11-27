@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using FDG.Data;
 using FDG.Players;
@@ -364,6 +365,31 @@ namespace FDG.Tests
                         throw new System.InvalidOperationException("Unexpected request type: " + request.GetType());
                 }
             }
+        }
+
+        // Bug hunt 2026-11-27: this stage evaluates the charge-contact hook, where Impact also lives, so every
+        // melee narrated the charger's Impact a second time ("rolled 4 impact dice on the charge" twice), and a
+        // unit with Impact striking back narrated a charge it never made. No Ravage in the melee = no narration.
+        [Test]
+        public async Task NoRavage_DoesNotReNarrateTheImpactDice()
+        {
+            var log = new RecordingRuleLog();
+            var ctx = new WoundTestContext(_store, new CapturingWoundRequester(), new AllOnFaceDiceRoller(6), ruleLog: log);
+            DataBinding<UnitData> attacker = MakeUnit(modelCount: 1);
+            attacker.GetValue().AttachRuleDefinition(new ResolvedRule("Impact", CoreRuleCatalog.Impact,
+                new RuleArgument[] { new RuleArgument.Int(4) }));
+            DataBinding<UnitData> defender = MakeUnit(modelCount: 5);
+
+            await RunStage(ctx, attacker, defender);
+
+            Assert.That(log.Lines, Has.None.Contains("impact dice"),
+                "the Impact dice were rolled (and logged) by the Impact stage; the Ravage stage must not log them again");
+        }
+
+        private sealed class RecordingRuleLog : ITextOutput
+        {
+            public List<string> Lines { get; } = new();
+            public void Log(string message, TextColor? color = null) => Lines.Add(message);
         }
 
         private static void AttachRavage(DataBinding<UnitData> unit, int x) =>

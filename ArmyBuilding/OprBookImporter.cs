@@ -296,6 +296,16 @@ namespace FDG.ArmyBuilding
                 Items = (unit.Items ?? new()).Select(MapItem).ToList(),
             };
 
+            // Weapons nested in the unit's own items (Charger Beast's "Beast Rider" holds its Explosive Spear) are
+            // part of its loadout. They used to be dropped, leaving such units with no attacks at all.
+            foreach (ItemEntry item in roster.Items)
+                foreach (WeaponFileEntry w in item.Weapons)
+                {
+                    WeaponFileEntry copy = ListCompiler.CloneWeaponForImport(w);
+                    copy.Quantity = w.Quantity * item.Quantity;
+                    roster.Weapons.Add(copy);
+                }
+
             // Resolve the unit's referenced upgrade packages → their sections.
             foreach (string pkgUid in unit.Upgrades ?? new())
                 if (packages.TryGetValue(pkgUid, out OprPackage? pkg))
@@ -862,8 +872,8 @@ namespace FDG.ArmyBuilding
             return new BaseFileEntry { Shape = EBaseShapeKind.Rectangle, WidthInches = widthMm / MmPerInch, HeightInches = lengthMm / MmPerInch };
         }
 
-        /// <summary>Maps an OPR item (unit-level or gain) to an <see cref="ItemEntry"/>: name + its rule content.
-        /// Non-rule content (nested weapons) is the caller's job to route.</summary>
+        /// <summary>Maps an OPR item (unit-level or gain) to an <see cref="ItemEntry"/>: name, its rule content and
+        /// the weapons nested in it. Adding those weapons to the unit's own list is the caller's job.</summary>
         private static ItemEntry MapItem(OprGain g) => new()
         {
             Name = g.Name ?? "Item",
@@ -872,7 +882,15 @@ namespace FDG.ArmyBuilding
                 .Where(c => c.Type == "ArmyBookRule")
                 .Select(c => MapRule(new OprRule { Name = c.Name, Rating = c.Rating }))
                 .ToList(),
+            Weapons = (g.Content ?? new())
+                .Where(c => c.Type == "ArmyBookWeapon")
+                .Select(c => MapWeapon(new OprWeapon { Name = c.Name, Count = PerItem(c.Count, g.Count), Range = c.Range, Attacks = c.Attacks, SpecialRules = c.SpecialRules }))
+                .ToList(),
         };
+
+        // Army Forge counts an item's weapons for the whole stack: five "Spider Mounts" carry "5x Poison Fangs", not 25.
+        private static int PerItem(int? contentCount, int? itemCount) =>
+            Math.Max(1, Math.Max(1, contentCount ?? 1) / Math.Max(1, itemCount ?? 1));
 
         // ── OPR JSON DTOs (only the fields we consume; lore/image/meta fields are ignored) ──────────────────
 

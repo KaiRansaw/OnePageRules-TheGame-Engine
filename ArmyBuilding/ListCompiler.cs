@@ -788,6 +788,19 @@ namespace FDG.ArmyBuilding
                 int take = Math.Min(items[i].Quantity, remaining);
                 items[i].Quantity -= take;
                 remaining -= take;
+                // An item's own weapons go with it ("Replace Beast Rider" takes the Explosive Spear it carries).
+                foreach (WeaponFileEntry carried in items[i].Weapons ?? new())
+                {
+                    int drop = carried.Quantity * take;
+                    for (int w = 0; w < weapons.Count && drop > 0; w++)
+                    {
+                        if (weapons[w].Name != carried.Name) continue;
+                        int gone = Math.Min(weapons[w].Quantity, drop);
+                        weapons[w].Quantity -= gone;
+                        drop -= gone;
+                    }
+                }
+                weapons.RemoveAll(w => w.Quantity <= 0);
             }
             items.RemoveAll(i => i.Quantity <= 0);
         }
@@ -838,6 +851,7 @@ namespace FDG.ArmyBuilding
         {
             Name = i.Name, Quantity = i.Quantity,
             Rules = new List<SpecialRuleEntry>(i.Rules),
+            Weapons = (i.Weapons ?? new()).Select(CloneWeapon).ToList(),
         };
 
         // Internal: OprListImporter (#241) reuses this to consolidate identical weapon profiles.
@@ -854,6 +868,8 @@ namespace FDG.ArmyBuilding
         private static bool SameProfile(WeaponFileEntry a, WeaponFileEntry b) =>
             a.Name == b.Name && a.RangeInches == b.RangeInches && a.Attacks == b.Attacks &&
             a.ArmorPenetration == b.ArmorPenetration && a.SpecialRules.SequenceEqual(b.SpecialRules);
+
+        internal static WeaponFileEntry CloneWeaponForImport(WeaponFileEntry w) => CloneWeapon(w);
 
         private static WeaponFileEntry CloneWeapon(WeaponFileEntry w) => new()
         {
