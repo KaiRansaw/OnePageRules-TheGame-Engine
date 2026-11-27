@@ -118,6 +118,50 @@ namespace FDG.Tests
             Assert.That(order, Is.EqualTo(new[] { "A1", "A2", "A3" }).AsCollection);
         }
 
+        /// <summary>
+        /// Lane 1 (2026-11-27), Relic Wargear - Ranger's Standard in the skirmish books: "The models must deploy within 3\"
+        /// of the Hero." A tied unit is placed after its Hero (even when listed first) and only within 3" of it.
+        /// </summary>
+        [Test]
+        public async Task ARangersStandardUnit_DeploysAfterItsHero_Within3Inches()
+        {
+            DataBinding<UnitData> squad = MakeScout(_playerA, "Squad");
+            DataBinding<UnitData> captain = MakeScout(_playerA, "Captain");
+            MakeArmy(_playerA, squad, captain);
+
+            var requester = new ZoneRecordingPlaceRequester();
+            var ctx = new TriggeredMoveTestContext(_store, requester);
+            GameSettings settings = ctx.Settings;
+            settings.GameSystem = EGameSystem.GFFirefight;
+            ctx.Settings = settings;
+            RelicWargear.Save(ctx, new RelicWargearState
+            {
+                Method = RelicWargear.Free,
+                Picks =
+                {
+                    new RelicPick
+                    {
+                        Owner = _playerA.ToString(), Unit = AdvancedCasting.Id(captain.GetValue()),
+                        Model = captain.GetValue().Models[0].ID.ToString(), Hero = "Captain", Item = RelicWargear.Ranger,
+                        Choice = RelicWargear.Scout, RangerUnits = { AdvancedCasting.Id(squad.GetValue()) },
+                    },
+                },
+            });
+
+            var deployment = new DeploymentTurnContext(ctx, new List<ITeam> { _teamA }, _zones);
+            var stage = new PlaceDeferredUnitsStage(ctx, new NoOpLayer<IDeploymentTurnContext>());
+            stage.OnFinish.Bind("done");
+            await stage.Enter(deployment);
+
+            Assert.That(requester.Placed.Select(p => p.Name), Is.EqualTo(new[] { "Captain", "Squad" }).AsCollection,
+                "the Hero first, so there is somewhere to be within 3\" of");
+            Assert.That(requester.Placed[1].Zone, Is.InstanceOf<CircularZone>(), "the tied unit's area is the Hero's 3\" ring");
+            var ring = (CircularZone)requester.Placed[1].Zone;
+            Position hero = captain.GetValue().Models[0].Position;
+            Assert.That(ring.Center.X, Is.EqualTo(hero.x).Within(0.001f));
+            Assert.That(ring.Radius, Is.EqualTo(4f).Within(0.001f), "3\" + both 0.5\" base radii, centre to centre");
+        }
+
         // ── Harness ─────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -181,6 +225,27 @@ namespace FDG.Tests
                 return Task.FromResult((TReply)(object)new Selected<List<PlacedObjectEntry<ModelData>>>(entries));
             }
 
+            throw new InvalidOperationException("Unexpected request type: " + request.GetType());
+        }
+    }
+
+    internal sealed class ZoneRecordingPlaceRequester : IPlayerRequestByID
+    {
+        public readonly List<(string Name, IBoundedZone Zone)> Placed = new();
+
+        public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request)
+            where TRequest : IStageTaskRequest<TReply>
+        {
+            if (request is PlaceObjectsRequest<ModelData> place)
+            {
+                string label = place.DisplayName ?? string.Empty;
+                int start = label.IndexOf(' ') + 1;
+                int end = label.LastIndexOf(" (", StringComparison.Ordinal);
+                Placed.Add((end > start ? label[start..end] : label, place.DeploymentZone));
+                var dest = new Position(place.DeploymentZone.Bounds.CenterX, place.DeploymentZone.Bounds.CenterZ);
+                var entries = place.ModelsToPlace.Select(m => new PlacedObjectEntry<ModelData>(m, dest)).ToList();
+                return Task.FromResult((TReply)(object)new Selected<List<PlacedObjectEntry<ModelData>>>(entries));
+            }
             throw new InvalidOperationException("Unexpected request type: " + request.GetType());
         }
     }

@@ -35,6 +35,9 @@ namespace FDG
         public string? Weapon { get; set; }
         /// <summary>Ranger's Standard: "Ambush" or "Scout".</summary>
         public string? Choice { get; set; }
+        /// <summary>Ranger's Standard in the skirmish books: the other units ("up to half of its army") that took the same
+        /// rule and "must deploy within 3\" of the Hero" - by unit key.</summary>
+        public List<string> RangerUnits { get; set; } = new();
         /// <summary>A once-per-game item has been used.</summary>
         public bool Used { get; set; }
         /// <summary>Power Wand: used, waiting for the Hero's next cast.</summary>
@@ -450,6 +453,7 @@ namespace FDG
                         { Recommended = Scout });
                         if (pick.Choice != Ambush) pick.Choice = Scout;
                         scouts |= pick.Choice == Scout;
+                        if (Skirmish(system)) await PickRangerUnits(c, seat.PlayerID, hero, pick);
                     }
                     s.Picks.Add(pick);
                     Apply(c, pick, hero);
@@ -462,6 +466,68 @@ namespace FDG
             }
             Save(c, s);
             return scouts;
+        }
+
+        /// <summary>
+        /// Ranger's Standard in GF: Firefight / AoF: Skirmish (Advanced p34): "The Hero and up to half of its army get Ambush
+        /// or Scout (pick one). The models must deploy within 3" of the Hero." Half of the army's units, rounded down; the
+        /// player picks them one at a time (bots take none). They deploy - or arrive from Ambush - within 3" of the Hero
+        /// (see <see cref="RangerHeroModel"/>). Lane 1, 2026-11-27.
+        /// </summary>
+        private static async Task PickRangerUnits(IGameContext c, PlayerID player, HeroSlot hero, RelicPick pick)
+        {
+            const string done = "Done";
+            List<UnitData> army = c.GameDataStore.GetAllValues<ArmyData>().Where(a => a.IsOwnedBy(player))
+                .SelectMany(a => a.UnitBindings).Select(b => b.GetValue()).Where(u => u.GetIsAlive()).ToList();
+            int max = army.Count / 2;
+            var candidates = army.Where(u => !ReferenceEquals(u, hero.Unit)).ToList();
+            while (pick.RangerUnits.Count < max)
+            {
+                var left = candidates.Where(u => !pick.RangerUnits.Contains(UnitKey(u))).ToList();
+                if (left.Count == 0) break;
+                var labels = new Dictionary<string, UnitData>();
+                foreach (UnitData u in left)
+                {
+                    string label = u.Name;
+                    for (int n = 2; labels.ContainsKey(label); n++) label = $"{u.Name} ({n})";
+                    labels[label] = u;
+                }
+                var options = labels.Keys.Append(done).ToList();
+                string answer = await c.PlayerRequester.RequestDecision<StringSelectionRequest, string>(new StringSelectionRequest(player,
+                    $"{Ranger}: pick up to {max - pick.RangerUnits.Count} more unit(s) to get {pick.Choice} with {hero.Name} "
+                    + "(they must deploy within 3\" of the Hero), or Done.",
+                    options, new List<StringSelectionRequest.InvalidOption>(), displayName: Ranger) { Recommended = done });
+                if (!labels.TryGetValue(answer, out UnitData? chosen)) break;
+                pick.RangerUnits.Add(UnitKey(chosen));
+                c.Log($"{Ranger}: {chosen.Name} gets {pick.Choice} with {hero.Name}.");
+            }
+        }
+
+        /// <summary>
+        /// The Hero model a unit given Ranger's Standard by another unit's Hero must deploy within 3" of (the skirmish
+        /// books' "The models must deploy within 3\" of the Hero"), or null when the unit isn't tied to one. The Hero's
+        /// own unit is never tied.
+        /// </summary>
+        public static IModel? RangerHeroModel(IGameContext c, IUnit unit)
+        {
+            if (State(c.GameDataStore) is not { } s) return null;
+            string key = UnitKey(unit);
+            RelicPick? p = s.Picks.FirstOrDefault(x => x.Item == Ranger && x.RangerUnits.Contains(key));
+            if (p == null) return null;
+            UnitData? heroUnit = c.GameDataStore.GetAllValues<UnitData>().FirstOrDefault(u => UnitKey(u) == p.Unit);
+            return heroUnit?.Models.FirstOrDefault(m => m.ID.ToString() == p.Model);
+        }
+
+        /// <summary>The area a Ranger-tied unit's models may be placed in: every model's centre within 3" of the Hero's
+        /// base edge (plus the two base radii, centre to centre). Null when the Hero is dead or not on the table.</summary>
+        public static FDG.CircularZone? RangerZone(IGameContext c, IUnit unit)
+        {
+            IModel? hero = RangerHeroModel(c, unit);
+            if (hero == null || !hero.GetIsAlive()) return null;
+            IUnit? heroUnit = c.TableState.Units.Objects.FirstOrDefault(u => u.Models.Contains(hero));
+            if (heroUnit == null || Rules.Dispatch.ReserveRules.IsInReserve(heroUnit)) return null;
+            float r = unit.Models.Count == 0 ? 0.5f : unit.Models.Max(m => m.BaseRadiusInches);
+            return new FDG.CircularZone(new Float2(hero.Position.x, hero.Position.z), 3f + hero.BaseRadiusInches + r);
         }
 
         private static Def RollItem(IGameContext c, IReadOnlyList<Def> defs, Func<Def, bool> usable)
@@ -501,7 +567,14 @@ namespace FDG
                     if (w is Weapon weapon) weapon.AttachRuleDefinition(new ResolvedRule(RelicRuleCatalog.TricksterName, RelicRuleCatalog.Trickster));
             }
             else if (p.Item == Ranger && Resolve(c, p.Choice ?? Scout, null) is { } ranger)
+            {
                 hero.Unit.AttachRuleDefinition(ranger);
+                foreach (string key in p.RangerUnits)
+                {
+                    UnitData? tied = c.GameDataStore.GetAllValues<UnitData>().FirstOrDefault(u => UnitKey(u) == key);
+                    if (tied != null && Resolve(c, p.Choice ?? Scout, null) is { } rule) tied.AttachRuleDefinition(rule);
+                }
+            }
             else if (!Skirmish(system) && BannerRule(p.Item) is { } banner)
                 hero.Unit.Tokens.AddToken(new Token(TokenType.RuleGrant, 1, new TokenClearTrigger.ManualOnly(),
                     Payload: new TokenPayload.RuleGrant(banner, ELifetime.UntilEndOfGame)));

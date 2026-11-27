@@ -212,6 +212,8 @@ namespace FDG.Stages
                 })
                 .ToList();
 
+            // Relic Wargear - Ranger's Standard (skirmish books): units tied to a Hero arrive within 3" of it, after it.
+            arriving = arriving.OrderBy(b => RelicWargear.RangerHeroModel(GameContext, b.GetValue()) == null ? 0 : 1).ToList();
             arriving = AlternatingPlacement.Interleave(arriving,
                 binding => binding.GetValue().PlayerID,
                 AlternatingPlacement.ActivationOrder(activateOrder ?? Array.Empty<ITeam>()));
@@ -227,6 +229,19 @@ namespace FDG.Stages
                         out string reserveRuleName)) continue;
                 if (roundCount < defer.MinArrivalRound) continue;
 
+                // Ranger's Standard (skirmish books): "The models must deploy within 3\" of the Hero" - a tied unit can
+                // only come on once its Hero is on the table, and then beside it.
+                IBoundedZone? rangerZone = null;
+                if (RelicWargear.RangerHeroModel(GameContext, unit) != null)
+                {
+                    rangerZone = RelicWargear.RangerZone(GameContext, unit);
+                    if (rangerZone == null)
+                    {
+                        GameContext.Log($"{unit.Name} waits in Ambush: its Ranger's Standard Hero isn't on the table.");
+                        continue;
+                    }
+                }
+
                 // A mandatory arrival (Ambush Re-Deployment's return leg) is placed, not offered -
                 // the owner ruled the unit MUST come back at the next round start. Only the spot is
                 // the player's to choose.
@@ -239,7 +254,7 @@ namespace FDG.Stages
                 if (!bringOn) continue;
 
                 await PlaceFromReserve(unit, defer.PlacementRangeInches,    // clears the reserve state
-                    displayName: $"Deploying {unit.Name} from Ambush");
+                    displayName: $"Deploying {unit.Name} from Ambush", zoneOverride: rangerZone);
                 // The pending-return marker (if this arrival IS the Ambush Re-Deployment return) is
                 // spent by arriving; a plain Ambush unit never carries it, so this is a safe no-op.
                 unit.Tokens.RemoveTokens(TokenType.PendingAmbushArrival);
@@ -360,7 +375,7 @@ namespace FDG.Stages
 
         private async Task PlaceFromReserve(UnitData unit, float minDistanceFromEnemies,
             bool mustTouchTableEdge = false, string taskName = "Ambush Deploy",
-            TokenType? alsoClearBeforeApply = null, string? displayName = null)
+            TokenType? alsoClearBeforeApply = null, string? displayName = null, IBoundedZone? zoneOverride = null)
         {
             var wholeTable = new RectangularZone(0f, GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES,
                 0f, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES);
@@ -386,6 +401,7 @@ namespace FDG.Stages
                 ? FogOfWar.SpecialSection(GameContext, unit, wholeTable,
                     GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES) ?? wholeTable
                 : wholeTable;
+            if (zoneOverride != null) arrival = zoneOverride;
             var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, taskName,
                 arrival, unit.ModelBindings, minDistanceFromEnemiesInches: minDistanceFromEnemies,
                 mustTouchTableEdge: mustTouchTableEdge,

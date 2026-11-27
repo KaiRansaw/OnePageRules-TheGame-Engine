@@ -632,6 +632,31 @@ namespace FDG.Tests
             Assert.That(other.GetValue().RuleDefinitions.Any(r => r.Definition.Name == "Ambush"));
         }
 
+        // Lane 1 (2026-11-27): the skirmish books' Ranger's Standard - "The Hero and up to half of its army get Ambush or
+        // Scout (pick one). The models must deploy within 3" of the Hero." Five units: up to two others join the Hero.
+        [Test]
+        public async Task RangersStandard_InSkirmish_UpToHalfTheArmy_DeployWithin3OfTheHero()
+        {
+            Build(EGameSystem.GFFirefight, RelicWargear.Free);
+            Seats();
+            var captain = Unit(_me, new Position(10, 10), 1, "Captain", hero: true);
+            var others = Enumerable.Range(1, 4).Select(i => Unit(_me, new Position(20 + 3 * i, 10), 2, $"Squad {i}")).ToList();
+            _answer = q => q.TargetPlayerID != _me ? RelicWargear.NoRelic
+                : q.Instructions.Contains("pick up to") ? q.ValidOptions[0]
+                : q.DisplayName == RelicWargear.Ranger ? RelicWargear.Scout : RelicWargear.Ranger;
+
+            Assert.That(await RelicWargear.Settle(_context), Is.True);
+            var tied = others.Where(u => u.GetValue().RuleDefinitions.Any(r => r.Definition.Name == "Scout")).ToList();
+            Assert.That(tied, Has.Count.EqualTo(2), "half of a five-unit army, rounded down");
+            Assert.That(RelicWargear.RangerHeroModel(_context, captain.GetValue()), Is.Null, "the Hero's own unit isn't tied");
+
+            CircularZone? zone = RelicWargear.RangerZone(_context, tied[0].GetValue());
+            Assert.That(zone, Is.Not.Null);
+            Assert.That(zone!.IsPointWithinZone(new Float2(13.5f, 10f)), Is.True, "2.5\" from the Hero's base edge");
+            Assert.That(zone.IsPointWithinZone(new Float2(15f, 10f)), Is.False, "4\" from the Hero's base edge");
+            Assert.That(RelicWargear.RangerZone(_context, others.Except(tied).First().GetValue()), Is.Null, "not tied");
+        }
+
         [Test]
         public async Task GrimdarkBanner_IsForTheWholeGame_OnTheHerosUnit()
         {

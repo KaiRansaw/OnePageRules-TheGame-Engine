@@ -35,8 +35,11 @@ namespace FDG.Stages
             // every Scout one player owned before the other placed any - and with two forward screens a
             // side, the second player sees the whole enemy screen before committing. Interleaving by
             // owner is the whole fix; each owner's own units keep their relative order.
+            // Relic Wargear - Ranger's Standard (skirmish books): a unit tied to a Hero deploys within 3" of it, so each
+            // owner's tied units go after their other Scouts (the Hero first). OrderBy is stable.
             List<DeferredUnitEntry> inTurnOrder = Rules.Dispatch.AlternatingPlacement.Interleave(
-                context.DeferredUnits.Where(e => e.Defer.Timing == EDeferTiming.AfterNormalDeployment),
+                context.DeferredUnits.Where(e => e.Defer.Timing == EDeferTiming.AfterNormalDeployment)
+                    .OrderBy(e => RelicWargear.RangerHeroModel(GameContext, e.Unit.GetValue()) == null ? 0 : 1),
                 entry => entry.Unit.GetValue().PlayerID,
                 Rules.Dispatch.AlternatingPlacement.ActivationOrder(context.FirstDeploymentRollOrder));
 
@@ -57,6 +60,8 @@ namespace FDG.Stages
                 // Fog of War - Surprise Engagement: a rolled section of the whole table, cut out of the Scout area.
                 IBoundedZone scoutZone = FogOfWar.SpecialSection(GameContext, unit, forwardZone,
                     GameWideConstants.DEFAULT_TABLE_WIDTH_INCHES, GameWideConstants.DEFAULT_TABLE_HEIGHT_INCHES) ?? forwardZone;
+                // Ranger's Standard (skirmish books): "The models must deploy within 3\" of the Hero."
+                if (RelicWargear.RangerZone(GameContext, unit) is { } rangerZone) scoutZone = rangerZone;
                 var request = new PlaceObjectsRequest<ModelData>(unit.PlayerID, "Place Scout Unit",
                     scoutZone, unit.ModelBindings,
                     displayName: $"Deploying {unit.Name} (Scout)",
