@@ -107,6 +107,9 @@ namespace FDG.ArmyBuilding
                 string specText = pending.Dequeue();
                 (string targetName, int? count) = ParseAuxSpecText(specText);
 
+                // Lane 2 (2026-11-27) found the same gap from the enemy side: GFF / AoFS / both Quests name the unit
+                // "Lesser Change Horror" while Split says "Lesser Change Horrors [1]" - FindSpecUnit's singular/plural
+                // twin covers both.
                 RosterUnit? roster = FindSpecUnit(book, targetName);
                 if (roster == null) continue;
 

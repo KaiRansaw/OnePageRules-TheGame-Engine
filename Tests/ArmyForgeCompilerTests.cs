@@ -210,6 +210,31 @@ public class ArmyForgeCompilerTests
         Assert.That(army.AuxiliaryUnits.Single(u => u.Id == "Changelings [10]").ModelCount, Is.EqualTo(10));
     }
 
+    // Lane 2 sweep, 2026-11-27: GFF / AoFS / both Quests name the unit "Lesser Change Horror" but the Split text says
+    // "Lesser Change Horrors [1]" - the exact-name lookup found nothing and a dying Change Horror split into nobody.
+    [Test]
+    public void ASplitTarget_NamedInThePlural_FindsTheSingularRosterUnit()
+    {
+        var horror = new RosterUnit
+        {
+            Id = "h", Name = "Change Horror", BaseModelCount = 1, MinModels = 1, MaxModels = 1, BasePointCost = 40,
+            Rules = { new SpecialRuleEntry_Text("Split", "Lesser Change Horrors [1]") },
+        };
+        var lesser = new RosterUnit
+        {
+            Id = "l", Name = "Lesser Change Horror", BaseModelCount = 3, MinModels = 3, MaxModels = 3, BasePointCost = 20,
+            Rules = { new SpecialRuleEntry_Text("Split", "Changelings [1]") },
+        };
+        var changeling = new RosterUnit { Id = "c", Name = "Changeling", BaseModelCount = 3, MinModels = 3, MaxModels = 3, BasePointCost = 10 };
+        var book = new BookFile { Name = "T", Units = { horror, lesser, changeling } };
+
+        var army = ListCompiler.Compile(book, new BuilderList { PointsLimit = 100000, Units = { new BuilderUnit { RosterUnitId = "h" } } });
+
+        Assert.That(army.AuxiliaryUnits?.Select(u => u.Id), Is.EquivalentTo(new[] { "Lesser Change Horrors [1]", "Changelings [1]" }));
+        Assert.That(army.AuxiliaryUnits!.Single(u => u.Id == "Lesser Change Horrors [1]").Name, Is.EqualTo("Lesser Change Horror"));
+        Assert.That(army.AuxiliaryUnits!.Single(u => u.Id == "Lesser Change Horrors [1]").ModelCount, Is.EqualTo(1));
+    }
+
     private static UnitFileEntry CompileOne(RosterUnit unit, params UpgradeChoice[] choices)
     {
         var book = new BookFile { Name = "T", Units = { unit } };
