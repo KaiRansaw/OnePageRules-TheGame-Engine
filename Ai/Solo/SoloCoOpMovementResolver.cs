@@ -2,6 +2,7 @@ using FDG.Ai.Resolvers;
 using FDG.Players;
 using FDG.StageResolution;
 using FDG.StageResolution.Requests;
+using FDG.Stages;
 
 namespace FDG.Ai.Solo
 {
@@ -47,7 +48,28 @@ namespace FDG.Ai.Solo
             _baseline = new AiDefineMovementResolver(table, me, latch);
         }
 
-        public Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request)
+        public async Task<CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request)
+        {
+            CancellableResult<List<ModelMoveEntry>> result = await ResolveByTheTree(request);
+            // #460: the path check lets a model cross into a building (a flier passes over walls), but the building
+            // rules - the whole unit goes in or none of it, room, 6" to leave - are the stage's next check, and a move
+            // that breaks them faulted the game (lane 2 sweep, 2026-11-27: Flying riders arriving from Ambush on a
+            // Simplified Terrain table). Re-plan with the plain mover, else stand still.
+            if (Breaks(request, result))
+            {
+                result = await _baseline.Resolve(request);
+                if (Breaks(request, result))
+                    result = new Selected<List<ModelMoveEntry>>(Ai.Tactician.MovementPlanner.StayInPlace(request.UnitDataBinding));
+            }
+            return result;
+        }
+
+        private bool Breaks(DefineMovementPathRequest request, CancellableResult<List<ModelMoveEntry>> result) =>
+            result is Selected<List<ModelMoveEntry>> { Value: { } path }
+            && _table.Terrain.Objects.Any(SolidBuildings.Is)
+            && DefinePathStage.BuildingProblem(_table, request.UnitDataBinding.GetValue(), path) != null;
+
+        private Task<CancellableResult<List<ModelMoveEntry>>> ResolveByTheTree(DefineMovementPathRequest request)
         {
             // Pushing an enemy (skirmish games): off a ledge, else off an objective (house rules C, "Bots and pushing").
             if (request.Pushed && SoloAiPush.Best(request, _table, _me) is { } push) return Done(push);

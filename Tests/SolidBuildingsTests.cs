@@ -289,6 +289,34 @@ namespace FDG.Tests
         }
 
         [Test]
+        public async Task TheOfficialBot_NeverSubmitsAMoveThatTakesHalfAUnitIntoABuilding()
+        {
+            // Lane 2 sweep, 2026-11-27 (GF, Simplified Terrain, official bot): Flying riders arriving from Ambush rushed
+            // for an objective and ended half inside a building - the stage refused the move and the game faulted. Here
+            // eight flying models head for an objective in a small building that holds six, so they can't go in.
+            var table = new TableState(_store);
+            TerrainData house = House(20, 10, 4f);
+            _store.Create(house);
+            _store.Create(new TeamData(0, new List<PlayerID> { _me }));
+            _store.Create(new TeamData(1, new List<PlayerID> { _them }));
+            _store.Create(new ObjectiveData(new Position(23.5f, 12f), _store));
+            UnitData squad = Unit(_me, 9f, 12f, models: 8);
+            _store.Create(new ArmyData(_me, new List<DataBinding<UnitData>> { _bindings[squad] }));
+            UnitData far = Unit(_them, 60f, 40f);
+            _store.Create(new ArmyData(_them, new List<DataBinding<UnitData>> { _bindings[far] }));
+
+            var resolver = new FDG.Ai.Solo.SoloCoOpMovementResolver(table, _me, null);
+            squad.AttachRuleDefinition(new FDG.Rules.Dispatch.ResolvedRule("Flying", FDG.Rules.Dispatch.CoreRuleCatalog.Flying));
+            var result = await resolver.Resolve(new DefineMovementPathRequest(_me, "Move", _bindings[squad],
+                maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f, ignoresImpassibleTerrain: true,
+                mainActivationMove: true));
+
+            Assert.That(result, Is.InstanceOf<FDG.StageResolution.Selected<List<ModelMoveEntry>>>());
+            var path = ((FDG.StageResolution.Selected<List<ModelMoveEntry>>)result).Value;
+            Assert.That(DefinePathStage.BuildingProblem(table, squad, path), Is.Null, "never a move the stage refuses");
+        }
+
+        [Test]
         public void ABot_GoesIntoTheBuilding_ToTakeItsObjective()
         {
             var table = new TableState(_store);
