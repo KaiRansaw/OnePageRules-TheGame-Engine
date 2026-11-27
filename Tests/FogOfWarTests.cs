@@ -1,7 +1,10 @@
 using FDG.Data;
 using FDG.Players;
+using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution;
+using FDG.StageResolution.Requests;
 using FDG.Stages;
 using FDG.StateMachine;
 using NUnit.Framework;
@@ -58,7 +61,7 @@ namespace FDG.Tests
             foreach (EGameSystem s in new[] { EGameSystem.GrimdarkFuture, EGameSystem.GFFirefight, EGameSystem.AgeOfFantasy, EGameSystem.AoFSkirmish })
                 Assert.That(AdvancedRules.Chapters(s), Does.Contain(AdvancedRules.FogOfWarChapter), s.ToString());
             Assert.That(AdvancedRules.Chapters(EGameSystem.GFStarQuest), Does.Not.Contain(AdvancedRules.FogOfWarChapter));
-            Assert.That(AdvancedRules.In(AdvancedRules.FogOfWarChapter, EGameSystem.GrimdarkFuture).Count(), Is.EqualTo(7), "six, plus Random Arrival");
+            Assert.That(AdvancedRules.In(AdvancedRules.FogOfWarChapter, EGameSystem.GrimdarkFuture).Count(), Is.EqualTo(8), "six, plus Random Arrival and Flexible Strategies");
             Assert.That((long)EAdvancedRules.EbbAndFlow & (long)BattlefieldEffects.PickMask, Is.EqualTo(0), "clear of the Special Condition pick bits");
         }
 
@@ -135,6 +138,68 @@ namespace FDG.Tests
             var totals = split.Select(g => g.Sum(u => u.PointCost)).ToList();
             Assert.That(totals.Max() - totals.Min(), Is.LessThanOrEqualTo(100), string.Join(",", totals));
             Assert.That(HordeRules.RoundLimit(_context.Settings), Is.EqualTo(6));
+        }
+
+        // Flexible Strategies (GF p46, GFF p43, AoF p46, AoFS p43): "Before the game begins, players build armies worth
+        // +50% as many points, and divide them into six detachments of equal point value instead. Detachments are
+        // deployed each round until the fourth, leaving two detachments out of the game."
+        [Test]
+        public void FlexibleStrategies_ArmiesAreHalfAsBigAgain_InSixDetachments()
+        {
+            const EAdvancedRules both = EAdvancedRules.EscalatingBattles | EAdvancedRules.EscalatingFlexibleStrategies;
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, both, EGameSystem.GrimdarkFuture, EGameMode.Standard), Is.EqualTo(3000));
+            Assert.That(FogOfWar.ArmyPointsLimit(300, both, EGameSystem.AoFSkirmish, EGameMode.Standard), Is.EqualTo(450));
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, EAdvancedRules.EscalatingBattles, EGameSystem.GrimdarkFuture, EGameMode.Standard),
+                Is.EqualTo(2000), "Escalating Battles alone");
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, EAdvancedRules.EscalatingFlexibleStrategies, EGameSystem.GrimdarkFuture, EGameMode.Standard),
+                Is.EqualTo(2000), "the option needs Escalating Battles");
+            Assert.That(FogOfWar.ArmyPointsLimit(2000, both, EGameSystem.GrimdarkFuture, EGameMode.Horde), Is.EqualTo(2000), "not in Horde");
+
+            Build(face: 4, both);
+            Assert.That(FogOfWar.DetachmentCount(_context.Settings), Is.EqualTo(6));
+            var units = Enumerable.Range(1, 12).Select(i => { UnitData u = Unit(_me, new Position(1f, 1f)); u.PointCost = 10 * i; return u; }).ToList();
+            Assert.That(FogOfWar.Split(units, FogOfWar.DetachmentCount(_context.Settings)), Has.Count.EqualTo(6));
+            Build(face: 4, EAdvancedRules.EscalatingBattles);
+            Assert.That(FogOfWar.DetachmentCount(_context.Settings), Is.EqualTo(4));
+        }
+
+        private async Task<List<UnitData>> PlayRoundsTwoToSix(EAdvancedRules rules)
+        {
+            int placed = 0;
+            Build(face: 4, rules, answer: req => req switch
+            {
+                StringSelectionRequest pick => pick.Recommended!,
+                YesNoRequest => false,
+                PlaceObjectsRequest<ModelData> place => new Selected<List<PlacedObjectEntry<ModelData>>>(place.ModelsToPlace
+                    .Select(m => new PlacedObjectEntry<ModelData>(m, new Position(4f + 6f * placed++, 6f))).ToList()),
+                _ => throw new InvalidOperationException("Unexpected request " + req.GetType().Name),
+            });
+            // Detachment 1 is on the table; 2-6 wait (a unit's HeldDetachment tokens are its detachment's number).
+            var waiting = new List<UnitData>();
+            for (int k = 2; k <= 6; k++)
+            {
+                UnitData u = Unit(_me, new Position(0f, 0f));
+                u.PointCost = 100 * k;
+                ReserveRules.PlaceInReserve(u);
+                for (int i = 0; i < k; i++) u.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.HeldDetachment));
+                waiting.Add(u);
+            }
+            for (int round = 2; round <= 6; round++) await FogOfWar.EscalatingRoundStart(_context, round);
+            return waiting;
+        }
+
+        [Test]
+        public async Task FlexibleStrategies_DetachmentsComeOnUntilRoundFour_TheLastTwoStayOut()
+        {
+            var waiting = await PlayRoundsTwoToSix(EAdvancedRules.EscalatingBattles | EAdvancedRules.EscalatingFlexibleStrategies);
+            Assert.That(waiting.Count(u => !ReserveRules.IsInReserve(u)), Is.EqualTo(3), "one each in rounds 2, 3 and 4");
+            Assert.That(waiting.Where(u => !ReserveRules.IsInReserve(u)).Select(u => u.PointCost), Is.EquivalentTo(new[] { 600, 500, 400 }),
+                "the bot brings the biggest detachment each time");
+            Assert.That(waiting.Count(u => ReserveRules.IsInReserve(u) && u.Tokens.HasToken(TokenType.HeldDetachment)), Is.EqualTo(2),
+                "two detachments left out of the game");
+
+            waiting = await PlayRoundsTwoToSix(EAdvancedRules.EscalatingBattles);
+            Assert.That(waiting.Count(u => !ReserveRules.IsInReserve(u)), Is.EqualTo(5), "without the option, one comes on every round");
         }
 
         [Test]

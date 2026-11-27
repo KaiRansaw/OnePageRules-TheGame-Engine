@@ -41,12 +41,14 @@ namespace FDG
         public const string SurpriseEngagementName = "Surprise Engagement";
         public const string EscalatingBattlesName = "Escalating Battles";
         public const string RandomArrivalName = "Escalating Battles: Random Arrival";
-        public const int EscalatingRounds = 6, Detachments = 4;
+        public const string FlexibleStrategiesName = "Escalating Battles: Flexible Strategies";
+        public const int EscalatingRounds = 6, Detachments = 4, FlexibleDetachments = 6, LastArrivalRound = 4;
 
         public static readonly IReadOnlyList<(string Name, EAdvancedRules Flag)> All = new (string, EAdvancedRules)[]
         {
             (EscalatingBattlesName, EAdvancedRules.EscalatingBattles),
             (RandomArrivalName, EAdvancedRules.EscalatingRandomArrival),
+            (FlexibleStrategiesName, EAdvancedRules.EscalatingFlexibleStrategies),
             (SurpriseEngagementName, EAdvancedRules.SurpriseEngagement),
             (EbbAndFlowName, EAdvancedRules.EbbAndFlow),
             (ShiftingFocusName, EAdvancedRules.ShiftingFocus),
@@ -60,6 +62,7 @@ namespace FDG
         {
             EscalatingBattlesName => "Before the game begins, players have to divide their army into four detachments of equal point value (or as close as possible). During deployment, each player must pick one of their detachments and must deploy only units from that detachment (units from that detachment in Ambush may be deployed at a later point as usual). At the beginning of each new round, players must pick one of their detachments, and must then deploy all units from it (units from that detachment in Ambush may be deployed at a later point as usual). When playing escalating battles, the game lasts 6 rounds.",
             RandomArrivalName => "Random Arrival (optional): When a detachment should be deployed, players don't get to choose which one they deploy, but must randomly pick one instead.",
+            FlexibleStrategiesName => "Flexible Strategies (optional): Before the game begins, players build armies worth +50% as many points, and divide them into six detachments of equal point value instead. Detachments are deployed each round until the fourth, leaving two detachments out of the game.",
             SurpriseEngagementName => Skirmish(s)
                 ? "When deploying armies, the players roll-off to see who goes first, and alternate in placing units as usual, however where they place them is randomized. First, each player divides their deployment zone into 2 equal sections, and numbers them section 1 and section 2. Then, when it's a player's turn to deploy a unit, roll a die to see which section you get, and place the unit fully within (results of 1-3 = section 1, 4-6 = section 2). Units that are deployed differently due to special rules (such as Ambush) have to follow the same rules, however the entire table is divided into 2 equal sections along the player's table edge instead of only the deployment zones."
                 : "When deploying armies, the players roll-off to see who goes first, and alternate in placing units as usual, however where they place them is randomized. First, each player divides their deployment zone into 3 equal sections and gives each section a number from 1 to 3. Then, when it's a player's turn to deploy a unit, roll a D3 and place the unit fully within the resulting section. Units that are deployed differently due to special rules (such as Ambush) have to follow the same rules, however the entire table is divided into 3 equal sections along the long table edge, instead of only the deployment zones.",
@@ -74,8 +77,9 @@ namespace FDG
 
         public static string GameText(string name) => name switch
         {
-            EscalatingBattlesName => "The game splits each army into four detachments as close in points as it can (biggest units first, each to the lightest detachment). You pick one to deploy; at the start of rounds 2, 3 and 4 you pick the next, and its units are placed in your deployment zone. The game lasts 6 rounds. Flexible Strategies isn't offered yet.",
+            EscalatingBattlesName => "The game splits each army into four detachments as close in points as it can (biggest units first, each to the lightest detachment). You pick one to deploy; at the start of rounds 2, 3 and 4 you pick the next, and its units are placed in your deployment zone. The game lasts 6 rounds.",
             RandomArrivalName => "Needs Escalating Battles. Each detachment is picked at random instead of by you.",
+            FlexibleStrategiesName => "Needs Escalating Battles. Each army may be up to half as many points again as the game's points (the lobby's limit goes up; the table size doesn't). The army is split into six detachments: one deploys, one more comes on at the start of rounds 2, 3 and 4, and the last two stay out of the game.",
             SurpriseEngagementName => "Each time you deploy a unit the game rolls its section; the placement outline shows only that part of your zone. Scout and Ambush units roll a section of the whole table (along its long edge).",
             EbbAndFlowName => "Each activation goes to a player drawn at random, weighted by how many units each has left to activate this round. The battle report says who was drawn.",
             ShiftingFocusName => "Before you pick a unit the game rolls the section; only your units in it can be picked (the others are greyed out with the reason). Sections are counted from your own left.",
@@ -289,6 +293,25 @@ namespace FDG
         private static bool EscalatingOn(IGameContext c) =>
             IsOn(c, EAdvancedRules.EscalatingBattles) && c.Settings.GameMode == EGameMode.Standard;
 
+        /// <summary>Flexible Strategies: Escalating Battles with its option on, in a standard game.</summary>
+        public static bool FlexibleOn(GameSettings settings) =>
+            AdvancedRules.IsOn(settings, EAdvancedRules.EscalatingBattles)
+            && AdvancedRules.IsOn(settings, EAdvancedRules.EscalatingFlexibleStrategies)
+            && settings.GameMode == EGameMode.Standard;
+
+        /// <summary>The lobby's form of <see cref="FlexibleOn(GameSettings)"/>, from its separate fields.</summary>
+        public static bool FlexibleOn(EAdvancedRules rules, EGameSystem system, EGameMode mode) =>
+            FlexibleOn(new GameSettings { AdvancedRules = rules, GameSystem = system, GameMode = mode });
+
+        /// <summary>"Players build armies worth +50% as many points": the army's points limit for a game of
+        /// <paramref name="armyPoints"/> (rounded down). The game's size - the table, the mission - stays at
+        /// <paramref name="armyPoints"/>.</summary>
+        public static int ArmyPointsLimit(int armyPoints, EAdvancedRules rules, EGameSystem system, EGameMode mode) =>
+            FlexibleOn(rules, system, mode) && armyPoints > 0 && armyPoints < int.MaxValue / 2 ? armyPoints + armyPoints / 2 : armyPoints;
+
+        /// <summary>Four detachments, or six with Flexible Strategies.</summary>
+        public static int DetachmentCount(GameSettings settings) => FlexibleOn(settings) ? FlexibleDetachments : Detachments;
+
         private static string Label(int number, IReadOnlyList<UnitData> units) =>
             $"Detachment {number} ({units.Sum(u => u.PointCost)} pts): {string.Join(", ", units.Select(u => u.Name))}";
 
@@ -324,16 +347,17 @@ namespace FDG
                     .SelectMany(a => a.UnitBindings).Where(b => b.GetValue().GetIsAlive()).ToList();
                 var units = bindings.Select(b => b.GetValue()).ToList();
                 if (units.Count < 2) continue;
-                var split = Split(units);
+                int count = DetachmentCount(c.Settings);
+                var split = Split(units, count);
                 // The player splits their own army (Kai, 2026-11-23); the even split is the suggestion, and what a bot takes.
                 var suggested = units.Select(u => split.FindIndex(g => g.Contains(u)) + 1).ToList();
                 List<int> answer = await c.PlayerRequester.RequestDecision<SplitDetachmentsRequest, List<int>>(new SplitDetachmentsRequest(player,
                     bindings.Select(b => new SplitDetachmentsRequest.Entry(b, b.GetValue().Name, b.GetValue().PointCost)).ToList(),
-                    suggested, Detachments));
+                    suggested, count));
                 var groups = new Dictionary<int, List<UnitData>>();
                 for (int i = 0; i < units.Count; i++)
                 {
-                    int d = answer != null && i < answer.Count && answer[i] is >= 1 and <= Detachments ? answer[i] : suggested[i];
+                    int d = answer != null && i < answer.Count && answer[i] >= 1 && answer[i] <= count ? answer[i] : suggested[i];
                     if (!groups.TryGetValue(d, out var g)) groups[d] = g = new List<UnitData>();
                     g.Add(units[i]);
                 }
@@ -359,6 +383,10 @@ namespace FDG
         public static async Task EscalatingRoundStart(IGameContext c, int round)
         {
             if (!EscalatingOn(c) || round < 2) return;
+            bool flexible = FlexibleOn(c.Settings);
+            // Flexible Strategies: "Detachments are deployed each round until the fourth, leaving two detachments out
+            // of the game." Round 4's is the last; the ones still waiting simply never come on.
+            if (flexible && round > LastArrivalRound) return;
             var waiting = c.TableState.Units.Objects.OfType<UnitData>()
                 .Where(u => u.GetIsAlive() && u.Tokens.HasToken(TokenType.HeldDetachment)).ToList();
             foreach (IGrouping<PlayerID, UnitData> byPlayer in waiting.GroupBy(u => u.PlayerID))
@@ -380,6 +408,9 @@ namespace FDG
                     }
                     await PlaceInZone(c, unit);
                 }
+                if (flexible && round == LastArrivalRound)
+                    foreach ((int k, List<UnitData> g) in groups.Where(x => x.Key != pick).OrderBy(x => x.Key))
+                        c.Log($"Escalating Battles: {c.GetPlayerName(player)}'s Detachment {k} stays out of the game (Flexible Strategies).");
             }
         }
 

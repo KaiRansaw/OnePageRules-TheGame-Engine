@@ -69,6 +69,8 @@ namespace FDG
         ThrownObjects = 1UL << 53,
         BuildingsOnFire = 1UL << 54,
         HiddenMovement = 1UL << 55,
+        // Fog of War, continued: Escalating Battles' second option.
+        EscalatingFlexibleStrategies = 1UL << 56,
     }
 
     /// <summary>One optional rule as the lobby shows it.</summary>

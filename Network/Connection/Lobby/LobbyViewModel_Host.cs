@@ -904,7 +904,7 @@ namespace FDG.Network.Connection.Lobby
             if (!GameSystemInfo.IsQuest(GameSystem))
                 return ArmyBuilding.LaunchGate.BlockingProblems(
                     _playerInfosFull.Values.Select(info => ((int)info.TeamNumber, info.PlayerName, info.ArmyListFile)),
-                    ArmyPoints, AllowedGameSystems);
+                    FogOfWar.ArmyPointsLimit(ArmyPoints, AdvancedRules, GameSystem, GameMode), AllowedGameSystems);
 
             // Star Quest: no points limit (the enemy collection should be big), but a 2-4 hero party and an
             // enemy side are needed.
