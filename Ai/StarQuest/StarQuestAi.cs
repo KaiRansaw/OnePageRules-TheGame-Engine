@@ -114,7 +114,11 @@ namespace FDG.Ai.StarQuest
                 float d = Distance(unit, closest);
                 float range = MaxRange(unit);
                 float advance = GameWideConstants.MOVE_SHOOT_DISTANCE_INCHES;
-                bool canCharge = d <= GameWideConstants.CHARGE_DISTANCE_INCHES;
+                // "Will any enemy be in range to ... charge": the unit's real charge distance (Fast, Slow...), walked
+                // round anything Impassable - a hero behind a wall the charge can't get round is not in charge range
+                // (#364, the official AI's walk, now for the Quest AI too - lane 2, 2026-11-27).
+                float chargeReach = Solo.SoloAiBrain.ChargeReach(unit, table);
+                bool canCharge = d <= chargeReach && Solo.SoloAiReach.ChargeGap(table, unit, closest) <= chargeReach;
                 IUnit? shootTarget = range > 0f ? visible.FirstOrDefault(e => Distance(unit, e) <= range + advance) : null;
 
                 if (canCharge)

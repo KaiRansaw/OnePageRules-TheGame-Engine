@@ -115,8 +115,10 @@ namespace FDG.Tests
         public void AnUnseenEnemyWithinChargeRange_IsCharged()
         {
             // What step 2 does with an enemy it cannot see: it cannot be SHOT, so the answer is to come
-            // round the corner after it. This is the behaviour change a player actually feels.
-            AddBlockingWall();
+            // round the corner after it. This is the behaviour change a player actually feels. A short wall
+            // (lane 2, 2026-11-27): the charge has to be able to get round it - see the next test.
+            _store.Create(new TerrainData(ETerrainType.Blocking | ETerrainType.Impassible,
+                new RectangularZone(21f, 27f, 14f, 15f)));
             DataBinding<UnitData> ai = MakeUnit(_ai, AiSpot);
             MakeUnit(_heroes, new Position(24f, 18f));
             PlaceObjectiveFarFromBoth();
@@ -126,6 +128,23 @@ namespace FDG.Tests
             Assert.That(plan.Kind, Is.EqualTo(EQuestAiMove.Charge),
                 "an unseen hero inside charge distance cannot be shot, so the plan is to charge it: "
                 + plan.Why);
+        }
+
+        [Test]
+        public void AnUnseenEnemyBehindAWallTheChargeCantGetRound_IsRushedAt_NotCharged()
+        {
+            // Lane 2, 2026-11-27 (#364 for the Quest AI): 8" in a straight line, but the wall runs across the
+            // table and the walk round it is far past 12". Step 2: "If you move, will any enemy be in range to
+            // shoot or charge? No - Rush to closest." The plan used to say Charge, and the charge move failed.
+            AddBlockingWall();
+            DataBinding<UnitData> ai = MakeUnit(_ai, AiSpot);
+            MakeUnit(_heroes, new Position(24f, 18f));
+            PlaceObjectiveFarFromBoth();
+
+            QuestAiPlan plan = StarQuestAiBrain.Plan(_table, _ai, ai.GetValue());
+
+            Assert.That(plan.Kind, Is.EqualTo(EQuestAiMove.Rush), plan.Why);
+            Assert.That(plan.Target!.PlayerID, Is.EqualTo(_heroes), plan.Why);
         }
 
         /// <summary>
