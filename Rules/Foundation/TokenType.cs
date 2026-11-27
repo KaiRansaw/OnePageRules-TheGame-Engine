@@ -23,6 +23,7 @@ public readonly record struct TokenType(string Id)
     public const string PENDING_REINFORCEMENT_ARRIVAL_ID = "PendingReinforcementArrival";
     public const string CONCEDED_ID = "Conceded";
     public const string THICK_CLOUDS_ID = "ThickClouds";
+    public const string NIGHT_SIGHT_ID = "NightSight";
 
     // Extra Actions (Advanced Rulebooks 3.6.0). See FDG.ExtraActions.
     public const string LAST_STAND_ID = "LastStand";
@@ -336,6 +337,13 @@ public readonly record struct TokenType(string Id)
     /// holding the quarter, so the range check can test the shooter's position at the moment it shoots. Cleared at round end.
     /// </summary>
     public static readonly TokenType ThickClouds = new(THICK_CLOUDS_ID);
+
+    /// <summary>
+    /// Quest Time of Day, Night (GF: Star Quest / AoF: Quest Horde Mode v2.0.0, Campaign Builder / Beginner's Guide
+    /// v2.1.0): "Units get -1 to hit when shooting, and line of sight is limited to 12"". Put on every unit on the table
+    /// at the start of a Night round, cleared at round end; read by the range and spell-target checks.
+    /// </summary>
+    public static readonly TokenType NightSight = new(NIGHT_SIGHT_ID);
 
     /// <summary>
     /// Marks a unit that is currently embarked inside a Transport (#035). A <b>cross-unit</b> token:

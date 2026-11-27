@@ -4,6 +4,7 @@ using FDG.Quest;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
 using FDG.Rules.Foundation;
+using FDG.Rules.Tokens;
 using FDG.StageResolution.Requests;
 using FDG.StateMachine;
 
@@ -199,7 +200,7 @@ namespace FDG.Stages
                 : "After all objectives are done you may trigger a boss fight: one double-size wave, then no more reinforcements. Destroy it all for bonus XP.",
             HeroInjuries => "A hero unconscious at the end of a wave (with an objective held) may come back with an injury that lasts until the end of the next wave.",
             IncreasedAlertness => "Full Assault / Alarmed: alertness may rise by an extra 1 at the end of each round.",
-            TimeOfDayName => "Dusk, Night (-1 to hit when shooting), Dawn (-1 to hit when shooting) or Day; it moves on with each new wave.",
+            TimeOfDayName => "Dusk, Night (-1 to hit when shooting, and nothing further than 12\" is in sight), Dawn (-1 to hit when shooting) or Day; it moves on with each new wave.",
             WeatherName => "Worsening, Bad (half movement, -1 to hit in melee), Improving (-1 to hit in melee) or Good; it moves on with each new wave.",
             RandomEvents => "Roll on the 36 random events whenever a new wave arrives (missions: also at the start).",
             _ => "",
@@ -366,6 +367,13 @@ namespace FDG.Stages
             List<UnitData> units = OnTable(context);
             if (q.TimeOfDay is "Night" or "Dawn")
                 foreach (UnitData u in units) QuestTreasure.GrantRule(context, u, u, "-1 to hit rolls when shooting", ELifetime.ThisRound);
+            // Night: "... and line of sight is limited to 12"" (RangeRuleQueries.NightSightLimit).
+            if (q.TimeOfDay == "Night")
+            {
+                foreach (UnitData u in units.Where(u => !u.Tokens.HasToken(TokenType.NightSight)))
+                    u.Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.NightSight));
+                context.Log($"Night: line of sight is limited to {RangeRuleQueries.NightSightInches:0}\" this round ({units.Count} units).");
+            }
             if (q.Weather is "Bad" or "Improving")
                 foreach (UnitData u in units) QuestTreasure.GrantRule(context, u, u, "-1 to hit rolls in melee", ELifetime.ThisRound);
 

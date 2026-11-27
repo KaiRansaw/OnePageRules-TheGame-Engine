@@ -208,6 +208,46 @@ namespace FDG.Tests
                 "the mark's +6\" (18\" effective) makes the marked target fireable.");
         }
 
+        // GF: Star Quest / AoF: Quest Horde Mode v2.0.0 and the Campaign Builder / Beginner's Guide v2.1.0, Time of Day:
+        // "Night - Units get -1 to hit when shooting, and line of sight is limited to 12"." The -1 was built; the 12" was not.
+        [Test]
+        public void QuestNight_NothingBeyondTwelveInchesIsInSight()
+        {
+            // Enemy centre 16" -> 15" base-to-base: inside the 24" rifle, beyond Night's 12".
+            DataBinding<UnitData> attacker = MakeArmyUnit(_attackerPlayer, new Position(0, 0, 0), Rifle(24f));
+            DataBinding<UnitData> far = MakeArmyUnit(_enemyPlayer, new Position(16, 0, 0));
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, _ctx), Is.True, "by day the 24\" rifle reaches 15\"");
+
+            attacker.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.NightSight));
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, _ctx), Is.False, "at night 15\" is out of sight");
+            Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), Rifle(24f), far.GetValue(), _ctx.RuleEvaluator), Is.EqualTo(12f));
+            Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), Rifle(6f), far.GetValue(), _ctx.RuleEvaluator), Is.EqualTo(6f),
+                "a shorter weapon keeps its own range");
+
+            MakeArmyUnit(_enemyPlayer, new Position(10, 0, 0));
+            Assert.That(ChooseRangedAttackStage.HasAnyFireableTarget(attacker, _ctx), Is.True, "9\" is in sight at night");
+
+            // Indirect "may target enemies that are not in line of sight" - the Night limit is a sight limit.
+            var mortar = new Weapon("Mortar", rangeInches: 24f, attacks: 1, armorPenetration: 0);
+            mortar.AttachRuleDefinition(new ResolvedRule("Indirect", CoreRuleCatalog.Indirect));
+            Assert.That(RangeRuleQueries.EffectiveRange(attacker.GetValue(), mortar, far.GetValue(), _ctx.RuleEvaluator), Is.EqualTo(24f));
+        }
+
+        [TestCase("Night", true)]
+        [TestCase("Dawn", false)]
+        [TestCase("Dusk", false)]
+        public async Task QuestNight_TheRoundStartPutsTheSightLimitOnEveryUnit(string time, bool limited)
+        {
+            DataBinding<UnitData> unit = MakeArmyUnit(_attackerPlayer, new Position(4, 0, 4), Rifle(24f));
+            QuestProgress q = GameProgressUtilities.GetQuestProgress(_store);
+            q.TimeOfDay = time;
+            GameProgressUtilities.SetQuestProgress(_store, q);
+
+            await QuestChallenges.ApplyRoundEffects(_ctx);
+
+            Assert.That(unit.GetValue().Tokens.HasToken(TokenType.NightSight), Is.EqualTo(limited));
+        }
+
         private static void Attach(DataBinding<UnitData> unit, string name, SpecialRuleDefinition def) =>
             unit.GetValue().AttachRuleDefinition(new ResolvedRule(name, def));
 

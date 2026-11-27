@@ -92,6 +92,13 @@ namespace FDG.Stages
                         continue;
                     }
 
+                    // Quest Night: "line of sight is limited to 12"".
+                    if (selector.RequireLineOfSight
+                        && Rules.Dispatch.RangeRuleQueries.NightSightLimit(actingUnit.GetValue()) is { } night && distance > night)
+                    {
+                        continue;
+                    }
+
                     eligible.Add(candidateBinding);
                 }
             }

@@ -133,6 +133,8 @@ namespace FDG.Stages
                         originPos, targetPos, om.BaseShape, om.Facing, tm.BaseShape, tm.Facing);
                     if (distance > selector.RangeInches + extraRange) continue;
                     if (!selector.RequireLineOfSight) return true;
+                    // Quest Night: "line of sight is limited to 12"".
+                    if (Rules.Dispatch.RangeRuleQueries.NightSightLimit(origin) is { } night && distance > night) continue;
                     if (LineOfSightUtilities.HasLineOfSight(SightEnd.Of(originPos, om.BaseShape), SightEnd.Of(targetPos, tm.BaseShape), blockers)) return true;
                 }
             }

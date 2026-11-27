@@ -53,8 +53,19 @@ namespace FDG.Rules.Dispatch
             // Campaign event 43, Thick Clouds: halved while the shooter stands fully inside the quarter.
             range = InThickClouds(attacker) ? range / 2f : range;
             // Battlefield Effects - Dark Skies: "-2D6" range when firing their ranged weapons (to a minimum of 3")".
-            return BattlefieldEffects.DarkSkiesRange(attacker, range);
+            range = BattlefieldEffects.DarkSkiesRange(attacker, range);
+            // Quest Night: "line of sight is limited to 12"" - nothing further is in sight, so nothing further can be
+            // shot, except by a weapon that may target enemies out of sight (Indirect).
+            if (NightSightLimit(attacker) is { } night && range > night
+                && !SightRuleQueries.IgnoresTerrain(attacker, weapon, evaluator))
+                range = night;
+            return range;
         }
+
+        /// <summary>The Quest Night limit on how far <paramref name="unit"/> can see (12"), or null by day.</summary>
+        public static float? NightSightLimit(IUnit unit) => unit.Tokens.HasToken(TokenType.NightSight) ? NightSightInches : null;
+
+        public const float NightSightInches = 12f;
 
         /// <summary>
         /// Whether <paramref name="unit"/> is fully within the quarter a Thick Clouds event clouded this
