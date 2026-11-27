@@ -193,16 +193,47 @@ namespace FDG.Stages
         private static void Save(IGameContext c, QuestProgress q) => GameProgressUtilities.SetQuestProgress(c.GameDataStore, q);
         public static bool IsOn(IGameContext c, string challenge) => Q(c).Challenges.Contains(challenge);
 
-        private static string Describe(string challenge, bool horde) => challenge switch
+        /// <summary>
+        /// The challenge's name as the book in play prints it. The Horde Mode v2.0.0 books call the alertness
+        /// challenge "Increased Alertness"; the Campaign Builder v2.1.0 (missions) calls the same rule "Awareness"
+        /// ("Pick how aware the enemies are"). The stored name stays the same so saves and the Game Master keep working.
+        /// </summary>
+        public static string Label(string challenge, bool horde) =>
+            challenge == IncreasedAlertness && !horde ? AwarenessName : challenge;
+
+        public const string AwarenessName = "Awareness";
+
+        /// <summary>The challenge's rule in OPR's own words: Horde Mode v2.0.0 for Horde, Campaign Builder v2.1.0 for
+        /// missions (GF: Star Quest and AoF: Quest print the same text).</summary>
+        internal static string Describe(string challenge, bool horde) => challenge switch
         {
             BossFights => horde
-                ? "At the start of waves 4, 7 and 10 you may trigger a boss fight: a double-size wave. Destroy all of it for double XP that wave."
-                : "After all objectives are done you may trigger a boss fight: one double-size wave, then no more reinforcements. Destroy it all for bonus XP.",
-            HeroInjuries => "A hero unconscious at the end of a wave (with an objective held) may come back with an injury that lasts until the end of the next wave.",
-            IncreasedAlertness => "Full Assault / Alarmed: alertness may rise by an extra 1 at the end of each round.",
-            TimeOfDayName => "Dusk, Night (-1 to hit when shooting, and nothing further than 12\" is in sight), Dawn (-1 to hit when shooting) or Day; it moves on with each new wave.",
-            WeatherName => "Worsening, Bad (half movement, -1 to hit in melee), Improving (-1 to hit in melee) or Good; it moves on with each new wave.",
-            RandomEvents => "Roll on the 36 random events whenever a new wave arrives (missions: also at the start).",
+                ? "At the beginning of waves 4, 7, and 10, players may choose to trigger a boss fight, and deploy a wave of "
+                  + "reinforcements of double point value. If all enemies from the boss wave are destroyed, players earn double "
+                  + "as much XP at the end of the wave."
+                : "After completing all objectives, players may choose to trigger a boss fight. At the end of that round deploy "
+                  + "a wave of Reinforcements of double point value, and no more Reinforcements are deployed after that. The Hero "
+                  + "closest to an enemy counts as its AI Goal. If all enemies from the boss wave are destroyed, players earn "
+                  + "double as much XP as the chosen Difficulty level when ending the mission.",
+            HeroInjuries => "If a Hero is Unconscious at the end of a wave, and the Heroes have seized at least one objective, "
+                + "players may choose to revive them with an injury. The Hero restores 3 wounds, and may then be placed within 3\" "
+                + "of any objective seized by the Heroes. Then roll one die to see what injuries they get, which last until the "
+                + "end of the next wave.",
+            IncreasedAlertness => (horde ? "Pick how alert the enemies are, or roll for it: " : "Pick how aware the enemies are, or roll for it: ")
+                + "1 Full Assault - At the end of each round, roll one die. On a 1-2, increase Alertness by 1. "
+                + "2-3 Alarmed - At the end of each round, roll one die. On a 1, increase Alertness by 1. 4-6 Vigilant - No effect.",
+            TimeOfDayName => "Pick at what time the mission takes place, or roll for it: 1 Dusk - No effect. 2 Night - Units get -1 to "
+                + "hit when shooting, and line of sight is limited to 12\". 3 Dawn - Units get -1 to hit when shooting. 4-6 Day - No "
+                + "effect. " + (horde ? "Each switches to the next at the start of the next wave." : "Each switches to the next after Reinforcements."),
+            WeatherName => "Pick in what weather the mission takes place, or roll for it: 1 Worsening - No effect. 2 Bad - Units get -1 "
+                + "to hit in melee, and all movement is halved. 3 Improving - Units get -1 to hit in melee. 4-6 Good - No effect. "
+                + (horde ? "Each switches to the next at the start of the next wave." : "Each switches to the next after Reinforcements."),
+            RandomEvents => horde
+                ? "Whenever a new wave is deployed, a random event happens. Roll two separate dice one at a time, where the first "
+                  + "one represents the first number, whilst the second one represents the second number, and resolve that event."
+                : "At the start of the first round, and whenever a new wave of Reinforcements is deployed, a random event happens. "
+                  + "Roll two separate dice one at a time, where the first one represents the first number, whilst the second one "
+                  + "represents the second number, and resolve that event.",
             _ => "",
         };
 
@@ -250,14 +281,14 @@ namespace FDG.Stages
                 {
                     [StartOption] = picked.Count == 0
                         ? "Start the mission with no optional challenges."
-                        : "Start the mission with: " + string.Join(", ", picked) + ".",
+                        : "Start the mission with: " + string.Join(", ", picked.Select(c => Label(c, horde))) + ".",
                 };
                 // Each challenge is one row that shows whether it is on, and clicking it flips it. The row
                 // used to read "Turn on: Weather" / "Turn off: Weather", which says what the click does but
                 // never what the state IS - you had to read the verb backwards to know what you had picked.
                 foreach (string c in all)
                 {
-                    string o = (picked.Contains(c) ? OnMark : OffMark) + c;
+                    string o = (picked.Contains(c) ? OnMark : OffMark) + Label(c, horde);
                     options.Add(o);
                     descriptions[o] = Describe(c, horde) + " (Optional - makes the game harder.)";
                 }
@@ -265,7 +296,7 @@ namespace FDG.Stages
                     options, Array.Empty<StringSelectionRequest.InvalidOption>(), optionDescriptions: descriptions,
                     displayName: "Optional challenges");
                 string pick = await context.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
-                string? challenge = all.FirstOrDefault(c => pick == OnMark + c || pick == OffMark + c);
+                string? challenge = all.FirstOrDefault(c => pick == OnMark + Label(c, horde) || pick == OffMark + Label(c, horde));
                 if (challenge == null) break;
                 if (!picked.Remove(challenge)) picked.Add(challenge);
             }
@@ -273,7 +304,7 @@ namespace FDG.Stages
             QuestProgress q = Q(context);
             q.Challenges = picked;
             if (picked.Contains(IncreasedAlertness))
-                q.AlertLevel = await PickOrRoll(context, player, IncreasedAlertness,
+                q.AlertLevel = await PickOrRoll(context, player, Label(IncreasedAlertness, horde),
                     new[] { "Full Assault", "Alarmed", "Vigilant" }, r => r == 1 ? "Full Assault" : r <= 3 ? "Alarmed" : "Vigilant");
             if (picked.Contains(TimeOfDayName))
                 q.TimeOfDay = await PickOrRoll(context, player, TimeOfDayName,
@@ -285,8 +316,9 @@ namespace FDG.Stages
             if (picked.Count > 0)
             {
                 string extras = string.Join(", ", new[] { q.AlertLevel, q.TimeOfDay, q.Weather }.Where(s => s.Length > 0));
-                context.Log($"Star Quest: optional challenges - {string.Join(", ", picked)}" + (extras.Length > 0 ? $" ({extras})." : "."));
-                await context.Announce("Challenges: " + string.Join(", ", picked) + (extras.Length > 0 ? $" - {extras}" : ""),
+                string names = string.Join(", ", picked.Select(c => Label(c, horde)));
+                context.Log($"Star Quest: optional challenges - {names}" + (extras.Length > 0 ? $" ({extras})." : "."));
+                await context.Announce("Challenges: " + names + (extras.Length > 0 ? $" - {extras}" : ""),
                     new TextColor(255, 150, 90, 255), EBannerTier.Notice);
             }
         }

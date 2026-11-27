@@ -73,8 +73,9 @@ namespace FDG.Stages
         {
             GameContext = gameContext;
             RoundCount = roundCount;
-            Cursor = new TeamPlayerAlternationCursor(teamOrder);
-            Cursor.Sequential = GameSystemInfo.IsQuestMode(gameContext.Settings.GameMode);
+            bool quest = GameSystemInfo.IsQuestMode(gameContext.Settings.GameMode);
+            Cursor = new TeamPlayerAlternationCursor(quest ? HeroesFirst(gameContext, teamOrder) : teamOrder);
+            Cursor.Sequential = quest;
 
             // The round advances the cursor BEFORE every activation, including the round's first, so it
             // starts parked one step short of teamOrder[0] - the team that won the deployment roll-off in
@@ -270,6 +271,21 @@ namespace FDG.Stages
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// GF: Star Quest / AoF: Quest core rules v2.1.0, "Playing the Game": "Each round, players activate all Heroes
+        /// first, and then the AI activates all units". The order handed in is last round's finish order, and a Quest
+        /// round where the AI had nothing on the table (every enemy dead before reinforcements arrived) records the AI
+        /// as finishing FIRST - so from then on the enemies took every round's opening turns. In the Quest modes the
+        /// team holding the heroes always leads, whatever the finish order says; the rest keep their relative order.
+        /// </summary>
+        internal static List<ITeam> HeroesFirst(IGameContext gameContext, IReadOnlyList<ITeam> teamOrder)
+        {
+            HashSet<PlayerID> heroOwners = new HashSet<PlayerID>(gameContext.GameDataStore().GetAllValues<UnitData>()
+                .Where(u => u.IsQuestHero).Select(u => u.PlayerID));
+            return teamOrder.Where(t => t.Players.Any(heroOwners.Contains))
+                .Concat(teamOrder.Where(t => !t.Players.Any(heroOwners.Contains))).ToList();
         }
 
         private void SetUnactivatedUnits()

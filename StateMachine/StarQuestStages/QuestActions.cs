@@ -67,6 +67,17 @@ namespace FDG.Stages
         public const string FreeActionOption = "Free Action";
         public static readonly string ExtraSkillOption = $"Extra Skill ({ExtraActionPower} power)";
         public const string FeatSuffix = " (once per game)";
+
+        /// <summary>
+        /// How an action-menu option reads on a button: a class feature's option carries <see cref="FeatSuffix"/>,
+        /// which on a 74px square wrapped the name over four lines and ran into the button's key number (bug hunt
+        /// 2026-11-27, "SENTINEL MEDITATION (ONCE PER GAME)"). The button shows the feature's name with "Once per
+        /// game" as its small second line; the option string itself, which the engine matches, is unchanged.
+        /// </summary>
+        public static (string Name, string? Note) ButtonLabel(string option) =>
+            option.EndsWith(FeatSuffix, StringComparison.Ordinal)
+                ? (option[..^FeatSuffix.Length], "Once per game")
+                : (option, null);
         /// <summary>Internal: the hero went down at the start of its activation.</summary>
         public const string EndActivationOption = "__end_activation";
 

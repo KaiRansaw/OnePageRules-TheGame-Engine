@@ -1,5 +1,6 @@
 using FDG.Data;
 using FDG.Players;
+using FDG.Quest;
 using FDG.Stages;
 using FDG.Utilities;
 using NUnit.Framework;
@@ -268,6 +269,55 @@ namespace FDG.Tests
         }
 
         // ── Fixture ──────────────────────────────────────────────────────────────────────────────────────
+
+        // ── Quest modes: the heroes always lead ──────────────────────────────────────────────────────────
+
+        // GF: Star Quest core rules v2.1.0, "Playing the Game": "Each round, players activate all Heroes first, and
+        // then the AI activates all units in order from the closest to a Hero to the furthest." A round where the
+        // AI had no unit on the table (the sentries dead, reinforcements not in yet) recorded the AI as finishing
+        // first, so the next round's order came in as [AI, heroes] - and the enemies opened every round from then
+        // on (bug hunt 2026-11-27 run 3: 24 of 26 rounds in one played mission).
+        [TestCase(EGameMode.StarQuestMission)]
+        [TestCase(EGameMode.StarQuestHorde)]
+        public void QuestRound_HeroesActivateFirst_EvenWhenTheAiFinishedFirstLastRound(EGameMode mode)
+        {
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+            GameSettings settings = GameSettings.GetDefault();
+            settings.GameSystem = EGameSystem.GFStarQuest;
+            settings.GameMode = mode;
+            ctx.Settings = settings;
+            DataBinding<UnitData> hero = MakeUnit(_playerA, "Hero", new Position(5f, 5f));
+            hero.GetValue().QuestHeroJson = new QuestHero { Name = "Hero", Power = 3 }.ToJson();
+            MakeUnit(_playerB, "Enemy", new Position(25f, 5f));
+            ITeam heroes = MakeTeam(1, _playerA);
+            ITeam ai = MakeTeam(2, _playerB);
+
+            var mainPhase = new MainPhaseContext(ctx, new List<ITeam> { heroes, ai });
+            mainPhase.OnEndOfRound(new List<ITeam> { ai, heroes });   // the AI "finished first" last round
+            var round = new SingleRoundContext(ctx, mainPhase.TeamActivateOrder!, mainPhase.RoundCount);
+
+            round.TryAdvanceToNextPlayer(out ITeam? team, out PlayerID? player);
+
+            Assert.That(team, Is.SameAs(heroes), "the heroes open every Quest round");
+            Assert.That(player, Is.EqualTo(_playerA));
+        }
+
+        [Test]
+        public void StandardRound_StillFollowsTheFinishOrder()
+        {
+            // The Quest rule must not leak into army games: there the team that finished first leads.
+            var ctx = new TriggeredMoveTestContext(_store, new NullPlayerRequester());
+            DataBinding<UnitData> hero = MakeUnit(_playerA, "A1", new Position(5f, 5f));
+            hero.GetValue().QuestHeroJson = new QuestHero { Name = "Hero", Power = 3 }.ToJson();
+            MakeUnit(_playerB, "B1", new Position(25f, 5f));
+            ITeam teamA = MakeTeam(1, _playerA);
+            ITeam teamB = MakeTeam(2, _playerB);
+
+            var round = new SingleRoundContext(ctx, new List<ITeam> { teamB, teamA }, 2);
+            round.TryAdvanceToNextPlayer(out ITeam? team, out PlayerID? _);
+
+            Assert.That(team, Is.SameAs(teamB));
+        }
 
         private ITeam MakeTeam(int number, params PlayerID[] players)
         {
