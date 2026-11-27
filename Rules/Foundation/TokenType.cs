@@ -24,6 +24,7 @@ public readonly record struct TokenType(string Id)
     public const string CONCEDED_ID = "Conceded";
     public const string THICK_CLOUDS_ID = "ThickClouds";
     public const string NIGHT_SIGHT_ID = "NightSight";
+    public const string PROTECTION_FEAT_SPENT_ID = "ProtectionFeatSpent";
 
     // Extra Actions (Advanced Rulebooks 3.6.0). See FDG.ExtraActions.
     public const string LAST_STAND_ID = "LastStand";
@@ -344,6 +345,9 @@ public readonly record struct TokenType(string Id)
     /// at the start of a Night round, cleared at round end; read by the range and spell-target checks.
     /// </summary>
     public static readonly TokenType NightSight = new(NIGHT_SIGHT_ID);
+
+    /// <summary>Protection Feat ("once per game") has been used by this unit. Never cleared. See FDG.ProtectionFeat.</summary>
+    public static readonly TokenType ProtectionFeatSpent = new(PROTECTION_FEAT_SPENT_ID);
 
     /// <summary>
     /// Marks a unit that is currently embarked inside a Transport (#035). A <b>cross-unit</b> token:

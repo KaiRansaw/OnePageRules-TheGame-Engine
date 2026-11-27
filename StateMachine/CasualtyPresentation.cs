@@ -120,6 +120,9 @@ namespace FDG.Stages
             // Battlefield Effects - Mystical Fog: a 6 ignores each wound.
             wounds = await BattlefieldEffects.FogIgnore(gameContext, unit, wounds);
             if (wounds <= 0f) return;
+            // Protection Feat: "when this unit takes wounds" - any wounds, not only from attacks.
+            wounds = await ProtectionFeat.Offer(gameContext, unit, wounds);
+            if (wounds <= 0f) return;
 
             bool wasAlive = unit.GetIsAlive();
             // #414: no Firefight branch any more - 3.6.0 Firefight kills a model at its Tough value like

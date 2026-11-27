@@ -236,6 +236,20 @@ namespace FDG.Stages
                 }
             }
 
+            // Protection Feat: "Once per game, when this unit takes wounds and most of its models have this rule, you
+            // may use this rule and roll one die per wound, and on a 5+ it is ignored." Asked once the wounds are known
+            // (after Regeneration, which is rolled first), then rolled per packet like Regeneration so a Deadly clump
+            // gets one die per wound in it.
+            if (packets.Count > 0 && await ProtectionFeat.Ask(GameContext, defender, packets.Sum(p => p.WeightedWounds)))
+            {
+                for (int i = 0; i < packets.Count; i++)
+                {
+                    if (packets[i].Wounds <= 0f) continue;
+                    float ignored = await ProtectionFeat.Roll(GameContext, defender, packets[i].Wounds, defender.Name);
+                    packets[i] = packets[i].WithWounds(packets[i].Wounds - ignored);
+                }
+            }
+
             // #042 Takedown: if the attack was re-scoped to a single model (IndividualTargetResult,
             // produced by BuildTargetListStage), every packet funnels to that one model, no carry-over to
             // the rest of the unit ("resolve as a unit of [1]"); what it cannot absorb is lost. This

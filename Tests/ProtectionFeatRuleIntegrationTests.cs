@@ -1,118 +1,188 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using FDG.Data;
+using FDG.Players;
 using FDG.Rules.Definitions;
 using FDG.Rules.Dispatch;
-using FDG.Rules.Dispatch.Contexts;
 using FDG.Rules.Foundation;
-using FDG.Rules.Tokens;
+using FDG.StageResolution;
+using FDG.StageResolution.Requests;
+using FDG.Stages;
 using FDG.Tests.RulesHarness;
-using FDG.Utilities;
 using NUnit.Framework;
 
 namespace FDG.Tests
 {
-    // #197 misc - Protection Feat ("once per game, when this unit takes wounds ... you may roll one die per
-    // wound, ignoring each on a 5+"). Modelled as a proactive OPTIONAL brace: a single once-per-game
-    // activation-start ability (Yes/No via the same stage path as Speed Feat) grants a roll-per-wound 5+
-    // wound-ignore that lasts UntilNextActivation - so it covers the incoming fire on the opponent's turn.
-    // The reactive "react when hit" timing is reinterpreted as "brace in advance"; the effect (once-per-game,
-    // per-wound 5+ ignore, all-models, optional) is faithful. Reuses Regeneration's IgnoreWoundOnRoll.
+    // Protection Feat (Army Forge 3.6.0, the same words in GF, Firefight, AoF, Skirmish and both Quests): "Once per game,
+    // when this unit takes wounds and most of its models have this rule, you may use this rule and roll one die per
+    // wound, and on a 5+ it is ignored."
+    //
+    // Until 2026-11-27 it was a brace taken at the unit's own activation that lasted until its next one - so a unit got a
+    // 5+ save against EVERY attack for a whole round, and the offer came before anyone knew which attack was worth it.
+    // Now it is asked as the wounds land, through the real AssignWoundsStage and through CasualtyPresentation (wounds
+    // from anything else), and a yes spends it.
     [TestFixture]
     public class ProtectionFeatRuleIntegrationTests
     {
-        private const string Guard = "Protection Feat Guard";
+        private GameDataStore _store = null!;
 
-        private static SpecialRuleDefinition ProtectionFeat() => new("Protection Feat",
-            Array.Empty<HookEntry>(),
-            new[]
+        [SetUp]
+        public void SetUp() => _store = GameDataStore.GameDataStoreBuilder.GetDefault();
+
+        // The engine reads the rule by name; the shipped definition carries no hooks (ProtectionFeatShippedDataTests).
+        private static readonly SpecialRuleDefinition Feat =
+            new(ProtectionFeat.Name, Array.Empty<HookEntry>(), Array.Empty<ActivatedAbility>());
+
+        [Test]
+        public async Task AnAttack_IsAskedAsItLands_AndEach5PlusIsIgnored()
+        {
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 10);
+            Attach(defender);
+            var requester = new Requester(useFeat: true);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(5), attacker, defender, failedSaves: 4);
+
+            Assert.That(requester.FeatQuestions, Is.EqualTo(1), "asked once, when the wounds land");
+            Assert.That(requester.AssignedWounds, Is.EqualTo(0f), "every die a 5 - all four ignored");
+            Assert.That(ProtectionFeat.Spent(defender.GetValue()), Is.True);
+        }
+
+        [Test]
+        public async Task OncePerGame_TheSecondVolleyIsNotOffered()
+        {
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 10);
+            Attach(defender);
+            var requester = new Requester(useFeat: true);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(4), attacker, defender, failedSaves: 2);
+            Assert.That(requester.AssignedWounds, Is.EqualTo(2f), "4s are not ignored");
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(6), attacker, defender, failedSaves: 3);
+
+            Assert.That(requester.FeatQuestions, Is.EqualTo(1), "used on the first volley, whatever the dice did");
+            Assert.That(requester.AssignedWounds, Is.EqualTo(3f), "the second volley lands in full");
+        }
+
+        [Test]
+        public async Task SayingNo_KeepsItForLater()
+        {
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 10);
+            Attach(defender);
+            var requester = new Requester(useFeat: false);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(6), attacker, defender, failedSaves: 2);
+            Assert.That(requester.AssignedWounds, Is.EqualTo(2f));
+            Assert.That(ProtectionFeat.Spent(defender.GetValue()), Is.False);
+
+            requester.UseFeat = true;
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(6), attacker, defender, failedSaves: 2);
+            Assert.That(requester.FeatQuestions, Is.EqualTo(2));
+            Assert.That(requester.AssignedWounds, Is.EqualTo(0f));
+        }
+
+        [Test]
+        public async Task OnlyWhenMostModelsHaveIt()
+        {
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 4);
+            // Two of four models carry it - not "most".
+            foreach (IModel m in defender.GetValue().Models.Take(2))
+                ((ModelData)m).AttachRuleDefinition(new ResolvedRule(ProtectionFeat.Name, Feat, Array.Empty<RuleArgument>()));
+            var requester = new Requester(useFeat: true);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(6), attacker, defender, failedSaves: 2);
+            Assert.That(requester.FeatQuestions, Is.EqualTo(0));
+
+            ((ModelData)defender.GetValue().Models[2]).AttachRuleDefinition(
+                new ResolvedRule(ProtectionFeat.Name, Feat, Array.Empty<RuleArgument>()));
+            Assert.That(ProtectionFeat.MostModelsHave(defender.GetValue()), Is.True, "three of four");
+        }
+
+        [Test]
+        public async Task WoundsFromAnythingElse_AreOfferedToo()
+        {
+            DataBinding<UnitData> unit = MakeUnit("Saurians", 5);
+            Attach(unit);
+            var requester = new Requester(useFeat: true);
+            var context = new WoundTestContext(_store, requester, new FixedFaceDiceRoller(5));
+
+            await CasualtyPresentation.ApplyUnitWounds(context, unit.GetValue(), 3f);
+
+            Assert.That(requester.FeatQuestions, Is.EqualTo(1));
+            Assert.That(unit.GetValue().Models.Count(m => m.GetIsAlive()), Is.EqualTo(5), "dangerous-terrain style wounds, all ignored");
+        }
+
+        [Test]
+        public void TheBot_KeepsItForABigBlow()
+        {
+            DataBinding<UnitData> unit = MakeUnit("Saurians", 10);
+            Assert.That(ProtectionFeat.BotUses(unit.GetValue(), 1f), Is.False);
+            Assert.That(ProtectionFeat.BotUses(unit.GetValue(), 3f), Is.True);
+            DataBinding<UnitData> lone = MakeUnit("Hero", 1);
+            Assert.That(ProtectionFeat.BotUses(lone.GetValue(), 1f), Is.True, "enough to wipe the unit out");
+        }
+
+        // ---------- helpers ----------
+
+        private void Attach(DataBinding<UnitData> unit) =>
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule(ProtectionFeat.Name, Feat, Array.Empty<RuleArgument>()));
+
+        private async Task RunAssignWounds(Requester requester, IDiceRoller dice,
+            DataBinding<UnitData> attacker, DataBinding<UnitData> defender, int failedSaves)
+        {
+            var context = new WoundTestContext(_store, requester, dice);
+            var stage = new AssignWoundsStage<ICombatMetadata>(context, new NoOpLayer<ICombatMetadata>());
+            stage.NextStage.Bind("done");
+            var weapon = new Weapon("Test", rangeInches: 48f, attacks: 1, armorPenetration: 0);
+            var metadata = new CombatMetadata(context, attacker, defender, weapon, weaponCount: 1,
+                attackerMoved: false, isMelee: false);
+            var failed = new List<FailedSaveInfo>();
+            for (int i = 0; i < failedSaves; i++)
+                failed.Add(new FailedSaveInfo(TestDice.Faces(1), new PendingSaveRolls(TestDice.Faces(1), 4)));
+            metadata.AddResult(new RollToSaveResults(new List<SuccessfulSaveInfo>(), failed));
+            await stage.Enter(metadata);
+            metadata.QueryForResult(out AssignWoundsResults landed);
+            requester.AssignedWounds = landed.TotalWoundsToAssign;
+        }
+
+        private (DataBinding<UnitData>, DataBinding<UnitData>) Combatants(int defenderModels) =>
+            (MakeUnit("Attacker", 1), MakeUnit("Saurian Warriors", defenderModels));
+
+        private DataBinding<UnitData> MakeUnit(string name, int models)
+        {
+            var bindings = new List<DataBinding<ModelData>>();
+            for (int i = 0; i < models; i++)
             {
-                new ActivatedAbility(EHookID.Activation_OnActivationStart,
-                    new Cost.OncePerGame(),
-                    new TargetSelector(RangeInches: 0f, MinCount: 1, MaxCount: 1, ETargetAffinity.Self,
-                        RequireLineOfSight: false),
-                    new Effect.AddRule(Guard, ELifetime.UntilNextActivation),
-                    new Condition.AllModelsHaveThisRule(),
-                    Label: "Protection Feat"),
-            });
+                var model = new ModelData(baseRadiusInches: 0.5f, weapons: new List<Weapon>(),
+                    initialPosition: new Position(i, 0), gameDataStore: _store);
+                bindings.Add(_store.GetDataBinding<ModelData>(_store.Create(model)));
+            }
+            var unit = new UnitData(new PlayerID(Guid.NewGuid()), name, quality: 4, defense: 4, modelBindings: bindings);
+            return _store.GetDataBinding<UnitData>(_store.Create(unit));
+        }
 
-        private static SpecialRuleDefinition ProtectionFeatGuard() => new(Guard,
-            new[]
+        private sealed class Requester : IPlayerRequestByID
+        {
+            public Requester(bool useFeat) => UseFeat = useFeat;
+            public bool UseFeat { get; set; }
+            public int FeatQuestions { get; private set; }
+            public float AssignedWounds { get; set; }
+
+            public Task<TReply> RequestDecision<TRequest, TReply>(TRequest request) where TRequest : IStageTaskRequest<TReply>
             {
-                new HookEntry(EHookID.Shooting_OnSaveRollComplete, new Condition.AllModelsHaveThisRule(),
-                    new Effect.IgnoreWoundOnRoll(MinRoll: 5), ELifetime.ThisAttack, ERuleSeat.Subject),
-            },
-            Array.Empty<ActivatedAbility>());
-
-        private static TestRuleHarness Harness()
-        {
-            var harness = new TestRuleHarness();
-            harness.Register(ProtectionFeat());
-            harness.Register(ProtectionFeatGuard());
-            return harness;
-        }
-
-        private static WoundIgnoreSink IgnoreAgainst(TestRuleHarness harness, IUnit attacker, IUnit defender)
-        {
-            var sink = new WoundIgnoreSink();
-            sink.ApplyFrom(harness.Evaluate(defender, ERuleSeat.Subject,
-                new SaveRollCompleteContext(attacker, defender, Faces(4))));
-            return sink;
-        }
-
-        [Test]
-        public void ProtectionFeat_OffersASingleOptionalAbility_AtActivationStart()
-        {
-            TestRuleHarness harness = Harness();
-            IUnit unit = harness.BuildUnit("P1", 1, "Protection Feat");
-
-            IReadOnlyList<AbilityOffer> offers = harness.OfferAbilities(new ActivationStartContext(unit));
-            Assert.That(offers, Has.Count.EqualTo(1), "single ability -> the stage offers Yes/No.");
-            Assert.That(offers.Single().RuleName, Is.EqualTo("Protection Feat"));
-        }
-
-        [Test]
-        public void Bracing_GrantsARollPerWoundFivePlusIgnore()
-        {
-            TestRuleHarness harness = Harness();
-            IUnit defender = harness.BuildUnit("P1", 1, "Protection Feat");
-            IUnit attacker = harness.BuildUnit("P2", 1);
-
-            Assert.That(IgnoreAgainst(harness, attacker, defender).HasIgnore, Is.False,
-                "no protection before the feat is used.");
-
-            AbilityOffer offer = harness.OfferAbilities(new ActivationStartContext(defender)).Single();
-            OperationApplier.ApplyTokenOperations(harness.Accept(offer, defender));
-
-            WoundIgnoreSink ignore = IgnoreAgainst(harness, attacker, defender);
-            Assert.That(ignore.HasIgnore, Is.True, "after bracing, incoming wounds may be ignored...");
-            Assert.That(ignore.Threshold, Is.EqualTo(5), "...on a 5+.");
-        }
-
-        [Test]
-        public void TheGrantLastsUntilTheNextActivation_ThenExpires()
-        {
-            TestRuleHarness harness = Harness();
-            IUnit defender = harness.BuildUnit("P1", 1, "Protection Feat");
-            IUnit attacker = harness.BuildUnit("P2", 1);
-
-            AbilityOffer offer = harness.OfferAbilities(new ActivationStartContext(defender)).Single();
-            OperationApplier.ApplyTokenOperations(harness.Accept(offer, defender));
-            Assert.That(IgnoreAgainst(harness, attacker, defender).HasIgnore, Is.True,
-                "live through the opponent's turn (UntilNextActivation), which is when the wounds come.");
-
-            // The unit's next activation sweeps UntilNextActivation grants.
-            new TokenClearService().ClearForHook(EHookID.Activation_OnActivationStart,
-                new List<ITokenContainer> { defender.Tokens });
-            Assert.That(IgnoreAgainst(harness, attacker, defender).HasIgnore, Is.False,
-                "spent brace does not persist into the next activation.");
-        }
-
-        private static DiceResults Faces(params int[] faces)
-        {
-            var perSide = new float[6];
-            foreach (int face in faces) perSide[face - 1] += 1f;
-            return new DiceResults(perSide);
+                if (request is YesNoRequest yn && yn.DisplayName == ProtectionFeat.Name)
+                {
+                    FeatQuestions++;
+                    return Task.FromResult((TReply)(object)UseFeat);
+                }
+                if (request is AssignWoundsRequest wounds)
+                {
+                    var result = new AssignWoundsResults(wounds.UnitReceivingWounds, wounds.Packets);
+                    result.AutoFill();
+                    return Task.FromResult((TReply)(object)result);
+                }
+                throw new InvalidOperationException("Unexpected request: " + request.GetType().Name);
+            }
         }
     }
 }
