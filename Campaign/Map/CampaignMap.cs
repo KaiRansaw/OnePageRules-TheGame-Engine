@@ -18,13 +18,32 @@ namespace FDG.Campaign.Map
         Realm = 1,
     }
 
-    /// <summary>How many regions a campaign's map has (Kai: picked per campaign).</summary>
+    /// <summary>How big a campaign's map is (Kai: picked per campaign). Since 2026-11-27 the map is a hex grid and the
+    /// presets are its width x height (<see cref="CampaignMapGenerator.Dimensions"/>); Custom takes the player's own.</summary>
     public enum EMapSize
     {
         Small = 0,
         Medium = 1,
         Large = 2,
+        Custom = 3,
     }
+
+    /// <summary>A hex nobody can own or cross (Kai 2026-11-27: void/sea round the land, and mountains, lakes, seas,
+    /// asteroid fields and nebulae sprinkled through it). Only drawn - the rules never see these.</summary>
+    public enum EDeadHex
+    {
+        /// <summary>Open sea (fantasy) / deep space (sci-fi): the border round the land.</summary>
+        Void = 0,
+        /// <summary>An inland sea (fantasy) / nebula (sci-fi): water or gas cut off inside the land.</summary>
+        Sea = 1,
+        /// <summary>Mountains (fantasy) / an asteroid field (sci-fi).</summary>
+        Rough = 2,
+        /// <summary>A lake (fantasy) / a small nebula (sci-fi).</summary>
+        Lake = 3,
+    }
+
+    /// <summary>One impassable hex of a hex map.</summary>
+    public sealed record MapHex(int Col, int Row, EDeadHex Kind);
 
     /// <summary>
     /// What a region is. One set of types for both styles - only the names differ (<see cref="CampaignMapRules.TypeName"/>)
@@ -64,6 +83,10 @@ namespace FDG.Campaign.Map
         /// <summary>Where it is drawn: 0-1 across and down.</summary>
         public float X { get; set; }
         public float Y { get; set; }
+
+        /// <summary>Its hex on a hex map (column and row, odd rows shifted half a hex right); -1 on an old region map.</summary>
+        public int Col { get; set; } = -1;
+        public int Row { get; set; } = -1;
 
         /// <summary>The faction holding it, or null for neutral.</summary>
         public string? Owner { get; set; }
@@ -169,8 +192,18 @@ namespace FDG.Campaign.Map
         public int Turn { get; set; } = 1;
         public int VpTarget { get; set; } = DefaultVpTarget;
 
+        /// <summary>A hex map's width and height in hexes; 0 = an old region-and-road map (saves from before 2026-11-27).</summary>
+        public int Width { get; set; }
+        public int Height { get; set; }
+
+        /// <summary>Whether this is a hex map: every region is one hex and its links are the hexes touching it.</summary>
+        [JsonIgnore] public bool IsHex => Width > 0 && Height > 0;
+
         public List<MapRegion> Regions { get; set; } = new();
         public List<MapLink> Links { get; set; } = new();
+
+        /// <summary>A hex map's impassable hexes (every hex that is not a region).</summary>
+        public List<MapHex> Dead { get; set; } = new();
         public List<MapFaction> Factions { get; set; } = new();
 
         /// <summary>The turn under way, or null between turns.</summary>
@@ -178,7 +211,41 @@ namespace FDG.Campaign.Map
 
         public List<MapTurnRecord> History { get; set; } = new();
 
-        public MapRegion? Region(string? id) => id == null ? null : Regions.FirstOrDefault(r => r.Id == id);
+        public MapRegion? Region(string? id)
+        {
+            if (id == null) return null;
+            if (_byId == null || _byIdCount != Regions.Count)
+            {
+                _byId = new Dictionary<string, MapRegion>();
+                foreach (MapRegion r in Regions) _byId.TryAdd(r.Id, r);
+                _byIdCount = Regions.Count;
+            }
+            return _byId.TryGetValue(id, out MapRegion? hit) ? hit : null;
+        }
+
+        /// <summary>The regions linked to <paramref name="id"/>. Cached - a Large hex map has ~700 regions and ~1,900 links,
+        /// and the rules ask this thousands of times a turn. Rebuilt whenever the link count changes.</summary>
+        public IReadOnlyList<string> NeighbourIds(string id)
+        {
+            if (_adj == null || _adjCount != Links.Count)
+            {
+                _adj = new Dictionary<string, List<string>>();
+                foreach (MapLink l in Links)
+                {
+                    if (!_adj.TryGetValue(l.A, out var a)) _adj[l.A] = a = new List<string>();
+                    if (!_adj.TryGetValue(l.B, out var b)) _adj[l.B] = b = new List<string>();
+                    if (!a.Contains(l.B)) a.Add(l.B);
+                    if (!b.Contains(l.A)) b.Add(l.A);
+                }
+                _adjCount = Links.Count;
+            }
+            return _adj.TryGetValue(id, out var list) ? list : Array.Empty<string>();
+        }
+
+        private Dictionary<string, MapRegion>? _byId;
+        private int _byIdCount = -1;
+        private Dictionary<string, List<string>>? _adj;
+        private int _adjCount = -1;
         public MapFaction? Faction(string? id) => id == null ? null : Factions.FirstOrDefault(f => f.Id == id);
         public MapFaction Player => Factions.First(f => f.IsPlayer);
         public IEnumerable<MapFaction> Alive => Factions.Where(f => f.Alive);

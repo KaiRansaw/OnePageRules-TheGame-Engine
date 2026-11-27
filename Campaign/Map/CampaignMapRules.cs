@@ -57,7 +57,7 @@ namespace FDG.Campaign.Map
             ERegionType.Shrine => "+1 underdog point in every battle.",
             ERegionType.Fortress => "Starred (1 VP while held). +1 underdog point when defending it.",
             ERegionType.Medical => "Units sitting out come back one turn sooner.",
-            ERegionType.Port => s == EMapStyle.Realm ? "You may attack or claim up to 2 roads away." : "You may attack or claim up to 2 jumps away.",
+            ERegionType.Port => "You may attack or claim up to 2 hexes away.",
             _ => "No perk - but the battle has a lot of dangerous terrain.",
         };
 
@@ -83,10 +83,9 @@ namespace FDG.Campaign.Map
 
         // ------------------------------------------------------------------ the graph
 
-        public static IEnumerable<string> Neighbours(CampaignMap map, string id) =>
-            map.Links.Where(l => l.Touches(id)).Select(l => l.Other(id));
+        public static IEnumerable<string> Neighbours(CampaignMap map, string id) => map.NeighbourIds(id);
 
-        public static bool Adjacent(CampaignMap map, string a, string b) => map.Links.Any(l => l.Touches(a) && l.Touches(b));
+        public static bool Adjacent(CampaignMap map, string a, string b) => map.NeighbourIds(a).Contains(b);
 
         public static IEnumerable<MapRegion> Held(CampaignMap map, string faction) => map.Regions.Where(r => r.Owner == faction);
 
@@ -99,16 +98,29 @@ namespace FDG.Campaign.Map
         public static bool CanReach(CampaignMap map, string faction, MapRegion target)
         {
             if (target.Owner == faction) return false;
-            foreach (MapRegion mine in Held(map, faction))
+            // Walked from the target's side (same answer as walking out from every held region, but a few dozen lookups
+            // instead of one per region on the map - a Large hex map has ~700).
+            foreach (string step in Neighbours(map, target.Id))
             {
-                if (Adjacent(map, mine.Id, target.Id)) return true;
-                if (mine.Type == ERegionType.Port && Neighbours(map, mine.Id).Any(step => Adjacent(map, step, target.Id))) return true;
+                if (map.Region(step)?.Owner == faction) return true;
+                foreach (string far in Neighbours(map, step))
+                    if (map.Region(far) is { Type: ERegionType.Port } port && port.Owner == faction) return true;
             }
             return false;
         }
 
-        public static IEnumerable<MapRegion> Reachable(CampaignMap map, string faction) =>
-            map.Regions.Where(r => CanReach(map, faction, r));
+        /// <summary>Every region the army can act on, in map order.</summary>
+        public static IEnumerable<MapRegion> Reachable(CampaignMap map, string faction)
+        {
+            var near = new HashSet<string>();
+            foreach (MapRegion mine in Held(map, faction))
+                foreach (string step in Neighbours(map, mine.Id))
+                {
+                    near.Add(step);
+                    if (mine.Type == ERegionType.Port) foreach (string far in Neighbours(map, step)) near.Add(far);
+                }
+            return map.Regions.Where(r => near.Contains(r.Id) && CanReach(map, faction, r)).ToList();
+        }
 
         /// <summary>Fog (Kai): a rival's numbers are hidden until it borders the player's land.</summary>
         public static bool HasMet(CampaignMap map, string viewer, string other)

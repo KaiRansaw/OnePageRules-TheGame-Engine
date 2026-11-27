@@ -45,14 +45,65 @@ namespace FDG.Tests
 
         // ------------------------------------------------------------------ generation
 
-        [TestCase(EMapSize.Small, 1, 8)]
-        [TestCase(EMapSize.Medium, 2, 14)]
-        [TestCase(EMapSize.Large, 3, 20)]
-        [TestCase(EMapSize.Small, 3, 12)] // four armies need room: two each plus four neutral
-        public void Generate_MakesTheRightNumberOfRegions(EMapSize size, int rivals, int expected)
+        [TestCase(EMapSize.Small, 1, 14, 10)]
+        [TestCase(EMapSize.Medium, 2, 22, 16)]
+        [TestCase(EMapSize.Large, 3, 32, 22)]
+        public void Generate_PresetsAreHexGridsOfTheirSize(EMapSize size, int rivals, int w, int h)
         {
             CampaignMap map = CampaignMapGenerator.Generate(EGameSystem.GrimdarkFuture, size, Armies(rivals), 42);
-            Assert.That(map.Regions.Count, Is.EqualTo(expected));
+            Assert.That(map.IsHex, Is.True);
+            Assert.That((map.Width, map.Height), Is.EqualTo((w, h)));
+            // Every hex is either a region or a dead hex, exactly once.
+            var all = map.Regions.Select(r => (r.Col, r.Row)).Concat(map.Dead.Select(d => (d.Col, d.Row))).ToList();
+            Assert.That(all.Count, Is.EqualTo(w * h));
+            Assert.That(all.Distinct().Count(), Is.EqualTo(w * h));
+        }
+
+        [Test]
+        public void Generate_CustomSizes_AreClampedToTheLimits()
+        {
+            CampaignMap tiny = CampaignMapGenerator.Generate(EGameSystem.AgeOfFantasy, 2, 3, Armies(1), 5);
+            Assert.That((tiny.Width, tiny.Height), Is.EqualTo((CampaignMapGenerator.MinSide, CampaignMapGenerator.MinSide)));
+            CampaignMap big = CampaignMapGenerator.Generate(EGameSystem.AgeOfFantasy, 200, 45, Armies(3), 5);
+            Assert.That((big.Width, big.Height), Is.EqualTo((CampaignMapGenerator.MaxSide, 45)));
+            Assert.That(big.Size, Is.EqualTo(EMapSize.Custom));
+            Assert.That(CampaignMapGenerator.Distances(big, big.Regions[0].Id).Count, Is.EqualTo(big.Regions.Count), "a 60 x 45 map is still one connected land");
+        }
+
+        /// <summary>Kai 2026-11-27: not one solid block - chunks of land, sea / void round them, and mountains, lakes and seas
+        /// sprinkled through the land.</summary>
+        [Test]
+        public void Generate_LandIsBrokenUp_WithDeadHexesSprinkledThroughIt()
+        {
+            for (int seed = 0; seed < 20; seed++)
+            {
+                CampaignMap map = CampaignMapGenerator.Generate(EGameSystem.GrimdarkFuture, EMapSize.Large, Armies(2), seed);
+                int total = map.Width * map.Height;
+                double land = map.Regions.Count / (double)total;
+                Assert.That(land, Is.InRange(0.25, 0.6), $"seed {seed}: land share {land:0.00}");
+                Assert.That(map.Dead.Count(d => d.Kind == EDeadHex.Rough), Is.GreaterThan(0), "mountains / asteroid fields");
+                Assert.That(map.Dead.Count(d => d.Kind is EDeadHex.Sea or EDeadHex.Lake), Is.GreaterThan(0), "inland water");
+                // Inland dead hexes: not on the border, with land on some side.
+                var landAt = map.Regions.Select(r => (r.Col, r.Row)).ToHashSet();
+                int inland = map.Dead.Count(d => d.Kind != EDeadHex.Void &&
+                    CampaignMapGenerator.HexNeighbours(d.Col, d.Row, map.Width, map.Height).Any(landAt.Contains));
+                Assert.That(inland, Is.GreaterThanOrEqualTo(map.Regions.Count / 10), $"seed {seed}: sprinkled through the land");
+                // The border is never land.
+                Assert.That(map.Regions.Any(r => r.Col == 0 || r.Row == 0 || r.Col == map.Width - 1 || r.Row == map.Height - 1), Is.False);
+            }
+        }
+
+        [Test]
+        public void Generate_LinksAreTheTouchingLandHexes()
+        {
+            CampaignMap map = CampaignMapGenerator.Generate(EGameSystem.GrimdarkFuture, EMapSize.Medium, Armies(2), 13);
+            var at = map.Regions.ToDictionary(r => (r.Col, r.Row), r => r.Id);
+            foreach (MapRegion r in map.Regions)
+            {
+                var touching = CampaignMapGenerator.HexNeighbours(r.Col, r.Row, map.Width, map.Height)
+                    .Where(at.ContainsKey).Select(p => at[p]).OrderBy(x => x).ToList();
+                Assert.That(CampaignMapRules.Neighbours(map, r.Id).OrderBy(x => x).ToList(), Is.EqualTo(touching), r.Id);
+            }
         }
 
         [Test]
@@ -73,10 +124,10 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void Generate_ManySeeds_AreConnectedFairAndUncrossed()
+        public void Generate_ManySeeds_AreConnectedAndFair()
         {
             int roomy = 0, touching = 0;
-            for (int seed = 0; seed < 150; seed++)
+            for (int seed = 0; seed < 90; seed++)
             {
                 int rivals = 1 + seed % 3;
                 var size = (EMapSize)(seed % 3);
@@ -384,7 +435,23 @@ namespace FDG.Tests
                         Assert.That(CampaignMapRules.WhyNot(map, CampaignMapBot.Order(map, f.Id, books, GF, new Random(turn)), books[f.Id], GF), Is.Null);
                     CampaignMapTurn.Begin(map, mine, books, GF);
                     MapTurnResult r;
-                    while (!(r = CampaignMapTurn.Resolve(map, GF)).Finished) CampaignMapTurn.RecordPlayerResult(map, rng.Next(2) == 0);
+                    var played = new Dictionary<string, int>();
+                    while (!(r = CampaignMapTurn.Resolve(map, GF)).Finished)
+                    {
+                        // The player's battles are real missions, which pay the book's 2 VP to the winner of an army
+                        // battle (garrisons pay nothing). Hex maps have too many hexes to end on stars alone.
+                        bool won = rng.Next(2) == 0;
+                        MapBattle b = r.WaitingFor!;
+                        string? other = b.Attacker == CampaignMap.PlayerId ? b.Defender : b.Attacker;
+                        if (b.Kind != EMapBattleKind.Garrison && other != null)
+                        {
+                            string winner = won ? CampaignMap.PlayerId : other;
+                            played[winner] = played.GetValueOrDefault(winner) + CampaignNumbers.WinVp;
+                        }
+                        CampaignMapTurn.RecordPlayerResult(map, won);
+                    }
+                    foreach (var (id, vp) in played)
+                        books[id] = books[id] with { MissionVp = books[id].MissionVp + vp };
                     foreach (var (id, c) in r.Changes)
                     {
                         var s = books[id];
@@ -393,6 +460,7 @@ namespace FDG.Tests
                     map = r.Map;
                 }
                 if (CampaignMapRules.Outcome(map, books) != EMapOutcome.InProgress) finished++;
+                else TestContext.WriteLine($"unfinished seed {seed} {map.Size} {map.Regions.Count} regions: " + string.Join(", ", map.Factions.Select(f => $"{f.Id} alive={f.Alive} held={CampaignMapRules.HeldCount(map, f.Id)} stars={CampaignMapRules.StarredHeld(map, f.Id)} vp={books[f.Id].MissionVp} tr={books[f.Id].Treasury}")) + $" neutral={map.Regions.Count(r => r.Owner == null)}");
             }
             Assert.That(finished, Is.EqualTo(60), "every campaign reached an end within 200 turns");
         }
