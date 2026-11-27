@@ -691,12 +691,13 @@ namespace FDG.Missions
             }
         }
 
-        private readonly List<(UnitData Unit, EMissionZone Zone)> _placed = new();
+        private readonly List<(UnitData Unit, EMissionZone Zone, Dictionary<IModel, Position> At)> _placed = new();
 
         /// <summary>Notes where a unit was placed from, for the deployment check below.</summary>
         public void Record(UnitData unit)
         {
-            if (Current is { } step) _placed.Add((unit, step.Zone));
+            // Where it was placed: a rule like Drakesworn or Vanguard may move it on afterwards, by its own terms.
+            if (Current is { } step) _placed.Add((unit, step.Zone, unit.Models.ToDictionary(m => m, m => m.Position)));
         }
 
         /// <summary>
@@ -708,22 +709,23 @@ namespace FDG.Missions
         {
             if (Environment.GetEnvironmentVariable("FDG_MISSION_AUDIT") != "1") return;
             int checkedUnits = 0, bad = 0;
-            foreach ((UnitData unit, EMissionZone kind) in _placed)
+            foreach ((UnitData unit, EMissionZone kind, Dictionary<IModel, Position> placedAt) in _placed)
             {
                 if (kind == EMissionZone.OwnZone || !unit.GetIsOnBattlefield()) continue;
                 checkedUnits++;
                 (IBoundedZone zone, float _, IReadOnlyList<PlacementDisc> keepOut) = AttackDefend.Zone(c, kind, unit, new RectangularZone(0, 1, 0, 1));
                 foreach (IModel m in unit.Models.Where(m => m.GetIsAlive()))
                 {
-                    var at = new Float2(m.Position.x, m.Position.z);
+                    Position where = placedAt.TryGetValue(m, out Position p) ? p : m.Position;
+                    var at = new Float2(where.x, where.z);
                     // The near-a-friend area is judged against every OTHER friendly unit, which now includes ones
                     // placed after this one; the first unit placed had no friend to be near.
                     bool inArea = zone.IsPointWithinZone(at);
-                    PlacementDisc? hit = keepOut.FirstOrDefault(d => Position.GetDistance2D(d.Center, m.Position) < d.RadiusInches - 0.05f);
+                    PlacementDisc? hit = keepOut.FirstOrDefault(d => Position.GetDistance2D(d.Center, where) < d.RadiusInches - 0.05f);
                     if (!inArea || hit != null)
                     {
                         bad++;
-                        c.Log($"[MISSION AUDIT] VIOLATION {unit.Name} at ({m.Position.x:0.0}, {m.Position.z:0.0}): {kind} {(inArea ? "" : "outside the area ")}{(hit != null ? $"inside a keep-out circle at ({hit.Center.x:0.0}, {hit.Center.z:0.0}) r {hit.RadiusInches:0.0}" : "")}");
+                        c.Log($"[MISSION AUDIT] VIOLATION {unit.Name} at ({where.x:0.0}, {where.z:0.0}): {kind} {(inArea ? "" : "outside the area ")}{(hit != null ? $"inside a keep-out circle at ({hit.Center.x:0.0}, {hit.Center.z:0.0}) r {hit.RadiusInches:0.0}" : "")}");
                         break;
                     }
                 }
