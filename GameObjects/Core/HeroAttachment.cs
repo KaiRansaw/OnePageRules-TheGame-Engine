@@ -53,12 +53,20 @@ namespace FDG
         /// </summary>
         public int HeroWounds { get; set; }
 
+        /// <summary>
+        /// The joined hero's campaign sheet (<see cref="UnitData.StrikeUnitJson"/>), kept because its standalone unit is
+        /// discarded at merge. Read by the campaign relic quests (house rule B28) and the campaign write-back. Null
+        /// outside a campaign.
+        /// </summary>
+        public string? StrikeUnitJson { get; set; }
+
         public HeroAttachment()
         {
         }
 
         /// <summary>#396: a field-for-field copy for the whole-store clone.</summary>
-        internal HeroAttachment Clone() => new HeroAttachment(HeroModelId, Quality, Defense, HeroWounds, Name, PointCost);
+        internal HeroAttachment Clone() => new HeroAttachment(HeroModelId, Quality, Defense, HeroWounds, Name, PointCost)
+            { StrikeUnitJson = StrikeUnitJson };
 
         public HeroAttachment(ModelID heroModelId, int quality, int defense, int heroWounds,
             string? name = null, int pointCost = 0)

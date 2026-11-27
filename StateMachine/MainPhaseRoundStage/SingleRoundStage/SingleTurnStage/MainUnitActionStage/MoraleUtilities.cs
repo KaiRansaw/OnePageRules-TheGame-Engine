@@ -618,7 +618,8 @@ namespace FDG.Stages
         /// once (rather than the one-at-a-time sequence individual death beats would produce). Returns
         /// early (no banner, no beat) if the unit has nothing alive to rout.
         /// </summary>
-        public static async Task RoutWithPresentation(IGameContext gameContext, DataBinding<UnitData> unitBinding)
+        public static async Task RoutWithPresentation(IGameContext gameContext, DataBinding<UnitData> unitBinding,
+            IUnit? routedBy = null)
         {
             UnitData unit = unitBinding.GetValue();
             if (!unit.GetIsAlive()) return;   // nothing to rout - don't announce a phantom rout
@@ -661,7 +662,8 @@ namespace FDG.Stages
             // whether a rout counts as "destroyed by" the melee winner is an open rules question, so the
             // unit-destroyed hook deliberately does not fire here (see UnitDestructionNotifier). Only a lost
             // melee routs, so for the Mission Cards it is a unit destroyed in melee.
-            await UnitDestructionNotifier.NotifyUnitDestroyed(gameContext, unit, killer: null, FDG.Missions.EKillCause.Melee);
+            await UnitDestructionNotifier.NotifyUnitDestroyed(gameContext, unit, killer: null, FDG.Missions.EKillCause.Melee,
+                routedBy: routedBy);
             // Battlefield Effects - Sinister Echoes: friendly units within 6" of the routed unit take D3 wounds.
             await BattlefieldEffects.OnRouted(gameContext, unit, echoes);
         }

@@ -30,6 +30,8 @@ namespace FDG.Campaign
         public string Against { get; set; } = "";
         /// <summary>The army it had been salvaged from, or empty.</summary>
         public string SalvagedFrom { get; set; } = "";
+        /// <summary>The campaign relic it carried (homebrew relic quests, house rule B28), or empty.</summary>
+        public string Relic { get; set; } = "";
 
         /// <summary>Its name with the nickname, as the memorial shows it.</summary>
         public string Title => CampaignVeterans.Title(Name, Nickname);
@@ -208,6 +210,7 @@ namespace FDG.Campaign
                 Mission = mission,
                 FellTo = sheet.FellTo,
                 SalvagedFrom = sheet.SalvagedFrom,
+                Relic = sheet.Relic,
             };
             info.Memorial.Add(fallen);
             return fallen;
@@ -223,7 +226,8 @@ namespace FDG.Campaign
             string kills = f.HeroKills > 0 ? $"{f.Kills} kills and {f.HeroKills} Hero(es)" : $"{f.Kills} kill(s)";
             string how = f.FellTo.Length > 0 ? $"destroyed by {f.FellTo}" : "lost";
             string where = f.Against.Length > 0 ? $" against {f.Against}" : "";
-            return $"{what}{level}{salvaged}. {f.Missions} mission(s), {kills}. Fell in mission {f.Mission}{where}, {how}.";
+            string relic = f.Relic.Length > 0 ? $" Carried the {f.Relic}." : "";
+            return $"{what}{level}{salvaged}. {f.Missions} mission(s), {kills}. Fell in mission {f.Mission}{where}, {how}.{relic}";
         }
     }
 }

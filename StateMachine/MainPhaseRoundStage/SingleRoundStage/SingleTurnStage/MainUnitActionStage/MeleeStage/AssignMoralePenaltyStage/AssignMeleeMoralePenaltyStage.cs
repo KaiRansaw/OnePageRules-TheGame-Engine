@@ -39,7 +39,12 @@ namespace FDG.Stages
 
             if (losingUnit.GetValue().GetIsAtHalfStrength())
             {
-                await MoraleUtilities.RoutWithPresentation(GameContext, losingUnit);
+                // Homebrew wanted posters (house rule B29): the side that won the melee, for the posters.
+                IUnit routing = losingUnit.GetValue();
+                IUnit? winner = ReferenceEquals(context.DefendingUnit.GetValue(), routing)
+                    ? context.AttackingUnit.GetValue()
+                    : context.DefendingUnit.GetValue();
+                await MoraleUtilities.RoutWithPresentation(GameContext, losingUnit, winner);
                 GameContext.Log($"{losingUnit.Name()} failed its morale test at half strength and is Routed.");
             }
             else

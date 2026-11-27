@@ -57,6 +57,9 @@ namespace FDG
         public List<string> Settled { get; set; } = new();
         /// <summary>Recent events for the Mission panel, newest last.</summary>
         public List<string> Recent { get; set; } = new();
+        /// <summary>Campaign relics (homebrew relic quests, house rule B28) are in play, so the relic rules run even with
+        /// the lobby's Relic Wargear option off.</summary>
+        public bool Campaign { get; set; }
     }
 
     /// <summary>
@@ -197,7 +200,53 @@ namespace FDG
             + "Hero: pick, or roll then pick, by that method - or leave a Hero without one. Bots roll theirs. The relic shows on the Hero's "
             + "card and by its name on the table; once-per-game items are offered when they can be used.";
 
-        public static bool On(IGameContext c) => AdvancedRules.IsOn(c, EAdvancedRules.RelicWargear);
+        public static bool On(IGameContext c) =>
+            AdvancedRules.IsOn(c, EAdvancedRules.RelicWargear) || (State(c.GameDataStore)?.Campaign ?? false);
+
+        /// <summary>The campaign relic a Hero carries (homebrew relic quests, house rule B28): from its own campaign sheet,
+        /// or - joined to a unit - from the sheet its attachment kept. Null when it has none.</summary>
+        public static FDG.Campaign.StrikeUnit? CampaignSheet(HeroSlot hero) =>
+            FDG.Campaign.StrikeUnit.FromJson(hero.Unit.HeroAttachment is { } joined ? joined.StrikeUnitJson : hero.Unit.StrikeUnitJson)
+                is { Relic.Length: > 0 } sheet ? sheet : null;
+
+        /// <summary>
+        /// Homebrew relic quests (house rule B28): every Hero carrying a campaign relic takes it into the battle before
+        /// anything is asked - won once, kept for the campaign, so there is nothing to pick. Its weapon and its Ranger's
+        /// Standard choice were picked on the campaign screen. Returns whether any relic was placed.
+        /// </summary>
+        private static async Task<bool> PlaceCampaignRelics(IGameContext c, RelicWargearState s)
+        {
+            bool any = false;
+            EGameSystem system = c.Settings.GameSystem;
+            foreach (IPlayerSlotInfo seat in c.TableState.Players.Objects.Where(p => p.IsFilled).OrderBy(p => p.SlotID))
+                foreach (HeroSlot hero in HeroesOf(c, seat.PlayerID))
+                {
+                    if (CampaignSheet(hero) is not { } sheet || Find(system, sheet.Relic) is not { } def) continue;
+                    if (s.Picks.Any(p => p.Model == ModelKey(hero.Model))) continue;
+                    var pick = new RelicPick
+                    {
+                        Owner = seat.PlayerID.ToString(), OwnerName = seat.Name, Unit = UnitKey(hero.Unit), UnitName = hero.Unit.Name,
+                        Model = ModelKey(hero.Model), Hero = hero.Name, Item = def.Name,
+                    };
+                    if (def.Kind is EKind.Weapon or EKind.MeleeWeapon)
+                    {
+                        var weapons = (def.Kind == EKind.MeleeWeapon ? MeleeWeapons(hero.Model) : Weapons(hero.Model)).ToList();
+                        pick.Weapon = weapons.Any(w => w.Name == sheet.RelicWeapon) ? sheet.RelicWeapon
+                            : weapons.OrderByDescending(w => w.Attacks).Select(w => w.Name).FirstOrDefault();
+                    }
+                    if (def.Kind == EKind.Ranger)
+                    {
+                        pick.Choice = sheet.RelicChoice == Ambush ? Ambush : Scout;
+                        if (Skirmish(system)) await PickRangerUnits(c, seat.PlayerID, hero, pick);
+                    }
+                    s.Picks.Add(pick);
+                    Apply(c, pick, hero);
+                    any = true;
+                    c.Log($"Campaign relic: {seat.Name}'s {hero.Name} carries the {def.Name}"
+                        + (pick.Weapon != null ? $" on its {pick.Weapon}" : "") + (pick.Choice != null ? $" ({pick.Choice})" : "") + ".");
+                }
+            return any;
+        }
 
         /// <summary>The method picked in the lobby (0 = roll for it).</summary>
         public static int Picked(GameSettings s) => (int)(((ulong)s.AdvancedRules >> PickShift) & 0x3);
@@ -341,10 +390,18 @@ namespace FDG
         /// left it to the dice), then each player picks for each Hero in turn; bots take what the dice give them.</summary>
         public static async Task<bool> Settle(IGameContext c)
         {
-            if (!On(c)) return false;
-            bool scouts = false;
+            bool lobby = AdvancedRules.IsOn(c, EAdvancedRules.RelicWargear);
             RelicWargearState s = State(c.GameDataStore) ?? new RelicWargearState();
             EGameSystem system = c.Settings.GameSystem;
+            // Homebrew relic quests (house rule B28): campaign relics go on first, lobby option or not.
+            int before = s.Picks.Count;
+            if (await PlaceCampaignRelics(c, s))
+            {
+                s.Campaign = true;
+                Save(c, s);
+            }
+            bool scouts = s.Picks.Skip(before).Any(p => p.Choice == Scout);
+            if (!lobby) return scouts;
             if (s.Method == 0)
             {
                 int m = Picked(c.Settings);

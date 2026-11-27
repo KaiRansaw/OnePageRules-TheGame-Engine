@@ -186,6 +186,18 @@ namespace FDG.Campaign
 
         /// <summary>The <see cref="Matches"/> count when the army last claimed salvage (one per mission), or -1.</summary>
         public int SalvagedAfterMission { get; set; } = -1;
+
+        /// <summary>
+        /// Relic Maps the army holds (house rule B28, Kai 2026-11-27): found exploring after a mission, each one lets a
+        /// Hero go on a relic quest.
+        /// </summary>
+        public int RelicMaps { get; set; }
+
+        /// <summary>
+        /// The Hero on a relic quest in the NEXT mission (its sheet id), or empty. Set by "Go on a quest", cleared when
+        /// the mission is recorded (success or not).
+        /// </summary>
+        public string QuestHeroId { get; set; } = "";
     }
 
     /// <summary>
@@ -315,6 +327,38 @@ namespace FDG.Campaign
 
         /// <summary>The enemy army this unit was salvaged from ("Wormhole Daemons"), or empty. House rule B27.</summary>
         public string SalvagedFrom { get; set; } = "";
+
+        // -- Relic quests (house rule B28) -----------------------------------------------------------
+
+        /// <summary>The relic this Hero won on a quest and keeps for the rest of the campaign (an Advanced Rulebook
+        /// Relic Wargear / Magic Items name), or empty.</summary>
+        public string Relic { get; set; } = "";
+
+        /// <summary>A relic weapon's weapon, by name (empty = the Hero's weapon with the most attacks).</summary>
+        public string RelicWeapon { get; set; } = "";
+
+        /// <summary>Ranger's Standard: "Scout" or "Ambush".</summary>
+        public string RelicChoice { get; set; } = "";
+
+        // -- Wanted posters (house rule B29) ---------------------------------------------------------
+
+        /// <summary>
+        /// How many of the other army's units this unit has destroyed while WANTED (the poster's price is the book's
+        /// special-objective bonus for each). Zero = no poster. Kept between missions; raised live during a game.
+        /// </summary>
+        public int WantedKills { get; set; }
+
+        /// <summary>The units it destroyed, for the poster ("Vargas Squad", ...).</summary>
+        public List<string> WantedVictims { get; set; } = new();
+
+        /// <summary>
+        /// Set during a game when this WANTED unit is destroyed by the other army: the claiming army's file (its
+        /// <see cref="TeamFile"/>). Paid and cleared when the result is written back.
+        /// </summary>
+        public string BountyClaimedBy { get; set; } = "";
+
+        /// <summary>The price that was on it when it was claimed (kills x the bonus is worked out at write-back).</summary>
+        public int BountyKills { get; set; }
 
         public int Level => Math.Min(StrikeTeamRules.MaxXp, Xp) / StrikeTeamRules.XpPerLevel;
 

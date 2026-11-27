@@ -28,7 +28,7 @@ namespace FDG.Stages
     public static class UnitDestructionNotifier
     {
         public static async Task NotifyUnitDestroyed(IGameContext gameContext, IUnit dead, IUnit? killer,
-            FDG.Missions.EKillCause cause = FDG.Missions.EKillCause.Other)
+            FDG.Missions.EKillCause cause = FDG.Missions.EKillCause.Other, IUnit? routedBy = null)
         {
             // Mission Cards: every destroyed unit, with or without a killer, and how it died.
             FDG.Missions.MissionCardEvents.UnitDestroyed(gameContext, dead, killer, cause);
@@ -63,6 +63,9 @@ namespace FDG.Stages
 
             if (killer == null)
             {
+                // Homebrew wanted posters (house rule B29): a rout counts for the posters only (no XP, no kill).
+                if (routedBy != null)
+                    await AnnounceWanted(gameContext, FirefightCampaign.OnUnitRouted(dead, routedBy));
                 return;
             }
 
@@ -73,7 +76,8 @@ namespace FDG.Stages
             // #430: the store too, so the FIRST kill of the game is stamped on the killer's sheet for
             // the campaign's Annihilator objective - a finished table records that units died, never in
             // what order.
-            FirefightCampaign.OnUnitDestroyed(dead, killer, gameContext.GameDataStore);
+            FirefightCampaign.OnUnitDestroyed(dead, killer, gameContext.GameDataStore, out FirefightCampaign.WantedNews wanted);
+            await AnnounceWanted(gameContext, wanted);
 
             IReadOnlyList<RuleOperation> ops = gameContext.RuleEvaluator.EvaluateAll(
                 new UnitDestroyedContext(DestroyedUnit: dead, KillerUnit: killer),
@@ -140,6 +144,23 @@ namespace FDG.Stages
         {
             return gameContext.PlayerRequester.RequestDecision<StageResolution.Requests.YesNoRequest, bool>(
                 new StageResolution.Requests.YesNoRequest(unit.PlayerID, question, defaultAnswer: true));
+        }
+        /// <summary>The wanted posters' banners (homebrew, house rule B29): a bounty collected, a poster up or raised.</summary>
+        private static async Task AnnounceWanted(IGameContext c, FirefightCampaign.WantedNews news)
+        {
+            if (news.Claimed == null && news.Posted == null) return;
+            FDG.Campaign.CampaignNumbers n = FDG.Campaign.CampaignNumbers.For(c.Settings.GameSystem);
+            var red = new FDG.TextColor(220, 40, 40, 255);
+            if (news.Claimed != null)
+            {
+                string line = $"BOUNTY COLLECTED: {news.Claimed} - +{FDG.Campaign.CampaignWanted.Price(news.ClaimedKills, n)} pts after the mission";
+                await c.Announce(line, red, FDG.Presentation.Beats.EBannerTier.Toast);
+            }
+            if (news.Posted != null)
+            {
+                string line = $"WANTED: {news.Posted} - {FDG.Campaign.CampaignWanted.Price(news.PostedKills, n)} pts";
+                await c.Announce(line, red, FDG.Presentation.Beats.EBannerTier.Toast);
+            }
         }
     }
 }

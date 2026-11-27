@@ -32,16 +32,16 @@ namespace FDG.Stages
         /// and - when <paramref name="store"/> is given - stamps the first kill of the game for the
         /// campaign's Annihilator objective.
         /// </summary>
-        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null)
+        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null) =>
+            OnUnitDestroyed(dead, killer, store, out _);
+
+        /// <summary>
+        /// <see cref="OnUnitDestroyed(IUnit, IUnit, IReadableGameDataStore?)"/>, also saying what happened to the
+        /// homebrew wanted posters (house rule B29) so the caller can announce it.
+        /// </summary>
+        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store, out WantedNews news)
         {
-            // Homebrew memorial (house rule B26): who destroyed a campaign unit, for its line on the memorial.
-            if (dead is UnitData deadData && StrikeUnit.FromJson(deadData.StrikeUnitJson) is { } deadSheet)
-            {
-                deadSheet.FellTo = killer is UnitData k
-                    ? CampaignVeterans.Title(k.Name, StrikeUnit.FromJson(k.StrikeUnitJson)?.Nickname)
-                    : "";
-                deadData.StrikeUnitJson = deadSheet.ToJson();
-            }
+            news = Posters(dead, killer);
             if (killer is not UnitData data || StrikeUnit.FromJson(data.StrikeUnitJson) is not { } sheet) return;
             // #414: killing a named character is a Hero kill. It carries "Unique Hero" instead of "Hero",
             // so this scored it as an ordinary kill - 1 XP rather than 2. (In a live game the supplement's
@@ -59,6 +59,47 @@ namespace FDG.Stages
                 sheet.DrewFirstBlood = true;
 
             data.StrikeUnitJson = sheet.ToJson();
+        }
+
+        /// <summary>What a death did to the wanted posters: a bounty claimed and/or a poster put up (or raised).</summary>
+        public readonly record struct WantedNews(string? Claimed, int ClaimedKills, string? Posted, int PostedKills);
+
+        /// <summary>
+        /// A campaign unit routed from a melee the other side won (homebrew wanted posters, house rule B29). The books
+        /// leave open whether that is "destroyed by" the winner, so it earns no XP and no kill - but for the posters it
+        /// counts, the same reading the Mission Cards use (a rout is a unit destroyed in melee). It also names the winner
+        /// on the memorial.
+        /// </summary>
+        public static WantedNews OnUnitRouted(IUnit dead, IUnit meleeWinner) => Posters(dead, meleeWinner);
+
+        /// <summary>The memorial's FellTo, the bounty claim on the dead unit and the poster on its killer.</summary>
+        private static WantedNews Posters(IUnit dead, IUnit killer)
+        {
+            string? claimed = null, posted = null;
+            int claimedKills = 0, postedKills = 0;
+            StrikeUnit? killerSheet = killer is UnitData k ? StrikeUnit.FromJson(k.StrikeUnitJson) : null;
+            if (dead is UnitData deadData && StrikeUnit.FromJson(deadData.StrikeUnitJson) is { } deadSheet)
+            {
+                // Homebrew memorial (house rule B26): who destroyed a campaign unit, for its line on the memorial.
+                deadSheet.FellTo = killer is UnitData kk ? CampaignVeterans.Title(kk.Name, killerSheet?.Nickname) : "";
+                // Homebrew wanted posters (house rule B29): a WANTED unit destroyed by the other army is claimed.
+                int was = deadSheet.WantedKills;
+                if (CampaignWanted.Claim(deadSheet, killerSheet))
+                {
+                    claimed = CampaignVeterans.Title(deadData.Name, deadSheet.Nickname);
+                    claimedKills = was;
+                }
+                deadData.StrikeUnitJson = deadSheet.ToJson();
+                // ...and destroying one of the other army's units puts a poster up on the killer, live.
+                if (killer is UnitData kd && killerSheet != null
+                    && CampaignWanted.Post(killerSheet, deadSheet, CampaignVeterans.Title(deadData.Name, deadSheet.Nickname)))
+                {
+                    kd.StrikeUnitJson = killerSheet.ToJson();
+                    posted = CampaignVeterans.Title(kd.Name, killerSheet.Nickname);
+                    postedKills = killerSheet.WantedKills;
+                }
+            }
+            return new WantedNews(claimed, claimedKills, posted, postedKills);
         }
 
         /// <summary>Whether any unit on the table already claims the game's first kill.</summary>

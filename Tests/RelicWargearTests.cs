@@ -57,12 +57,12 @@ namespace FDG.Tests
             public void SendPlayerMessage(string sendingPlayerName, EChatMessageType messageType, string message) { }
         }
 
-        private void Build(EGameSystem system, int method, IDiceRoller? dice = null)
+        private void Build(EGameSystem system, int method, IDiceRoller? dice = null, bool lobby = true)
         {
             _store = GameDataStore.GameDataStoreBuilder.GetDefault();
             GameSettings settings = GameSettings.GetDefault();
             settings.GameSystem = system;
-            settings.AdvancedRules = RelicWargear.WithPick(EAdvancedRules.RelicWargear, method);
+            settings.AdvancedRules = lobby ? RelicWargear.WithPick(EAdvancedRules.RelicWargear, method) : EAdvancedRules.None;
             _asked.Clear();
             _yesNo.Clear();
             _answer = null;
@@ -250,6 +250,42 @@ namespace FDG.Tests
             int asked = _asked.Count;
             await RelicWargear.Settle(_context);
             Assert.That(_asked, Has.Count.EqualTo(asked), "settled once");
+        }
+
+        /// <summary>Homebrew relic quests (house rule B28): a campaign relic goes on with no lobby option and no question.</summary>
+        [Test]
+        public async Task Settle_ACampaignRelicIsCarried_EvenWithTheLobbyOptionOff()
+        {
+            Build(EGameSystem.GrimdarkFuture, 0, lobby: false);
+            Seats();
+            var captain = Unit(_me, new Position(10, 10), 1, "Captain", hero: true, weapons: new[] { Blade(), Pistol() });
+            captain.GetValue().StrikeUnitJson = new FDG.Campaign.StrikeUnit { Relic = RelicWargear.Bloodshed, RelicWeapon = "Pistol" }.ToJson();
+            Unit(_them, new Position(40, 40), 1, "Warlord", hero: true, weapons: Blade());
+
+            Assert.That(RelicWargear.On(_context), Is.False);
+            await RelicWargear.Settle(_context);
+
+            Assert.That(_asked, Is.Empty, "nothing to pick");
+            RelicPick pick = RelicWargear.State(_store)!.Picks.Single();
+            Assert.That(pick.Item, Is.EqualTo(RelicWargear.Bloodshed));
+            Assert.That(pick.Weapon, Is.EqualTo("Pistol"));
+            Assert.That(RelicWargear.On(_context), Is.True, "the relic rules run for it");
+        }
+
+        [Test]
+        public async Task Settle_WithTheLobbyOptionOn_ACampaignRelicHeroIsNotAskedAndItsItemIsTaken()
+        {
+            Build(EGameSystem.GrimdarkFuture, RelicWargear.Free);
+            Seats();
+            var captain = Unit(_me, new Position(10, 10), 1, "Captain", hero: true, weapons: Blade());
+            captain.GetValue().StrikeUnitJson = new FDG.Campaign.StrikeUnit { Relic = RelicWargear.Luckstone }.ToJson();
+            Unit(_me, new Position(14, 10), 1, "Psychic", hero: true, weapons: Pistol());
+
+            await RelicWargear.Settle(_context);
+
+            var mine = _asked.Where(q => q.TargetPlayerID == _me && q.DisplayName == "Relic Wargear").ToList();
+            Assert.That(mine, Has.Count.EqualTo(1), "only the Hero without a campaign relic picks");
+            Assert.That(mine[0].ValidOptions, Does.Not.Contain(RelicWargear.Luckstone), "one copy per army");
         }
 
         [Test]

@@ -9,8 +9,10 @@ namespace FDG.Campaign
     /// <param name="Casualty">The unit was fully destroyed or Routed.</param>
     /// <param name="Kills">Enemy units this unit destroyed.</param>
     /// <param name="HeroKills">Enemy Hero units this unit destroyed.</param>
+    /// <param name="Live">The unit's sheet as it stood at the end of the game (homebrew wanted posters, house
+    /// rule B29, are posted and claimed live on it). Null when the caller has none.</param>
     public readonly record struct CampaignUnitResult(string Id, bool Casualty, int Kills, int HeroKills,
-                                                    string? FellTo = null);
+                                                    string? FellTo = null, StrikeUnit? Live = null);
 
     /// <summary>
     /// The campaign loop shared by all four Campaign Rules v3.6.0 books, driven by a
@@ -272,6 +274,8 @@ namespace FDG.Campaign
                 sheet.Games++;
                 // Homebrew service record (house rule B26), folded in before the per-game tallies go.
                 CampaignVeterans.RecordMission(sheet, result);
+                // Homebrew wanted posters (house rule B29): the battle's posters onto the sheet on file.
+                CampaignWanted.Record(unit, sheet, result, n, log);
                 sheet.Kills = sheet.HeroKills = 0;
                 // #430's in-game tallies are per-mission too. Cleared here with the kills so a recovery
                 // save (which serializes the live table, sheets and all) cannot carry one mission's
@@ -293,6 +297,8 @@ namespace FDG.Campaign
                     {
                         case ECasualtyOutcome.Removed:   // dead, and out of the army
                             sheet.FellTo = result.FellTo ?? "";
+                            // Homebrew relic quests (house rule B28): a campaign relic is lost with its Hero.
+                            if (sheet.Relic.Length > 0) log.Add($"The {sheet.Relic} is lost with {unit.Name}.");
                             CampaignVeterans.Remember(infoNow, unit, sheet, infoNow.Matches + 1);
                             removed?.Add(unit);
                             continue;
@@ -630,6 +636,7 @@ namespace FDG.Campaign
             CampaignTables.FastLearner => TraitsLeft(sheet),
             CampaignTables.LuckyBreak => CampaignTables.PickableInjuries.Where(i => !sheet.Injuries.Contains(i)).ToList(),
             CampaignTables.LearnedLesson => CampaignTables.PickableTalents.Where(t => !sheet.Talents.Contains(t)).ToList(),
+            _ when CampaignRelicQuest.IsRelicChoice(pending) => CampaignRelicQuest.Options(pending),
             _ when pending.StartsWith(CampaignTables.SkillSetPick) =>
                 pending[CampaignTables.SkillSetPick.Length..].Split('|').ToList(),
             _ => new List<string>(),
@@ -643,7 +650,9 @@ namespace FDG.Campaign
             sheet.Pending.Remove(pending);
 
             string line;
-            if (pending.StartsWith(CampaignTables.SkillSetPick))
+            if (CampaignRelicQuest.IsRelicChoice(pending))
+                line = CampaignRelicQuest.Choose(unit, sheet, pending, choice, delta => ChangeCost(unit, sheet, delta));
+            else if (pending.StartsWith(CampaignTables.SkillSetPick))
             {
                 sheet.SkillSets.Add(choice);
                 line = GainSkill(unit, sheet, choice, d6, $"skill set {choice}");
