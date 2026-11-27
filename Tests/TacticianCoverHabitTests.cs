@@ -315,6 +315,34 @@ namespace FDG.Tests
                     planner.Score(Endpoint(new Position(30f, 24f))));
         }
 
+        // --- #364 (lane 2, 2026-11-27): a charge has to walk round a wall, so the ground behind it is safe. ---
+
+        [Test]
+        public void Score_SwordsmenBehindAWallTheyCannotGetRound_DoNotScareUsOffTheObjective()
+        {
+            // A wall across the table bar the last inches each side; the swordsmen are 12" from the objective
+            // endpoint in a straight line - inside a charge - but would have to walk ~45" round the wall.
+            float walled = WallScene(wall: true);
+            float open = WallScene(wall: false);
+
+            Assert.That(walled, Is.GreaterThan(open + 0.05f),
+                $"behind a wall the swordsmen cannot charge round this round the endpoint is safe; in the open it is " +
+                $"not. Priced in a straight line the wall made no difference to the melee threat. " +
+                $"walled={walled:F5} open={open:F5}");
+        }
+
+        private float WallScene(bool wall)
+        {
+            SetUp();
+            if (wall) Wall(2f, 70f, 21f, 23f);
+            DataBinding<UnitData> us = Squad(_us, Carbine(), new Position(24f, 10f));
+            Squad(_them, GreatSword(), new Position(24f, 30f));
+            _store.Create(new ObjectiveData(new Position(24f, 19f), _store));
+            var planner = new TacticianPlanner(_tableState, _evaluator);
+            planner.BeginActivation(us);
+            return planner.Score(Endpoint(new Position(24f, 18f)));
+        }
+
         // --- Case 11: a real shot always beats hiding. Chris's "will it refuse to shoot?" worry. ---
 
         [Test]

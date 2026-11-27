@@ -75,6 +75,7 @@ namespace FDG.Ai.Tactician
         // or a list build), as were the two melee exchange estimates. Per activation, like the caches
         // above; the search's scratch planner begins an activation per unit it enumerates.
         private readonly Dictionary<DataReference, EnemyFacts> _enemyFacts = new();
+        private readonly Dictionary<(DataReference, int, int, int, int), float> _enemyChargeWalks = new();
         private readonly Dictionary<DataReference, MeleeEstimate> _meleeSelfVsEnemy = new();
         private readonly Dictionary<DataReference, MeleeEstimate> _meleeEnemyVsSelf = new();
 
@@ -283,6 +284,7 @@ namespace FDG.Ai.Tactician
             _cards = default;
             _enemyRoutes.Clear();
             _enemyFacts.Clear();
+            _enemyChargeWalks.Clear();
             _meleeSelfVsEnemy.Clear();
             _meleeEnemyVsSelf.Clear();
             _shotEstimates.Clear();
@@ -932,7 +934,7 @@ namespace FDG.Ai.Tactician
                 // Melee threat: if they can charge the endpoint (charge + 2" melee cylinder),
                 // count their melee margin too.
                 float meleeThreat =
-                    facts.ThreatReach >= endDistance - 1f && facts.HasMelee
+                    facts.HasMelee && facts.ThreatReach >= EnemyChargeDistance(enemyBinding, facts, end) - 1f
                         ? 0.5f * ValueFraction(MeleeEnemyVs(enemyBinding).AttackerAttack.ExpectedWounds, self)
                         : 0f;
 
@@ -1012,7 +1014,8 @@ namespace FDG.Ai.Tactician
                     // something. Ramping it eroded exactly that.
                     if (facts.HasMelee
                         && MeleeApproachAgainst(enemyBinding).Margin <= 0f
-                        && facts.ThreatReach >= projDistance - 1f)
+                        && facts.ThreatReach >= projDistance - 1f
+                        && facts.ThreatReach >= EnemyChargeDistance(enemyBinding, facts with { Centroid = projected }, end) - 1f)
                     {
                         projValue = Math.Max(projValue, 0.5f * ValueFraction(
                             MeleeEnemyVs(enemyBinding).AttackerAttack.ExpectedWounds, self));
@@ -1391,6 +1394,45 @@ namespace FDG.Ai.Tactician
             MovementRuleQueries.EffectiveChargeDistanceAgainst(chargerBinding.GetValue(), target,
                 BudgetsOf(chargerBinding).Charge, _evaluator)
             + GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL;
+
+        /// <summary>
+        /// #364: how far this enemy must WALK to charge a unit standing at <paramref name="point"/> - round anything
+        /// Impassable, as its charge move would have to (a flier goes straight). The melee-threat tests compared the
+        /// charge reach with the straight line, so an enemy behind a solid wall read as able to charge through it, and
+        /// the ground the wall really protects looked as dangerous as open ground. Cheap where it can be: an enemy
+        /// out of reach even in a straight line, or a clear lane, is the straight distance; only a lane crossing an
+        /// Impassable piece pays for a route, memoized per enemy and half-inch cell for the activation.
+        /// </summary>
+        private float EnemyChargeDistance(DataBinding<UnitData> enemyBinding, EnemyFacts facts, Position point)
+        {
+            float straight = Distance(point, facts.Centroid);
+            if (facts.ThreatReach < straight - 1f) return straight;
+            List<ITerrain> terrain = TerrainSnapshot();
+            var a = new Float2(facts.Centroid.x, facts.Centroid.z);
+            var b = new Float2(point.x, point.z);
+            float radius = EnemyRouteRadius(enemyBinding);
+            if (!terrain.Any(t => t.TerrainType.HasFlag(ETerrainType.Impassible)
+                    && t.Shape.DoesPathIntersectZone(a, b, radius)))
+                return straight;
+            if (MovementRuleQueries.IgnoresAllTerrain(enemyBinding.GetValue(), _evaluator)) return straight;
+            var key = (enemyBinding.Reference, (int)MathF.Round(facts.Centroid.x * 2f), (int)MathF.Round(facts.Centroid.z * 2f),
+                (int)MathF.Round(point.x * 2f), (int)MathF.Round(point.z * 2f));
+            if (_enemyChargeWalks.TryGetValue(key, out float walked)) return walked;
+            List<Position> route = RouteMetrics.Route(terrain,
+                () => TerrainGridCache.Get(terrain, radius, ignoreDifficultTerrain: true),
+                facts.Centroid, point, radius, ignoresDifficultTerrain: true);
+            walked = Math.Max(straight, RouteMetrics.Length(route));
+            _enemyChargeWalks[key] = walked;
+            return walked;
+        }
+
+        private static float EnemyRouteRadius(DataBinding<UnitData> enemyBinding)
+        {
+            float best = 0.5f;
+            foreach (IModel m in enemyBinding.GetValue().Models)
+                if (m.GetIsAlive()) best = Math.Max(best, m.BaseShape.CircumscribedRadiusInches);
+            return best;
+        }
 
         private EnemyFacts FactsOf(DataBinding<UnitData> enemyBinding)
         {
