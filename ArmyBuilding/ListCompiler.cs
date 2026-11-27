@@ -70,9 +70,21 @@ namespace FDG.ArmyBuilding
         /// no book unit is skipped - army load's own diagnostics warn when the rule then fires with
         /// nothing to place.
         /// </summary>
-        private static void CompileAuxiliaryUnits(BookFile book, BuiltArmyFile army)
+        private static void CompileAuxiliaryUnits(BookFile book, BuiltArmyFile army) =>
+            CompileAuxiliaryUnits(book, army, army.Units);
+
+        /// <summary>
+        /// The same, for specs named by <paramref name="sources"/> only - the Quest party (QuestArmy.Build) compiles
+        /// each hero against its own faction's book, so one party can carry specs from several books. A spec the army
+        /// already carries is not compiled twice.
+        /// </summary>
+        public static void CompileAuxiliaryUnits(BookFile book, BuiltArmyFile army, IEnumerable<UnitFileEntry> sources)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (UnitFileEntry existing in army.AuxiliaryUnits ?? new List<UnitFileEntry>())
+            {
+                if (existing.Id != null) seen.Add(existing.Id);
+            }
             var pending = new Queue<string>();
 
             void EnqueueSpecsNamedBy(UnitFileEntry unit)
@@ -88,15 +100,14 @@ namespace FDG.ArmyBuilding
                 }
             }
 
-            foreach (UnitFileEntry unit in army.Units) EnqueueSpecsNamedBy(unit);
+            foreach (UnitFileEntry unit in sources.ToList()) EnqueueSpecsNamedBy(unit);
 
             while (pending.Count > 0)
             {
                 string specText = pending.Dequeue();
                 (string targetName, int? count) = ParseAuxSpecText(specText);
 
-                RosterUnit? roster = book.Units.FirstOrDefault(
-                    u => string.Equals(u.Name, targetName, StringComparison.OrdinalIgnoreCase));
+                RosterUnit? roster = FindSpecUnit(book, targetName);
                 if (roster == null) continue;
 
                 UnitFileEntry aux = CompileUnitDetailed(book,
@@ -109,6 +120,31 @@ namespace FDG.ArmyBuilding
                 (army.AuxiliaryUnits ??= new List<UnitFileEntry>()).Add(aux);
                 EnqueueSpecsNamedBy(aux);
             }
+        }
+
+        /// <summary>
+        /// The book unit a spec names. An exact name first. Failing that, the singular / plural twin: Army Forge's
+        /// Quest HERO rosters word the Spawn upgrades in the plural ("Endless Horde (Spawn(Stitched Zombies [1]))",
+        /// "Spawn(Lust Warriors [1])", "Spawn(Snake Swarms [1])") while the Quest enemy books name the unit in the
+        /// singular ("Stitched Zombie") - Quest buys single models. Without the fallback those heroes' Spawn fired
+        /// and placed nothing (found 2026-11-27, Vlasmyir).
+        /// </summary>
+        public static RosterUnit? FindSpecUnit(BookFile book, string targetName)
+        {
+            RosterUnit? exact = book.Units.FirstOrDefault(
+                u => string.Equals(u.Name, targetName, StringComparison.OrdinalIgnoreCase));
+            if (exact != null) return exact;
+
+            static string Singular(string name) =>
+                name.EndsWith("es", StringComparison.OrdinalIgnoreCase) && name.Length > 3
+                && !name.EndsWith("ies", StringComparison.OrdinalIgnoreCase)
+                    ? name[..^1]
+                    : name.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? name[..^1] : name;
+
+            string target = Singular(targetName.Trim());
+            return book.Units.FirstOrDefault(u =>
+                string.Equals(Singular(u.Name), target, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(u.Name, target, StringComparison.OrdinalIgnoreCase));
         }
 
         // "Spores [5]" -> ("Spores", 5); a bare "Spores" -> ("Spores", null) = the roster's base size.

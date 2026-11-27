@@ -91,7 +91,11 @@ namespace FDG.Quest
             foreach (QuestHero hero in heroes)
             {
                 BookFile? book = bookForFaction(hero.Faction);
-                army.Units.Add(ToUnit(hero, book));
+                UnitFileEntry unit = ToUnit(hero, book);
+                army.Units.Add(unit);
+                // A hero's Spawn / Split names a unit of its own faction's book ("Endless Horde (Spawn(Stitched
+                // Zombies [1]))"), which the party army must carry as an auxiliary spec or the rule places nothing.
+                if (book != null) ListCompiler.CompileAuxiliaryUnits(book, army, new[] { unit });
                 if (book == null || !seen.Add(book.Faction)) continue;
                 foreach (var def in book.RuleDefinitions)
                     if (!army.RuleDefinitions.Any(d => d.Name == def.Name)) army.RuleDefinitions.Add(def);
