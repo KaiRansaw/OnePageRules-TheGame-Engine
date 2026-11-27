@@ -153,7 +153,7 @@ namespace FDG
             public bool Stabbed { get; init; }
         }
 
-        /// <summary>The book's entry for a die roll on a table. Sliced is +2 in Firefight, +1 in Skirmish (as printed).</summary>
+        /// <summary>The book's entry for a die roll on a table, in the Advanced Rulebook's own words (GFF / AoFS p45). Sliced is +2 in Firefight, +1 in Skirmish (as printed).</summary>
         public static Effect Roll(EType type, int die, EGameSystem system)
         {
             int band = die <= 3 ? 0 : die <= 5 ? 1 : 2;
@@ -163,60 +163,60 @@ namespace FDG
                 case EType.GenericMelee:
                     return band switch
                     {
-                        0 => new Effect("Vital Area", "if the hit isn't blocked the target takes 1 wound") { WoundIfUnblocked = true },
-                        1 => new Effect("Exposed Spot", "the hit gets AP(+4), and if it isn't blocked the target takes 1 wound") { Ap = 4, WoundIfUnblocked = true },
-                        _ => new Effect("Master Strike", "AP(+4), +1 wound if not blocked, and the target counts +2 wounds for who won melee") { Ap = 4, WoundIfUnblocked = true, MeleeWounds = 2 },
+                        0 => new Effect("Vital Area", "If the hit isn't blocked the target takes 1 wound.") { WoundIfUnblocked = true },
+                        1 => new Effect("Exposed Spot", "The hit gets AP(+4), and if it isn't blocked the target takes 1 wound.") { Ap = 4, WoundIfUnblocked = true },
+                        _ => new Effect("Master Strike", "The hit gets AP(+4), if it isn't blocked the target takes 1 wound, and counts as having taken +2 wounds when checking who won melee.") { Ap = 4, WoundIfUnblocked = true, MeleeWounds = 2 },
                     };
                 case EType.GenericRanged:
                     return band switch
                     {
-                        0 => new Effect("Weak Spot", "the hit gets AP(+4)") { Ap = 4 },
-                        1 => new Effect("Ricochet", "the hit gets AP(+4), and the closest enemy unit within 6\" takes 1 hit") { Ap = 4, Ricochet = true },
-                        _ => new Effect("Master Shot", "AP(+4), the closest enemy within 6\" takes 1 hit, and the target counts +2 wounds for morale") { Ap = 4, Ricochet = true, MoraleWounds = 2 },
+                        0 => new Effect("Weak Spot", "The hit gets AP(+4).") { Ap = 4 },
+                        1 => new Effect("Ricochet", "The hit gets AP(+4), and the closest enemy unit within 6\" takes 1 hit without special rules.") { Ap = 4, Ricochet = true },
+                        _ => new Effect("Master Shot", "The hit gets AP(+4), the closest enemy unit within 6\" takes 1 hit without special rules, and the target counts as having taken +2 wounds when checking if shooting wounds would trigger a Morale Test.") { Ap = 4, Ricochet = true, MoraleWounds = 2 },
                     };
                 case EType.Bladed:
                     return band switch
                     {
-                        0 => new Effect("Unprotected Area", "the target takes 2 hits") { Hits = 2 },
-                        1 => new Effect("Blade Storm", "the hit gets AP(+4), and the target takes 2 hits") { Ap = 4, Hits = 2 },
-                        _ => new Effect("Sliced", $"AP(+4), the target takes 2 hits, and counts +{(skirmish ? 1 : 2)} wound{(skirmish ? "" : "s")} for who won melee") { Ap = 4, Hits = 2, MeleeWounds = skirmish ? 1 : 2 },
+                        0 => new Effect("Unprotected Area", "The target takes 2 hits without special rules.") { Hits = 2 },
+                        1 => new Effect("Blade Storm", "The hit gets AP(+4), and the target takes 2 hits without special rules.") { Ap = 4, Hits = 2 },
+                        _ => new Effect("Sliced", $"The hit gets AP(+4), the target takes 2 hits without special rules, and counts as having taken +{(skirmish ? "1 wound" : "2 wounds")} when checking who won melee.") { Ap = 4, Hits = 2, MeleeWounds = skirmish ? 1 : 2 },
                     };
                 case EType.Bludgeoning:
                     return band switch
                     {
-                        0 => new Effect("Lost Balance", "the target gets -1 to hit rolls for this melee") { MeleeHitPenalty = true },
-                        1 => new Effect("Wild Sweep", "the target takes 2 hits, and gets -1 to hit for this melee") { Hits = 2, MeleeHitPenalty = true },
-                        _ => new Effect("Bludgeoned", "the target takes 2 hits, gets -1 to hit for this melee, and is Shaken at the end of melee") { Hits = 2, MeleeHitPenalty = true, Shaken = true },
+                        0 => new Effect("Lost Balance", "The target gets -1 to hit rolls for this melee.") { MeleeHitPenalty = true },
+                        1 => new Effect("Wild Sweep", "The target takes 2 hits without special rules, and gets -1 to hit rolls for this melee.") { Hits = 2, MeleeHitPenalty = true },
+                        _ => new Effect("Bludgeoned", "The target takes 2 hits without special rules, gets -1 to hit rolls for this melee, and is Shaken at the end of melee regardless of who won.") { Hits = 2, MeleeHitPenalty = true, Shaken = true },
                     };
                 case EType.Thrusting:
                     return band switch
                     {
-                        0 => new Effect("Stabbed", "the target loses all melee special rules for this melee") { Stabbed = true },
-                        1 => new Effect("Great Thrust", "the target loses all melee special rules for this melee, and counts +1 wound for who won melee") { Stabbed = true, MeleeWounds = 1 },
-                        _ => new Effect("Kebab", "+1 wound if the hit isn't blocked, the target loses all melee special rules, and counts +1 wound for who won melee") { WoundIfUnblocked = true, Stabbed = true, MeleeWounds = 1 },
+                        0 => new Effect("Stabbed", "The target loses all melee special rules for this melee.") { Stabbed = true },
+                        1 => new Effect("Great Thrust", "The target loses all melee special rules for this melee, and counts as having taken +1 wound when checking who won melee.") { Stabbed = true, MeleeWounds = 1 },
+                        _ => new Effect("Kebab", "If the hit isn't blocked the target takes 1 wound, the target loses all melee special rules for this melee, and counts as having taken +1 wounds when checking who won melee.") { WoundIfUnblocked = true, Stabbed = true, MeleeWounds = 1 },
                     };
                 case EType.Heat:
                     return band switch
                     {
-                        0 => new Effect("Roasted", "the target must re-roll unmodified Defense rolls of 6") { RerollSixes = true },
-                        1 => new Effect("Set Ablaze", "the target re-rolls Defense 6s, and the closest enemy unit within 6\" takes 1 hit") { RerollSixes = true, Ricochet = true },
-                        _ => new Effect("Inferno", "the target re-rolls Defense 6s, counts +2 wounds for morale, and the closest enemy within 6\" takes 1 hit") { RerollSixes = true, MoraleWounds = 2, Ricochet = true },
+                        0 => new Effect("Roasted", "The target must re-roll unmodified Defense rolls of 6.") { RerollSixes = true },
+                        1 => new Effect("Set Ablaze", "The target must re-roll unmodified Defense rolls of 6, and the closest enemy unit within 6\" takes 1 hit without special rules.") { RerollSixes = true, Ricochet = true },
+                        _ => new Effect("Inferno", "The target must re-roll unmodified Defense rolls of 6, counts as having taken +2 wounds when checking if shooting wounds would trigger a Morale Test, and the closest enemy unit within 6\" takes 1 hit without special rules.") { RerollSixes = true, MoraleWounds = 2, Ricochet = true },
                     };
                 case EType.Energy:
                 case EType.Missile:
                     return band switch
                     {
-                        0 => new Effect("Armor Shattered", "if the hit isn't blocked the target takes 1 wound") { WoundIfUnblocked = true },
-                        1 => new Effect("Energy Burst", "the hit gets AP(+4), and if it isn't blocked the target takes 1 wound") { Ap = 4, WoundIfUnblocked = true },
-                        _ => new Effect("Titanic Hit", "AP(+4), +1 wound if not blocked, and the target is Shaken at the end of shooting") { Ap = 4, WoundIfUnblocked = true, Shaken = true },
+                        0 => new Effect("Armor Shattered", "If the hit isn't blocked the target takes 1 wound.") { WoundIfUnblocked = true },
+                        1 => new Effect("Energy Burst", "The hit gets AP(+4), and if it isn't blocked the target takes 1 wound.") { Ap = 4, WoundIfUnblocked = true },
+                        _ => new Effect("Titanic Hit", "The hit gets AP(+4), if it isn't blocked the target takes 1 wound, and the target is Shaken at the end of shooting regardless of wounds.") { Ap = 4, WoundIfUnblocked = true, Shaken = true },
                     };
                 case EType.Explosive:
                 case EType.Gunpowder:
                     return band switch
                     {
-                        0 => new Effect("Deadly Shrapnel", "the target takes 2 hits") { Hits = 2 },
-                        1 => new Effect("Concussion", "the target takes 2 hits, and gets -1 to hit when shooting until the end of the round") { Hits = 2, ShootHitPenalty = true },
-                        _ => new Effect("Pulverized", "the hit gets AP(+4), the target takes 2 hits, and gets -1 to hit when shooting until the end of the round") { Ap = 4, Hits = 2, ShootHitPenalty = true },
+                        0 => new Effect("Deadly Shrapnel", "The target takes 2 hits without special rules.") { Hits = 2 },
+                        1 => new Effect("Concussion", "The target takes 2 hits without special rules, and gets -1 to hit rolls when shooting until the end of the round.") { Hits = 2, ShootHitPenalty = true },
+                        _ => new Effect("Pulverized", "The hit gets AP(+4), the target takes 2 hits without special rules, and it gets -1 to hit rolls when shooting until the end of the round.") { Ap = 4, Hits = 2, ShootHitPenalty = true },
                     };
             }
             return new Effect("None", "");
@@ -310,7 +310,7 @@ namespace FDG
             EType type = TypeOf(c.Settings.GameSystem, weapon.Name, melee, TypedOn(c));
             int die = HordePlacement.RollD6(c);
             Effect e = Roll(type, die, c.Settings.GameSystem);
-            c.Log($"Critical Hit! {attacker.Name}'s {weapon.Name} ({TypeName(type)}) rolls {die}: {e.Name} - {e.Text}.");
+            c.Log($"Critical Hit! {attacker.Name}'s {weapon.Name} ({TypeName(type)}) rolls {die}: {e.Name} - {e.Text}");
             var rows = Rows(type, c.Settings.GameSystem);
             int picked = die <= 3 ? 0 : die <= 5 ? 1 : 2;
             await c.Presenter.Present(new CriticalHitBeat(attacker.ID, defender.ID, attacker.Name, defender.Name, weapon.Name,

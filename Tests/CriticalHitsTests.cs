@@ -82,6 +82,40 @@ namespace FDG.Tests
                 Is.EqualTo(melee ? CriticalHits.EType.GenericMelee : CriticalHits.EType.GenericRanged), "generic tables");
         }
 
+        /// <summary>
+        /// Text shown to the player is OPR's own wording (bug hunt 2026-11-27): the tables in the critical-hit panel, the
+        /// weapon hovers and the battle report printed shortened paraphrases ("AP(+4), +1 wound if not blocked, and the
+        /// target counts +2 wounds for who won melee"). Each row below is copied from GFF / AoFS Advanced Rules 3.6.0 p45.
+        /// </summary>
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.GenericMelee, 6, "The hit gets AP(+4), if it isn't blocked the target takes 1 wound, and counts as having taken +2 wounds when checking who won melee.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.GenericMelee, 1, "If the hit isn't blocked the target takes 1 wound.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.GenericRanged, 4, "The hit gets AP(+4), and the closest enemy unit within 6\" takes 1 hit without special rules.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.GenericRanged, 6, "The hit gets AP(+4), the closest enemy unit within 6\" takes 1 hit without special rules, and the target counts as having taken +2 wounds when checking if shooting wounds would trigger a Morale Test.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Bladed, 1, "The target takes 2 hits without special rules.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Bladed, 6, "The hit gets AP(+4), the target takes 2 hits without special rules, and counts as having taken +2 wounds when checking who won melee.")]
+        [TestCase(EGameSystem.AoFSkirmish, CriticalHits.EType.Bladed, 6, "The hit gets AP(+4), the target takes 2 hits without special rules, and counts as having taken +1 wound when checking who won melee.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Bludgeoning, 6, "The target takes 2 hits without special rules, gets -1 to hit rolls for this melee, and is Shaken at the end of melee regardless of who won.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Heat, 5, "The target must re-roll unmodified Defense rolls of 6, and the closest enemy unit within 6\" takes 1 hit without special rules.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Heat, 6, "The target must re-roll unmodified Defense rolls of 6, counts as having taken +2 wounds when checking if shooting wounds would trigger a Morale Test, and the closest enemy unit within 6\" takes 1 hit without special rules.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Energy, 6, "The hit gets AP(+4), if it isn't blocked the target takes 1 wound, and the target is Shaken at the end of shooting regardless of wounds.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Explosive, 4, "The target takes 2 hits without special rules, and gets -1 to hit rolls when shooting until the end of the round.")]
+        [TestCase(EGameSystem.GFFirefight, CriticalHits.EType.Explosive, 6, "The hit gets AP(+4), the target takes 2 hits without special rules, and it gets -1 to hit rolls when shooting until the end of the round.")]
+        [TestCase(EGameSystem.AoFSkirmish, CriticalHits.EType.Thrusting, 4, "The target loses all melee special rules for this melee, and counts as having taken +1 wound when checking who won melee.")]
+        [TestCase(EGameSystem.AoFSkirmish, CriticalHits.EType.Thrusting, 6, "If the hit isn't blocked the target takes 1 wound, the target loses all melee special rules for this melee, and counts as having taken +1 wounds when checking who won melee.")]
+        [TestCase(EGameSystem.AoFSkirmish, CriticalHits.EType.Missile, 6, "The hit gets AP(+4), if it isn't blocked the target takes 1 wound, and the target is Shaken at the end of shooting regardless of wounds.")]
+        [TestCase(EGameSystem.AoFSkirmish, CriticalHits.EType.Gunpowder, 1, "The target takes 2 hits without special rules.")]
+        public void TableRows_UseTheBooksOwnWords(EGameSystem system, CriticalHits.EType type, int die, string book) =>
+            Assert.That(CriticalHits.Roll(type, die, system).Text, Is.EqualTo(book));
+
+        [Test]
+        public void TableRows_AreAllWholeBookSentences()
+        {
+            foreach (var system in new[] { EGameSystem.GFFirefight, EGameSystem.AoFSkirmish })
+                foreach (var type in CriticalHits.TypedTables(system))
+                    foreach (var (range, e) in CriticalHits.Rows(type, system))
+                        Assert.That(e.Text, Does.Match("^[A-Z].*\\.$"), $"{system} {type} {range} {e.Name}");
+        }
+
         [Test]
         public void Tables_FollowTheBook()
         {
