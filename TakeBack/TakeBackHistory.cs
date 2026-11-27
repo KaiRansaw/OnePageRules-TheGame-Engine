@@ -120,7 +120,18 @@ namespace FDG.TakeBackTools
                 _entries.Add(new Entry(json, round, player));
                 if (_entries.Count > MaxEntries) _entries.RemoveAt(0);
             }
+
+            // Battle replays (homebrew, Kai 2026-11-27): the same activation-start save point, handed to whoever
+            // records the game. Outside the lock; a listener's fault never reaches the game.
+            try { Captured?.Invoke(new Entry(json, round, player)); }
+            catch (Exception ex) { Console.WriteLine($"[Replay] Could not record a frame: {ex.Message}"); }
         }
+
+        /// <summary>
+        /// Raised (engine thread) for every activation-start save point a running game records - the frames of a
+        /// battle replay. Not raised for simulations, or for a game that a take-back has replaced.
+        /// </summary>
+        public event Action<Entry>? Captured;
 
         /// <summary>The save point a take-back would go to: the start of the most recent activation by one
         /// of <paramref name="localPlayers"/>, or null.</summary>

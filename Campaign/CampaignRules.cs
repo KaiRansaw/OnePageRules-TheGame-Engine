@@ -9,7 +9,8 @@ namespace FDG.Campaign
     /// <param name="Casualty">The unit was fully destroyed or Routed.</param>
     /// <param name="Kills">Enemy units this unit destroyed.</param>
     /// <param name="HeroKills">Enemy Hero units this unit destroyed.</param>
-    public readonly record struct CampaignUnitResult(string Id, bool Casualty, int Kills, int HeroKills);
+    public readonly record struct CampaignUnitResult(string Id, bool Casualty, int Kills, int HeroKills,
+                                                    string? FellTo = null);
 
     /// <summary>
     /// The campaign loop shared by all four Campaign Rules v3.6.0 books, driven by a
@@ -229,8 +230,11 @@ namespace FDG.Campaign
         /// Units that did not play are left untouched. Returns the log lines, which are also folded into
         /// the army's history.
         /// </summary>
+        /// <param name="removed">When given, every unit that died for good this match is added to it (the
+        /// write-back offers the enemy's vehicles and monsters among them as salvage).</param>
         public static List<string> AfterGame(ArmyListFile army, IReadOnlyList<CampaignUnitResult> results,
-                                             bool won, CampaignNumbers n, Func<int> d6)
+                                             bool won, CampaignNumbers n, Func<int> d6,
+                                             List<UnitFileEntry>? removed = null)
         {
             var log = new List<string>();
             // #432: campaign random events hand out XP, treasury and VP during a game, carried out of it
@@ -251,11 +255,23 @@ namespace FDG.Campaign
                 Save(resting, sheet);
             }
 
+            // Homebrew salvage (house rule B27): what the last win left on the field is gone once another
+            // mission is played. Cleared before anything else, so this mission's offers (added by the
+            // write-back after this returns) are the only ones standing.
+            StrikeTeamInfo infoNow = army.StrikeTeam ??= new StrikeTeamInfo { Name = army.Name };
+            if (infoNow.Salvage.Count > 0)
+            {
+                log.Add($"Salvage left on the field: {string.Join(", ", infoNow.Salvage.Select(o => o.Name))}.");
+                infoNow.Salvage.Clear();
+            }
+
             foreach (CampaignUnitResult result in results)
             {
                 UnitFileEntry? unit = army.Units.FirstOrDefault(u => Sheet(u)?.Id == result.Id);
                 if (unit == null || Sheet(unit) is not { } sheet) continue;
                 sheet.Games++;
+                // Homebrew service record (house rule B26), folded in before the per-game tallies go.
+                CampaignVeterans.RecordMission(sheet, result);
                 sheet.Kills = sheet.HeroKills = 0;
                 // #430's in-game tallies are per-mission too. Cleared here with the kills so a recovery
                 // save (which serializes the live table, sheets and all) cannot carry one mission's
@@ -275,23 +291,31 @@ namespace FDG.Campaign
                 {
                     switch (ResolveCasualty(army, unit, sheet, n, d6, log, ref xp))
                     {
-                        case ECasualtyOutcome.Removed: continue;   // dead, and out of the army
+                        case ECasualtyOutcome.Removed:   // dead, and out of the army
+                            sheet.FellTo = result.FellTo ?? "";
+                            CampaignVeterans.Remember(infoNow, unit, sheet, infoNow.Matches + 1);
+                            removed?.Add(unit);
+                            continue;
                         case ECasualtyOutcome.KnockedOut:
+                            sheet.TimesRecovered++;
+                            sheet.FellTo = "";
                             // The book's No Permadeath wording: it "loses the XP it earned for that
                             // match". All of it - the +1 for surviving it never earned, and the XP for
                             // whatever it killed before it fell.
                             Save(unit, sheet);
                             continue;
                     }
+                    sheet.TimesRecovered++;
                 }
                 else xp++;  // +1 XP: not a casualty
 
+                sheet.FellTo = "";
                 xp += result.Kills + 2 * result.HeroKills;
                 if (xp > 0) log.AddRange(AddXp(unit, sheet, xp, n, d6));
                 Save(unit, sheet);
             }
 
-            StrikeTeamInfo info = army.StrikeTeam ??= new StrikeTeamInfo { Name = army.Name };
+            StrikeTeamInfo info = infoNow;
             // #449 - a campaign saved before Wins existed carries its wins only in its history. Fold them
             // into the counter now, while the backfill can still see them, because once this mission
             // makes Wins non-zero RecordOf stops looking at the history at all.
@@ -498,6 +522,8 @@ namespace FDG.Campaign
             ChangeCost(unit, sheet, cost);
             log.Add(RollLevelTrait(unit, sheet, d6));
             if (sheet.IsHero) log.Add(RollSkill(unit, sheet, d6));
+            // Homebrew (house rule B26): a nickname to keep or change. Its own dice, not d6 - see Rng.
+            log.Add(CampaignVeterans.OfferOnLevelUp(unit, sheet));
             return log;
         }
 

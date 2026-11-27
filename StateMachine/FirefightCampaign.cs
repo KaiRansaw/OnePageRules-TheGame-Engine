@@ -34,6 +34,14 @@ namespace FDG.Stages
         /// </summary>
         public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null)
         {
+            // Homebrew memorial (house rule B26): who destroyed a campaign unit, for its line on the memorial.
+            if (dead is UnitData deadData && StrikeUnit.FromJson(deadData.StrikeUnitJson) is { } deadSheet)
+            {
+                deadSheet.FellTo = killer is UnitData k
+                    ? CampaignVeterans.Title(k.Name, StrikeUnit.FromJson(k.StrikeUnitJson)?.Nickname)
+                    : "";
+                deadData.StrikeUnitJson = deadSheet.ToJson();
+            }
             if (killer is not UnitData data || StrikeUnit.FromJson(data.StrikeUnitJson) is not { } sheet) return;
             // #414: killing a named character is a Hero kill. It carries "Unique Hero" instead of "Hero",
             // so this scored it as an ordinary kill - 1 XP rather than 2. (In a live game the supplement's

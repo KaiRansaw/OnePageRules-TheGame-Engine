@@ -304,6 +304,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.RegisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
             _messageBus.RegisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
+            _messageBus.RegisterForMessageEvent<PauseRequestMessage>(OnPauseRequestReceived);
 
             //Show init message in chatbox.
             AddMessageToLocalList(new LobbyChatMessage("System", SERVER_START_MESSAGE));
@@ -376,6 +377,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.RegisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.RegisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
             _messageBus.RegisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
+            _messageBus.RegisterForMessageEvent<PauseRequestMessage>(OnPauseRequestReceived);
 
             AddMessageToLocalList(new LobbyChatMessage("System", "Loaded saved game. Assign players to slots, then Resume."));
 
@@ -389,6 +391,16 @@ namespace FDG.Network.Connection.Lobby
         private void SeedSlotsFromSave(IReadWriteableGameDataStore store, string hostPlayerName)
         {
             List<PlayerSlotInfo> savedSlots = store.GetAllValues<PlayerSlotInfo>().OrderBy(s => s.SlotID).ToList();
+
+            // Pause & resume (Kai, 2026-11-27): the host takes back the seat saved under its own name when there is
+            // one (a game a friend hosted last time and this player hosts now still seats everyone right).
+            int own = savedSlots.FindIndex(s => string.Equals(s.Name, hostPlayerName, StringComparison.OrdinalIgnoreCase));
+            if (own > 0)
+            {
+                PlayerSlotInfo mine = savedSlots[own];
+                savedSlots.RemoveAt(own);
+                savedSlots.Insert(0, mine);
+            }
 
             bool hostAssigned = false;
             foreach (PlayerSlotInfo slot in savedSlots)
@@ -577,7 +589,11 @@ namespace FDG.Network.Connection.Lobby
         {
             Debug.WriteLine($"[#052] Resume: greeting from {greeting.PlayerName}.");
 
-            LobbyPlayerInfoFull? openSlot = _playerInfosFull.Values.FirstOrDefault(p => p.PlayerType == EPlayerType.AI);
+            // Pause & resume (Kai, 2026-11-27): a friend goes back into the seat they played - the saved slot with
+            // their name - before any other open one.
+            LobbyPlayerInfoFull? openSlot = _playerInfosFull.Values.FirstOrDefault(p => p.PlayerType == EPlayerType.AI
+                    && string.Equals(p.PlayerName, greeting.PlayerName, StringComparison.OrdinalIgnoreCase))
+                ?? _playerInfosFull.Values.FirstOrDefault(p => p.PlayerType == EPlayerType.AI);
             if (openSlot == null)
             {
                 Debug.WriteLine("[#052] Resume: no open (AI) saved slot for the joining client.");
@@ -609,6 +625,16 @@ namespace FDG.Network.Connection.Lobby
                 _playerInfosFull.FirstOrDefault(info => info.Value.ConnectionID == disconnectedConnectionID);
             if (entry.Value == null)
             {
+                return;
+            }
+
+            // A resumed game's seats are the save's: a friend who drops out of the lobby leaves their seat to a
+            // bot (and keeps it for when they join again) rather than taking the army out of the game.
+            if (_isResume && !_isLaunched)
+            {
+                entry.Value.PlayerType = EPlayerType.AI;
+                entry.Value.ConnectionID = new ConnectionID(Guid.Empty);
+                UpdateInfoSummariesFromFullList();
                 return;
             }
 
@@ -864,6 +890,7 @@ namespace FDG.Network.Connection.Lobby
             _messageBus.DeregisterForMessageEvent<PlayerColorUpdateMessage>(OnPlayerColorUpdateReceived);
             _messageBus.DeregisterForMessageEvent<PlayerTeamUpdateMessage>(OnPlayerTeamUpdateReceived);
             _messageBus.DeregisterForMessageEvent<SeatPicturesUpdateMessage>(OnSeatPicturesUpdateReceived);
+            _messageBus.DeregisterForMessageEvent<PauseRequestMessage>(OnPauseRequestReceived);
             _messageBus.Dispose(); //Detaches the bus from the host's receive/disconnect events.
 
             _host.OnNewClientConnected -= OnNewClientConnected;
@@ -935,6 +962,37 @@ namespace FDG.Network.Connection.Lobby
         {
             get => _server?.Paused ?? false;
             set { if (_server != null) _server.Paused = value; }
+        }
+
+        /// <summary>
+        /// Pause &amp; resume (homebrew, Kai 2026-11-27): a joined friend asked to pause. Carries their name. The front
+        /// end saves the game (<see cref="SaveGameToJson"/>) and then calls <see cref="PauseForEveryone"/>.
+        /// Raised on the network thread.
+        /// </summary>
+        public event Action<string>? OnPauseRequested;
+
+        private void OnPauseRequestReceived(PauseRequestMessage request)
+        {
+            if (!_isLaunched || _server == null) return;
+            OnPauseRequested?.Invoke(string.IsNullOrWhiteSpace(request.PlayerName) ? "a player" : request.PlayerName);
+        }
+
+        /// <summary>The line everyone sees when a game is paused.</summary>
+        public static string PausedText(string pausedBy, string? savedAs) =>
+            $"Game paused by {pausedBy}. " + (savedAs != null
+                ? $"The host saved it as \"{savedAs}\" - Load Game resumes it, and everyone joins again."
+                : "The host could not save it.");
+
+        /// <summary>
+        /// Ends the running game for everyone with <paramref name="text"/> as the result (no winner, no campaign
+        /// write-back): the engine stops quietly, as Take Back does, and every client gets the ordinary game-ended
+        /// message so it returns to the menu. Save BEFORE calling this.
+        /// </summary>
+        public void PauseForEveryone(string text)
+        {
+            if (_server == null) return;
+            _server.Stop();
+            HandleServerGameEnded(text);
         }
 
         /// <summary>Take Back: who plays each slot, so a relaunch can seat everyone the same way.</summary>

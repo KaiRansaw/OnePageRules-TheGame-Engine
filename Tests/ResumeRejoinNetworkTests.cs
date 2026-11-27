@@ -116,12 +116,69 @@ namespace FDG.Tests
                 Is.EqualTo(EPlayerType.Local), "the host keeps playing its own slot.");
         }
 
+        // Pause & resume (Kai, 2026-11-27): a friend goes back into the seat saved under their own name, even when
+        // another saved seat is open ahead of it.
+        [Test]
+        [CancelAfter(120_000)]
+        public async Task ARejoiningFriend_TakesTheSeatSavedUnderTheirName()
+        {
+            (LobbyViewModel_Host hostVm, IReadOnlyList<PlayerSlotInfo> savedSlots) = StandUpResumeHost(playerCount: 3);
+            PlayerSlotInfo third = savedSlots[2];
+            Assert.That(third.Name, Is.EqualTo("Seat C"));
+
+            LobbyViewModel_Client clientVm = await JoinAsync(third.Name, hostVm);
+
+            Assert.That(clientVm.CheckCanModifyPlayerIDInfo(third.PlayerID), Is.True,
+                "the friend must get the seat saved under their name, not the first open one.");
+            Assert.That(clientVm.CheckCanModifyPlayerIDInfo(savedSlots[1].PlayerID), Is.False);
+        }
+
+        // Pause & resume: the host takes the seat saved under its own name.
+        [Test]
+        public void TheHost_TakesTheSeatSavedUnderItsName()
+        {
+            GameDataStore compiled = ScenarioCompiler.Compile(MakeScenario(2), MakeArmies(2));
+            GameDataStore loaded = GameSaveSerializer.Load(NamedSeats(GameSaveSerializer.Save(compiled)));
+            List<PlayerSlotInfo> saved = loaded.GetAllValues<PlayerSlotInfo>().OrderBy(slot => slot.SlotID).ToList();
+
+            var hostVm = new LobbyViewModel_Host(saved[1].Name, "Recovered Game", "", new NullNetworkHost(), loaded);
+            _disposables.Add(hostVm);
+
+            Assert.That(hostVm.PlayerInfos.Single(p => p.PlayerID == saved[1].PlayerID).PlayerType, Is.EqualTo(EPlayerType.Local));
+            Assert.That(hostVm.PlayerInfos.Single(p => p.PlayerID == saved[0].PlayerID).PlayerType, Is.EqualTo(EPlayerType.AI));
+        }
+
+        // Pause & resume: a friend who drops out of the resume lobby leaves their seat (and army) to a bot until they
+        // come back - the seat is never taken out of the saved game.
+        [Test]
+        [CancelAfter(120_000)]
+        public async Task AFriendWhoDropsOutOfTheResumeLobby_LeavesTheSeatToABot()
+        {
+            (LobbyViewModel_Host hostVm, IReadOnlyList<PlayerSlotInfo> savedSlots) = StandUpResumeHost(playerCount: 2);
+            await JoinAsync("Mrs. Client", hostVm);
+            await WaitForSlot(hostVm, savedSlots[1].PlayerID);
+
+            _clients[^1].Disconnect();
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                if (hostVm.PlayerInfos.FirstOrDefault(p => p.PlayerID == savedSlots[1].PlayerID)?.PlayerType == EPlayerType.AI) break;
+                await Task.Delay(50);
+            }
+
+            Assert.That(hostVm.PlayerInfos.Count, Is.EqualTo(savedSlots.Count), "the seat must stay in the game.");
+            Assert.That(hostVm.PlayerInfos.Single(p => p.PlayerID == savedSlots[1].PlayerID).PlayerType, Is.EqualTo(EPlayerType.AI));
+
+            LobbyViewModel_Client back = await JoinAsync("Mrs. Client", hostVm);
+            Assert.That(back.CheckCanModifyPlayerIDInfo(savedSlots[1].PlayerID), Is.True, "and she can take it again.");
+        }
+
         // Builds a resume-mode host lobby around a real loaded save, listening on a free loopback port.
-        private (LobbyViewModel_Host Host, IReadOnlyList<PlayerSlotInfo> SavedSlots) StandUpResumeHost(int playerCount)
+        private (LobbyViewModel_Host Host, IReadOnlyList<PlayerSlotInfo> SavedSlots) StandUpResumeHost(int playerCount,
+            string hostName = "Mr. Host")
         {
             // Round-tripped through the serializer so this is a genuinely loaded save, not a live store.
             GameDataStore compiled = ScenarioCompiler.Compile(MakeScenario(playerCount), MakeArmies(playerCount));
-            GameDataStore loaded = GameSaveSerializer.Load(GameSaveSerializer.Save(compiled));
+            GameDataStore loaded = GameSaveSerializer.Load(NamedSeats(GameSaveSerializer.Save(compiled)));
 
             List<PlayerSlotInfo> savedSlots = loaded.GetAllValues<PlayerSlotInfo>()
                 .OrderBy(slot => slot.SlotID).ToList();
@@ -136,7 +193,7 @@ namespace FDG.Tests
             Assert.That(listening.IsFaulted, Is.False,
                 $"host failed to bind: {listening.Exception?.GetBaseException().Message}");
 
-            var hostVm = new LobbyViewModel_Host("Mr. Host", "Recovered Game", "", host, loaded);
+            var hostVm = new LobbyViewModel_Host(hostName, "Recovered Game", "", host, loaded);
             _disposables.Add(hostVm);
             _portForHost[hostVm] = port;
             return (hostVm, savedSlots);
@@ -197,6 +254,35 @@ namespace FDG.Tests
         private static void TryQuietly(Action action)
         {
             try { action(); } catch { /* teardown must not mask the real failure */ }
+        }
+
+        // A scenario's seats have no players, so every one is saved as "[Empty]". A real save has each seat's player
+        // name; give them names (Seat A, Seat B, ...) the way a played game's save would carry them.
+        private static string NamedSeats(string saveJson)
+        {
+            const string empty = "[Empty]";
+            var sb = new System.Text.StringBuilder();
+            int from = 0, n = 0;
+            for (int at = saveJson.IndexOf(empty, StringComparison.Ordinal); at >= 0; at = saveJson.IndexOf(empty, from, StringComparison.Ordinal))
+            {
+                sb.Append(saveJson, from, at - from).Append("Seat ").Append((char)('A' + n++));
+                from = at + empty.Length;
+            }
+            return sb.Append(saveJson, from, saveJson.Length - from).ToString();
+        }
+
+        private sealed class NullNetworkHost : INetworkHost
+        {
+            public event Action<ConnectionID>? OnNewClientConnected { add { } remove { } }
+            public event Action<ConnectionID>? OnClientDisconnected { add { } remove { } }
+            public event Action<ArraySegment<byte>, ConnectionID>? OnMessageReceived { add { } remove { } }
+            public Task StartAsync() => Task.CompletedTask;
+            public Task SendCommandToAllAsync(ArraySegment<byte> data, bool isPooled) => Task.CompletedTask;
+            public Task SendCommandToSingleClientAsync(ConnectionID clientId, ArraySegment<byte> data, bool isPooled)
+                => Task.CompletedTask;
+            public void DisconnectClient(ConnectionID clientId) { }
+            public void MarkClientAuthenticated(ConnectionID clientId) { }
+            public void Stop() { }
         }
 
         private static ArmyListFile[] MakeArmies(int playerCount) =>

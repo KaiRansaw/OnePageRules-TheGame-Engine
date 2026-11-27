@@ -620,6 +620,12 @@ namespace FDG.Network.Connection.Lobby
             OnLaunched?.Invoke(fdgGame);
         }
 
+        /// <summary>
+        /// Pause &amp; resume (homebrew, Kai 2026-11-27): asks the host to save the game and stop it for everyone.
+        /// The game-ended message that follows brings this client back to the menu.
+        /// </summary>
+        public void RequestPause() => _ = _messageBusClient.SendCommandToHostAsync(new PauseRequestMessage(_thisPlayerName));
+
         private void OnGameEndedMessageReceived(GameEndedMessage gameEndedMessage)
         {
             RaiseGameEndedOnce(gameEndedMessage.Result);

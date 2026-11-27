@@ -171,6 +171,21 @@ namespace FDG.Campaign
         /// pays +50pts for it."</i>
         /// </summary>
         public int VeteranRecruitedAfterMission { get; set; } = -1;
+
+        /// <summary>
+        /// Homebrew (Kai, 2026-11-27; house rule B26): every unit of this army that died for good, newest last -
+        /// the Journal's Memorial page.
+        /// </summary>
+        public List<FallenUnit> Memorial { get; set; } = new();
+
+        /// <summary>
+        /// Homebrew (Kai, 2026-11-27; house rule B27): enemy vehicles and monsters destroyed in the last mission
+        /// this army WON, which it may buy one of at half price. Cleared when the next mission is played.
+        /// </summary>
+        public List<SalvageOffer> Salvage { get; set; } = new();
+
+        /// <summary>The <see cref="Matches"/> count when the army last claimed salvage (one per mission), or -1.</summary>
+        public int SalvagedAfterMission { get; set; } = -1;
     }
 
     /// <summary>
@@ -268,6 +283,38 @@ namespace FDG.Campaign
         /// it can be recruited alongside but not upgraded.</para>
         /// </summary>
         public string? LoadoutJson { get; set; }
+
+        // -- Service record and nickname (homebrew, Kai 2026-11-27; house rule B26) ------------------
+
+        /// <summary>The unit's nickname ("the Butcher"), shown as Name "Nickname". Empty = none.</summary>
+        public string Nickname { get; set; } = "";
+
+        /// <summary>
+        /// A nickname the game suggested at the last level-up, waiting for the player to keep it, re-roll it or
+        /// type their own. Empty once answered. Never applied on its own - Kai: "game suggests, you edit".
+        /// </summary>
+        public string NicknameSuggestion { get; set; } = "";
+
+        /// <summary>Units destroyed over the whole campaign (Heroes not included - see <see cref="CareerHeroKills"/>).</summary>
+        public int CareerKills { get; set; }
+
+        /// <summary>Heroes destroyed over the whole campaign.</summary>
+        public int CareerHeroKills { get; set; }
+
+        /// <summary>Missions this unit played and was not a casualty in.</summary>
+        public int MissionsSurvived { get; set; }
+
+        /// <summary>Missions this unit was a casualty in and came back from.</summary>
+        public int TimesRecovered { get; set; }
+
+        /// <summary>
+        /// The enemy unit that destroyed this one in the game in progress, for the memorial. Set by
+        /// <c>FirefightCampaign.OnUnitDestroyed</c>; cleared when the result is written back.
+        /// </summary>
+        public string FellTo { get; set; } = "";
+
+        /// <summary>The enemy army this unit was salvaged from ("Wormhole Daemons"), or empty. House rule B27.</summary>
+        public string SalvagedFrom { get; set; } = "";
 
         public int Level => Math.Min(StrikeTeamRules.MaxXp, Xp) / StrikeTeamRules.XpPerLevel;
 
