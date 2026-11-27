@@ -201,7 +201,15 @@ namespace FDG.Ai.Solo
                     // re-ranked everything in reach with no regard for step 2's "within 3\" of the
                     // objective", and a unit holding a marker fought the neighbour the tree had ruled out
                     // (bot audit, 2026-11-07).
-                    if (pick == ChooseActionStage.CHARGE_CHOICE_NAME && plan.Target != null
+                    // Not after this activation's charge move, though: the move already landed on the target the
+                    // tree chose before moving (or the next one in the book's order), and the re-read from the new
+                    // spot - now perhaps holding a marker - must not swap it for a neighbour (lane 2 audit,
+                    // 2026-11-27). No Move on the menu = the move has been made.
+                    bool movedOnto = !options.Contains(ChooseActionStage.MOVEMENT_CHOICE_NAME)
+                        && _charges?.TargetOf(unit.ID) is { } moved
+                        && AiCombatMath.Enemies(_table, _me).FirstOrDefault(e => e.ID.Equals(moved)) is { } movedTarget
+                        && MeleeRangeUtilities.AreUnitsInMeleeRange(unit, movedTarget);
+                    if (pick == ChooseActionStage.CHARGE_CHOICE_NAME && plan.Target != null && !movedOnto
                         && MeleeRangeUtilities.AreUnitsInMeleeRange(unit, plan.Target))
                         _charges?.Remember(unit.ID, plan.Target.ID);
                     break;

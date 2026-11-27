@@ -103,6 +103,9 @@ namespace FDG.Tests
                     set.Add(section);
                     deployCount[player] = deployCount.GetValueOrDefault(player) + 1;
                     log.Add($"DEPLOY section {section} aim {aim.x:0},{aim.z:0}");
+                    // AoF: Skirmish's book has two deployment sections, the other three have three.
+                    if (section < 1 || section > Ai.Solo.SoloCoOpProfile.For(system).DeploymentSections)
+                        log.Add($"CHECK DEPLOY SECTION {section} OUTSIDE THE BOOK'S {Ai.Solo.SoloCoOpProfile.For(system).DeploymentSections}");
                 }
             };
             Ai.Solo.SoloCoOpActionResolver.ClauseTrace = (unit, what) => { lock (log) log.Add($"CLAUSE {unit.Name}: {what}"); };
@@ -200,10 +203,22 @@ namespace FDG.Tests
                     else lastPlan.TryAdd(who, planText);
                     continue;
                 }
-                if (l.StartsWith("CHARGE ", StringComparison.Ordinal)) chargeMoved = true;
-                if (l.StartsWith("Activating: ", StringComparison.Ordinal))
+                if (l.StartsWith("CHARGE ", StringComparison.Ordinal))
                 {
-                    activating = l["Activating: ".Length..].TrimEnd('.');
+                    chargeMoved = true;
+                    // The planned target was blocked and the move charged the next one in the book's order.
+                    int arrow = l.IndexOf(" -> ", StringComparison.Ordinal);
+                    int retarget = l.IndexOf(": retargeted", StringComparison.Ordinal);
+                    if (arrow > 0 && retarget > arrow)
+                        lastPlan[l["CHARGE ".Length..arrow]] = $"Charge -> {l[(arrow + 4)..retarget]} (retargeted)";
+                }
+                // Coordinate and the like activate a unit out of turn without an "Activating:" line.
+                const string outOfTurn = " activates out of the normal turn order.";
+                if (l.StartsWith("Activating: ", StringComparison.Ordinal) || l.EndsWith(outOfTurn, StringComparison.Ordinal))
+                {
+                    activating = l.EndsWith(outOfTurn, StringComparison.Ordinal)
+                        ? l[..^outOfTurn.Length]
+                        : l["Activating: ".Length..].TrimEnd('.');
                     lastPlan.Remove(activating);
                     chargeMoved = false;
                 }
@@ -250,12 +265,36 @@ namespace FDG.Tests
             (EGameSystem.GrimdarkFuture, "GDF/2k - Dwarf Guilds - Ambush and Scout-Heavy.fdgarmy", "GDF/2k - Robot Legions - Mixed.fdgarmy"),
         };
 
+        /// <summary>
+        /// Lane 2 (2026-11-27): the two skirmish games, whose Solo &amp; Co-Op books differ (Blast / Deadly bands,
+        /// no Artillery or Transport, and AoF: Skirmish's two deployment sections). AUDIT_SKIRMISH=1.
+        /// </summary>
+        private static readonly (EGameSystem System, string A, string B)[] SkirmishMatchups =
+        {
+            (EGameSystem.GFFirefight, "GF Firefight/Ready-to-Play/Human Defense Force/HDF Swarm (800).fdgarmy",
+                "GF Firefight/Ready-to-Play/Havoc Brothers/Murderwing Night Lords 3.6 (800p Skirm) (800).fdgarmy"),
+            (EGameSystem.GFFirefight, "GF Firefight/Ready-to-Play/Blood Brothers/Blood Brothers 800 pts (800).fdgarmy",
+                "GF Firefight/Ready-to-Play/Goblin Reclaimers/Armored division (800).fdgarmy"),
+            (EGameSystem.AoFSkirmish, "AoF Skirmish/Ready-to-Play/Halflings/3.6-900-Halflings_w_zeppelin (900).fdgarmy",
+                "AoF Skirmish/Ready-to-Play/Ratmen/Gatrik's Warband (900).fdgarmy"),
+            (EGameSystem.AoFSkirmish, "AoF Skirmish/Ready-to-Play/Halflings/3.6-900-Halfling_Potter (900).fdgarmy",
+                "AoF Skirmish/Ready-to-Play/Halflings/3.6-900-Halflings (900).fdgarmy"),
+        };
+
+        private static IEnumerable<(EGameSystem System, string A, string B)> PickedMatchups()
+        {
+            if (System.Environment.GetEnvironmentVariable("AUDIT_SPECIAL") != null) return SpecialMatchups;
+            if (System.Environment.GetEnvironmentVariable("AUDIT_SKIRMISH") != null) return SkirmishMatchups;
+            if (System.Environment.GetEnvironmentVariable("AUDIT_ALL") != null) return Matchups.Concat(SpecialMatchups).Concat(SkirmishMatchups);
+            return System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? Matchups.Take(1) : Matchups;
+        }
+
         [Test]
         public async Task SoloAiAudit_RealArmies()
         {
             var report = new List<string>();
             int games = 0;
-            foreach (var (system, a, b) in (System.Environment.GetEnvironmentVariable("AUDIT_SPECIAL") != null ? SpecialMatchups : System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? Matchups.Take(1) : Matchups))
+            foreach (var (system, a, b) in PickedMatchups())
                 foreach (int seed in (System.Environment.GetEnvironmentVariable("AUDIT_SEEDS") is { Length: > 0 } list ? list.Split(',').Select(int.Parse).ToArray() : System.Environment.GetEnvironmentVariable("AUDIT_QUICK") != null ? new[] { 7001 } : new[] { 7001, 7002 }))
                 {
                     List<string> log = await Play(seed, system, a, b);

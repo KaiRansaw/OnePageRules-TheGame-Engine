@@ -272,6 +272,9 @@ namespace FDG.Ai.Resolvers
         /// <summary>Test hook for the bot audit: how each named charge went. Null in play.</summary>
         internal static Action<string>? ChargeTrace;
 
+        /// <summary>Writes to <see cref="ChargeTrace"/> when the bot audit is listening.</summary>
+        internal static void Trace(string line) => ChargeTrace?.Invoke(line);
+
         /// <summary>A routed charge counts only if it ends this close to its target - the engine's contact tolerance.</summary>
         private const float RoutedChargeContactInches = 0.1f;
 

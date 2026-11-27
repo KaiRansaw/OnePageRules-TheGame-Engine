@@ -69,8 +69,7 @@ namespace FDG.Ai.Solo
                     // step 2 one that keeps the unit on its objective). Handing this to the baseline's plain
                     // Resolve charged whichever enemy MODEL was nearest instead - and a unit the baseline
                     // classes as a shooter only walked to the standoff line (bot audit, 2026-11-07).
-                    if (plan.Target != null) _charges?.Remember(unit.ID, plan.Target.ID);
-                    return _baseline.ResolveToward(request, plan.Target);
+                    return ChargeInBookOrder(request, unit, plan);
 
                 case ESoloAiMove.RushToObjective when plan.Goal is { } rushGoal:
                     // #460 Simplified Terrain: an objective in (or beside) a building is taken by going in.
@@ -113,6 +112,39 @@ namespace FDG.Ai.Solo
         /// unreachable piece of cover costs nothing but the attempt.
         /// </para>
         /// </summary>
+        /// <summary>
+        /// The tree's charge, at its target. When that move cannot end in melee range of the target - another
+        /// enemy unit stands in the lane, which the walk round walls (<see cref="SoloAiReach"/>) cannot see - the
+        /// target was never a valid charge, so the next one in the book's order ("the closest valid target,
+        /// prioritizing units that haven't activated yet") is tried, and the first that the move really reaches
+        /// is charged. If none is reached the first attempt stands. Lane 2 audit, 2026-11-27: in 4 of 30 audited
+        /// games a blocked charge ended within 2" of a bystander and fought it by accident, unplanned.
+        /// </summary>
+        private async Task<CancellableResult<List<ModelMoveEntry>>> ChargeInBookOrder(DefineMovementPathRequest request,
+            IUnit unit, SoloAiPlan plan)
+        {
+            if (plan.Target != null) _charges?.Remember(unit.ID, plan.Target.ID);
+            CancellableResult<List<ModelMoveEntry>> first = await _baseline.ResolveToward(request, plan.Target);
+            if (plan.Target == null || Reaches(first, plan.Target)) return first;
+
+            foreach (IUnit next in SoloAiBrain.ChargeTargets(_table, _me, unit, plan.StayNear))
+            {
+                if (ReferenceEquals(next, plan.Target) || next.ID.Equals(plan.Target.ID)) continue;
+                CancellableResult<List<ModelMoveEntry>> other = await _baseline.ResolveToward(request, next);
+                if (!Reaches(other, next)) continue;
+                _charges?.Remember(unit.ID, next.ID);
+                AiDefineMovementResolver.Trace($"CHARGE {unit.Name} -> {next.Name}: retargeted, {plan.Target.Name} can't be reached");
+                return other;
+            }
+            return first;
+        }
+
+        /// <summary>Whether the move ends with a model inside melee range of the target (where the engine lets it fight).</summary>
+        internal static bool Reaches(CancellableResult<List<ModelMoveEntry>> move, IUnit target) =>
+            move is Selected<List<ModelMoveEntry>> { Value: { } path }
+            && Ai.Tactician.MovementPlanner.MinEnemyGap(path, Ai.Tactician.MovementPlanner.UnitFootprints(target))
+               <= GameWideConstants.MELEE_RANGE_INCHES_HORIZONTAL;
+
         private List<ModelMoveEntry> TowardWithTerrain(DefineMovementPathRequest request, IUnit unit,
             Position goal, float stopWithin, float budgetCap)
         {

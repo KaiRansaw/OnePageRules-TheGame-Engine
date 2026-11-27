@@ -715,6 +715,72 @@ namespace FDG.Tests
             }
         }
 
+        /// <summary>A line of single-model bases standing shoulder to shoulder along z at this x.</summary>
+        private DataBinding<UnitData> Line(PlayerID owner, string name, float x, float z0, float z1)
+        {
+            var bindings = new List<DataBinding<ModelData>>();
+            for (float z = z0; z <= z1 + 0.001f; z += 1f)
+                bindings.Add(_store.GetDataBinding<ModelData>(_store.Create(new ModelData(0.5f,
+                    new List<Weapon> { new Weapon("CCW", 0f, 1, 0) }, new Position(x, z), _store))));
+            var unit = new UnitData(owner, name, quality: 4, defense: 4, modelBindings: bindings);
+            DataBinding<UnitData> binding = _store.GetDataBinding<UnitData>(_store.Create(unit));
+            _store.Create(new ArmyData(owner, new List<DataBinding<UnitData>> { binding }));
+            return binding;
+        }
+
+        // Lane 2 audit, 2026-11-27 (4 WRONG CHARGE TARGET findings in 30 games). The book: "charge the closest valid
+        // target, prioritizing units that haven't activated yet". The fresh unit behind an enemy line is picked first,
+        // but the line stands in every lane and the walk round walls cannot see units - so the charge stopped at the
+        // line and fought it by accident. A target the charge cannot reach is not a valid one: the move now charges the
+        // next in the book's order (the line) on purpose, and the melee pick knows it.
+        [Test]
+        public async Task AChargeBlockedByAnotherEnemyUnit_ChargesTheNextValidTarget()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, rangeInches: 0f, meleeAttacks: 8);
+            DataBinding<UnitData> line = Line(_player, "Shield Line", 29f, 12f, 36f);
+            line.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+            DataBinding<UnitData> fresh = Unit(_player, "Fresh Troops", 33f, 24f, rangeInches: 0f);
+
+            SoloAiPlan plan = SoloAiBrain.Plan(Table, _ai, ai.GetValue());
+            Assume.That(plan.Kind, Is.EqualTo(ESoloAiMove.Charge));
+            Assume.That(plan.Target?.Name, Is.EqualTo("Fresh Troops"), "the book's order: unactivated first.");
+
+            var memory = new SoloChargeMemory();
+            var resolver = new SoloCoOpMovementResolver(Table, _ai, null, memory);
+            CancellableResult<List<ModelMoveEntry>> move = await resolver.Resolve(new DefineMovementPathRequest(_ai,
+                "Charge", ai, maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f, mainActivationMove: true));
+
+            Assert.That(SoloCoOpMovementResolver.Reaches(move, fresh.GetValue()), Is.False,
+                "set-up: the line blocks every way to Fresh Troops within 12\".");
+            Assert.That(SoloCoOpMovementResolver.Reaches(move, line.GetValue()), Is.True,
+                "the charge lands on the next valid target instead of stopping short.");
+            Assert.That(memory.TargetOf(ai.GetValue().ID), Is.EqualTo(line.GetValue().ID),
+                "the melee pick is told which unit was charged.");
+        }
+
+        // Lane 2 audit, 2026-11-27: after the charge move the tree is asked again from the new spot - here standing on a
+        // marker, so step 2 picks a different neighbour - and that re-read used to overwrite the target the move had
+        // just charged. With no Move left on the menu the move has been made, and its target stands.
+        [Test]
+        public async Task AfterTheChargeMove_TheReReadDoesNotSwapTheChargedTarget()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, rangeInches: 0f, meleeAttacks: 8);
+            Objective(24f, 24f);
+            DataBinding<UnitData> charged = Unit(_player, "Charged Troops", 25.5f, 24f, rangeInches: 0f);
+            charged.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+            Unit(_player, "Fresh Troops", 24f, 25.5f, rangeInches: 0f);
+            var memory = new SoloChargeMemory();
+            memory.Remember(ai.GetValue().ID, charged.GetValue().ID);
+            Assume.That(SoloAiBrain.Plan(Table, _ai, ai.GetValue()).Target?.Name, Is.EqualTo("Fresh Troops"),
+                "set-up: the re-read prefers the other neighbour.");
+
+            var resolver = new SoloCoOpActionResolver(Table, _ai, null, new AiStringSelectionResolver(Table, _ai, null), memory);
+            string pick = await resolver.Resolve(Menu(ai, ChooseActionStage.CHARGE_CHOICE_NAME, ChooseActionStage.PASS_CHOICE_NAME));
+
+            Assert.That(pick, Is.EqualTo(ChooseActionStage.CHARGE_CHOICE_NAME));
+            Assert.That(memory.TargetOf(ai.GetValue().ID), Is.EqualTo(charged.GetValue().ID));
+        }
+
         [Test]
         public async Task RushingAnObjective_ClosesOnIt()
         {

@@ -20,7 +20,11 @@ namespace FDG.Ai.Solo
     }
 
     /// <summary>One unit's plan: what to do, who to do it to, and where it is heading.</summary>
-    public sealed record SoloAiPlan(ESoloAiMove Kind, IUnit? Target, Position? Goal, float Range, string Why);
+    public sealed record SoloAiPlan(ESoloAiMove Kind, IUnit? Target, Position? Goal, float Range, string Why)
+    {
+        /// <summary>Step 2's objective: a charge from it must keep the unit within 3" of this point.</summary>
+        public Position? StayNear { get; init; }
+    }
 
     /// <summary>
     /// #419 - the AI decision tree from <b>Solo &amp; Co-Op Rules v3.6.0</b>, which is what the Horde books
@@ -116,7 +120,15 @@ namespace FDG.Ai.Solo
         /// otherwise the charge drags the unit off the marker the step exists to keep. The tree used to
         /// charge anything within 12" from step 2 (found in the bot audit, 2026-11-07).
         /// </param>
-        public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null)
+        public static IUnit? ChargeTarget(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null) =>
+            ChargeTargets(table, me, unit, stayNear).FirstOrDefault();
+
+        /// <summary>
+        /// Every enemy this unit could charge, best first by the book's melee priority (the first one is
+        /// <see cref="ChargeTarget"/>). The move uses the rest when the first turns out to be blocked - by another
+        /// enemy unit standing in the lane, say, which the walk round walls cannot see (lane 2 audit, 2026-11-27).
+        /// </summary>
+        public static List<IUnit> ChargeTargets(ITableState table, PlayerID me, IUnit unit, Position? stayNear = null)
         {
             float reach = ChargeReach(unit, table);
             // #364: straight-line first (cheap), then the walk round any wall - a charge it can't get round is no charge.
@@ -126,7 +138,18 @@ namespace FDG.Ai.Solo
                 .Where(e => stayNear is not { } at
                             || AiCombatMath.DistanceToPoint(e, at) <= ObjectiveReachInches)
                 .ToList();
-            return SoloAiTargeting.PickChargeTarget(unit, CardTargetsFirst(table, me, candidates));
+            var ordered = new List<IUnit>();
+            List<IUnit> first = CardTargetsFirst(table, me, candidates);
+            foreach (List<IUnit> band in new[] { first, candidates.Except(first).ToList() })
+            {
+                var left = band.ToList();
+                while (left.Count > 0 && SoloAiTargeting.PickChargeTarget(unit, left) is { } next)
+                {
+                    ordered.Add(next);
+                    left.Remove(next);
+                }
+            }
+            return ordered;
         }
 
         // Read-only and non-logging: the movement queries ask the rule graph what Fast, Slow, Rapid Advance
@@ -258,7 +281,7 @@ namespace FDG.Ai.Solo
 
                 if (ChargeBeatsShooting(unit, charge, shoot, cards))
                     return new SoloAiPlan(ESoloAiMove.Charge, charge, here.Position, 0f,
-                        $"holding objective - charge {charge.Name}");
+                        $"holding objective - charge {charge.Name}") { StayNear = here.Position };
                 if (shoot != null)
                     return new SoloAiPlan(ESoloAiMove.AdvanceAndShoot, shoot, here.Position, range,
                         $"holding objective - shoot {shoot.Name}");
