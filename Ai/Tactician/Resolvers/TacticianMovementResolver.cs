@@ -65,7 +65,12 @@ namespace FDG.Ai.Tactician.Resolvers
             if (request.MainActivationMove && IntoBuilding(request, planned) is { } inside)
                 return Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(new Selected<List<ModelMoveEntry>>(inside));
 
-            if (valid)
+            // #460: the path check lets a model end inside a building (it may cross a wall into one); the building
+            // rules - the whole unit goes in or none of it, room, 6" to leave - are the stage's next check. A planned
+            // objective move that put part of a unit inside faulted the game (lane 2 sweep, 2026-11-27, Simplified
+            // Terrain with the Tactical bot), so the same check runs here and a failing plan is repaired or replaced.
+            UnitData mover = request.UnitDataBinding.GetValue();
+            if (valid && DefinePathStage.BuildingProblem(_tableState, mover, planned) == null)
                 return Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(
                     new Selected<List<ModelMoveEntry>>(planned));
 
@@ -77,7 +82,7 @@ namespace FDG.Ai.Tactician.Resolvers
             // destination under THIS request's budgets before conceding the activation.
             List<ModelMoveEntry>? repaired = TryRepairWithinRequestBudgets(request, planned, budgetFor,
                 enemies, friendlies);
-            if (repaired != null)
+            if (repaired != null && DefinePathStage.BuildingProblem(_tableState, mover, repaired) == null)
                 return Task.FromResult<CancellableResult<List<ModelMoveEntry>>>(
                     new Selected<List<ModelMoveEntry>>(repaired));
 
@@ -132,7 +137,19 @@ namespace FDG.Ai.Tactician.Resolvers
             DefineMovementPathRequest request, string reason)
         {
             _log?.Invoke($"solo-fallback {request.UnitDataBinding.GetValue().Name}: {reason}");
-            return _soloFallback.Resolve(request);
+            return BuildingSafe(request, _soloFallback.Resolve(request));
+        }
+
+        /// <summary>The fallback's move too must keep the building rules; if not, the unit stands where it is.</summary>
+        private async Task<CancellableResult<List<ModelMoveEntry>>> BuildingSafe(DefineMovementPathRequest request,
+            Task<CancellableResult<List<ModelMoveEntry>>> pending)
+        {
+            CancellableResult<List<ModelMoveEntry>> result = await pending;
+            if (result is not Selected<List<ModelMoveEntry>> { Value: { } path }
+                || DefinePathStage.BuildingProblem(_tableState, request.UnitDataBinding.GetValue(), path) == null)
+                return result;
+            _log?.Invoke($"building {request.UnitDataBinding.GetValue().Name}: the fallback move broke the building rules - standing still");
+            return new Selected<List<ModelMoveEntry>>(MovementPlanner.StayInPlace(request.UnitDataBinding));
         }
 
         // Re-plan toward the cached move's own destination at the SLOWEST model's allowance, with each

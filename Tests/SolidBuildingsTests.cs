@@ -247,6 +247,47 @@ namespace FDG.Tests
                 Is.True, "and stays outside it");
         }
 
+        private sealed class FixedPlan : IMovePlanSource,
+            FDG.StageResolution.IStageResolver<DefineMovementPathRequest, FDG.StageResolution.CancellableResult<List<ModelMoveEntry>>>
+        {
+            private readonly List<ModelMoveEntry> _move;
+            public FixedPlan(List<ModelMoveEntry> move) => _move = move;
+            public List<ModelMoveEntry>? TakePlannedMove(DataBinding<UnitData> unit) => _move;
+            public Task<FDG.StageResolution.CancellableResult<List<ModelMoveEntry>>> Resolve(DefineMovementPathRequest request) =>
+                Task.FromResult<FDG.StageResolution.CancellableResult<List<ModelMoveEntry>>>(
+                    new FDG.StageResolution.Selected<List<ModelMoveEntry>>(_move));
+        }
+
+        [Test]
+        public async Task TheTacticalBots_NeverSubmitAMoveThatTakesHalfAUnitIntoABuilding()
+        {
+            // Lane 2 sweep, 2026-11-27 (GF, Simplified Terrain, Tactical bot): a planned Rush toward an objective put
+            // part of a unit inside a building. The path check allows a model to cross into one, so the move went to
+            // the stage, which refuses it ("The whole unit has to go inside the building, or none of it") - and the
+            // game faulted. The resolver now runs the building check itself; when the plan and the fallback both fail
+            // it, the unit stands still.
+            var table = new TableState(_store);
+            // The path check passed in the game (a model whose path clears the wall by height); here the piece is a
+            // building without the Impassable flag, so the path check passes the same way and only the building
+            // check can catch the move.
+            var house = new TerrainData(ETerrainType.SolidBuilding | ETerrainType.Cover, new RectangularZone(10, 16, 10, 16));
+            _store.Create(house);
+            _store.Create(new TeamData(0, new List<PlayerID> { _me }));
+            _store.Create(new TeamData(1, new List<PlayerID> { _them }));
+            UnitData squad = Unit(_me, 7f, 12f);   // models at x = 7, 8.1, 9.2
+            List<ModelMoveEntry> halfIn = MoveBy(squad, 2.5f, 0);   // only the last model ends inside (x 11.7)
+            Assume.That(DefinePathStage.BuildingProblem(table, squad, halfIn), Is.Not.Null, "set-up: half the unit goes in");
+            var plan = new FixedPlan(halfIn);
+            var resolver = new FDG.Ai.Tactician.Resolvers.TacticianMovementResolver(plan, table, plan);
+
+            var result = await resolver.Resolve(new DefineMovementPathRequest(_me, "Move", _bindings[squad],
+                maxAdvanceDistance: 6f, maxRushDistance: 12f, maxDistanceInches: 12f, mainActivationMove: true));
+
+            Assert.That(result, Is.InstanceOf<FDG.StageResolution.Selected<List<ModelMoveEntry>>>());
+            var path = ((FDG.StageResolution.Selected<List<ModelMoveEntry>>)result).Value;
+            Assert.That(DefinePathStage.BuildingProblem(table, squad, path), Is.Null, "never a move the stage refuses");
+        }
+
         [Test]
         public void ABot_GoesIntoTheBuilding_ToTakeItsObjective()
         {
