@@ -99,6 +99,12 @@ namespace FDG.Stages
             // within the float tolerance all stay valid; the choice among equals is the player's.
             string? compelSource = Rules.Dispatch.CapabilityRuleQueries.IsCompelledToAttackClosest(
                 context.AttackingUnit.GetValue(), GameContext.RuleEvaluator);
+            // Unit Psychology - Frenzy: "must charge the closest enemy unit". Held to the closest unit it can fight, the
+            // same gate as Instinctive (lane 2, 2026-11-27 - the charge was free before).
+            if (compelSource == null && context.ChargingUnit != null
+                && ReferenceEquals(context.ChargingUnit.GetValue(), context.AttackingUnit.GetValue())
+                && UnitPsychology.IsFrenzied(context.AttackingUnit.GetValue()))
+                compelSource = "Frenzied";
             if (compelSource != null && validDefenders.Count > 1)
             {
                 float closest = float.MaxValue;

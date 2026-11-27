@@ -531,6 +531,22 @@ namespace FDG.Tests
                 "Charge here would fight Stale Troops; the charge move to Fresh Troops comes first.");
         }
 
+        // Lane 2, 2026-11-27 - Unit Psychology, Frenzy: "must charge the closest enemy unit". The book's usual order
+        // (unactivated first) would send a frenzied bot past the closest enemy.
+        [Test]
+        public void AFrenziedBot_ChargesTheClosestEnemy_EvenIfItHasActivated()
+        {
+            DataBinding<UnitData> ai = Unit(_ai, "Brutes", 24f, 24f, rangeInches: 0f, meleeAttacks: 8);
+            DataBinding<UnitData> near = Unit(_player, "Near Troops", 28f, 24f);
+            near.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.ActivatedThisRound));
+            Unit(_player, "Fresh Troops", 31f, 24f);
+            Assume.That(SoloAiBrain.ChargeTarget(Table, _ai, ai.GetValue())?.Name, Is.EqualTo("Fresh Troops"), "unfrenzied: the book's order");
+
+            ai.GetValue().Tokens.AddToken(TokenDefinitionCatalog.Create(TokenType.Frenzied));
+
+            Assert.That(SoloAiBrain.ChargeTarget(Table, _ai, ai.GetValue())?.Name, Is.EqualTo("Near Troops"));
+        }
+
         // The control: the planned target IS the one in reach, so Charge is taken straight away.
         [Test]
         public async Task ChargeOffered_AndThePlannedTargetIsInReach_Charges()

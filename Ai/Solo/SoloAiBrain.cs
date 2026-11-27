@@ -138,6 +138,8 @@ namespace FDG.Ai.Solo
                 .Where(e => stayNear is not { } at
                             || AiCombatMath.DistanceToPoint(e, at) <= ObjectiveReachInches)
                 .ToList();
+            // Unit Psychology - Frenzy: "must charge the closest enemy unit" - nearest first, nothing else counts.
+            if (UnitPsychology.IsFrenzied(unit)) return candidates.OrderBy(e => AiCombatMath.Distance(unit, e)).ToList();
             var ordered = new List<IUnit>();
             List<IUnit> first = CardTargetsFirst(table, me, candidates);
             foreach (List<IUnit> band in new[] { first, candidates.Except(first).ToList() })
