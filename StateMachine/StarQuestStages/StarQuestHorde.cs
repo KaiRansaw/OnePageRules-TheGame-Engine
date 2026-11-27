@@ -44,6 +44,23 @@ namespace FDG.StateMachine
             return shares;
         }
 
+        /// <summary>
+        /// "The party must divide the total XP as equally as possible among all heroes" (Horde Mode v2.0.0). The
+        /// points left over after an even split go to the heroes with the least XP so far (ties: party order), so the
+        /// same hero doesn't take every odd point wave after wave - with 2 XP and 3 heroes the third hero used to get
+        /// nothing every time.
+        /// </summary>
+        public static int[] Split(int xp, IReadOnlyList<int> xpSoFar)
+        {
+            int heroes = xpSoFar.Count;
+            if (heroes <= 0) return Array.Empty<int>();
+            var shares = new int[heroes];
+            for (int i = 0; i < heroes; i++) shares[i] = xp / heroes;
+            foreach (int i in Enumerable.Range(0, heroes).OrderBy(i => xpSoFar[i]).ThenBy(i => i).Take(xp % heroes))
+                shares[i]++;
+            return shares;
+        }
+
         /// <summary>Alertness rises by 1 each round, or 2 when no enemies are on the table.</summary>
         public static int AlertnessGain(bool enemiesOnTable) => enemiesOnTable ? 1 : 2;
 
@@ -283,7 +300,7 @@ namespace FDG.StateMachine
 
             int seized = 0;
             bool prioritySeized = false;
-            var seizedSpots = new List<Position>();
+            var seizedSpots = new List<(Position Spot, int Number)>();
             foreach (ObjectiveData objective in _gameContext.GameDataStore.GetAllValues<ObjectiveData>().ToList())
             {
                 HashSet<PlayerID> near = ReconcileObjectivesStage.PlayersNearObjective(objective, table.Models.Objects, modelToUnit);
@@ -292,7 +309,8 @@ namespace FDG.StateMachine
                     modelToUnit, includeShaken: Rules.Dispatch.CoreRulesProfile.For(_gameContext).ShakenStillContests);
                 if (!near.Any(defenders.Contains) || contesting.Any(p => !defenders.Contains(p))) continue;
                 seized++;
-                seizedSpots.Add(objective.Position);
+                seizedSpots.Add((objective.Position, objective.HordeNumber
+                    ?? HordeRules.ObjectiveNumber(objective.Position, HordePlacement.TableWidth, HordePlacement.TableHeight)));
                 if (objective.IsHordePriority) prioritySeized = true;
             }
 
@@ -313,7 +331,7 @@ namespace FDG.StateMachine
             await _gameContext.Announce($"Wave {wave} complete: +{xp} XP", new TextColor(255, 215, 0, 255), EBannerTier.Headline);
 
             List<UnitData> heroes = StarQuestHordeRules.Heroes(_gameContext);
-            int[] shares = StarQuestHordeRules.Split(xp, heroes.Count);
+            int[] shares = StarQuestHordeRules.Split(xp, heroes.Select(h => StarQuestHordeRules.Hero(h)?.Xp ?? 0).ToList());
             for (int i = 0; i < heroes.Count; i++)
                 await GiveXp(heroes[i], shares[i]);
 
@@ -345,7 +363,7 @@ namespace FDG.StateMachine
 
         /// <summary>Hero Injuries: last wave's injuries heal; an unconscious hero may come back with a new one,
         /// within 3" of an objective the heroes hold (only if they hold one).</summary>
-        private async Task HealAndInjure(int wave, List<Position> seizedSpots)
+        private async Task HealAndInjure(int wave, List<(Position Spot, int Number)> seizedSpots)
         {
             QuestProgress quest = GameProgressUtilities.GetQuestProgress(_gameContext.GameDataStore);
             foreach (string entry in quest.WaveInjuries.ToList())
@@ -372,11 +390,28 @@ namespace FDG.StateMachine
                 quest = GameProgressUtilities.GetQuestProgress(_gameContext.GameDataStore);
                 quest.WaveInjuries.Add($"{hero.ID.ID}|{injury}|{wave}");
                 GameProgressUtilities.SetQuestProgress(_gameContext.GameDataStore, quest);
-                Position spot = seizedSpots[0];
+                Position spot = await PickRevivalObjective(_gameContext, hero.PlayerID, hero.Name, seizedSpots);
                 await HordePlacement.PlaceUnitNear(_gameContext, hero, r => new CircularZone(spot.x, spot.z, r),
                     TacticianPlaceObjectsResolver<ModelData>.DeploymentTaskName, $"Placing {hero.Name}", radii: new[] { 3f, 6f, 9f });
                 await _gameContext.Announce($"{hero.Name} is back - with a {injury}.", new TextColor(255, 140, 110, 255), EBannerTier.Notice);
             }
+        }
+
+        /// <summary>
+        /// Hero Injuries (Horde Mode v2.0.0): a revived hero "may then be placed within 3" of any objective seized by
+        /// the heroes" - the player picks which one when the heroes hold more than one (it was always the first).
+        /// </summary>
+        internal static async Task<Position> PickRevivalObjective(IGameContext context, PlayerID player, string heroName,
+            List<(Position Spot, int Number)> seized)
+        {
+            if (seized.Count == 1) return seized[0].Spot;
+            var options = seized.Select(s => $"Objective {s.Number}").ToList();
+            var request = new StringSelectionRequest(player,
+                $"Place {heroName} within 3\" of which objective the heroes seized?", options,
+                Array.Empty<StringSelectionRequest.InvalidOption>(), displayName: $"{heroName}: where to come back");
+            string pick = await context.PlayerRequester.RequestDecision<StringSelectionRequest, string>(request);
+            int i = options.IndexOf(pick);
+            return seized[i < 0 ? 0 : i].Spot;
         }
     }
 

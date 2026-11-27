@@ -255,6 +255,21 @@ namespace FDG.Stages
         public static readonly string[] AllChallenges =
             { BossFights, HeroInjuries, IncreasedAlertness, TimeOfDayName, WeatherName, RandomEvents };
 
+        /// <summary>
+        /// The challenge a short command-line name means, or null. A name matches when it is the start of the
+        /// challenge's full name or of any one of its words, ignoring case, spaces and dashes - so the
+        /// documented short forms "boss", "injuries", "alertness", "time", "weather" and "events" all work
+        /// (before, only the start of the full name counted, and "injuries" / "events" were rejected).
+        /// </summary>
+        public static string? MatchCliName(string raw)
+        {
+            string key = raw.Replace("-", "").Replace(" ", "").ToLowerInvariant();
+            if (key.Length == 0) return null;
+            string? full = AllChallenges.FirstOrDefault(c => c.Replace(" ", "").ToLowerInvariant().StartsWith(key, StringComparison.Ordinal));
+            return full ?? AllChallenges.FirstOrDefault(c => c.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Any(w => w.ToLowerInvariant().StartsWith(key, StringComparison.Ordinal)));
+        }
+
         public static async Task ChooseChallenges(IGameContext context, List<UnitData> heroes, bool horde)
         {
             if (heroes.Count == 0) return;
