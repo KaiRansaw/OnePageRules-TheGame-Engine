@@ -87,7 +87,7 @@ namespace FDG.Ai
                     : book
                         ? new Solo.SoloCoOpSpellResolver(() => spellRng.Next(3) + 1)
                         : (IStageResolver<StageResolution.Requests.ChooseSpellRequest, StageResolution.Requests.ChooseSpellReply>)new AiChooseSpellResolver())
-                .RegisterResolver(new AiCastAssistResolver())
+                .RegisterResolver(new AiCastAssistResolver(book ? tableState : null))   // the frozen baseline keeps declining (plan D1)
                 .RegisterResolver(new AiChooseDeploymentZoneResolver())
                 // #419: the book's shooting priority for the official bot, the frozen ordering for the
                 // baseline. The Quest resolver wraps the book one for bot-run heroes - closest-first is

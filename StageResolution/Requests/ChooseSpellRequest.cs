@@ -30,8 +30,9 @@ namespace FDG.StageResolution.Requests
         /// saying why — replying with one is treated as a cancel.</summary>
         /// <param name="Needed">Advanced Casting - 2D6 Casting: what this spell needs on two dice before boosts (7, or 10
         /// outside a Spell Book). Null for the ordinary one-die cast, which uses <see cref="BaseThreshold"/>.</param>
+        /// <param name="PoolDie">Advanced Casting - Magic Pools: what each pool die needs (4+, or 6+ outside a Spell Book).</param>
         public record SpellOption(string Label, string Description, int Cost, bool Castable,
-            string? UnavailableReason, int? Needed = null);
+            string? UnavailableReason, int? Needed = null, int? PoolDie = null);
 
         /// <summary>One Spell Conduit in range: whose it is and what it adds to the roll when a cast is
         /// made from its position.</summary>

@@ -45,7 +45,11 @@ namespace FDG.Ai.Tactician
         {
             foreach (RuntimeSpell spell in army.Spells)
             {
-                if ($"{spell.Name} ({spell.Threshold})" == label) return spell;
+                // The picker adds Advanced Casting notes after " - " ("... - 7+ on 2D6", "... from the pool"): the
+                // planner never matched those labels and every cast under Spell Books / 2D6 / Pools fell back to the
+                // official bot's random pick (lane 2, 2026-11-27).
+                string plain = $"{spell.Name} ({spell.Threshold})";
+                if (label == plain || label.StartsWith(plain + " - ", StringComparison.Ordinal)) return spell;
             }
             return null;
         }
@@ -115,8 +119,8 @@ namespace FDG.Ai.Tactician
         /// the tokens the attempt burns win or lose.
         /// </summary>
         public static float NetCastValue(RuleEvaluator evaluator, ITableState tableState,
-            DataBinding<UnitData> caster, RuntimeSpell spell, bool seeThroughFriendlyUnits)
-            => BaseCastSuccessChance * GrossCastValue(evaluator, tableState, caster, spell, seeThroughFriendlyUnits)
+            DataBinding<UnitData> caster, RuntimeSpell spell, bool seeThroughFriendlyUnits, float? successChance = null)
+            => (successChance ?? BaseCastSuccessChance) * GrossCastValue(evaluator, tableState, caster, spell, seeThroughFriendlyUnits)
                - spell.Threshold * TacticianWeights.CastTokenValue;
 
         /// <summary>Eligible targets with their values, best first.</summary>

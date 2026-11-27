@@ -549,7 +549,7 @@ namespace FDG.Ai.Tactician
         /// Null when the caster or its army is unknown; the solo fallback then picks the first
         /// spell, which also spends tokens and terminates.
         /// </summary>
-        public string? ChooseSpell(IReadOnlyList<string> validOptions)
+        public string? ChooseSpell(IReadOnlyList<string> validOptions, Func<string, float?>? successChance = null)
         {
             if (_activeUnit == null) return null;
             ArmyData? army = SpellValuation.ArmyOf(_tableState, _activeUnit.GetValue().PlayerID);
@@ -562,7 +562,7 @@ namespace FDG.Ai.Tactician
                 RuntimeSpell? spell = SpellValuation.FindByLabel(army, option);
                 if (spell == null) continue; // Cancel, or a label we cannot map back to a spell
                 float value = SpellValuation.NetCastValue(_evaluator, _tableState, _activeUnit, spell,
-                    _seeThroughFriendlyUnits);
+                    _seeThroughFriendlyUnits, successChance?.Invoke(option));
                 if (bestLabel == null || value > bestValue)
                 {
                     bestValue = value;

@@ -257,7 +257,7 @@ namespace FDG.Stages
             //    cast's outcome (like the cast cost above). Boost + assists shift the success threshold.
             // Magic Pools: no tokens to assist with; an enemy blocks with pool dice rolled alongside the cast instead.
             CastAssistResult assistResult = pools
-                ? await CollectPoolBlock(context.ActivatingUnit, player, chosen.Name, SpellText.Describe(chosen.Definition))
+                ? await CollectPoolBlock(context.ActivatingUnit, player, chosen.Name, SpellText.Describe(chosen.Definition), castDiceCount)
                 : await CollectCastAssist(context.ActivatingUnit, player, chosen.Name,
                     SpellText.Describe(chosen.Definition));
             int assist = pools ? 0 : assistResult.Net;
@@ -756,7 +756,8 @@ namespace FDG.Stages
                     else if (!AdvancedCasting.InBook(GameContext, casterUnit, o.Spell.Name)) label += " - not in book";
                     return new ChooseSpellRequest.SpellOption(label,
                         LivingSpells.Describe(GameContext, o.Spell.Name) ?? SpellText.Describe(o.Spell.Definition), o.Spell.Threshold,
-                        o.Castable, o.Reason, twoD6 ? needed : null);
+                        o.Castable, o.Reason, twoD6 ? needed : null,
+                        pools ? AdvancedCasting.PoolDieNeeded(GameContext, casterUnit, o.Spell.Name) : null);
                 })
                 .ToList();
 
@@ -1192,7 +1193,7 @@ namespace FDG.Stages
         // caster". Asked once per enemy player who has a Caster within the usual 18" and dice in the pool (the first such
         // caster stands in for the request); the dice leave the pool whatever happens.
         private async Task<CastAssistResult> CollectPoolBlock(DataBinding<UnitData> casterBinding, PlayerID casterPlayer,
-            string spellName, string spellDescription)
+            string spellName, string spellDescription, int castingDice)
         {
             IUnit castingUnit = casterBinding.GetValue();
             var asked = new HashSet<PlayerID>();
@@ -1211,7 +1212,8 @@ namespace FDG.Stages
                 if (pool <= 0) continue;
                 asked.Add(unit.PlayerID);
                 CastAssistReply reply = await GameContext.PlayerRequester.RequestDecision<CastAssistRequest, CastAssistReply>(
-                    new CastAssistRequest(unit.PlayerID, unitBinding, casterBinding, false, pool, spellName, spellDescription));
+                    new CastAssistRequest(unit.PlayerID, unitBinding, casterBinding, false, pool, spellName, spellDescription)
+                    { PoolBlock = true, CastingDice = castingDice });
                 int dice = AdvancedCasting.SpendPool(GameContext, unit.PlayerID, reply?.Tokens ?? 0);
                 if (dice <= 0) continue;
                 total += dice;

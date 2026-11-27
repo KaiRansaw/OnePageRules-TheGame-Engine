@@ -51,6 +51,16 @@ namespace FDG.StageResolution.Requests
         /// spell picker shows. Empty when the caster's spell list has no description for it.</summary>
         public string SpellDescription { get; }
 
+        /// <summary>
+        /// Advanced Casting - Magic Pools: this is a block with pool dice ("roll them at the same time as the caster"),
+        /// <see cref="AvailableTokens"/> being the pool. <see cref="CastingDice"/> is how many dice the caster rolls -
+        /// the block succeeds when the blocking dice's total is at least the casting dice's total (and no casting 6).
+        /// </summary>
+        public bool PoolBlock { get; init; }
+
+        /// <summary>Magic Pools: the number of dice the caster rolls (0 outside a pool block).</summary>
+        public int CastingDice { get; init; }
+
         [JsonConstructor]
         public CastAssistRequest(PlayerID targetPlayerID, TaskID taskID, DataBinding<UnitData> assistingUnit,
             DataBinding<UnitData> castingUnit, bool isFriendly, int availableTokens, string spellName,

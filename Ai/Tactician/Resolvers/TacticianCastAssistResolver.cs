@@ -39,6 +39,8 @@ namespace FDG.Ai.Tactician.Resolvers
         public Task<CastAssistReply> Resolve(CastAssistRequest request)
         {
             if (request.AvailableTokens <= 0) return Task.FromResult(CastAssistReply.None);
+            // Magic Pools: a block is dice against dice, not -1 per token - the shared odds-based policy.
+            if (request.PoolBlock) return Task.FromResult(PoolBlockPolicy.Reply(_tableState, request));
 
             ArmyData? army = SpellValuation.ArmyOf(_tableState, request.CastingUnit.GetValue().PlayerID);
             RuntimeSpell? spell = army == null ? null : SpellValuation.FindByName(army, request.SpellName);

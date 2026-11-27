@@ -17,7 +17,14 @@ namespace FDG.Ai.Resolvers
     /// </summary>
     public class AiCastAssistResolver : IStageResolver<CastAssistRequest, CastAssistReply>
     {
+        private readonly ITableState? _table;
+
+        /// <param name="table">Needed for the Magic Pools block (<see cref="PoolBlockPolicy"/>); without it the bot declines.</param>
+        public AiCastAssistResolver(ITableState? table = null) => _table = table;
+
         public Task<CastAssistReply> Resolve(CastAssistRequest request) =>
-            Task.FromResult(CastAssistReply.None);
+            Task.FromResult(request.PoolBlock && _table != null
+                ? PoolBlockPolicy.Reply(_table, request)
+                : CastAssistReply.None);
     }
 }
