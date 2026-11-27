@@ -54,6 +54,19 @@ namespace FDG.Stages
                 return;
             }
 
+            // Horde Mode (GF / GFF / AoF / AoFS v3.6.0): "The mission ends when any of these conditions have been met:
+            // All defending units are either Shaken or destroyed." - the moment it happens, not at the end of the round
+            // (a Shaken defender that activated later would stay idle and recover, and the mission would go on).
+            if (GameContext.Settings.GameMode == EGameMode.Horde
+                && FDG.StateMachine.HordeRules.AllDefendersDownOrShaken(GameContext.TableState))
+            {
+                foreach (List<DataBinding<UnitData>> pool in context.UnactivatedUnits.Values)
+                    pool.Clear();
+                context.Log("Horde Mode: every defending unit is Shaken or destroyed - the mission ends now.");
+                await OnNoPlayersLeft.Activate(context);
+                return;
+            }
+
             // Game Master "not activated yet": back on this round's list, the way Martial Prowess reinstates a unit.
             if (GameContext.GameMaster?.ConsumeReactivations() is { Count: > 0 } reactivate)
             {

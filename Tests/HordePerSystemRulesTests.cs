@@ -98,6 +98,20 @@ namespace FDG.Tests
             Assert.That(paid, Is.EqualTo(HordeRules.PointsPerSeizedObjective));
         }
 
+        // "The mission ends when ... All defending units are either Shaken or destroyed." Defenders all Shaken on a
+        // marker at the end of round 3 were overrun during the round: the End of Round reward never comes.
+        [Test]
+        public async Task EveryDefenderShakenOnAMarker_AtTheRewardRound_EndsTheMissionUnpaid()
+        {
+            var scene = new HordeScene();
+            scene.DefenderAt(scene.Objective.Position, shaken: true);
+
+            (bool ended, int paid) = await scene.RoundEnd(3);
+
+            Assert.That(ended, Is.True);
+            Assert.That(paid, Is.EqualTo(0), "the mission was over before the End of Round step");
+        }
+
         [Test]
         public async Task HavingSeizedAMarkerEarlierAndWalkedAway_PaysNothing()
         {
@@ -253,6 +267,13 @@ namespace FDG.Tests
             public void EnemyAt(Position at, bool shaken = false) => Unit(Enemy, "Raiders", at, shaken);
 
             public Task DamageObjectives() => new HordeRoundHooks(_context).DamageObjectives();
+
+            /// <summary>Runs the real end-of-round hook; returns whether the mission ended and the points paid.</summary>
+            public async Task<(bool Ended, int Paid)> RoundEnd(int round)
+            {
+                bool ended = await new HordeRoundHooks(_context).OnRoundEnd(null!, round);
+                return (ended, GameProgressUtilities.TryGetProgress(_store)?.Horde?.PointsEarned ?? 0);
+            }
 
             /// <summary>Runs the real reward hook and returns what it paid.</summary>
             public async Task<int> AwardPoints()
