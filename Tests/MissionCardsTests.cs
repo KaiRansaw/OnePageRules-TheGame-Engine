@@ -22,6 +22,14 @@ namespace FDG.Tests
     {
         // ── The catalog ──────────────────────────────────────────────────────────────────────────
 
+        // Bug hunt 2026-11-28: card 44's roll was logged as "Changing Priority" in every game; the fantasy decks call it
+        // "Shifting Strategy".
+        [TestCase(EGameSystem.AoFSkirmish, "  Shifting Strategy: rolled 3 - objective 3.")]
+        [TestCase(EGameSystem.AgeOfFantasy, "  Shifting Strategy: rolled 3 - objective 3.")]
+        [TestCase(EGameSystem.GFFirefight, "  Changing Priority: rolled 3 - objective 3.")]
+        public void ShiftingStrategyRoll_UsesThisGamesCardTitle(EGameSystem system, string line) =>
+            Assert.That(MissionCardRoundHooks.PriorityRollLine(system, 3), Is.EqualTo(line));
+
         [TestCase(EGameSystem.GrimdarkFuture)]
         [TestCase(EGameSystem.GFFirefight)]
         [TestCase(EGameSystem.AgeOfFantasy)]

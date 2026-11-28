@@ -301,8 +301,13 @@ namespace FDG.Missions
             if (card != 44) return;
             int roll = _gameContext.DiceRoller.RollDecisiveFace(6);
             state.Priority[MissionCardState.PriorityKey(prioritySlot, 44)] = roll;
-            _gameContext.Log($"  Changing Priority: rolled {roll} - objective {roll}.");
+            _gameContext.Log(PriorityRollLine(System, roll));
         }
+
+        /// <summary>Card 44's roll, under the title THIS game's deck prints (AoF / AoF: Skirmish: "Shifting Strategy";
+        /// bug hunt 2026-11-28: the line always said the sci-fi "Changing Priority").</summary>
+        internal static string PriorityRollLine(EGameSystem system, int roll) =>
+            $"  {MissionCardCatalog.Card(system, 44).Title}: rolled {roll} - objective {roll}.";
 
         private void LogTable(string who, List<int> table) =>
             _gameContext.Log($"Mission cards ({who}): {string.Join(", ", table.Select(CardName))}.");
