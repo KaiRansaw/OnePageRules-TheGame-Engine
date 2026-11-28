@@ -164,6 +164,31 @@ namespace FDG
         public static IEnumerable<AdvancedRuleOption> In(string chapter, EGameSystem system) =>
             Catalog.Where(o => o.Chapter == chapter && o.Applies(system));
 
+        /// <summary>
+        /// Options that only change how a STANDARD game deploys or how long it lasts: Escalating Battles (and its two
+        /// add-ons), Surprise Engagement, Prolonged Battle and the Tactical Phase's Forward Positions / Battle
+        /// Preparations. Horde Mode deploys by its own book ("First the defenders place all their units within 6"/9"
+        /// of the table centre, and then enemies are deployed ... random table corners") and ends by it ("The
+        /// defenders have successfully finished round 12"), so the engine never runs these there - and the lobby
+        /// must not offer them there either (bug hunt 2026-11-28: they could be ticked in a Horde lobby and did
+        /// nothing at all - the played game was identical with or without them).
+        /// </summary>
+        public const EAdvancedRules StandardGameOnly =
+            EAdvancedRules.EscalatingBattles | EAdvancedRules.EscalatingRandomArrival | EAdvancedRules.EscalatingFlexibleStrategies
+            | EAdvancedRules.SurpriseEngagement | EAdvancedRules.ProlongedBattle
+            | EAdvancedRules.ForwardPositions | EAdvancedRules.BattlePreparations;
+
+        /// <summary>Whether the lobby offers this option for this game AND mode (see <see cref="StandardGameOnly"/>).</summary>
+        public static bool AppliesIn(AdvancedRuleOption option, EGameSystem system, EGameMode mode) =>
+            option.Applies(system) && (mode == EGameMode.Standard || (option.Flag & StandardGameOnly) == 0);
+
+        /// <summary>The chapters with at least one option for this game and mode (a Horde lobby has no Tactical Phase).</summary>
+        public static IEnumerable<string> Chapters(EGameSystem system, EGameMode mode) =>
+            Catalog.Where(o => AppliesIn(o, system, mode)).Select(o => o.Chapter).Distinct();
+
+        public static IEnumerable<AdvancedRuleOption> In(string chapter, EGameSystem system, EGameMode mode) =>
+            Catalog.Where(o => o.Chapter == chapter && AppliesIn(o, system, mode));
+
         public static EAdvancedRules ChapterFlags(string chapter) =>
             Catalog.Where(o => o.Chapter == chapter).Aggregate(EAdvancedRules.None, (a, o) => a | o.Flag);
 
@@ -171,7 +196,7 @@ namespace FDG
         public static EAdvancedRules Enabled(GameSettings settings)
         {
             if (GameSystemInfo.IsQuest(settings.GameSystem) || GameSystemInfo.IsQuestMode(settings.GameMode)) return EAdvancedRules.None;
-            EAdvancedRules allowed = Catalog.Where(o => o.Applies(settings.GameSystem)).Aggregate(EAdvancedRules.None, (a, o) => a | o.Flag);
+            EAdvancedRules allowed = Catalog.Where(o => AppliesIn(o, settings.GameSystem, settings.GameMode)).Aggregate(EAdvancedRules.None, (a, o) => a | o.Flag);
             return settings.AdvancedRules & allowed;
         }
 
