@@ -99,6 +99,37 @@ namespace FDG.Tests
         }
 
         [Test]
+        public async Task WoundsItIgnores_BankRegenerativeStrengthTokens()
+        {
+            // Regenerative Strength: "Place one token on this model when it ignores a wound." - not only Regeneration's.
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 10);
+            Attach(defender);
+            AttachRegenerativeStrength(defender);
+            var requester = new Requester(useFeat: true);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(5), attacker, defender, failedSaves: 3);
+
+            Assert.That(requester.AssignedWounds, Is.EqualTo(0f));
+            Assert.That(defender.GetValue().Tokens.GetTokenMagnitude(TokenType.RegenerativeStrengthMarker), Is.EqualTo(3f),
+                "three wounds ignored by Protection Feat - three tokens");
+        }
+
+        [Test]
+        public async Task MysticalFogIgnores_BankRegenerativeStrengthTokensToo()
+        {
+            (DataBinding<UnitData> attacker, DataBinding<UnitData> defender) = Combatants(defenderModels: 10);
+            AttachRegenerativeStrength(defender);
+            var requester = new Requester(useFeat: false);
+            GameSettings settings = GameSettings.GetDefault();
+            settings.AdvancedRules = BattlefieldEffects.WithPick(EAdvancedRules.SpecialConditions, BattlefieldEffects.MysticalFog);
+
+            await RunAssignWounds(requester, new FixedFaceDiceRoller(6), attacker, defender, failedSaves: 2, settings);
+
+            Assert.That(requester.AssignedWounds, Is.EqualTo(0f), "both wounds ignored on 6s");
+            Assert.That(defender.GetValue().Tokens.GetTokenMagnitude(TokenType.RegenerativeStrengthMarker), Is.EqualTo(2f));
+        }
+
+        [Test]
         public async Task WoundsFromAnythingElse_AreOfferedToo()
         {
             DataBinding<UnitData> unit = MakeUnit("Saurians", 5);
@@ -124,13 +155,32 @@ namespace FDG.Tests
 
         // ---------- helpers ----------
 
+        // Mirrors the shipped Regenerative Strength definition (RegenerativeStrengthRuleIntegrationTests).
+        private static void AttachRegenerativeStrength(DataBinding<UnitData> unit)
+        {
+            unit.GetValue().AttachRuleDefinition(new ResolvedRule("Regenerative Strength", new SpecialRuleDefinition(
+                "Regenerative Strength",
+                new[]
+                {
+                    new HookEntry(EHookID.Lifecycle_OnWoundIgnored, new Condition.Always(),
+                        new Effect.GrantIgnoredWoundMarker(TokenType.RegenerativeStrengthMarker, new TokenClearTrigger.ManualOnly()),
+                        ELifetime.UntilEndOfGame, ERuleSeat.Subject),
+                },
+                Array.Empty<ActivatedAbility>()), Array.Empty<RuleArgument>()));
+        }
+
         private void Attach(DataBinding<UnitData> unit) =>
             unit.GetValue().AttachRuleDefinition(new ResolvedRule(ProtectionFeat.Name, Feat, Array.Empty<RuleArgument>()));
 
         private async Task RunAssignWounds(Requester requester, IDiceRoller dice,
-            DataBinding<UnitData> attacker, DataBinding<UnitData> defender, int failedSaves)
+            DataBinding<UnitData> attacker, DataBinding<UnitData> defender, int failedSaves, GameSettings? settings = null)
         {
             var context = new WoundTestContext(_store, requester, dice);
+            if (settings is GameSettings s)
+            {
+                context.Settings = s;
+                await BattlefieldEffects.RoundStart(context, 1);   // puts the picked Special Condition in force
+            }
             var stage = new AssignWoundsStage<ICombatMetadata>(context, new NoOpLayer<ICombatMetadata>());
             stage.NextStage.Bind("done");
             var weapon = new Weapon("Test", rangeInches: 48f, attacks: 1, armorPenetration: 0);
