@@ -219,6 +219,28 @@ namespace FDG.Tests
                 "a teammate guarding the marker keeps it with its original owner.");
         }
 
+        // Bug hunt 2026-11-28: the round-end lines named no marker ("Objective seized by ...") and a held, uncontested one
+        // by the owner's internal id ("remains player ce8a4e01-..."). Now: the marker's number and the owner's name.
+        [Test]
+        public async Task ReconcileObjectivesStage_LogLines_NameTheMarkerNumberAndOwner_NotAnId()
+        {
+            var log = new RecordingTextOutput();
+            _ctx = new TestGameContext(_store, new FixedDiceRoller(4), textOutput: log);
+            var holder = new PlayerID(Guid.NewGuid());
+            CreateObjective(new Position(5, 5));
+            var second = CreateObjective(new Position(40, 40));
+            second.SetOwner(holder);
+            CreateUnit(new PlayerID(Guid.NewGuid()), modelPosition: new Position(5, 5));
+            CreateUnit(holder, modelPosition: new Position(20, 20));
+
+            await RunReconcileOnce();
+
+            var lines = log.Entries.Select(e => e.Message).ToList();
+            Assert.That(lines, Has.Some.StartsWith("  Objective 1 seized by "));
+            Assert.That(lines, Has.Some.StartsWith("  Objective 2 uncontested - remains held by "));
+            Assert.That(lines, Has.None.Contains(holder.ID.ToString()), "no internal player id in the log");
+        }
+
         // Helpers
 
         private static void MarkArrivedThisRound(UnitData unit) =>

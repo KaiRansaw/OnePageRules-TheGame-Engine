@@ -17,6 +17,9 @@ namespace FDG.Stages
     /// </summary>
     public static class ObjectivePlacementValidator
     {
+        /// <summary>Float slack for "over X": a marker 9.0005" away still counts as exactly 9".</summary>
+        private const float OverEpsilonInches = 0.001f;
+
         /// <summary>
         /// Returns <see cref="ObjectivePlacementValidity.Valid"/> if the candidate is legal;
         /// otherwise returns the first failing constraint.
@@ -31,11 +34,13 @@ namespace FDG.Stages
             if (!legalBand.IsPointWithinZone(new Float2(candidate.x, candidate.z)))
                 return ObjectivePlacementValidity.OutsideLegalBand;
 
+            // The books say "over 9\" away from other markers" (core rules, Advanced Rulebooks, Mission Cards v3.6.0):
+            // exactly 9" is too close. A zero separation (fixed-spot missions) checks nothing.
             foreach (var obj in existing)
             {
                 float dx = candidate.x - obj.Position.x;
                 float dz = candidate.z - obj.Position.z;
-                if (MathF.Sqrt(dx * dx + dz * dz) < minSeparationInches)
+                if (minSeparationInches > 0f && MathF.Sqrt(dx * dx + dz * dz) <= minSeparationInches + OverEpsilonInches)
                     return ObjectivePlacementValidity.TooCloseToObjective;
             }
 

@@ -43,13 +43,17 @@ namespace FDG.Stages
                 foreach (var model in unit.Models)
                     modelToUnit[model] = unit;
 
-            foreach (var objective in tableState.Objectives.Objects)
+            var markers = tableState.Objectives.Objects.ToList();
+            foreach (var objective in markers)
             {
+                // The number drawn on the marker (bug hunt 2026-11-28: these lines named no marker, and a held one by
+                // the player's internal id).
+                string label = $"Objective {objective.HordeNumber ?? markers.IndexOf(objective) + 1}";
                 // Twists & Gambits - Objective Denied: "can't be seized until the end of the round".
                 if (FDG.Missions.TwistsGambits.Denied(GameContext, objective))
                 {
                     objective.SetOwner(null);
-                    GameContext.Log("  Objective denied by the twist - stays neutral this round.");
+                    GameContext.Log($"  {label} denied by the twist - stays neutral this round.");
                     continue;
                 }
                 var nearbyPlayers = PlayersNearObjective(objective, tableState.Models.Objects, modelToUnit);
@@ -66,21 +70,21 @@ namespace FDG.Stages
                 if (nearbyPlayers.Count == 0)
                 {
                     string ownerDesc = objective.OwnerID.HasValue
-                        ? $"player {objective.OwnerID.Value.ID}"
+                        ? $"held by {GameContext.GetPlayerName(objective.OwnerID.Value)}"
                         : "neutral";
-                    GameContext.Log($"  Objective uncontested - remains {ownerDesc}.");
+                    GameContext.Log($"  {label} uncontested - remains {ownerDesc}.");
                 }
                 else if (!resolved.HasValue)
                 {
                     objective.SetOwner(null);
-                    GameContext.Log($"  Objective contested - becomes neutral.");
+                    GameContext.Log($"  {label} contested - becomes neutral.");
                 }
                 else if (objective.OwnerID is { } holder && !tableState.Teams.Objects.Any(t => t.IsPlayerOnTeam(holder) && t.IsPlayerOnTeam(resolved.Value))
                     && await CommandPoints.OfferTotalShutdown(GameContext, holder, resolved.Value))
                 {
                     // Command Points - Total Shutdown: "which becomes neutral instead".
                     objective.SetOwner(null);
-                    GameContext.Log($"  Objective about to be seized - Total Shutdown makes it neutral.");
+                    GameContext.Log($"  {label} about to be seized - Total Shutdown makes it neutral.");
                 }
                 else
                 {
@@ -88,7 +92,7 @@ namespace FDG.Stages
                     // exactly what the old per-player branch did for a solely-held marker, so 1v1
                     // logs (and anything keying on them) are bit-identical.
                     objective.SetOwner(resolved.Value);
-                    GameContext.Log($"  Objective seized by {GameContext.GetPlayerName(resolved.Value)}.");
+                    GameContext.Log($"  {label} seized by {GameContext.GetPlayerName(resolved.Value)}.");
                 }
             }
 
