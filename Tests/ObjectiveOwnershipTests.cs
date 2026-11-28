@@ -241,6 +241,15 @@ namespace FDG.Tests
             Assert.That(lines, Has.None.Contains(holder.ID.ToString()), "no internal player id in the log");
         }
 
+        [Test]
+        public void ObjectivePlacerLine_NamesThePlayer_NotAnId()
+        {
+            var player = new PlayerID(Guid.NewGuid());
+            string line = DetermineNextObjectivePlacerStage.PlacerLine(_ctx, 1, player, 3, 6);
+            Assert.That(line, Does.StartWith("Team 1 (").And.EndWith(") will place objective 3 of 6."));
+            Assert.That(line, Does.Not.Contain(player.ID.ToString()));
+        }
+
         // Helpers
 
         private static void MarkArrivedThisRound(UnitData unit) =>

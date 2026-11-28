@@ -30,7 +30,7 @@ namespace FDG.Stages
                 context.HasStarted = true;
                 var team = context.Cursor.GetCurrentTeam();
                 var player = context.Cursor.GetCurrentPlayerID();
-                context.Log($"Team {team.TeamNumber} (player {player.ID}) will place objective {context.MarkersPlaced + 1} of {context.TotalMarkers}.");
+                context.Log(PlacerLine(context.GameContext, team.TeamNumber, player, context.MarkersPlaced + 1, context.TotalMarkers));
                 await OnPlacerDetermined.Activate(context);
                 return;
             }
@@ -50,8 +50,13 @@ namespace FDG.Stages
                 throw new InvalidOperationException("Cursor failed to advance despite markers remaining.");
             }
 
-            context.Log($"Team {nextTeam.TeamNumber} (player {nextPlayerID.Value.ID}) will place objective {context.MarkersPlaced + 1} of {context.TotalMarkers}.");
+            context.Log(PlacerLine(context.GameContext, nextTeam.TeamNumber, nextPlayerID.Value, context.MarkersPlaced + 1, context.TotalMarkers));
             await OnPlacerDetermined.Activate(context);
         }
+
+        /// <summary>"Team 1 (Kai) will place objective 3 of 6." - the player's name, not their internal id (bug hunt
+        /// 2026-11-28: the line printed the id).</summary>
+        internal static string PlacerLine(IGameContext game, int teamNumber, PlayerID player, int marker, int total) =>
+            $"Team {teamNumber} ({game.GetPlayerName(player)}) will place objective {marker} of {total}.";
     }
 }
