@@ -106,6 +106,10 @@ namespace FDG
         public static string Wings(EGameSystem s) => Fantasy(s) ? "Flying Carpet" : "Conjured Wings";
         public static string Displacement(EGameSystem s) => Fantasy(s) ? "Potion of Displacement" : "Displacement Device";
 
+        /// <summary>What one item is called on a unit card: "Magic Item" in the two Age of Fantasy books ("each Hero may
+        /// equip one magic item"), "Relic" in the two Grimdark Future ones. Bug hunt 2026-11-28: the card said RELIC in AoF.</summary>
+        public static string ItemLabel(EGameSystem s) => Fantasy(s) ? "Magic Item" : "Relic";
+
         public static string OptionName(EGameSystem s) => Fantasy(s) ? "Magic Items" : "Relic Wargear";
 
         private static string Banner(EGameSystem s, string what) => Skirmish(s)
