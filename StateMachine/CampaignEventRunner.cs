@@ -200,7 +200,8 @@ namespace FDG.Stages
                     // Treasury and VP belong to the ARMY, which is not on the table - so the reward rides
                     // one of its units' sheets and the after-game write-back folds it into the campaign
                     // file, the same way a spell count or a first-blood stamp does.
-                    IUnit? bearer = PickScopedUnit(table, fired.Scope, d6, HasSheet);
+                    // "One random army / player": any of its units carries the reward, on the table or not.
+                    IUnit? bearer = PickScopedUnit(table, fired.Scope, d6, HasSheet, onTableOnly: false);
                     if (bearer == null) return "No campaign army could be rewarded, so nothing happened.";
                     // Per system: AoF: Skirmish pays 15pts where the other three pay 25 (#433). VP is
                     // shared, so only GainPoints is re-priced.
@@ -255,7 +256,7 @@ namespace FDG.Stages
         /// "one random unit", or "one random unit that is within 3 inches of any objective marker".
         /// </summary>
         private static IUnit? PickScopedUnit(ITableState table, ECampaignEventScope scope, Func<int> d6,
-            Func<IUnit, bool>? extra = null)
+            Func<IUnit, bool>? extra = null, bool onTableOnly = true)
         {
             Func<IUnit, bool>? filter = extra;
             if (scope == ECampaignEventScope.RandomUnitNearAnyObjective)
@@ -266,7 +267,8 @@ namespace FDG.Stages
                                   && Position.GetDistance2D(mo.Position, m.Position) <= NearObjectiveInches));
             }
 
-            return CampaignEventTargeting.PickOne(CampaignEventTargeting.EventableUnits(table, filter), d6);
+            // Army first, then one of its units (the Advanced Rulebooks' "Rolling for Random Units").
+            return CampaignEventTargeting.PickArmyThenUnit(table, d6, filter, onTableOnly);
         }
 
         // -- Effects ---------------------------------------------------------------------------------

@@ -56,6 +56,35 @@ namespace FDG.Campaign
                 .ToList();
 
         /// <summary>
+        /// "One random unit", the way the Advanced Rulebooks' Campaign Rules v3.6.0 roll it: <i>"If a random event
+        /// calls for randomly selecting a unit from any army you must first randomly select an army for the event,
+        /// and then randomly select a unit to be the target of the event."</i> So each army is equally likely to be
+        /// picked, however many units it has - a single pick among every unit on the table (what this did before)
+        /// hands most events to the bigger army. The army is picked among those with a unit that fits
+        /// <paramref name="filter"/>, so "one random Shaken unit" never lands on an army with none and fizzles.
+        /// <para>
+        /// <paramref name="onTableOnly"/> leaves out units in reserve (Ambush, Escalating Battles' detachments
+        /// still to arrive) and units inside a transport - they are not on the battlefield, so "takes D3 wounds"
+        /// or "must take a Dangerous Terrain Test" can't happen to them. The Battlefield Effects random events
+        /// pick the same way. An army reward (treasury, VP) passes false: the army is the target, not the unit.
+        /// </para>
+        /// </summary>
+        public static IUnit? PickArmyThenUnit(ITableState table, Func<int> d6, Func<IUnit, bool>? filter = null,
+                                              bool onTableOnly = true)
+        {
+            List<IUnit> eligible = EventableUnits(table, u => (!onTableOnly || IsOnTable(u)) && (filter == null || filter(u)));
+            if (eligible.Count == 0) return null;
+            List<PlayerID> armies = eligible.Select(u => u.PlayerID).Distinct()
+                .OrderBy(p => p.ID.ToString(), StringComparer.Ordinal).ToList();
+            PlayerID army = armies[Index(armies.Count, d6)];
+            return PickOne(eligible.Where(u => u.PlayerID.Equals(army)).ToList(), d6);
+        }
+
+        /// <summary>On the battlefield: not waiting in reserve and not carried inside a transport.</summary>
+        public static bool IsOnTable(IUnit unit) =>
+            !Rules.Dispatch.ReserveRules.IsInReserve(unit) && !Rules.Dispatch.TransportUtilities.IsEmbarked(unit);
+
+        /// <summary>
         /// The units of one army, for an event scoped to a single player ("one random unit" in a game
         /// where the event picked an army first).
         /// </summary>

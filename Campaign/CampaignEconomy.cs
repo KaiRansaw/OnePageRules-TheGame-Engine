@@ -71,13 +71,78 @@ namespace FDG.Campaign
         /// is a refund. Works off the compiled cost of both loadouts, so it is right even for options OPR
         /// publishes no price for.
         /// </summary>
-        public static int PriceOfChange(BookFile book, UnitFileEntry unit, BuilderUnit wanted)
+        public static int PriceOfChange(BookFile book, UnitFileEntry unit, BuilderUnit wanted) =>
+            Breakdown(book, unit, wanted).Price;
+
+        /// <summary>
+        /// What a change from the unit's loadout to <paramref name="wanted"/> buys and sells (Campaign Rules v3.6.0,
+        /// "Upgrade Armies"): every upgrade it ADDS is bought at its full price (one worth less than 0pts pays into
+        /// the treasury), and every upgrade it DROPS is sold at <see cref="SellValue"/> - half its price rounded down
+        /// to a 5 - or, for one worth less than 0pts, costs its full price back. A swap within one choice (drop the
+        /// owned option, take another) is both: the old one sold, the new one bought.
+        /// <para>
+        /// Bug hunt 2026-11-28: this used to be the plain difference of the two loadouts' costs, so every sale paid
+        /// back the full price and a swap cost only the gap - <see cref="SellValue"/> existed and was tested but never
+        /// used. Each dropped upgrade is priced as what the unit costs with it minus without it, so the price is
+        /// right for options whose cost depends on the unit (per-model upgrades) too.
+        /// </para>
+        /// </summary>
+        public static SaleBreakdown Breakdown(BookFile book, UnitFileEntry unit, BuilderUnit wanted)
         {
             BuilderUnit? current = Loadout(unit);
-            int now = current == null ? BookCost(unit) : ListCompiler.CompileUnitDetailed(book, current).Unit.PointCost;
-            int then = ListCompiler.CompileUnitDetailed(book, wanted).Unit.PointCost;
-            return then - now;
+            int then = Cost(book, wanted);
+            if (current == null) return new SaleBreakdown(then - BookCost(unit), new List<SoldUpgrade>());
+
+            // Drop the upgrades that are going, one at a time, pricing each as it goes.
+            var sold = new List<SoldUpgrade>();
+            BuilderUnit step = Copy(current);
+            int stepCost = Cost(book, step);
+            foreach (UpgradeChoice had in current.Choices)
+            {
+                int keep = wanted.Choices.Where(w => w.SectionId == had.SectionId && w.OptionId == had.OptionId).Sum(w => w.Count);
+                if (keep >= had.Count) continue;
+                UpgradeChoice mine = step.Choices.First(c => c.SectionId == had.SectionId && c.OptionId == had.OptionId);
+                if (keep > 0) mine.Count = keep; else step.Choices.Remove(mine);
+                int without;
+                try { without = Cost(book, step); }
+                catch (Exception e) when (e is InvalidOperationException or ArgumentException or KeyNotFoundException)
+                {
+                    // A loadout the compiler can't price on its own (a choice that needs the one being dropped):
+                    // fall back to the plain difference rather than refuse the change.
+                    return new SaleBreakdown(then - Cost(book, current), new List<SoldUpgrade>());
+                }
+                sold.Add(new SoldUpgrade($"{had.SectionId}|{had.OptionId}", stepCost - without));
+                stepCost = without;
+            }
+
+            int bought = then - stepCost;          // everything added, at full price
+            int refund = sold.Sum(s => s.Value > 0 ? SellValue(s.Value) : s.Value);
+            return new SaleBreakdown(bought - refund, sold);
         }
+
+        /// <summary>One upgrade a change sells, and what it was worth (its full price).</summary>
+        public readonly record struct SoldUpgrade(string Key, int Value)
+        {
+            /// <summary>The book's special case: a 5pt item sells for 5 on a 4+, and may be tried once per mission.</summary>
+            public bool NeedsRoll => Value == 5;
+        }
+
+        /// <summary>What a change costs (positive) or pays back (negative), and the upgrades it sells.</summary>
+        public readonly record struct SaleBreakdown(int Price, IReadOnlyList<SoldUpgrade> Sold)
+        {
+            /// <summary>True when the change sells a 5pt item, which needs a 4+.</summary>
+            public bool NeedsRoll => Sold.Any(s => s.NeedsRoll);
+        }
+
+        private static int Cost(BookFile book, BuilderUnit loadout) =>
+            ListCompiler.CompileUnitDetailed(book, loadout).Unit.PointCost;
+
+        private static BuilderUnit Copy(BuilderUnit from) => new()
+        {
+            RosterUnitId = from.RosterUnitId, ModelCount = from.ModelCount, Id = from.Id,
+            JoinsUnitId = from.JoinsUnitId, CombinedWithId = from.CombinedWithId,
+            Choices = from.Choices.Select(c => new UpgradeChoice { SectionId = c.SectionId, OptionId = c.OptionId, Count = c.Count }).ToList(),
+        };
 
         /// <summary>
         /// The unit's cost before campaign changes: what the book would charge for it, which is its
@@ -94,16 +159,33 @@ namespace FDG.Campaign
         /// for half what it cost, rounded down to the nearest 5, which <see cref="SellValue"/> works out.
         /// </para>
         /// </summary>
+        /// <param name="d6">The die for selling a 5pt item (a 4+ sells it). Null rolls a real one.</param>
         public static CampaignPurchase ChangeUpgrades(ArmyListFile army, UnitFileEntry unit, BookFile book,
-                                                      BuilderUnit wanted)
+                                                      BuilderUnit wanted, Func<int>? d6 = null)
         {
             if (CampaignRules.Sheet(unit) is not { } sheet) return CampaignPurchase.No("That unit has no campaign sheet.");
             if (Loadout(unit) == null) return CampaignPurchase.No($"{unit.Name} wasn't built from a book, so its upgrades can't be changed.");
 
-            int price = PriceOfChange(book, unit, wanted);
+            SaleBreakdown deal = Breakdown(book, unit, wanted);
+            int price = deal.Price;
             StrikeTeamInfo info = Info(army);
             if (price > info.BankedPoints)
                 return CampaignPurchase.No($"That costs {price} pts and the treasury holds {info.BankedPoints}.");
+
+            // "If an item is only worth 5pts roll one die, on a 1-3 the item can't be sold, on a 4+ it can be sold for
+            // 5pts (you can only try to sell a 5pts item once after each mission)."
+            foreach (SoldUpgrade five in deal.Sold.Where(s => s.NeedsRoll))
+            {
+                if (sheet.SaleTries.Contains(five.Key))
+                    return CampaignPurchase.No("A 5pt upgrade can only be offered for sale once after each mission - try again after the next one.");
+                int roll = Math.Clamp((d6 ?? (() => Random.Shared.Next(1, 7)))(), 1, 6);
+                if (!SellsFivePointItem(() => roll))
+                {
+                    sheet.SaleTries.Add(five.Key);
+                    CampaignRules.Save(unit, sheet);
+                    return CampaignPurchase.No($"Rolled {roll} to sell a 5pt upgrade - it can't be sold (needs a 4+). You can try again after the next mission.");
+                }
+            }
 
             UnitFileEntry rebuilt = ListCompiler.CompileUnitDetailed(book, wanted).Unit;
             SwapInRebuiltUnit(army, unit, rebuilt, sheet);

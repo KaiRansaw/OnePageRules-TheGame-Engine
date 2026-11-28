@@ -76,7 +76,8 @@ namespace FDG.Stages
             // #430: the store too, so the FIRST kill of the game is stamped on the killer's sheet for
             // the campaign's Annihilator objective - a finished table records that units died, never in
             // what order.
-            FirefightCampaign.OnUnitDestroyed(dead, killer, gameContext.GameDataStore, out FirefightCampaign.WantedNews wanted);
+            FirefightCampaign.OnUnitDestroyed(dead, killer, gameContext.GameDataStore, out FirefightCampaign.WantedNews wanted,
+                heroAndItsUnit: Rules.Dispatch.CoreRulesProfile.For(gameContext).CampaignSkillsCoverHeroUnit);
             await AnnounceWanted(gameContext, wanted);
 
             IReadOnlyList<RuleOperation> ops = gameContext.RuleEvaluator.EvaluateAll(

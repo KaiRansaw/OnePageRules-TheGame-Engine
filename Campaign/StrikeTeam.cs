@@ -237,6 +237,13 @@ namespace FDG.Campaign
         /// Always zero in a campaign where permadeath is on, because there the unit is simply gone.
         /// </summary>
         public int MissionsOut { get; set; }
+
+        /// <summary>
+        /// 5pt upgrades the player has already tried to sell since the last mission (Campaign Rules v3.6.0, "Selling
+        /// Upgrades": a 5pt item sells on a 4+, and "you can only try to sell a 5pts item once after each mission").
+        /// Keyed "section|option". Cleared by <see cref="CampaignRules.AfterGame"/>.
+        /// </summary>
+        public List<string> SaleTries { get; set; } = new();
         /// <summary>Counted during a game; cleared when the result is written back.</summary>
         public int Kills { get; set; }
         public int HeroKills { get; set; }

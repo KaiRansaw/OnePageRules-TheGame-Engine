@@ -142,7 +142,7 @@ namespace FDG.Tests
         }
 
         [Test]
-        public void SellingBackRefundsTheDifference()
+        public void SellingBackRefundsHalfThePrice()
         {
             (BuiltArmyFile army, BookFile book) = Started(treasuryLeft: 100);
             UnitFileEntry unit = Troopers(army);
@@ -151,8 +151,10 @@ namespace FDG.Tests
 
             CampaignPurchase back = CampaignEconomy.ChangeUpgrades(army, unit, book, Plain(TrooperId, 5));
             Assert.That(back.Ok, Is.True, back.Message);
-            Assert.That(back.Points, Is.EqualTo(-20));
-            Assert.That(army.StrikeTeam.BankedPoints, Is.EqualTo(100));
+            // Campaign Rules v3.6.0 "Selling Upgrades": half the original price, rounded down to a 5 (bug hunt
+            // 2026-11-28 - this used to refund the full 20).
+            Assert.That(back.Points, Is.EqualTo(-10));
+            Assert.That(army.StrikeTeam.BankedPoints, Is.EqualTo(90));
             Assert.That(unit.Weapons.Any(w => w.Name == "Heavy Rifle"), Is.False);
         }
 

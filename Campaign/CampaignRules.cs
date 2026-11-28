@@ -247,6 +247,10 @@ namespace FDG.Campaign
             // down BEFORE this match's casualties are resolved, so a unit knocked out today starts its
             // full D3 from today rather than losing a mission of it immediately. A unit sitting out
             // never appears in results - it was not on the table - so this is the only place it moves.
+            // A mission has been played: every 5pt upgrade may be offered for sale once more (Selling Upgrades).
+            foreach (UnitFileEntry any in army.Units)
+                if (Sheet(any) is { SaleTries.Count: > 0 } tried) { tried.SaleTries.Clear(); Save(any, tried); }
+
             foreach (UnitFileEntry resting in army.Units)
             {
                 if (Sheet(resting) is not { MissionsOut: > 0 } sheet) continue;

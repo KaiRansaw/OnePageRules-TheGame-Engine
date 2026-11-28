@@ -32,33 +32,58 @@ namespace FDG.Stages
         /// and - when <paramref name="store"/> is given - stamps the first kill of the game for the
         /// campaign's Annihilator objective.
         /// </summary>
-        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null) =>
-            OnUnitDestroyed(dead, killer, store, out _);
+        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store = null,
+                                           bool heroAndItsUnit = false) =>
+            OnUnitDestroyed(dead, killer, store, out _, heroAndItsUnit);
 
         /// <summary>
         /// <see cref="OnUnitDestroyed(IUnit, IUnit, IReadableGameDataStore?)"/>, also saying what happened to the
         /// homebrew wanted posters (house rule B29) so the caller can announce it.
         /// </summary>
-        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store, out WantedNews news)
+        /// <param name="heroAndItsUnit">
+        /// Grimdark Future and Age of Fantasy (Campaign Rules v3.6.0, "Earning XP"): <i>"+3 XP: Killed a Hero and
+        /// its unit"</i> and <i>"Heroes attached to units also earn XP with the unit."</i> The skirmish books print
+        /// neither line. Pass <see cref="Rules.Dispatch.CoreRulesProfile.CampaignSkillsCoverHeroUnit"/> for the game.
+        /// </param>
+        public static void OnUnitDestroyed(IUnit dead, IUnit killer, IReadableGameDataStore? store, out WantedNews news,
+                                           bool heroAndItsUnit = false)
         {
             news = Posters(dead, killer);
-            if (killer is not UnitData data || StrikeUnit.FromJson(data.StrikeUnitJson) is not { } sheet) return;
+            if (killer is not UnitData data) return;
             // #414: killing a named character is a Hero kill. It carries "Unique Hero" instead of "Hero",
             // so this scored it as an ordinary kill - 1 XP rather than 2. (In a live game the supplement's
             // addRule grant has usually landed by now and Has would find "Hero" anyway; checking both
             // names means the tally does not depend on that having fired.)
-            if (Rules.Dispatch.CoreRuleCatalog.HeroRuleNames.Any(name => Has(dead, name)))
-                sheet.HeroKills++;
-            else sheet.Kills++;
+            bool heroKill = Rules.Dispatch.CoreRuleCatalog.HeroRuleNames.Any(name => Has(dead, name))
+                            || (dead as UnitData)?.HeroAttachment != null;
+            // Bug hunt 2026-11-28: a unit led by a joined Hero is "a Hero and its unit" - +3 XP, which the
+            // after-game sum (Kills + 2 x HeroKills) reaches as one of each. It used to count only the Hero (+2).
+            bool heroAndUnit = heroAndItsUnit && (dead as UnitData)?.HeroAttachment != null;
 
-            // #430 Annihilator: the first kill of the game, stamped on the unit that made it. "First" is
-            // the whole question and a finished table cannot answer it, so it has to be recorded as it
-            // happens. Claimed only if nobody else holds it - one scan of the table's units per kill,
-            // which is nothing beside the attack that just resolved.
-            if (store != null && !sheet.DrewFirstBlood && !AnyoneHasFirstBlood(store))
-                sheet.DrewFirstBlood = true;
+            // The killer's own sheet - and, in GF / AoF, a Hero joined to the killer earns the kill with it. Before
+            // this the joined Hero's sheet (kept on its attachment) never counted a kill, so it only ever earned
+            // the +1 for not being a casualty.
+            if (StrikeUnit.FromJson(data.StrikeUnitJson) is { } sheet)
+            {
+                Credit(sheet, heroKill, heroAndUnit);
+                if (store != null && !sheet.DrewFirstBlood && !AnyoneHasFirstBlood(store))
+                    sheet.DrewFirstBlood = true;
+                data.StrikeUnitJson = sheet.ToJson();
+            }
+            // Only while the Hero is still with them: one that has already fallen earns nothing more.
+            if (heroAndItsUnit && data.HeroAttachment is { StrikeUnitJson: { } heroJson } attached
+                && data.Models.Any(m => m.ID.Equals(attached.HeroModelId) && m.GetIsAlive())
+                && StrikeUnit.FromJson(heroJson) is { } heroSheet)
+            {
+                Credit(heroSheet, heroKill, heroAndUnit);
+                data.HeroAttachment.StrikeUnitJson = heroSheet.ToJson();
+            }
+        }
 
-            data.StrikeUnitJson = sheet.ToJson();
+        private static void Credit(StrikeUnit sheet, bool heroKill, bool heroAndUnit)
+        {
+            if (heroKill) sheet.HeroKills++;
+            if (!heroKill || heroAndUnit) sheet.Kills++;
         }
 
         /// <summary>What a death did to the wanted posters: a bounty claimed and/or a poster put up (or raised).</summary>
