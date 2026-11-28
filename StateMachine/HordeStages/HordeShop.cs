@@ -188,6 +188,10 @@ namespace FDG.Stages
                     objectiveFor[unit] = objectives.FirstOrDefault(o => o.Number == number) ?? objectives[0];
                 });
 
+            // Spell Books: a recruited caster rolls its book like the casters that started the game (units that already
+            // have one are skipped).
+            await AdvancedCasting.Settle(gameContext);
+
             foreach (UnitData unit in survivors)
             {
                 HordeShopObjective objective = objectiveFor.TryGetValue(unit, out HordeShopObjective? o) ? o : objectives[0];

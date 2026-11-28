@@ -39,6 +39,12 @@ namespace FDG.Stages
 
             float w = HordePlacement.TableWidth, h = HordePlacement.TableHeight;
 
+            // The Advanced Rulebooks' "before the game begins" picks, as the standard deployment makes them
+            // (DetermineNextDeployPlayerStage). Bug hunt 2026-11-28: Horde skipped them, so with Spell Books, Living
+            // Spells or Relic Wargear / Magic Items ticked no caster got a book, no army got its living spells and no
+            // Hero its item - the options did nothing. Command Points settles here too (it also settles on first use).
+            await SettleBeforeTheGame(GameContext);
+
             GameContext.Log($"Horde Mode: defenders deploy within {FDG.StateMachine.HordeRules.DeploymentRadiusInches:0}\" of the table centre.");
             await DeployDefenders(units.Where(u => defenders.Contains(u.PlayerID)).ToList(),
                 radius => new CircularZone(w / 2f, h / 2f, radius));
@@ -61,6 +67,16 @@ namespace FDG.Stages
             context.SetFirstDeploymentRollOrder(order);
 
             await ToMain.Activate(context);
+        }
+
+        /// <summary>Command Points, Spell Books, Living Spells and Relic Wargear / Magic Items, each only when its option
+        /// is on (each step checks for itself and does nothing twice).</summary>
+        internal static async Task SettleBeforeTheGame(IGameContext c)
+        {
+            await CommandPoints.Settle(c);
+            await AdvancedCasting.Settle(c);
+            await LivingSpells.Settle(c);
+            await RelicWargear.Settle(c);
         }
 
         private sealed record PlacedUnit(UnitData Unit, List<PlacedObjectEntry<ModelData>> Placements);

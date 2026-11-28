@@ -167,7 +167,10 @@ namespace FDG
         /// <summary>
         /// Options that only change how a STANDARD game deploys or how long it lasts: Escalating Battles (and its two
         /// add-ons), Surprise Engagement, Prolonged Battle and the Tactical Phase's Forward Positions / Battle
-        /// Preparations. Horde Mode deploys by its own book ("First the defenders place all their units within 6"/9"
+        /// Preparations - and Army Terrain, which is placed in the standard deployment ("placed as if they were a regular
+        /// unit, but they can't be placed within 6" of any objective marker, or the table edges"; in Firefight / Skirmish
+        /// Horde the defenders' 6" circle sits on the centre objective and enemies deploy within 6" of a corner, so it
+        /// can't even be placed by the book). Horde Mode deploys by its own book ("First the defenders place all their units within 6"/9"
         /// of the table centre, and then enemies are deployed ... random table corners") and ends by it ("The
         /// defenders have successfully finished round 12"), so the engine never runs these there - and the lobby
         /// must not offer them there either (bug hunt 2026-11-28: they could be ticked in a Horde lobby and did
@@ -176,7 +179,8 @@ namespace FDG
         public const EAdvancedRules StandardGameOnly =
             EAdvancedRules.EscalatingBattles | EAdvancedRules.EscalatingRandomArrival | EAdvancedRules.EscalatingFlexibleStrategies
             | EAdvancedRules.SurpriseEngagement | EAdvancedRules.ProlongedBattle
-            | EAdvancedRules.ForwardPositions | EAdvancedRules.BattlePreparations;
+            | EAdvancedRules.ForwardPositions | EAdvancedRules.BattlePreparations
+            | EAdvancedRules.ArmyTerrain;
 
         /// <summary>Whether the lobby offers this option for this game AND mode (see <see cref="StandardGameOnly"/>).</summary>
         public static bool AppliesIn(AdvancedRuleOption option, EGameSystem system, EGameMode mode) =>
